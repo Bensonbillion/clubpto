@@ -1,9 +1,13 @@
-const placeholderImages = [
-  { id: 1, alt: "Players celebrating after a match" },
-  { id: 2, alt: "Wednesday night padel session" },
-  { id: 3, alt: "Club PTO community" },
-  { id: 4, alt: "Padel court action shot" },
-  { id: 5, alt: "Post-game social gathering" },
+import gallery1 from "@/assets/gallery-1.jpg";
+import gallery2 from "@/assets/gallery-2.jpg";
+import gallery3 from "@/assets/gallery-3.jpg";
+import gallery4 from "@/assets/gallery-4.jpg";
+
+const galleryImages = [
+  { id: 1, src: gallery1, alt: "Club PTO members after a match" },
+  { id: 2, src: gallery2, alt: "Club PTO community vibes" },
+  { id: 3, src: gallery3, alt: "Players on the padel court" },
+  { id: 4, src: gallery4, alt: "Wednesday night crew" },
 ];
 
 const PhotoGallery = () => {
@@ -20,12 +24,12 @@ const PhotoGallery = () => {
             </h2>
           </div>
           <a 
-            href="https://instagram.com" 
+            href="https://www.instagram.com/club_pto/" 
             target="_blank" 
             rel="noopener noreferrer"
             className="hidden md:flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors font-body"
           >
-            Follow @clubpto
+            Follow @club_pto
             <span className="text-xl">→</span>
           </a>
         </div>
@@ -33,26 +37,17 @@ const PhotoGallery = () => {
 
       {/* Scrolling gallery */}
       <div className="flex gap-4 overflow-x-auto pb-6 px-6 lg:px-12 snap-x snap-mandatory scrollbar-hide">
-        {placeholderImages.map((image) => (
+        {galleryImages.map((image) => (
           <div 
             key={image.id}
             className="flex-shrink-0 snap-start"
           >
-            <div className="w-72 h-80 md:w-80 md:h-96 bg-muted rounded-lg overflow-hidden group cursor-pointer">
-              {/* Placeholder - will be replaced with real images */}
-              <div className="w-full h-full bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center">
-                <div className="text-center p-6">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="font-display text-2xl text-primary">{image.id}</span>
-                  </div>
-                  <p className="font-body text-sm text-muted-foreground">
-                    {image.alt}
-                  </p>
-                  <p className="font-body text-xs text-muted-foreground/60 mt-2">
-                    Photo placeholder
-                  </p>
-                </div>
-              </div>
+            <div className="w-72 h-80 md:w-80 md:h-96 rounded-lg overflow-hidden group cursor-pointer">
+              <img 
+                src={image.src} 
+                alt={image.alt}
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
             </div>
           </div>
         ))}
@@ -61,12 +56,12 @@ const PhotoGallery = () => {
       {/* Mobile Instagram link */}
       <div className="container mx-auto px-6 mt-6 md:hidden">
         <a 
-          href="https://instagram.com" 
+          href="https://www.instagram.com/club_pto/" 
           target="_blank" 
           rel="noopener noreferrer"
           className="flex items-center justify-center gap-2 text-muted-foreground hover:text-foreground transition-colors font-body"
         >
-          Follow @clubpto on Instagram
+          Follow @club_pto on Instagram
           <span className="text-xl">→</span>
         </a>
       </div>
