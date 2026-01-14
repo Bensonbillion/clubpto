@@ -70,12 +70,22 @@ const BookingSection = () => {
     setIsSuccess(false);
   };
 
+  const maxAvailable = selectedSession ? Math.min(selectedSession.spots_remaining, 8) : 8;
+
   const decrementQuantity = () => {
     if (quantity > 1) setQuantity(quantity - 1);
   };
 
   const incrementQuantity = () => {
-    if (quantity < 8) setQuantity(quantity + 1);
+    if (quantity < maxAvailable) setQuantity(quantity + 1);
+  };
+
+  // Reset quantity if it exceeds available spots when session changes
+  const handleSessionSelect = (session: Session) => {
+    setSelectedSession(session);
+    if (quantity > session.spots_remaining) {
+      setQuantity(Math.max(1, session.spots_remaining));
+    }
   };
 
   return (
@@ -132,30 +142,39 @@ const BookingSection = () => {
                     {sessions?.map((session) => {
                       const { day, date } = formatSessionDate(session.session_date);
                       const isSelected = selectedSession?.id === session.id;
+                      const isSoldOut = session.spots_remaining <= 0;
 
                       return (
                         <button
                           key={session.id}
-                          onClick={() => setSelectedSession(session)}
+                          onClick={() => !isSoldOut && handleSessionSelect(session)}
+                          disabled={isSoldOut}
                           className={`
-                            relative p-6 text-left transition-all duration-300 border overflow-hidden cursor-pointer
-                            ${isSelected 
-                              ? "bg-primary text-primary-foreground border-primary" 
-                              : "bg-card/50 border-border hover:border-primary/50"
+                            relative p-6 text-left transition-all duration-300 border overflow-hidden
+                            ${isSoldOut
+                              ? "bg-muted/30 border-border opacity-60 cursor-not-allowed"
+                              : isSelected 
+                                ? "bg-primary text-primary-foreground border-primary cursor-pointer" 
+                                : "bg-card/50 border-border hover:border-primary/50 cursor-pointer"
                             }
                           `}
                         >
-                          {isSelected && (
+                          {isSoldOut && (
+                            <div className="absolute top-3 right-3 bg-destructive text-destructive-foreground px-2 py-1 text-xs font-body uppercase tracking-wider">
+                              Sold Out
+                            </div>
+                          )}
+                          {isSelected && !isSoldOut && (
                             <div className="absolute top-3 right-3">
                               <Check className="w-5 h-5" />
                             </div>
                           )}
-                          <p className="font-display text-3xl mb-1">{day}</p>
-                          <p className={`font-body text-sm ${isSelected ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                          <p className={`font-display text-3xl mb-1 ${isSoldOut ? "text-muted-foreground" : ""}`}>{day}</p>
+                          <p className={`font-body text-sm ${isSoldOut ? "text-muted-foreground" : isSelected ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
                             {date}
                           </p>
                           <div className="mt-4 flex items-center gap-4 text-sm">
-                            <span className={`flex items-center gap-1 ${isSelected ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
+                            <span className={`flex items-center gap-1 ${isSoldOut ? "text-muted-foreground" : isSelected ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
                               <Clock className="w-4 h-4" />
                               8PM
                             </span>
@@ -223,7 +242,7 @@ const BookingSection = () => {
                             type="button"
                             onClick={incrementQuantity}
                             className="w-12 h-12 border border-border flex items-center justify-center hover:border-primary transition-colors disabled:opacity-30"
-                            disabled={quantity >= 8}
+                            disabled={quantity >= maxAvailable}
                           >
                             <Plus className="w-4 h-4" />
                           </button>
