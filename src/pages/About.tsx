@@ -21,8 +21,8 @@ const steps = [
   },
   {
     number: "03",
-    title: "Play & Rotate",
-    description: "New partners each round. Games guaranteed."
+    title: "Play & Connect",
+    description: "Compete, meet new players, have fun."
   }
 ];
 
