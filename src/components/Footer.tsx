@@ -1,75 +1,69 @@
-import { Instagram, Mail, ArrowUpRight } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Instagram, Mail } from "lucide-react";
 
 const Footer = () => {
   return (
-    <footer className="relative border-t border-border">
-      {/* Main Footer */}
-      <div className="container mx-auto px-6 lg:px-12 py-20 lg:py-28">
-        <div className="grid lg:grid-cols-2 gap-16">
-          {/* Left: Brand */}
+    <footer className="border-t border-border bg-background">
+      <div className="container mx-auto px-4 py-12 md:py-16">
+        <div className="grid md:grid-cols-2 gap-10">
+          {/* Brand */}
           <div>
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center">
-                <span className="font-display text-primary font-bold text-xl">P</span>
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-10 h-10 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center">
+                <span className="font-display text-primary font-bold text-lg">P</span>
               </div>
-              <span className="font-display text-3xl tracking-wide">Club PTO</span>
+              <span className="font-display text-2xl tracking-wide">Club PTO</span>
             </div>
-            <p className="font-body text-muted-foreground max-w-md leading-relaxed mb-8">
+            <p className="font-body text-sm text-muted-foreground max-w-sm leading-relaxed mb-6">
               Toronto's weekly padel ritual. Every Wednesday at 8PM, 
-              we play, rotate, and connect. This is community.
+              we play, rotate, and connect.
             </p>
-            <blockquote className="font-display text-2xl italic text-primary">
+            <blockquote className="font-display text-lg italic text-primary">
               "Not your average padel club"
             </blockquote>
           </div>
 
-          {/* Right: Links & Contact */}
-          <div className="grid sm:grid-cols-2 gap-12 lg:justify-end">
+          {/* Links */}
+          <div className="grid grid-cols-2 gap-8">
             <div>
-              <h4 className="font-body text-sm tracking-[0.2em] uppercase text-muted-foreground mb-6">
-                Quick Links
+              <h4 className="font-body text-xs tracking-[0.15em] uppercase text-muted-foreground mb-4">
+                Navigate
               </h4>
-              <nav className="space-y-4">
-                <a 
-                  href="#how-it-works" 
-                  className="group flex items-center gap-2 font-body text-foreground hover:text-primary transition-colors"
-                >
-                  How It Works
-                  <ArrowUpRight className="w-4 h-4 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
-                </a>
-                <a 
-                  href="#booking" 
-                  className="group flex items-center gap-2 font-body text-foreground hover:text-primary transition-colors"
-                >
+              <nav className="space-y-3">
+                <Link to="/" className="block font-body text-sm text-foreground hover:text-primary transition-colors">
+                  Home
+                </Link>
+                <Link to="/book" className="block font-body text-sm text-foreground hover:text-primary transition-colors">
                   Book a Session
-                  <ArrowUpRight className="w-4 h-4 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
-                </a>
+                </Link>
+                <Link to="/about" className="block font-body text-sm text-foreground hover:text-primary transition-colors">
+                  About
+                </Link>
+                <Link to="/faq" className="block font-body text-sm text-foreground hover:text-primary transition-colors">
+                  FAQ
+                </Link>
               </nav>
             </div>
 
             <div>
-              <h4 className="font-body text-sm tracking-[0.2em] uppercase text-muted-foreground mb-6">
+              <h4 className="font-body text-xs tracking-[0.15em] uppercase text-muted-foreground mb-4">
                 Connect
               </h4>
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <a 
                   href="https://www.instagram.com/club_pto/" 
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group flex items-center gap-3 font-body text-foreground hover:text-primary transition-colors"
+                  className="flex items-center gap-2 font-body text-sm text-foreground hover:text-primary transition-colors"
                 >
-                  <div className="w-10 h-10 border border-border flex items-center justify-center group-hover:border-primary transition-colors">
-                    <Instagram className="w-5 h-5" />
-                  </div>
+                  <Instagram className="w-4 h-4" />
                   @club_pto
                 </a>
                 <a 
                   href="mailto:hello@clubpto.com"
-                  className="group flex items-center gap-3 font-body text-foreground hover:text-primary transition-colors"
+                  className="flex items-center gap-2 font-body text-sm text-foreground hover:text-primary transition-colors"
                 >
-                  <div className="w-10 h-10 border border-border flex items-center justify-center group-hover:border-primary transition-colors">
-                    <Mail className="w-5 h-5" />
-                  </div>
+                  <Mail className="w-4 h-4" />
                   hello@clubpto.com
                 </a>
               </div>
@@ -78,13 +72,13 @@ const Footer = () => {
         </div>
       </div>
 
-      {/* Bottom bar */}
+      {/* Bottom Bar */}
       <div className="border-t border-border">
-        <div className="container mx-auto px-6 lg:px-12 py-6 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="font-body text-sm text-muted-foreground">
+        <div className="container mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-2">
+          <p className="font-body text-xs text-muted-foreground">
             © {new Date().getFullYear()} Club PTO. Toronto, Canada.
           </p>
-          <p className="font-body text-sm text-muted-foreground">
+          <p className="font-body text-xs text-muted-foreground">
             Made with ♡ for the padel community
           </p>
         </div>
