@@ -2,6 +2,7 @@ import gallery1 from "@/assets/gallery-1.jpg";
 import gallery2 from "@/assets/gallery-2.jpg";
 import gallery3 from "@/assets/gallery-3.jpg";
 import gallery4 from "@/assets/gallery-4.jpg";
+import { Instagram } from "lucide-react";
 
 const galleryImages = [
   { id: 1, src: gallery1, alt: "Club PTO members after a match" },
@@ -12,58 +13,74 @@ const galleryImages = [
 
 const PhotoGallery = () => {
   return (
-    <section className="py-24 lg:py-32 overflow-hidden">
-      <div className="container mx-auto px-6 lg:px-12 mb-12">
-        <div className="flex justify-between items-end">
+    <section className="py-32 lg:py-40 overflow-hidden bg-card/50">
+      {/* Section Header */}
+      <div className="container mx-auto px-6 lg:px-12 mb-16">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
           <div>
-            <span className="text-sm font-body tracking-[0.2em] uppercase text-accent mb-4 block">
+            <span className="font-body text-sm tracking-[0.25em] uppercase text-accent mb-4 block">
               The Community
             </span>
-            <h2 className="font-display text-4xl md:text-5xl font-semibold">
-              Wednesdays in Action
+            <h2 className="font-display text-5xl md:text-6xl lg:text-7xl font-medium">
+              Wednesday<br />
+              <span className="italic text-primary">Nights</span>
             </h2>
           </div>
           <a 
             href="https://www.instagram.com/club_pto/" 
             target="_blank" 
             rel="noopener noreferrer"
-            className="hidden md:flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors font-body"
+            className="group flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors font-body"
           >
-            Follow @club_pto
-            <span className="text-xl">→</span>
+            <Instagram className="w-5 h-5" />
+            <span>Follow the journey</span>
+            <span className="text-xl group-hover:translate-x-1 transition-transform">→</span>
           </a>
         </div>
       </div>
 
-      {/* Scrolling gallery */}
-      <div className="flex gap-4 overflow-x-auto pb-6 px-6 lg:px-12 snap-x snap-mandatory scrollbar-hide">
-        {galleryImages.map((image) => (
-          <div 
-            key={image.id}
-            className="flex-shrink-0 snap-start"
-          >
-            <div className="w-72 h-80 md:w-80 md:h-96 rounded-lg overflow-hidden group cursor-pointer">
+      {/* Bento Grid Gallery */}
+      <div className="container mx-auto px-6 lg:px-12">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 lg:gap-6">
+          {/* Large featured image */}
+          <div className="col-span-2 row-span-2 group relative overflow-hidden">
+            <img 
+              src={galleryImages[0].src} 
+              alt={galleryImages[0].alt}
+              className="w-full h-full object-cover aspect-square transition-transform duration-700 group-hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <div className="absolute bottom-0 left-0 p-6 opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-y-4 group-hover:translate-y-0">
+              <p className="font-display text-xl text-primary">The Crew</p>
+            </div>
+          </div>
+
+          {/* Other images */}
+          {galleryImages.slice(1).map((image, index) => (
+            <div 
+              key={image.id}
+              className="group relative overflow-hidden aspect-square"
+            >
               <img 
                 src={image.src} 
                 alt={image.alt}
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
               />
+              <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            </div>
+          ))}
+
+          {/* Quote card */}
+          <div className="col-span-2 md:col-span-1 bg-muted/30 border border-border p-8 flex flex-col justify-center">
+            <blockquote className="font-display text-2xl italic leading-relaxed">
+              "Not your average padel club"
+            </blockquote>
+            <div className="mt-4 flex items-center gap-2">
+              <div className="w-8 h-px bg-accent" />
+              <span className="font-body text-sm text-accent">Club PTO</span>
             </div>
           </div>
-        ))}
-      </div>
-
-      {/* Mobile Instagram link */}
-      <div className="container mx-auto px-6 mt-6 md:hidden">
-        <a 
-          href="https://www.instagram.com/club_pto/" 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="flex items-center justify-center gap-2 text-muted-foreground hover:text-foreground transition-colors font-body"
-        >
-          Follow @club_pto on Instagram
-          <span className="text-xl">→</span>
-        </a>
+        </div>
       </div>
     </section>
   );

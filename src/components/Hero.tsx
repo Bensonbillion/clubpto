@@ -1,78 +1,123 @@
 import { Button } from "@/components/ui/button";
-import { ArrowDown } from "lucide-react";
+import { ArrowRight, Instagram } from "lucide-react";
+import heroCourt from "@/assets/hero-court.jpg";
 
 const Hero = () => {
   const scrollToBooking = () => {
     document.getElementById("booking")?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const scrollToHowItWorks = () => {
-    document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" });
-  };
-
   return (
-    <section className="min-h-screen flex items-center relative overflow-hidden">
-      {/* Subtle decorative elements */}
-      <div className="absolute top-20 right-10 w-64 h-64 bg-secondary/50 rounded-full blur-3xl" />
-      <div className="absolute bottom-20 left-10 w-48 h-48 bg-accent/10 rounded-full blur-3xl" />
+    <section className="relative min-h-screen flex items-center overflow-hidden">
+      {/* Background Image with Overlay */}
+      <div className="absolute inset-0 z-0">
+        <img 
+          src={heroCourt} 
+          alt="Padel court at night" 
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/90 to-background/40" />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+      </div>
+
+      {/* Decorative elements */}
+      <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
       
-      <div className="container mx-auto px-6 lg:px-12 relative z-10">
+      {/* Navigation */}
+      <nav className="absolute top-0 left-0 right-0 z-20 p-6 lg:p-10">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center">
+              <span className="font-display text-primary font-bold text-lg">P</span>
+            </div>
+            <span className="font-display text-xl tracking-wide">Club PTO</span>
+          </div>
+          <a 
+            href="https://www.instagram.com/club_pto/" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
+          >
+            <Instagram className="w-5 h-5" />
+            <span className="hidden sm:inline font-body text-sm">@club_pto</span>
+          </a>
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <div className="relative z-10 container mx-auto px-6 lg:px-12 pt-24">
         <div className="max-w-3xl">
-          {/* Logo/Brand mark */}
-          <div className="mb-8 animate-fade-in" style={{ animationDelay: "0.1s" }}>
-            <span className="text-sm font-body tracking-[0.3em] uppercase text-muted-foreground">
-              Club PTO
+          {/* Eyebrow */}
+          <div 
+            className="flex items-center gap-3 mb-8 opacity-0 animate-fade-up"
+            style={{ animationDelay: "0.2s" }}
+          >
+            <div className="h-px w-12 bg-primary" />
+            <span className="font-body text-sm tracking-[0.25em] uppercase text-primary">
+              Toronto's Wednesday Ritual
             </span>
           </div>
 
-          {/* Main headline */}
+          {/* Main Headline */}
           <h1 
-            className="font-display text-5xl md:text-7xl lg:text-8xl font-semibold tracking-tight leading-[0.9] mb-6 animate-fade-in opacity-0"
-            style={{ animationDelay: "0.2s" }}
-          >
-            Play.<br />
-            Rotate.<br />
-            <span className="text-accent">Connect.</span>
-          </h1>
-
-          {/* Subheadline */}
-          <p 
-            className="font-body text-lg md:text-xl text-muted-foreground max-w-xl mb-10 animate-fade-in opacity-0"
+            className="font-display text-6xl md:text-7xl lg:text-9xl font-medium tracking-tight leading-[0.85] mb-8 opacity-0 animate-fade-up"
             style={{ animationDelay: "0.4s" }}
           >
-            Every Wednesday at 8PM, Toronto's padel community comes together. 
-            CA$15 gets you matched, played, and part of the club.
+            Play.<br />
+            <span className="italic text-primary">Rotate.</span><br />
+            Connect.
+          </h1>
+
+          {/* Subtitle */}
+          <p 
+            className="font-body text-lg md:text-xl text-muted-foreground max-w-lg mb-12 leading-relaxed opacity-0 animate-fade-up"
+            style={{ animationDelay: "0.6s" }}
+          >
+            Every Wednesday at 8PM, we come together. CA$15 gets you matched, 
+            played, and part of something special.
           </p>
 
-          {/* CTAs */}
+          {/* CTA */}
           <div 
-            className="flex flex-col sm:flex-row gap-4 animate-fade-in opacity-0"
-            style={{ animationDelay: "0.6s" }}
+            className="flex flex-col sm:flex-row gap-4 opacity-0 animate-fade-up"
+            style={{ animationDelay: "0.8s" }}
           >
             <Button 
               size="lg" 
               onClick={scrollToBooking}
-              className="font-body text-base px-8 py-6 bg-primary hover:bg-primary/90 transition-all duration-300"
+              className="group font-body text-base px-8 py-7 bg-primary hover:bg-primary/90 text-primary-foreground rounded-none transition-all duration-300 animate-pulse-glow"
             >
-              Book Wednesday
+              Book This Wednesday
+              <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
             </Button>
-            <Button 
-              variant="ghost" 
-              size="lg"
-              onClick={scrollToHowItWorks}
-              className="font-body text-base text-muted-foreground hover:text-foreground group"
-            >
-              How It Works
-              <ArrowDown className="ml-2 h-4 w-4 group-hover:translate-y-1 transition-transform" />
-            </Button>
+          </div>
+
+          {/* Stats */}
+          <div 
+            className="flex gap-12 mt-16 pt-8 border-t border-border/50 opacity-0 animate-fade-up"
+            style={{ animationDelay: "1s" }}
+          >
+            <div>
+              <p className="font-display text-4xl md:text-5xl text-primary">8PM</p>
+              <p className="font-body text-sm text-muted-foreground mt-1">Every Wednesday</p>
+            </div>
+            <div>
+              <p className="font-display text-4xl md:text-5xl text-primary">$15</p>
+              <p className="font-body text-sm text-muted-foreground mt-1">Per Session</p>
+            </div>
+            <div>
+              <p className="font-display text-4xl md:text-5xl text-primary">16</p>
+              <p className="font-body text-sm text-muted-foreground mt-1">Players Max</p>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Scroll indicator */}
-      <div className="absolute bottom-10 left-1/2 -translate-x-1/2 animate-bounce">
-        <div className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 flex justify-center pt-2">
-          <div className="w-1 h-2 bg-muted-foreground/50 rounded-full" />
+      <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-10">
+        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+          <span className="font-body text-xs tracking-widest uppercase">Scroll</span>
+          <div className="w-px h-12 bg-gradient-to-b from-primary to-transparent" />
         </div>
       </div>
     </section>
