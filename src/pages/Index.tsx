@@ -34,7 +34,7 @@ const Index = () => {
             {/* Main Headline */}
             <h1 className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-medium tracking-tight leading-[0.85] mb-6">
               Play.<br />
-              <span className="italic text-primary">Rotate.</span><br />
+              <span className="italic text-primary">Compete.</span><br />
               Connect.
             </h1>
 
@@ -72,10 +72,6 @@ const Index = () => {
                 <p className="font-display text-3xl md:text-4xl text-primary">8PM</p>
                 <p className="font-body text-xs text-muted-foreground mt-1">Every Wednesday</p>
               </div>
-              <div>
-                <p className="font-display text-3xl md:text-4xl text-accent">20</p>
-                <p className="font-body text-xs text-muted-foreground mt-1">Spots per session</p>
-              </div>
             </div>
           </div>
         </div>
@@ -98,9 +94,9 @@ const Index = () => {
               </p>
             </div>
             <div className="p-6 border border-border bg-background/50">
-              <h3 className="font-display text-lg mb-2">Rotating Partners</h3>
+              <h3 className="font-display text-lg mb-2">Meet New Players</h3>
               <p className="font-body text-sm text-muted-foreground">
-                Meet new people every round.
+                Expand your network on the court.
               </p>
             </div>
           </div>
