@@ -1,7 +1,7 @@
 import Layout from "@/components/Layout";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Sparkles, Users, Trophy } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import heroCourt from "@/assets/hero-court.jpg";
 import playersDuo from "@/assets/players-duo.jpg";
 import courtAction from "@/assets/court-action.jpg";
@@ -12,8 +12,15 @@ import highlightVideo from "@/assets/highlight-video.mp4";
 const Index = () => {
   return (
     <Layout hideFooter>
+      {/* Top Banner - Club Identity */}
+      <div className="bg-primary/10 border-b border-primary/20 py-2 text-center animate-fade-up">
+        <span className="font-body text-[10px] md:text-xs tracking-[0.3em] uppercase text-primary/90 font-medium">
+          Toronto's Weekly Padel Social
+        </span>
+      </div>
+
       {/* Hero Section - Full viewport with enhanced visuals */}
-      <section className="relative min-h-[calc(100vh-3.5rem)] flex items-center overflow-hidden">
+      <section className="relative min-h-[calc(100vh-4rem)] flex items-center overflow-hidden">
         {/* Background Image with enhanced overlays */}
         <div className="absolute inset-0 z-0">
           <img 
@@ -24,90 +31,88 @@ const Index = () => {
           {/* Multi-layer gradient for depth */}
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/30" />
           <div className="absolute inset-0 bg-gradient-to-r from-background via-background/60 to-transparent" />
-          {/* Subtle radial glow */}
-          <div className="absolute inset-0 bg-gradient-radial opacity-50" />
-          <div className="absolute inset-0 bg-gradient-radial-accent" />
         </div>
 
         {/* Content */}
         <div className="relative z-10 container mx-auto px-4 py-12">
           <div className="max-w-2xl">
-            {/* Eyebrow with enhanced styling */}
-            <div className="flex items-center gap-3 mb-8 animate-fade-up">
-              <div className="h-px w-12 bg-gradient-to-r from-primary to-transparent" />
-              <span className="font-body text-xs md:text-sm tracking-[0.25em] uppercase text-primary font-medium">
-                Toronto's Wednesday Ritual
+            {/* Urgency Badge */}
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-accent/20 border border-accent/40 mb-8 animate-fade-up">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
+              </span>
+              <span className="font-body text-xs tracking-wide uppercase text-accent font-medium">
+                Limited spots · Wednesdays 8PM
               </span>
             </div>
 
-            {/* Main Headline with staggered animation */}
-            <h1 className="font-display text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-medium tracking-tight leading-[0.85] mb-8">
-              <span className="block animate-fade-up">Play.</span>
-              <span className="block italic text-gradient animate-fade-up-delay-1">Compete.</span>
-              <span className="block animate-fade-up-delay-2">Connect.</span>
+            {/* Main Headline - Bigger statement */}
+            <h1 className="font-display text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-medium tracking-tight leading-[0.9] mb-6">
+              <span className="block animate-fade-up text-foreground/90">The Wednesday</span>
+              <span className="block animate-fade-up-delay-1">
+                <span className="italic text-gradient">Padel</span> Night
+              </span>
+              <span className="block animate-fade-up-delay-2 text-foreground/90">You've Been</span>
+              <span className="block animate-fade-up-delay-2">
+                <span className="italic text-gradient-gold">Missing</span>
+              </span>
             </h1>
 
-            {/* Subtitle */}
-            <p className="font-body text-lg md:text-xl text-muted-foreground max-w-md mb-10 leading-relaxed animate-fade-up-delay-2">
-              Every Wednesday at 8PM, we come together to play, 
-              meet new players, and be part of something special.
+            {/* Subtitle - More specific value prop */}
+            <p className="font-body text-base md:text-lg text-muted-foreground max-w-md mb-8 leading-relaxed animate-fade-up-delay-2">
+              2 hours of rotating matches, cold drinks after, and a crew that actually shows up. Every week.
             </p>
 
-            {/* CTAs with enhanced styling */}
-            <div className="flex flex-col sm:flex-row gap-4 animate-fade-up-delay-3">
+            {/* Single Strong CTA */}
+            <div className="animate-fade-up-delay-3">
               <Link to="/book">
                 <Button 
                   size="lg" 
-                  className="w-full sm:w-auto group font-body text-base px-8 py-7 bg-primary hover:bg-primary/90 text-primary-foreground rounded-none transition-all duration-300 btn-glow relative overflow-hidden"
+                  className="group font-body text-base px-10 py-8 bg-accent hover:bg-accent/90 text-accent-foreground rounded-none transition-all duration-300 btn-glow relative overflow-hidden"
                 >
                   <span className="relative z-10 flex items-center">
-                    Book This Wednesday
+                    Grab Your Spot
                     <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                   </span>
                 </Button>
               </Link>
-              <Link to="/about">
-                <Button 
-                  size="lg" 
-                  variant="outline"
-                  className="w-full sm:w-auto font-body text-base px-8 py-7 rounded-none border-border/50 hover:border-primary hover:text-primary hover:bg-primary/5 transition-all duration-300"
-                >
-                  Learn More
-                </Button>
-              </Link>
-            </div>
-
-            {/* Quick Stats with glow effect */}
-            <div className="flex gap-12 mt-16 pt-8 border-t border-border/30">
-              <div className="animate-fade-up-delay-3">
-                <p className="font-display text-4xl md:text-5xl text-gradient">8PM</p>
-                <p className="font-body text-sm text-muted-foreground mt-2">Every Wednesday</p>
-              </div>
-              <div className="animate-fade-up-delay-3">
-                <p className="font-display text-4xl md:text-5xl text-gradient-gold">2hrs</p>
-                <p className="font-body text-sm text-muted-foreground mt-2">Of Pure Play</p>
-              </div>
+              <p className="font-body text-xs text-muted-foreground mt-3 animate-fade-up-delay-3">
+                $35/session · Equipment included
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Decorative elements */}
-        <div className="absolute bottom-8 right-8 hidden lg:block animate-float">
-          <div className="w-24 h-24 rounded-full bg-primary/10 blur-2xl" />
+        {/* Scroll indicator */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 animate-fade-up-delay-3">
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-px h-10 bg-gradient-to-b from-primary/50 to-transparent animate-pulse" />
+          </div>
         </div>
       </section>
 
-      {/* Photo Strip - Community Showcase with enhanced styling */}
-      <section className="py-16 md:py-24 bg-background relative">
-        {/* Subtle top gradient */}
-        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-card/30 to-transparent" />
-        
+      {/* Social Proof - Community Showcase */}
+      <section className="py-16 md:py-20 bg-background relative">
         <div className="container mx-auto px-4 relative z-10">
-          <div className="flex items-center gap-3 mb-10">
-            <div className="h-px w-12 bg-gradient-to-r from-accent to-transparent" />
-            <span className="font-body text-sm tracking-[0.25em] uppercase text-accent font-medium">
-              The Community
-            </span>
+          {/* Section intro */}
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
+            <div>
+              <span className="font-body text-xs tracking-[0.25em] uppercase text-primary/70 mb-2 block">
+                Every Wednesday
+              </span>
+              <h2 className="font-display text-2xl md:text-3xl">
+                This is <span className="italic text-primary">Club PTO</span>
+              </h2>
+            </div>
+            <a 
+              href="https://www.instagram.com/club_pto/" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="font-body text-sm text-muted-foreground hover:text-primary transition-colors"
+            >
+              @club_pto →
+            </a>
           </div>
           
           {/* Mobile: Horizontal scroll, Desktop: Grid with hover effects */}
@@ -148,103 +153,101 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Video Highlight Section with enhanced framing */}
-      <section className="py-16 md:py-24 bg-card/30 relative overflow-hidden">
-        {/* Background glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/5 rounded-full blur-3xl" />
-        
+      {/* Video Section - Simple, clean */}
+      <section className="py-12 md:py-16 bg-card/20 relative overflow-hidden">
         <div className="container mx-auto px-4 relative z-10">
-          <div className="flex items-center gap-3 mb-10">
-            <div className="h-px w-12 bg-gradient-to-r from-primary to-transparent" />
-            <span className="font-body text-sm tracking-[0.25em] uppercase text-primary font-medium">
-              See It In Action
+          <div className="relative aspect-[9/16] md:aspect-video max-w-4xl mx-auto overflow-hidden">
+            <video 
+              className="w-full h-full object-cover"
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="auto"
+            >
+              <source src={highlightVideo} type="video/mp4" />
+            </video>
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works - Clear, scannable */}
+      <section className="py-16 md:py-20 bg-background relative">
+        <div className="container mx-auto px-4">
+          <div className="max-w-3xl mx-auto">
+            <h2 className="font-display text-2xl md:text-3xl mb-10 text-center">
+              Here's the deal
+            </h2>
+            
+            <div className="grid gap-6">
+              <div className="flex gap-6 items-start">
+                <div className="w-10 h-10 flex-shrink-0 rounded-full bg-primary/20 flex items-center justify-center">
+                  <span className="font-display text-primary text-lg">1</span>
+                </div>
+                <div>
+                  <h3 className="font-display text-lg mb-1">Book your spot</h3>
+                  <p className="font-body text-muted-foreground text-sm">
+                    $35 gets you 2 hours, equipment, and a guaranteed good time.
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex gap-6 items-start">
+                <div className="w-10 h-10 flex-shrink-0 rounded-full bg-primary/20 flex items-center justify-center">
+                  <span className="font-display text-primary text-lg">2</span>
+                </div>
+                <div>
+                  <h3 className="font-display text-lg mb-1">Show up at 8PM Wednesday</h3>
+                  <p className="font-body text-muted-foreground text-sm">
+                    We'll match you with players at your level. Beginners to pros, everyone's welcome.
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex gap-6 items-start">
+                <div className="w-10 h-10 flex-shrink-0 rounded-full bg-accent/20 flex items-center justify-center">
+                  <span className="font-display text-accent text-lg">3</span>
+                </div>
+                <div>
+                  <h3 className="font-display text-lg mb-1">Play, rotate, repeat</h3>
+                  <p className="font-body text-muted-foreground text-sm">
+                    Meet new people every match. Grab drinks after. Come back next week.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Final CTA - Urgency driven */}
+      <section className="py-20 md:py-28 relative overflow-hidden bg-card/30">
+        <div className="container mx-auto px-4 text-center relative z-10">
+          {/* Urgency element */}
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-accent/10 border border-accent/30 mb-6">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
+            </span>
+            <span className="font-body text-xs tracking-wide uppercase text-accent">
+              Spots fill up fast
             </span>
           </div>
           
-          <div className="relative aspect-[9/16] md:aspect-video max-w-5xl mx-auto overflow-hidden">
-            {/* Glow border effect */}
-            <div className="absolute -inset-px bg-gradient-to-r from-primary/50 via-accent/30 to-primary/50 rounded-sm opacity-50" />
-            <div className="absolute inset-0 bg-background rounded-sm m-px">
-              <video 
-                className="w-full h-full object-cover"
-                autoPlay
-                muted
-                loop
-                playsInline
-                preload="auto"
-              >
-                <source src={highlightVideo} type="video/mp4" />
-              </video>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Quick Info Cards with enhanced styling */}
-      <section className="py-16 md:py-24 bg-background relative">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="font-display text-3xl md:text-4xl lg:text-5xl mb-4">
-              Why <span className="italic text-primary">Club PTO</span>?
-            </h2>
-            <p className="font-body text-muted-foreground max-w-md mx-auto">
-              More than just a game. It's a community.
-            </p>
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            <div className="p-8 border border-border/50 bg-card/30 card-hover group">
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-6 group-hover:bg-primary/20 transition-colors">
-                <Sparkles className="w-6 h-6 text-primary" />
-              </div>
-              <h3 className="font-display text-xl mb-3">All Levels</h3>
-              <p className="font-body text-muted-foreground leading-relaxed">
-                Beginners to pros, everyone's welcome. We match you with players at your level.
-              </p>
-            </div>
-            <div className="p-8 border border-border/50 bg-card/30 card-hover group">
-              <div className="w-12 h-12 rounded-full bg-accent/10 flex items-center justify-center mb-6 group-hover:bg-accent/20 transition-colors">
-                <Trophy className="w-6 h-6 text-accent" />
-              </div>
-              <h3 className="font-display text-xl mb-3">Equipment Provided</h3>
-              <p className="font-body text-muted-foreground leading-relaxed">
-                Rackets and balls included. Just show up ready to play.
-              </p>
-            </div>
-            <div className="p-8 border border-border/50 bg-card/30 card-hover group">
-              <div className="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center mb-6 group-hover:bg-secondary/20 transition-colors">
-                <Users className="w-6 h-6 text-secondary" />
-              </div>
-              <h3 className="font-display text-xl mb-3">Meet New Players</h3>
-              <p className="font-body text-muted-foreground leading-relaxed">
-                Expand your network on the court. Make friends who share your passion.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Bottom CTA with dramatic styling */}
-      <section className="py-24 md:py-32 relative overflow-hidden">
-        {/* Background effects */}
-        <div className="absolute inset-0 bg-gradient-to-b from-background via-card/50 to-background" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-primary/5 rounded-full blur-3xl" />
-        
-        <div className="container mx-auto px-4 text-center relative z-10">
-          <h2 className="font-display text-4xl md:text-5xl lg:text-6xl mb-6">
-            Ready to <span className="italic text-gradient">play</span>?
+          <h2 className="font-display text-3xl md:text-4xl lg:text-5xl mb-4">
+            See you <span className="italic text-primary">Wednesday</span>?
           </h2>
-          <p className="font-body text-lg text-muted-foreground mb-10 max-w-lg mx-auto">
-            Spots are limited. Reserve yours now and join Toronto's fastest-growing padel community.
+          <p className="font-body text-muted-foreground mb-8 max-w-md mx-auto">
+            Join 50+ players who've made this their weekly ritual.
           </p>
           <Link to="/book">
             <Button 
               size="lg" 
-              className="group font-body text-lg px-12 py-8 bg-accent hover:bg-accent/90 text-accent-foreground rounded-none btn-glow relative overflow-hidden"
+              className="group font-body text-base px-10 py-8 bg-accent hover:bg-accent/90 text-accent-foreground rounded-none btn-glow"
             >
-              <span className="relative z-10 flex items-center">
-                Book Your Session
-                <ArrowRight className="ml-3 h-6 w-6 group-hover:translate-x-1 transition-transform" />
+              <span className="flex items-center">
+                Reserve Your Spot
+                <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
               </span>
             </Button>
           </Link>
