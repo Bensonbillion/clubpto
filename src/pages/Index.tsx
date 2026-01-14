@@ -1,12 +1,14 @@
 import Layout from "@/components/Layout";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Play } from "lucide-react";
+import { useState, useRef } from "react";
 import heroCourt from "@/assets/hero-court.jpg";
 import playersDuo from "@/assets/players-duo.jpg";
 import courtAction from "@/assets/court-action.jpg";
 import groupPhoto from "@/assets/group-photo.jpg";
 import gallery1 from "@/assets/gallery-1.jpg";
+import highlightVideo from "@/assets/highlight-video.mp4";
 
 const Index = () => {
   return (
@@ -125,23 +127,48 @@ const Index = () => {
         </div>
       </section>
 
+      {/* Video Highlight Section */}
+      <section className="py-12 md:py-16 bg-card/50">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="h-px w-8 bg-primary" />
+            <span className="font-body text-xs tracking-[0.2em] uppercase text-primary">
+              See It In Action
+            </span>
+          </div>
+          
+          <div className="relative aspect-[9/16] md:aspect-video max-w-4xl mx-auto overflow-hidden rounded-sm">
+            <video 
+              className="w-full h-full object-cover"
+              controls
+              playsInline
+              preload="metadata"
+              poster={courtAction}
+            >
+              <source src={highlightVideo} type="video/mp4" />
+              Your browser does not support the video tag.
+            </video>
+          </div>
+        </div>
+      </section>
+
       {/* Quick Info Cards */}
-      <section className="bg-card/50 py-8 md:py-12">
+      <section className="bg-background py-8 md:py-12">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="p-6 border border-border bg-background/50">
+            <div className="p-6 border border-border bg-card/50">
               <h3 className="font-display text-lg mb-2">All Levels</h3>
               <p className="font-body text-sm text-muted-foreground">
                 Beginners to pros, everyone's welcome.
               </p>
             </div>
-            <div className="p-6 border border-border bg-background/50">
+            <div className="p-6 border border-border bg-card/50">
               <h3 className="font-display text-lg mb-2">Equipment Provided</h3>
               <p className="font-body text-sm text-muted-foreground">
                 Rackets and balls included. Just show up.
               </p>
             </div>
-            <div className="p-6 border border-border bg-background/50">
+            <div className="p-6 border border-border bg-card/50">
               <h3 className="font-display text-lg mb-2">Meet New Players</h3>
               <p className="font-body text-sm text-muted-foreground">
                 Expand your network on the court.
