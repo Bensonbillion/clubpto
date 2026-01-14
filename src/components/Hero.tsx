@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Instagram } from "lucide-react";
 import heroCourt from "@/assets/hero-court.jpg";
+import logo from "@/assets/logo.jpg";
 
 const Hero = () => {
   const scrollToBooking = () => {
@@ -27,10 +28,11 @@ const Hero = () => {
       <nav className="absolute top-0 left-0 right-0 z-20 p-6 lg:p-10">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center">
-              <span className="font-display text-primary font-bold text-lg">P</span>
-            </div>
-            <span className="font-display text-xl tracking-wide">Club PTO</span>
+            <img 
+              src={logo} 
+              alt="Club Padel Toronto" 
+              className="h-12 w-auto object-contain"
+            />
           </div>
           <a 
             href="https://www.instagram.com/club_pto/" 
@@ -73,8 +75,8 @@ const Hero = () => {
             className="font-body text-lg md:text-xl text-muted-foreground max-w-lg mb-12 leading-relaxed opacity-0 animate-fade-up"
             style={{ animationDelay: "0.6s" }}
           >
-            Every Wednesday at 8PM, we come together. CA$15 gets you matched, 
-            played, and part of something special.
+            Every Wednesday at 8PM, we come together to play, 
+            rotate partners, and be part of something special.
           </p>
 
           {/* CTA */}
