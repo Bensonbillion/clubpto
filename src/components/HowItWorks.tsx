@@ -1,79 +1,87 @@
-import { CalendarCheck, Users, Trophy } from "lucide-react";
+import padelDetail from "@/assets/padel-detail.jpg";
 
 const steps = [
   {
-    icon: CalendarCheck,
     number: "01",
-    title: "Book Your Spot",
-    description: "Reserve your place for CA$15. Wednesday 8PM, every week."
+    title: "Book",
+    description: "Reserve your spot online. CA$15, that's it."
   },
   {
-    icon: Users,
     number: "02", 
-    title: "Show Up & Play",
-    description: "We handle the pairings. You just bring your racket and energy."
+    title: "Show Up",
+    description: "Wednesday, 8PM. Bring your racket and energy."
   },
   {
-    icon: Trophy,
     number: "03",
-    title: "Rotate & Connect",
-    description: "New partners each round. Leave with games played and friends made."
+    title: "Play & Rotate",
+    description: "New partners each round. Games guaranteed."
   }
 ];
 
 const HowItWorks = () => {
   return (
-    <section id="how-it-works" className="py-24 lg:py-32 bg-secondary/30">
+    <section id="how-it-works" className="relative py-32 lg:py-40 overflow-hidden">
+      {/* Background accent */}
+      <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1/2 h-[600px] bg-gradient-radial opacity-30" />
+      
       <div className="container mx-auto px-6 lg:px-12">
-        {/* Section header */}
-        <div className="text-center mb-16">
-          <span className="text-sm font-body tracking-[0.2em] uppercase text-accent mb-4 block">
-            The Wednesday Ritual
-          </span>
-          <h2 className="font-display text-4xl md:text-5xl lg:text-6xl font-semibold">
-            How It Works
-          </h2>
-        </div>
-
-        {/* Steps grid */}
-        <div className="grid md:grid-cols-3 gap-8 lg:gap-12 max-w-5xl mx-auto">
-          {steps.map((step, index) => (
-            <div 
-              key={step.number}
-              className="relative group"
-            >
-              {/* Connecting line (hidden on mobile, last item) */}
-              {index < steps.length - 1 && (
-                <div className="hidden md:block absolute top-12 left-1/2 w-full h-[1px] bg-border" />
-              )}
-              
-              <div className="bg-card rounded-lg p-8 text-center relative z-10 border border-border/50 hover:border-primary/20 transition-all duration-300 hover:shadow-lg">
-                {/* Icon */}
-                <div className="w-16 h-16 mx-auto mb-6 bg-primary/10 rounded-full flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                  <step.icon className="w-7 h-7 text-primary" />
-                </div>
-
-                {/* Number */}
-                <span className="font-display text-5xl font-light text-muted-foreground/20 absolute top-4 right-6">
-                  {step.number}
-                </span>
-
-                {/* Content */}
-                <h3 className="font-display text-2xl font-semibold mb-3">
-                  {step.title}
-                </h3>
-                <p className="font-body text-muted-foreground leading-relaxed">
-                  {step.description}
-                </p>
-              </div>
+        <div className="grid lg:grid-cols-2 gap-16 lg:gap-24 items-center">
+          {/* Left: Image */}
+          <div className="relative">
+            <div className="aspect-square relative">
+              <img 
+                src={padelDetail} 
+                alt="Padel equipment" 
+                className="w-full h-full object-cover"
+              />
+              {/* Decorative frame */}
+              <div className="absolute -top-4 -left-4 w-24 h-24 border-l-2 border-t-2 border-primary" />
+              <div className="absolute -bottom-4 -right-4 w-24 h-24 border-r-2 border-b-2 border-accent" />
             </div>
-          ))}
-        </div>
+            
+            {/* Floating badge */}
+            <div className="absolute -bottom-6 -right-6 lg:bottom-12 lg:-right-12 bg-card border border-border p-6 shadow-2xl">
+              <p className="font-display text-5xl text-gradient">Wed</p>
+              <p className="font-body text-sm text-muted-foreground mt-1">8:00 PM</p>
+            </div>
+          </div>
 
-        {/* Bottom tagline */}
-        <p className="text-center mt-16 font-display text-xl md:text-2xl text-muted-foreground italic">
-          "Not your average padel club"
-        </p>
+          {/* Right: Content */}
+          <div>
+            <div className="mb-12">
+              <span className="font-body text-sm tracking-[0.25em] uppercase text-accent mb-4 block">
+                How It Works
+              </span>
+              <h2 className="font-display text-5xl md:text-6xl lg:text-7xl font-medium leading-[0.9]">
+                Simple.<br />
+                <span className="italic text-primary">Social.</span><br />
+                Addictive.
+              </h2>
+            </div>
+
+            {/* Steps */}
+            <div className="space-y-8">
+              {steps.map((step, index) => (
+                <div 
+                  key={step.number}
+                  className="group flex gap-6 items-start p-6 border-l-2 border-border hover:border-primary transition-colors duration-300"
+                >
+                  <span className="font-display text-4xl text-muted-foreground/30 group-hover:text-primary/50 transition-colors">
+                    {step.number}
+                  </span>
+                  <div>
+                    <h3 className="font-display text-2xl mb-2 group-hover:text-primary transition-colors">
+                      {step.title}
+                    </h3>
+                    <p className="font-body text-muted-foreground">
+                      {step.description}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );
