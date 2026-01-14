@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSessions, Session } from "@/hooks/useSessions";
 import { format, parseISO } from "date-fns";
-import { CalendarDays, Clock, Users, Loader2, ArrowRight, Check } from "lucide-react";
+import { CalendarDays, Clock, Loader2, ArrowRight, Check, Minus, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -13,6 +13,7 @@ const BookingSection = () => {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [quantity, setQuantity] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const { toast } = useToast();
@@ -33,19 +34,22 @@ const BookingSection = () => {
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from("bookings").insert({
+      // Create booking entries for each ticket
+      const bookings = Array.from({ length: quantity }, () => ({
         session_id: selectedSession.id,
         customer_name: name,
         customer_email: email,
         payment_status: "pending",
-      });
+      }));
+
+      const { error } = await supabase.from("bookings").insert(bookings);
 
       if (error) throw error;
 
       setIsSuccess(true);
       toast({
         title: "You're in! 🎾",
-        description: "Check your email for confirmation details.",
+        description: `${quantity} spot${quantity > 1 ? 's' : ''} reserved. Check your email for confirmation.`,
       });
     } catch (err) {
       toast({
@@ -62,7 +66,16 @@ const BookingSection = () => {
     setName("");
     setEmail("");
     setSelectedSession(null);
+    setQuantity(1);
     setIsSuccess(false);
+  };
+
+  const decrementQuantity = () => {
+    if (quantity > 1) setQuantity(quantity - 1);
+  };
+
+  const incrementQuantity = () => {
+    if (quantity < 8) setQuantity(quantity + 1);
   };
 
   return (
@@ -74,13 +87,13 @@ const BookingSection = () => {
         {/* Section header */}
         <div className="text-center mb-16 lg:mb-24">
           <span className="font-body text-sm tracking-[0.25em] uppercase text-accent mb-4 block">
-            Limited Spots
+            Join Us
           </span>
           <h2 className="font-display text-5xl md:text-6xl lg:text-8xl font-medium mb-6">
             Book Your <span className="italic text-primary">Wednesday</span>
           </h2>
           <p className="font-body text-lg text-muted-foreground max-w-xl mx-auto">
-            CA$15 per session • All skill levels welcome
+            All skill levels welcome
           </p>
         </div>
 
@@ -117,22 +130,19 @@ const BookingSection = () => {
                   </h3>
                   <div className="grid sm:grid-cols-2 gap-3">
                     {sessions?.map((session) => {
-                      const { day, date, dateFull } = formatSessionDate(session.session_date);
-                      const isFull = session.spots_remaining === 0;
+                      const { day, date } = formatSessionDate(session.session_date);
                       const isSelected = selectedSession?.id === session.id;
 
                       return (
                         <button
                           key={session.id}
-                          onClick={() => !isFull && setSelectedSession(session)}
-                          disabled={isFull}
+                          onClick={() => setSelectedSession(session)}
                           className={`
-                            relative p-6 text-left transition-all duration-300 border overflow-hidden
+                            relative p-6 text-left transition-all duration-300 border overflow-hidden cursor-pointer
                             ${isSelected 
                               ? "bg-primary text-primary-foreground border-primary" 
                               : "bg-card/50 border-border hover:border-primary/50"
                             }
-                            ${isFull ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}
                           `}
                         >
                           {isSelected && (
@@ -148,10 +158,6 @@ const BookingSection = () => {
                             <span className={`flex items-center gap-1 ${isSelected ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
                               <Clock className="w-4 h-4" />
                               8PM
-                            </span>
-                            <span className={`flex items-center gap-1 ${isFull ? "text-destructive" : isSelected ? "text-primary-foreground/80" : "text-muted-foreground"}`}>
-                              <Users className="w-4 h-4" />
-                              {isFull ? "Full" : `${session.spots_remaining} left`}
                             </span>
                           </div>
                         </button>
@@ -200,6 +206,33 @@ const BookingSection = () => {
                         />
                       </div>
 
+                      {/* Quantity Selector */}
+                      <div className="space-y-2">
+                        <Label className="font-body text-sm">Number of Spots</Label>
+                        <div className="flex items-center gap-4">
+                          <button
+                            type="button"
+                            onClick={decrementQuantity}
+                            className="w-12 h-12 border border-border flex items-center justify-center hover:border-primary transition-colors disabled:opacity-30"
+                            disabled={quantity <= 1}
+                          >
+                            <Minus className="w-4 h-4" />
+                          </button>
+                          <span className="font-display text-2xl w-8 text-center">{quantity}</span>
+                          <button
+                            type="button"
+                            onClick={incrementQuantity}
+                            className="w-12 h-12 border border-border flex items-center justify-center hover:border-primary transition-colors disabled:opacity-30"
+                            disabled={quantity >= 8}
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                          <span className="font-body text-sm text-muted-foreground">
+                            {quantity === 1 ? "spot" : "spots"}
+                          </span>
+                        </div>
+                      </div>
+
                       <Button
                         type="submit"
                         disabled={isSubmitting}
@@ -212,7 +245,7 @@ const BookingSection = () => {
                           </>
                         ) : (
                           <>
-                            Reserve — CA$15
+                            Reserve {quantity} {quantity === 1 ? "Spot" : "Spots"}
                             <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                           </>
                         )}
