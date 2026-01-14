@@ -101,14 +101,6 @@ const Hero = () => {
               <p className="font-display text-4xl md:text-5xl text-primary">8PM</p>
               <p className="font-body text-sm text-muted-foreground mt-1">Every Wednesday</p>
             </div>
-            <div>
-              <p className="font-display text-4xl md:text-5xl text-primary">$15</p>
-              <p className="font-body text-sm text-muted-foreground mt-1">Per Session</p>
-            </div>
-            <div>
-              <p className="font-display text-4xl md:text-5xl text-primary">16</p>
-              <p className="font-body text-sm text-muted-foreground mt-1">Players Max</p>
-            </div>
           </div>
         </div>
       </div>
