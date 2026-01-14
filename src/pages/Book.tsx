@@ -89,30 +89,34 @@ const Book = () => {
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-8 md:py-16">
+      <div className="container mx-auto px-4 py-8 md:py-16 relative">
+        {/* Background glow */}
+        <div className="absolute top-20 right-0 w-[400px] h-[400px] bg-primary/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-20 left-0 w-[300px] h-[300px] bg-accent/5 rounded-full blur-3xl pointer-events-none" />
+        
         {/* Page Header */}
-        <div className="text-center mb-8 md:mb-12">
-          <span className="font-body text-sm tracking-[0.25em] uppercase text-accent mb-3 block">
+        <div className="text-center mb-12 md:mb-16 relative z-10">
+          <span className="font-body text-sm tracking-[0.25em] uppercase text-accent mb-4 block animate-fade-up">
             Reserve Your Spot
           </span>
-          <h1 className="font-display text-4xl md:text-5xl lg:text-6xl font-medium mb-4">
-            Book Your <span className="italic text-primary">Wednesday</span>
+          <h1 className="font-display text-4xl md:text-5xl lg:text-6xl font-medium mb-6 animate-fade-up-delay-1">
+            Book Your <span className="italic text-gradient">Wednesday</span>
           </h1>
-          <p className="font-body text-muted-foreground max-w-md mx-auto">
+          <p className="font-body text-lg text-muted-foreground max-w-md mx-auto animate-fade-up-delay-2">
             All skill levels welcome. Reserve now, pay later.
           </p>
         </div>
 
         {isSuccess ? (
-          <div className="max-w-md mx-auto text-center py-12">
-            <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-primary/20 border border-primary flex items-center justify-center">
-              <Check className="w-8 h-8 text-primary" />
+          <div className="max-w-md mx-auto text-center py-12 relative z-10">
+            <div className="w-20 h-20 mx-auto mb-8 rounded-full bg-primary/20 border-2 border-primary flex items-center justify-center animate-fade-in-scale glow-primary">
+              <Check className="w-10 h-10 text-primary" />
             </div>
-            <h2 className="font-display text-2xl mb-3">You're Booked!</h2>
-            <p className="font-body text-muted-foreground mb-8">
+            <h2 className="font-display text-3xl mb-4">You're Booked!</h2>
+            <p className="font-body text-muted-foreground mb-8 text-lg">
               We've sent a confirmation to your email. See you on the court.
             </p>
-            <Button onClick={resetForm} variant="outline" className="rounded-none">
+            <Button onClick={resetForm} variant="outline" className="rounded-none px-8 py-6 hover:border-primary hover:text-primary">
               Book Another Session
             </Button>
           </div>
@@ -120,7 +124,7 @@ const Book = () => {
           <>
             {isLoading ? (
               <div className="flex justify-center py-16">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                <Loader2 className="w-10 h-10 animate-spin text-primary" />
               </div>
             ) : error ? (
               <p className="text-center text-muted-foreground py-16">

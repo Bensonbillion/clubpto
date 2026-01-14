@@ -17,14 +17,14 @@ const MobileNav = () => {
   const isActive = (href: string) => location.pathname === href;
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50">
       <div className="container mx-auto px-4 py-3">
         <div className="flex justify-between items-center">
-          <Link to="/" className="flex items-center gap-2">
+          <Link to="/" className="flex items-center gap-2 group">
             <img 
               src={logo} 
               alt="Club Padel Toronto" 
-              className="h-10 w-auto object-contain"
+              className="h-10 w-auto object-contain transition-transform group-hover:scale-105"
             />
           </Link>
 
@@ -34,7 +34,7 @@ const MobileNav = () => {
               <Link
                 key={link.href}
                 to={link.href}
-                className={`font-body text-sm transition-colors ${
+                className={`font-body text-sm tracking-wide transition-colors link-underline ${
                   isActive(link.href) 
                     ? "text-primary" 
                     : "text-muted-foreground hover:text-foreground"
@@ -47,7 +47,7 @@ const MobileNav = () => {
               href="https://www.instagram.com/club_pto/" 
               target="_blank" 
               rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-primary transition-colors"
+              className="text-muted-foreground hover:text-primary transition-colors hover:scale-110 transform"
             >
               <Instagram className="w-5 h-5" />
             </a>
@@ -65,18 +65,19 @@ const MobileNav = () => {
 
         {/* Mobile Menu */}
         {isOpen && (
-          <div className="md:hidden absolute top-full left-0 right-0 bg-background border-b border-border">
+          <div className="md:hidden absolute top-full left-0 right-0 bg-background/95 backdrop-blur-md border-b border-border/50 animate-fade-up">
             <div className="flex flex-col py-4">
-              {navLinks.map((link) => (
+              {navLinks.map((link, index) => (
                 <Link
                   key={link.href}
                   to={link.href}
                   onClick={() => setIsOpen(false)}
-                  className={`px-4 py-3 font-body text-base transition-colors ${
+                  className={`px-4 py-4 font-body text-lg transition-all ${
                     isActive(link.href) 
-                      ? "text-primary bg-primary/10" 
-                      : "text-foreground hover:bg-muted/50"
+                      ? "text-primary bg-primary/10 border-l-2 border-primary" 
+                      : "text-foreground hover:bg-muted/30 hover:pl-6"
                   }`}
+                  style={{ animationDelay: `${index * 50}ms` }}
                 >
                   {link.label}
                 </Link>
@@ -85,10 +86,10 @@ const MobileNav = () => {
                 href="https://www.instagram.com/club_pto/" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="px-4 py-3 flex items-center gap-2 text-muted-foreground hover:text-primary transition-colors"
+                className="px-4 py-4 flex items-center gap-3 text-muted-foreground hover:text-primary transition-colors"
               >
                 <Instagram className="w-5 h-5" />
-                <span className="font-body text-sm">@club_pto</span>
+                <span className="font-body">@club_pto</span>
               </a>
             </div>
           </div>
