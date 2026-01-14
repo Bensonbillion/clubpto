@@ -250,9 +250,6 @@ const BookingSection = () => {
                           </>
                         )}
                       </Button>
-                      <p className="text-center text-xs text-muted-foreground">
-                        Payment on arrival • Free cancellation
-                      </p>
                     </form>
                   ) : (
                     <div className="h-full flex items-center justify-center py-16 border border-dashed border-border">
