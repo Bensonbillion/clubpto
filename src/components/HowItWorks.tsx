@@ -4,7 +4,7 @@ const steps = [
   {
     number: "01",
     title: "Book",
-    description: "Reserve your spot online. CA$15, that's it."
+    description: "Reserve your spot online. Quick and easy."
   },
   {
     number: "02", 
