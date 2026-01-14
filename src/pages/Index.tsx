@@ -140,14 +140,16 @@ const Index = () => {
           <div className="relative aspect-[9/16] md:aspect-video max-w-4xl mx-auto overflow-hidden rounded-sm">
             <video 
               className="w-full h-full object-cover"
-              controls
+              autoPlay
+              muted
+              loop
               playsInline
-              preload="metadata"
-              poster={courtAction}
+              preload="auto"
             >
               <source src={highlightVideo} type="video/mp4" />
-              Your browser does not support the video tag.
             </video>
+            {/* Subtle overlay for polish */}
+            <div className="absolute inset-0 pointer-events-none border border-border/20" />
           </div>
         </div>
       </section>
