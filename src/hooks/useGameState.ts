@@ -282,6 +282,15 @@ export function useGameState() {
       const targetGamesPerPlayer = 5;
       const maxMatches = Math.ceil((players.length * targetGamesPerPlayer) / 4);
 
+      // Track used pair keys to avoid identical pairings in consecutive matches
+      const usedPairKeys = new Set<string>();
+      const makePairKey = (a: string, b: string) => [a, b].sort().join("|||");
+      const makeMatchKey = (p1Id: string, p2Id: string, p3Id: string, p4Id: string) => {
+        const team1 = makePairKey(p1Id, p2Id);
+        const team2 = makePairKey(p3Id, p4Id);
+        return [team1, team2].sort().join("---");
+      };
+
       for (let m = 0; m < maxMatches; m++) {
         const sorted = [...players].sort((a, b) => {
           const ga = gameCount.get(a.id) || 0;
@@ -376,6 +385,25 @@ export function useGameState() {
           p3 = remaining[0];
           p4 = remaining[1];
         }
+
+        // Check if this exact pairing was already used — if so, rotate teammates
+        let matchKey = makeMatchKey(p1.id, p2.id, p3.id, p4.id);
+        if (usedPairKeys.has(matchKey) && !lockedInFour) {
+          // Try alternative pairings: (0,2 vs 1,3) and (0,3 vs 1,2)
+          const alts: [Player, Player, Player, Player][] = [
+            [four[0], four[2], four[1], four[3]],
+            [four[0], four[3], four[1], four[2]],
+          ];
+          for (const alt of alts) {
+            const altKey = makeMatchKey(alt[0].id, alt[1].id, alt[2].id, alt[3].id);
+            if (!usedPairKeys.has(altKey)) {
+              [p1, p2, p3, p4] = alt;
+              matchKey = altKey;
+              break;
+            }
+          }
+        }
+        usedPairKeys.add(matchKey);
 
         const team1: Pair = {
           id: generateId(),
