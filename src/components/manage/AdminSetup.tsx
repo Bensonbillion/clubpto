@@ -27,8 +27,8 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
   const handleBulkAdd = () => {
     const names = bulkNames
       .split(/[\n,]+/)
-      .map((n) => n.replace(/^[-*•]\s*\[.\]\s*/, "").replace(/^[-*•]\s*/, "").trim())
-      .filter((n) => n.length > 0);
+      .map((n) => n.replace(/^[\s\-\*•]+\[.*?\]\s*/g, "").replace(/^[\s\-\*•]+/, "").trim())
+      .filter((n) => n.length > 0 && n !== "[ ]" && n !== "[x]");
     names.forEach((name) => addPlayer(name, bulkSkill));
     setBulkNames("");
   };
@@ -135,28 +135,49 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
 
         {/* Roster Grid */}
         {state.roster.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
-            {state.roster.map((player) => (
-              <div
-                key={player.id}
-                className="flex items-center justify-between rounded-md border border-border bg-muted p-3 card-hover"
+          <>
+            {/* Bulk skill actions */}
+            <div className="flex items-center gap-2 mt-2">
+              <span className="text-xs text-muted-foreground">Set all to:</span>
+              <button
+                onClick={() => state.roster.forEach((p) => p.skillLevel !== "beginner" && toggleSkillLevel(p.id))}
+                className="text-xs uppercase tracking-widest px-3 py-1 rounded-full border border-primary/40 text-primary hover:bg-primary/10 transition-colors"
               >
-                <div>
-                  <p className="font-display text-lg text-foreground">{player.name}</p>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); toggleSkillLevel(player.id); }}
-                    className="text-xs uppercase tracking-widest text-accent hover:text-primary transition-colors cursor-pointer"
-                    title="Click to toggle skill level"
-                  >
-                    {player.skillLevel} ↔
+                Beginner
+              </button>
+              <button
+                onClick={() => state.roster.forEach((p) => p.skillLevel !== "good" && toggleSkillLevel(p.id))}
+                className="text-xs uppercase tracking-widest px-3 py-1 rounded-full border border-accent/40 text-accent hover:bg-accent/10 transition-colors"
+              >
+                Good
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {state.roster.map((player) => (
+                <div
+                  key={player.id}
+                  className="flex items-center justify-between rounded-md border border-border bg-muted p-3 card-hover"
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <p className="font-display text-lg text-foreground truncate">{player.name}</p>
+                    <button
+                      onClick={() => toggleSkillLevel(player.id)}
+                      className={`shrink-0 text-[10px] uppercase tracking-widest px-2.5 py-0.5 rounded-full border transition-all cursor-pointer ${
+                        player.skillLevel === "good"
+                          ? "border-accent/60 bg-accent/15 text-accent hover:bg-accent/25"
+                          : "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
+                      }`}
+                    >
+                      {player.skillLevel}
+                    </button>
+                  </div>
+                  <button onClick={() => removePlayer(player.id)} className="ml-2 text-muted-foreground hover:text-destructive transition-colors">
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
-                <button onClick={() => removePlayer(player.id)} className="text-muted-foreground hover:text-destructive transition-colors">
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </>
         ) : (
           <p className="text-muted-foreground text-sm text-center py-8">No players added yet.</p>
         )}
