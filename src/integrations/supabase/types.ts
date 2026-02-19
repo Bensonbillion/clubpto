@@ -73,6 +73,30 @@ export type Database = {
         }
         Relationships: []
       }
+      pair_history: {
+        Row: {
+          created_at: string
+          id: string
+          player1_name: string
+          player2_name: string
+          session_date: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          player1_name: string
+          player2_name: string
+          session_date?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          player1_name?: string
+          player2_name?: string
+          session_date?: string
+        }
+        Relationships: []
+      }
       sessions: {
         Row: {
           created_at: string

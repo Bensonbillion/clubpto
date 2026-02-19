@@ -17,8 +17,8 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay }: CheckInProps) => {
     return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
-  const handleGenerate = () => {
-    generatePairs();
+  const handleGenerate = async () => {
+    await generatePairs();
     setTimeout(() => {
       generateMatches();
       setGenerated(true);
