@@ -59,6 +59,21 @@ export function useGameState() {
     };
   }, []);
 
+  // Polling fallback every 10s for projected screens (realtime may drop)
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const { data } = await supabase
+        .from("game_state")
+        .select("state")
+        .eq("id", ROW_ID)
+        .single();
+      if (data?.state) {
+        setState(data.state as unknown as GameState);
+      }
+    }, 10_000);
+    return () => clearInterval(interval);
+  }, []);
+
   const persistState = useCallback(async (newState: GameState) => {
     if (savingRef.current) {
       pendingRef.current = newState;
