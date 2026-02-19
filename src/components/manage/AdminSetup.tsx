@@ -3,14 +3,14 @@ import { useGameState } from "@/hooks/useGameState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Plus, Play, RotateCcw, Users, ClipboardPaste } from "lucide-react";
+import { Trash2, Plus, Play, RotateCcw, Users, ClipboardPaste, Swords } from "lucide-react";
 
 interface AdminSetupProps {
   gameState: ReturnType<typeof useGameState>;
 }
 
 const AdminSetup = ({ gameState }: AdminSetupProps) => {
-  const { state, setSessionConfig, addPlayer, removePlayer, toggleSkillLevel, generatePairs, startSession, resetSession, generateMatches } = gameState;
+  const { state, setSessionConfig, addPlayer, removePlayer, toggleSkillLevel, generateFullSchedule, startSession, resetSession } = gameState;
   const [newName, setNewName] = useState("");
   const [newSkill, setNewSkill] = useState<"beginner" | "good">("beginner");
   const [confirmReset, setConfirmReset] = useState(false);
@@ -68,7 +68,9 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
             />
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">Games are played to 7 points to determine a winner.</p>
+        <p className="text-xs text-muted-foreground">
+          Games are doubles (2v2) played to 7 points (~7 min each). {Math.floor((state.sessionConfig.durationMinutes || 85) / 7)} game slots per court, {Math.floor((state.sessionConfig.durationMinutes || 85) / 7) * 2} total across 2 courts.
+        </p>
       </div>
 
       {/* Add Player */}
@@ -136,7 +138,6 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
         {/* Roster Grid */}
         {state.roster.length > 0 ? (
           <>
-            {/* Bulk skill actions */}
             <div className="flex items-center gap-2 mt-2">
               <span className="text-xs text-muted-foreground">Set all to:</span>
               <button
@@ -188,11 +189,8 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
         <Button onClick={startSession} disabled={state.sessionStarted || state.roster.length < 4} className="bg-primary text-primary-foreground hover:bg-primary/80">
           <Play className="w-4 h-4 mr-1" /> Start Session
         </Button>
-        <Button onClick={generatePairs} disabled={!state.sessionStarted} variant="outline" className="border-accent text-accent hover:bg-accent/10">
-          <Users className="w-4 h-4 mr-1" /> Generate Pairs
-        </Button>
-        <Button onClick={generateMatches} disabled={state.pairs.length < 2} variant="outline" className="border-primary text-primary hover:bg-primary/10">
-          <Play className="w-4 h-4 mr-1" /> Generate Matches
+        <Button onClick={generateFullSchedule} disabled={!state.sessionStarted || gameState.checkedInPlayers.length < 4} variant="outline" className="border-accent text-accent hover:bg-accent/10">
+          <Swords className="w-4 h-4 mr-1" /> Generate Full Schedule
         </Button>
         <Button onClick={handleReset} variant="outline" className={confirmReset ? "border-destructive text-destructive animate-pulse-soft" : "border-muted-foreground text-muted-foreground hover:border-destructive hover:text-destructive"}>
           <RotateCcw className="w-4 h-4 mr-1" /> {confirmReset ? "Confirm Reset?" : "Reset Session"}
