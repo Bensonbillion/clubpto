@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useGameState } from "@/hooks/useGameState";
 import { Match, Pair } from "@/types/courtManager";
 import { Trophy, Swords } from "lucide-react";
@@ -105,12 +106,22 @@ const CourtCard = ({
 const CourtDisplay = ({ gameState }: CourtDisplayProps) => {
   const { court1Match, court2Match, pendingMatches, waitingPlayers, completeMatch } = gameState;
   const [finishingMatch, setFinishingMatch] = useState<Match | null>(null);
+  const [searchParams] = useSearchParams();
+  const courtFilter = searchParams.get("court"); // "1", "2", or null (show both)
+
+  const showCourt1 = !courtFilter || courtFilter === "1";
+  const showCourt2 = !courtFilter || courtFilter === "2";
 
   return (
     <div className="space-y-6 animate-fade-up">
-      <div className="flex flex-col md:flex-row gap-4">
-        <CourtCard courtNum={1} match={court1Match} pendingMatches={pendingMatches} onFinish={setFinishingMatch} />
-        <CourtCard courtNum={2} match={court2Match} pendingMatches={pendingMatches} onFinish={setFinishingMatch} />
+      {courtFilter && (
+        <p className="text-xs text-muted-foreground text-center uppercase tracking-widest">
+          Showing Court {courtFilter} only — use <span className="text-accent">?court=1</span> or <span className="text-accent">?court=2</span> for split-screen
+        </p>
+      )}
+      <div className={`flex flex-col ${!courtFilter ? "md:flex-row" : ""} gap-4`}>
+        {showCourt1 && <CourtCard courtNum={1} match={court1Match} pendingMatches={pendingMatches} onFinish={setFinishingMatch} />}
+        {showCourt2 && <CourtCard courtNum={2} match={court2Match} pendingMatches={pendingMatches} onFinish={setFinishingMatch} />}
       </div>
 
       {/* Waiting Area */}

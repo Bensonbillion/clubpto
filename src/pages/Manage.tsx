@@ -137,7 +137,7 @@ const Manage = () => {
         {activeTab === "admin" && (
           adminUnlocked ? <AdminSetup gameState={gameState} /> : <PasscodeGate onUnlock={() => setAdminUnlocked(true)} />
         )}
-        {activeTab === "checkin" && <CheckIn gameState={gameState} />}
+        {activeTab === "checkin" && <CheckIn gameState={gameState} onSwitchToCourtDisplay={() => setActiveTab("courts")} />}
         {activeTab === "courts" && <CourtDisplay gameState={gameState} />}
         {activeTab === "stats" && <StatsPlayoffs gameState={gameState} />}
       </main>
