@@ -85,6 +85,7 @@ const PasscodeGate = ({ onUnlock }: { onUnlock: () => void }) => {
 const Manage = () => {
   const [activeTab, setActiveTab] = useState<Tab>("checkin");
   const [adminUnlocked, setAdminUnlocked] = useState(false);
+  const [statsUnlocked, setStatsUnlocked] = useState(false);
   const gameState = useGameState();
 
   return (
@@ -116,6 +117,7 @@ const Manage = () => {
                   <Icon className="w-5 h-5" />
                   <span>{tab.label}</span>
                   {tab.id === "admin" && !adminUnlocked && <Lock className="w-3.5 h-3.5 ml-0.5" />}
+                  {tab.id === "stats" && !statsUnlocked && <Lock className="w-3.5 h-3.5 ml-0.5" />}
                 </button>
               );
             })}
@@ -141,7 +143,9 @@ const Manage = () => {
               />
             )}
             {activeTab === "courts" && <CourtDisplay gameState={gameState} onGoToCheckIn={() => setActiveTab("checkin")} isAdmin={adminUnlocked} />}
-            {activeTab === "stats" && <StatsPlayoffs gameState={gameState} />}
+            {activeTab === "stats" && (
+              statsUnlocked ? <StatsPlayoffs gameState={gameState} /> : <PasscodeGate onUnlock={() => setStatsUnlocked(true)} />
+            )}
           </>
         )}
       </main>
