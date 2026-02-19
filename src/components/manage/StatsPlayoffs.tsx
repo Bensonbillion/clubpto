@@ -1,5 +1,5 @@
 import { useGameState } from "@/hooks/useGameState";
-import { Player, PlayoffMatch } from "@/types/courtManager";
+import { Player, Pair, PlayoffMatch } from "@/types/courtManager";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { Trophy, Medal, Play } from "lucide-react";
@@ -14,10 +14,20 @@ interface PlayoffSeed {
   winPct: number;
 }
 
-const PlayerLeaderboard = ({ title, players }: { title: string; players: (Player & { winPct: number })[] }) => (
+interface PairStanding {
+  id: string;
+  player1Name: string;
+  player2Name: string;
+  wins: number;
+  losses: number;
+  gamesPlayed: number;
+  winPct: number;
+}
+
+const PairLeaderboard = ({ title, pairs }: { title: string; pairs: PairStanding[] }) => (
   <div className="rounded-lg border border-border bg-card p-6 space-y-3">
     <h4 className="font-display text-lg text-accent">{title}</h4>
-    {players.length === 0 ? (
+    {pairs.length === 0 ? (
       <p className="text-sm text-muted-foreground text-center py-4">No games played yet.</p>
     ) : (
       <div className="overflow-x-auto">
@@ -25,7 +35,7 @@ const PlayerLeaderboard = ({ title, players }: { title: string; players: (Player
           <thead>
             <tr className="border-b border-border text-left">
               <th className="py-2 pr-2 text-xs uppercase tracking-widest text-muted-foreground w-8">#</th>
-              <th className="py-2 pr-2 text-xs uppercase tracking-widest text-muted-foreground">Player</th>
+              <th className="py-2 pr-2 text-xs uppercase tracking-widest text-muted-foreground">Pair</th>
               <th className="py-2 px-2 text-xs uppercase tracking-widest text-muted-foreground text-center">W</th>
               <th className="py-2 px-2 text-xs uppercase tracking-widest text-muted-foreground text-center">L</th>
               <th className="py-2 px-2 text-xs uppercase tracking-widest text-muted-foreground text-center">GP</th>
@@ -33,13 +43,13 @@ const PlayerLeaderboard = ({ title, players }: { title: string; players: (Player
             </tr>
           </thead>
           <tbody>
-            {players.map((p, i) => (
+            {pairs.map((p, i) => (
               <tr key={p.id} className="border-b border-border/50 hover:bg-muted/50">
                 <td className="py-2.5 pr-2">
                   <span className="font-display text-accent">{i + 1}</span>
                 </td>
                 <td className="py-2.5 pr-2">
-                  <span className="font-display text-foreground">{p.name}</span>
+                  <span className="font-display text-foreground">{p.player1Name} & {p.player2Name}</span>
                 </td>
                 <td className="py-2.5 px-2 text-center text-foreground">{p.wins}</td>
                 <td className="py-2.5 px-2 text-center text-foreground">{p.losses}</td>
@@ -139,6 +149,47 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
   const { state, checkedInPlayers, completedMatches, generatePlayoffMatches, startPlayoffMatch, completePlayoffMatch } = gameState;
   const [playoffSeeds, setPlayoffSeeds] = useState<PlayoffSeed[]>([]);
 
+  // Build pair standings from completed matches
+  const buildPairStandings = (skillLevel: "good" | "beginner"): PairStanding[] => {
+    const pairMap = new Map<string, PairStanding>();
+    
+    for (const match of state.matches.filter((m) => m.status === "completed" && m.skillLevel === skillLevel)) {
+      const processPair = (pair: Pair, won: boolean) => {
+        const key = [pair.player1.id, pair.player2.id].sort().join("|||");
+        if (!pairMap.has(key)) {
+          pairMap.set(key, {
+            id: key,
+            player1Name: pair.player1.name,
+            player2Name: pair.player2.name,
+            wins: 0,
+            losses: 0,
+            gamesPlayed: 0,
+            winPct: 0,
+          });
+        }
+        const s = pairMap.get(key)!;
+        s.gamesPlayed++;
+        if (won) s.wins++;
+        else s.losses++;
+        s.winPct = s.gamesPlayed > 0 ? s.wins / s.gamesPlayed : 0;
+      };
+
+      if (match.winner && match.loser) {
+        processPair(match.winner, true);
+        processPair(match.loser, false);
+      }
+    }
+
+    return Array.from(pairMap.values()).sort((a, b) => {
+      if (b.winPct !== a.winPct) return b.winPct - a.winPct;
+      return b.wins - a.wins;
+    });
+  };
+
+  const goodPairStandings = buildPairStandings("good");
+  const beginnerPairStandings = buildPairStandings("beginner");
+
+  // Individual standings still needed for playoff seeding
   const withWinPct = (players: Player[]) =>
     players
       .filter((p) => p.checkedIn)
@@ -175,7 +226,6 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
   }, {} as Record<number, PlayoffMatch[]>);
   const rounds = Object.keys(playoffMatchesByRound).map(Number).sort((a, b) => a - b);
 
-  // Find the champion
   const allPlayoffComplete = (state.playoffMatches || []).length > 0 && (state.playoffMatches || []).every((m) => m.status === "completed");
   const lastRound = rounds[rounds.length - 1];
   const champion = allPlayoffComplete && lastRound ? playoffMatchesByRound[lastRound]?.[0]?.winner : null;
@@ -207,10 +257,10 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
         </div>
       </div>
 
-      {/* Separate Leaderboards */}
+      {/* Pair Leaderboards by skill group */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <PlayerLeaderboard title="Standings — Group A" players={goodStandings} />
-        <PlayerLeaderboard title="Standings — Group B" players={beginnerStandings} />
+        <PairLeaderboard title="Standings — Group A" pairs={goodPairStandings} />
+        <PairLeaderboard title="Standings — Group B" pairs={beginnerPairStandings} />
       </div>
 
       {/* Playoff Section */}
