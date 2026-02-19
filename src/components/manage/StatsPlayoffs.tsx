@@ -120,15 +120,15 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
 
       {/* Separate Leaderboards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <PlayerLeaderboard title="Good Pool Standings" players={goodStandings} />
-        <PlayerLeaderboard title="Beginner Pool Standings" players={beginnerStandings} />
+        <PlayerLeaderboard title="Standings — Group A" players={goodStandings} />
+        <PlayerLeaderboard title="Standings — Group B" players={beginnerStandings} />
       </div>
 
       {/* Playoff Seeding */}
       <div className="rounded-lg border border-border bg-card p-6 space-y-4">
         <h3 className="font-display text-xl text-accent">Playoff Seeding</h3>
         <p className="text-sm text-muted-foreground">
-          GOOD players seeded first by Win%, then BEGINNER players by Win%. Single-elimination bracket with doubles teams.
+          Players seeded by Win%. Single-elimination bracket with doubles teams.
         </p>
         {roundRobinComplete && (
           <div className="rounded-md border border-accent/30 bg-accent/5 p-3 text-sm text-accent">
@@ -152,10 +152,6 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
                   <div className="flex-1">
                     <p className="font-display text-foreground">{s.player.name}</p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span className={`uppercase tracking-widest ${s.player.skillLevel === "good" ? "text-accent" : "text-primary"}`}>
-                        {s.player.skillLevel}
-                      </span>
-                      <span>•</span>
                       <span>{s.player.wins}W - {s.player.losses}L</span>
                       <span>•</span>
                       <span className="font-mono">{(s.winPct * 100).toFixed(0)}%</span>

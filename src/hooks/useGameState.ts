@@ -307,34 +307,38 @@ export function useGameState() {
     const beginnerMatches = generatePoolMatches(beginnerPlayers, "beginner");
 
     // --- Interleave matches across time slots ---
-    // Alternate: Court 1 = GOOD, Court 2 = BEGINNER, then swap next slot, etc.
+    // Start with GOOD games on BOTH courts first (so beginners can watch & learn),
+    // then alternate pools across courts.
     const schedule: Match[] = [];
     let gi = 0; // good match index
     let bi = 0; // beginner match index
     let gameNumber = 0;
 
     for (let slot = 0; slot < totalSlots; slot++) {
-      // Determine which pool goes to which court this slot
-      const court1Pool = slot % 2 === 0 ? "good" : "beginner";
-      const court2Pool = slot % 2 === 0 ? "beginner" : "good";
-
-      const pickMatch = (pool: "good" | "beginner"): Match | null => {
-        if (pool === "good" && gi < goodMatches.length) {
-          return goodMatches[gi++];
-        } else if (pool === "beginner" && bi < beginnerMatches.length) {
-          return beginnerMatches[bi++];
-        }
-        // If preferred pool is exhausted, take from the other
-        if (pool === "good" && bi < beginnerMatches.length) {
-          return beginnerMatches[bi++];
-        } else if (pool === "beginner" && gi < goodMatches.length) {
-          return goodMatches[gi++];
-        }
+      const pickFromPool = (pool: "good" | "beginner"): Match | null => {
+        if (pool === "good" && gi < goodMatches.length) return goodMatches[gi++];
+        if (pool === "beginner" && bi < beginnerMatches.length) return beginnerMatches[bi++];
+        // Fallback to the other pool
+        if (gi < goodMatches.length) return goodMatches[gi++];
+        if (bi < beginnerMatches.length) return beginnerMatches[bi++];
         return null;
       };
 
-      const m1 = pickMatch(court1Pool);
-      const m2 = pickMatch(court2Pool);
+      let pool1: "good" | "beginner";
+      let pool2: "good" | "beginner";
+
+      if (slot === 0) {
+        // First slot: GOOD on both courts
+        pool1 = "good";
+        pool2 = "good";
+      } else {
+        // After that, alternate pools across courts
+        pool1 = slot % 2 === 0 ? "good" : "beginner";
+        pool2 = slot % 2 === 0 ? "beginner" : "good";
+      }
+
+      const m1 = pickFromPool(pool1);
+      const m2 = pickFromPool(pool2);
 
       if (m1) {
         gameNumber++;
@@ -347,7 +351,7 @@ export function useGameState() {
         schedule.push(m2);
       }
 
-      if (!m1 && !m2) break; // no more matches
+      if (!m1 && !m2) break;
     }
 
     // Auto-assign first 2 matches to courts

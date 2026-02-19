@@ -34,17 +34,6 @@ const GameTimer = ({ startedAt }: { startedAt?: string }) => {
   );
 };
 
-const SkillBadge = ({ skill }: { skill: "good" | "beginner" }) => (
-  <span
-    className={`text-[10px] uppercase tracking-widest px-2.5 py-0.5 rounded-full border ${
-      skill === "good"
-        ? "border-accent/60 bg-accent/15 text-accent"
-        : "border-primary/40 bg-primary/10 text-primary"
-    }`}
-  >
-    {skill} pool
-  </span>
-);
 
 const WinnerModal = ({
   match,
@@ -103,7 +92,6 @@ const CourtCard = ({
         )}
       </div>
       <div className="flex items-center gap-3">
-        {match && <SkillBadge skill={match.skillLevel} />}
         {match && <GameTimer startedAt={match.startedAt} />}
         {match ? (
           <span className="text-xs uppercase tracking-widest bg-accent/20 text-accent px-3 py-1 rounded-full border border-accent/30">
@@ -179,7 +167,6 @@ const CourtDisplay = ({ gameState }: CourtDisplayProps) => {
           {pendingMatches.slice(0, 3).map((m) => (
             <div key={m.id} className="flex items-center gap-2 text-sm text-foreground/80 border-l-2 border-primary/30 pl-3 py-1">
               {m.gameNumber && <span className="text-accent font-display">#{m.gameNumber}</span>}
-              <SkillBadge skill={m.skillLevel} />
               <span>
                 {m.pair1.player1.name} & {m.pair1.player2.name} vs {m.pair2.player1.name} & {m.pair2.player2.name}
               </span>

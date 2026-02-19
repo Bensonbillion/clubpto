@@ -38,19 +38,21 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
         <h3 className="font-display text-xl text-accent">Player Check-In</h3>
         <div className="flex items-center gap-3">
           {isAdmin && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => lockCheckIn(!isLocked)}
-              className={isLocked ? "border-destructive text-destructive" : "border-accent text-accent"}
-            >
-              {isLocked ? <Lock className="w-3.5 h-3.5 mr-1" /> : <Unlock className="w-3.5 h-3.5 mr-1" />}
-              {isLocked ? "Locked" : "Lock Check-In"}
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => lockCheckIn(!isLocked)}
+                className={isLocked ? "border-destructive text-destructive" : "border-accent text-accent"}
+              >
+                {isLocked ? <Lock className="w-3.5 h-3.5 mr-1" /> : <Unlock className="w-3.5 h-3.5 mr-1" />}
+                {isLocked ? "Locked" : "Lock Check-In"}
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                {checkedInPlayers.length} of {state.roster.length} checked in
+              </span>
+            </>
           )}
-          <span className="text-sm text-muted-foreground">
-            {checkedInPlayers.length} of {state.roster.length} checked in
-          </span>
         </div>
       </div>
 
