@@ -7,7 +7,6 @@ export interface Player {
   wins: number;
   losses: number;
   gamesPlayed: number;
-  /** How many consecutive game slots this player has sat out */
   consecutiveSitOuts: number;
 }
 
@@ -24,6 +23,7 @@ export interface Match {
   id: string;
   pair1: Pair;
   pair2: Pair;
+  /** Which skill pool this match belongs to */
   skillLevel: "beginner" | "good";
   status: "pending" | "playing" | "completed";
   court: number | null;

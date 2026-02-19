@@ -14,37 +14,78 @@ interface PlayoffSeed {
   winPct: number;
 }
 
+const PlayerLeaderboard = ({ title, players }: { title: string; players: (Player & { winPct: number })[] }) => (
+  <div className="rounded-lg border border-border bg-card p-6 space-y-3">
+    <h4 className="font-display text-lg text-accent">{title}</h4>
+    {players.length === 0 ? (
+      <p className="text-sm text-muted-foreground text-center py-4">No games played yet.</p>
+    ) : (
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border text-left">
+              <th className="py-2 pr-2 text-xs uppercase tracking-widest text-muted-foreground w-8">#</th>
+              <th className="py-2 pr-2 text-xs uppercase tracking-widest text-muted-foreground">Player</th>
+              <th className="py-2 px-2 text-xs uppercase tracking-widest text-muted-foreground text-center">W</th>
+              <th className="py-2 px-2 text-xs uppercase tracking-widest text-muted-foreground text-center">L</th>
+              <th className="py-2 px-2 text-xs uppercase tracking-widest text-muted-foreground text-center">GP</th>
+              <th className="py-2 pl-2 text-xs uppercase tracking-widest text-muted-foreground text-right">Win%</th>
+            </tr>
+          </thead>
+          <tbody>
+            {players.map((p, i) => (
+              <tr key={p.id} className="border-b border-border/50 hover:bg-muted/50">
+                <td className="py-2.5 pr-2">
+                  <span className="font-display text-accent">{i + 1}</span>
+                </td>
+                <td className="py-2.5 pr-2">
+                  <span className="font-display text-foreground">{p.name}</span>
+                </td>
+                <td className="py-2.5 px-2 text-center text-foreground">{p.wins}</td>
+                <td className="py-2.5 px-2 text-center text-foreground">{p.losses}</td>
+                <td className="py-2.5 px-2 text-center text-muted-foreground">{p.gamesPlayed}</td>
+                <td className="py-2.5 pl-2 text-right">
+                  <span className="font-mono text-accent">{(p.winPct * 100).toFixed(0)}%</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </div>
+);
+
 const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
   const { state, checkedInPlayers, completedMatches } = gameState;
   const [playoffSeeds, setPlayoffSeeds] = useState<PlayoffSeed[]>([]);
 
-  // Player leaderboard sorted by Win%, then Wins
-  const playerStandings = [...state.roster]
-    .filter((p) => p.checkedIn)
-    .map((p) => ({
-      ...p,
-      winPct: p.gamesPlayed > 0 ? p.wins / p.gamesPlayed : 0,
-    }))
-    .sort((a, b) => {
-      if (b.winPct !== a.winPct) return b.winPct - a.winPct;
-      return b.wins - a.wins;
-    });
+  const withWinPct = (players: Player[]) =>
+    players
+      .filter((p) => p.checkedIn)
+      .map((p) => ({
+        ...p,
+        winPct: p.gamesPlayed > 0 ? p.wins / p.gamesPlayed : 0,
+      }))
+      .sort((a, b) => {
+        if (b.winPct !== a.winPct) return b.winPct - a.winPct;
+        return b.wins - a.wins;
+      });
+
+  const goodStandings = withWinPct(state.roster.filter((p) => p.skillLevel === "good"));
+  const beginnerStandings = withWinPct(state.roster.filter((p) => p.skillLevel === "beginner"));
 
   const generatePlayoffSeeds = () => {
-    // Separate by skill
-    const good = playerStandings.filter((p) => p.skillLevel === "good");
-    const beginners = playerStandings.filter((p) => p.skillLevel === "beginner");
-
-    // GOOD seeded first by Win%, then BEGINNER by Win%
     const seeded: PlayoffSeed[] = [];
     let seed = 1;
-    good.forEach((p) => {
+    // GOOD players seeded first
+    goodStandings.forEach((p) => {
       seeded.push({ seed: seed++, player: p, winPct: p.winPct });
     });
-    beginners.forEach((p) => {
+    // Then BEGINNER players
+    beginnerStandings.forEach((p) => {
       seeded.push({ seed: seed++, player: p, winPct: p.winPct });
     });
-
     setPlayoffSeeds(seeded);
   };
 
@@ -77,45 +118,10 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
         </div>
       </div>
 
-      {/* Live Leaderboard */}
-      <div className="rounded-lg border border-border bg-card p-6 space-y-3">
-        <h4 className="font-display text-xl text-accent">Live Leaderboard</h4>
-        {playerStandings.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">No games played yet.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left">
-                  <th className="py-2 pr-2 text-xs uppercase tracking-widest text-muted-foreground w-8">#</th>
-                  <th className="py-2 pr-2 text-xs uppercase tracking-widest text-muted-foreground">Player</th>
-                  <th className="py-2 px-2 text-xs uppercase tracking-widest text-muted-foreground text-center">W</th>
-                  <th className="py-2 px-2 text-xs uppercase tracking-widest text-muted-foreground text-center">L</th>
-                  <th className="py-2 px-2 text-xs uppercase tracking-widest text-muted-foreground text-center">GP</th>
-                  <th className="py-2 pl-2 text-xs uppercase tracking-widest text-muted-foreground text-right">Win%</th>
-                </tr>
-              </thead>
-              <tbody>
-                {playerStandings.map((p, i) => (
-                  <tr key={p.id} className="border-b border-border/50 hover:bg-muted/50">
-                    <td className="py-2.5 pr-2">
-                      <span className="font-display text-accent">{i + 1}</span>
-                    </td>
-                    <td className="py-2.5 pr-2">
-                      <span className="font-display text-foreground">{p.name}</span>
-                    </td>
-                    <td className="py-2.5 px-2 text-center text-foreground">{p.wins}</td>
-                    <td className="py-2.5 px-2 text-center text-foreground">{p.losses}</td>
-                    <td className="py-2.5 px-2 text-center text-muted-foreground">{p.gamesPlayed}</td>
-                    <td className="py-2.5 pl-2 text-right">
-                      <span className="font-mono text-accent">{(p.winPct * 100).toFixed(0)}%</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+      {/* Separate Leaderboards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <PlayerLeaderboard title="Good Pool Standings" players={goodStandings} />
+        <PlayerLeaderboard title="Beginner Pool Standings" players={beginnerStandings} />
       </div>
 
       {/* Playoff Seeding */}
@@ -131,7 +137,7 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
         )}
         <Button
           onClick={generatePlayoffSeeds}
-          disabled={playerStandings.length < 4}
+          disabled={goodStandings.length + beginnerStandings.length < 4}
           className="bg-accent text-accent-foreground hover:bg-accent/80"
         >
           <Trophy className="w-4 h-4 mr-1" /> Generate Playoff Seeds
@@ -146,7 +152,9 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
                   <div className="flex-1">
                     <p className="font-display text-foreground">{s.player.name}</p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span className="uppercase tracking-widest text-accent">{s.player.skillLevel}</span>
+                      <span className={`uppercase tracking-widest ${s.player.skillLevel === "good" ? "text-accent" : "text-primary"}`}>
+                        {s.player.skillLevel}
+                      </span>
                       <span>•</span>
                       <span>{s.player.wins}W - {s.player.losses}L</span>
                       <span>•</span>
@@ -165,7 +173,7 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
               <div className="rounded-lg border border-accent/20 bg-accent/5 p-4 space-y-2">
                 <h4 className="font-display text-lg text-accent">Bracket Preview (Doubles)</h4>
                 <p className="text-xs text-muted-foreground mb-3">
-                  Seeds paired together: 1 & {playoffSeeds.length} vs 2 & {playoffSeeds.length - 1}, etc.
+                  Seeds paired: 1 & {playoffSeeds.length} vs 2 & {playoffSeeds.length - 1}, etc.
                 </p>
                 {Array.from({ length: Math.floor(playoffSeeds.length / 4) }, (_, i) => {
                   const s1 = playoffSeeds[i * 2];

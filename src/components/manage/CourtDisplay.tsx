@@ -34,6 +34,18 @@ const GameTimer = ({ startedAt }: { startedAt?: string }) => {
   );
 };
 
+const SkillBadge = ({ skill }: { skill: "good" | "beginner" }) => (
+  <span
+    className={`text-[10px] uppercase tracking-widest px-2.5 py-0.5 rounded-full border ${
+      skill === "good"
+        ? "border-accent/60 bg-accent/15 text-accent"
+        : "border-primary/40 bg-primary/10 text-primary"
+    }`}
+  >
+    {skill} pool
+  </span>
+);
+
 const WinnerModal = ({
   match,
   onSelect,
@@ -82,15 +94,16 @@ const CourtCard = ({
 }) => (
   <div className="rounded-lg border border-border bg-card p-6 space-y-5 flex-1">
     <div className="flex items-center justify-between">
-      <div>
+      <div className="space-y-1">
         <h3 className="font-display text-2xl text-accent">Court {courtNum}</h3>
         {match?.gameNumber && totalGames > 0 && (
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="text-xs text-muted-foreground">
             Game {match.gameNumber} of {totalGames}
           </p>
         )}
       </div>
       <div className="flex items-center gap-3">
+        {match && <SkillBadge skill={match.skillLevel} />}
         {match && <GameTimer startedAt={match.startedAt} />}
         {match ? (
           <span className="text-xs uppercase tracking-widest bg-accent/20 text-accent px-3 py-1 rounded-full border border-accent/30">
@@ -139,7 +152,7 @@ const CourtDisplay = ({ gameState }: CourtDisplayProps) => {
   const showCourt2 = !courtFilter || courtFilter === "2";
   const totalGames = state.totalScheduledGames;
 
-  // "On deck" players from the next 2 pending matches
+  // "On deck" players
   const onDeckPlayers = onDeckMatches.flatMap((m) => [
     m.pair1.player1.name,
     m.pair1.player2.name,
@@ -164,9 +177,12 @@ const CourtDisplay = ({ gameState }: CourtDisplayProps) => {
         <div className="rounded-lg border border-border bg-card p-6 space-y-3">
           <h3 className="font-display text-lg text-accent">Up Next</h3>
           {pendingMatches.slice(0, 3).map((m) => (
-            <div key={m.id} className="text-sm text-foreground/80 border-l-2 border-primary/30 pl-3 py-1">
-              {m.gameNumber && <span className="text-accent mr-2">#{m.gameNumber}</span>}
-              {m.pair1.player1.name} & {m.pair1.player2.name} vs {m.pair2.player1.name} & {m.pair2.player2.name}
+            <div key={m.id} className="flex items-center gap-2 text-sm text-foreground/80 border-l-2 border-primary/30 pl-3 py-1">
+              {m.gameNumber && <span className="text-accent font-display">#{m.gameNumber}</span>}
+              <SkillBadge skill={m.skillLevel} />
+              <span>
+                {m.pair1.player1.name} & {m.pair1.player2.name} vs {m.pair2.player1.name} & {m.pair2.player2.name}
+              </span>
             </div>
           ))}
         </div>
@@ -175,7 +191,7 @@ const CourtDisplay = ({ gameState }: CourtDisplayProps) => {
       {/* On Deck */}
       {onDeckPlayers.length > 0 && (
         <div className="rounded-lg border border-accent/20 bg-accent/5 p-6 space-y-3">
-          <h3 className="font-display text-lg text-accent">🏓 Players On Deck — Get Ready!</h3>
+          <h3 className="font-display text-lg text-accent">🏓 On Deck — Get Ready!</h3>
           <div className="flex flex-wrap gap-2">
             {[...new Set(onDeckPlayers)].map((name) => (
               <span key={name} className="rounded-full border border-accent/40 bg-accent/10 px-4 py-1.5 text-sm font-display text-foreground">

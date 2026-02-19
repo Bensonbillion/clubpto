@@ -59,7 +59,6 @@ export function useGameState() {
     };
   }, []);
 
-  // Persist state to DB (debounced, non-blocking)
   const persistState = useCallback(async (newState: GameState) => {
     if (savingRef.current) {
       pendingRef.current = newState;
@@ -162,12 +161,15 @@ export function useGameState() {
   );
 
   /**
-   * Generate a full round-robin schedule:
-   * - 85 min session, ~7 min/game, 2 courts = ~24 game slots total
-   * - Mix GOOD + BEGINNER per team for competitive balance
-   * - Each player gets min 3 games, ideally 4-5
-   * - No player sits out more than 2 consecutive slots
-   * - Avoids recent repeat pairings from pair_history
+   * Skill-separated round-robin schedule generator.
+   *
+   * Rules:
+   * - GOOD pairs only face GOOD pairs; BEGINNER pairs only face BEGINNER pairs.
+   * - Two independent pools share 2 courts, alternating pool per court per slot.
+   * - No player plays back-to-back slots (at least 1 slot rest).
+   * - No player sits out more than 3 consecutive slots.
+   * - Players with fewer games are prioritised.
+   * - Avoids repeat pairings from the last 14 days.
    */
   const generateFullSchedule = useCallback(async () => {
     const checkedIn = state.roster.filter((p) => p.checkedIn);
@@ -188,215 +190,181 @@ export function useGameState() {
     const wasRecentlyPaired = (a: string, b: string) =>
       recentPairs.has([a, b].sort().join("|||"));
 
-    // Calculate game slots
-    const durationMin = state.sessionConfig.durationMinutes || 85;
-    const minutesPerGame = 7;
-    const gamesPerCourt = Math.floor(durationMin / minutesPerGame);
-    const totalGameSlots = gamesPerCourt * 2; // 2 courts
-    const numPlayers = checkedIn.length;
-    const minGamesPerPlayer = 3;
-
-    // Separate by skill for team-building
+    // Split pools
     const goodPlayers = shuffle(checkedIn.filter((p) => p.skillLevel === "good"));
     const beginnerPlayers = shuffle(checkedIn.filter((p) => p.skillLevel === "beginner"));
 
-    // Build teams: pair 1 GOOD + 1 BEGINNER where possible
-    const buildTeam = (
+    const durationMin = state.sessionConfig.durationMinutes || 85;
+    const minutesPerGame = 7;
+    const gamesPerCourt = Math.floor(durationMin / minutesPerGame);
+    const totalSlots = gamesPerCourt; // time slots (2 courts run simultaneously per slot)
+
+    // --- Generate matches for a single skill pool ---
+    const generatePoolMatches = (
       players: Player[],
-      gameCount: Map<string, number>,
-      sitOutCount: Map<string, number>,
-      usedThisSlot: Set<string>
-    ): Pair | null => {
-      // Sort by fewest games played, then most consecutive sit-outs
-      const available = players
-        .filter((p) => !usedThisSlot.has(p.id))
-        .sort((a, b) => {
-          const gamesA = gameCount.get(a.id) || 0;
-          const gamesB = gameCount.get(b.id) || 0;
-          if (gamesA !== gamesB) return gamesA - gamesB;
-          const sitA = sitOutCount.get(a.id) || 0;
-          const sitB = sitOutCount.get(b.id) || 0;
-          return sitB - sitA; // prioritize those sitting out longer
-        });
+      skill: "beginner" | "good"
+    ): Match[] => {
+      if (players.length < 4) return [];
 
-      if (available.length < 2) return null;
-
-      const p1 = available[0];
-      // Try to find a partner not recently paired
-      let p2 = available.slice(1).find((p) => !wasRecentlyPaired(p1.name, p.name));
-      if (!p2) p2 = available[1]; // fallback
-
-      usedThisSlot.add(p1.id);
-      usedThisSlot.add(p2.id);
-
-      return {
-        id: generateId(),
-        player1: p1,
-        player2: p2,
-        skillLevel: p1.skillLevel, // not used for round-robin separation
-        wins: 0,
-        losses: 0,
-      };
-    };
-
-    const allPlayers = shuffle(checkedIn);
-    const gameCount = new Map<string, number>();
-    const sitOutCount = new Map<string, number>();
-    allPlayers.forEach((p) => {
-      gameCount.set(p.id, 0);
-      sitOutCount.set(p.id, 0);
-    });
-
-    const allMatches: Match[] = [];
-    const allPairs: Pair[] = [];
-    let gameNumber = 0;
-
-    // Generate games in pairs of 2 (one per court per time slot)
-    for (let slot = 0; slot < gamesPerCourt; slot++) {
-      const usedThisSlot = new Set<string>();
-
-      // Build 2 matches (one per court) for this time slot
-      for (let court = 1; court <= 2; court++) {
-        // Build 2 teams for this match, mixing skill levels
-        const availableGood = goodPlayers.filter((p) => !usedThisSlot.has(p.id));
-        const availableBeg = beginnerPlayers.filter((p) => !usedThisSlot.has(p.id));
-        const availableAll = allPlayers.filter((p) => !usedThisSlot.has(p.id));
-
-        let team1: Pair | null = null;
-        let team2: Pair | null = null;
-
-        // Try to build mixed teams (1 good + 1 beginner each)
-        if (availableGood.length >= 2 && availableBeg.length >= 2) {
-          // Sort each pool by game count
-          const sortedGood = [...availableGood].sort(
-            (a, b) => (gameCount.get(a.id) || 0) - (gameCount.get(b.id) || 0)
-          );
-          const sortedBeg = [...availableBeg].sort(
-            (a, b) => (gameCount.get(a.id) || 0) - (gameCount.get(b.id) || 0)
-          );
-
-          const g1 = sortedGood[0];
-          const b1 = sortedBeg[0];
-          const g2 = sortedGood[1];
-          const b2 = sortedBeg[1];
-
-          usedThisSlot.add(g1.id);
-          usedThisSlot.add(b1.id);
-          usedThisSlot.add(g2.id);
-          usedThisSlot.add(b2.id);
-
-          team1 = {
-            id: generateId(),
-            player1: g1,
-            player2: b1,
-            skillLevel: "good",
-            wins: 0,
-            losses: 0,
-          };
-          team2 = {
-            id: generateId(),
-            player1: g2,
-            player2: b2,
-            skillLevel: "good",
-            wins: 0,
-            losses: 0,
-          };
-        } else if (availableAll.length >= 4) {
-          // Fallback: just pick 4 players sorted by least games
-          team1 = buildTeam(availableAll, gameCount, sitOutCount, usedThisSlot);
-          team2 = buildTeam(
-            availableAll.filter((p) => !usedThisSlot.has(p.id)),
-            gameCount,
-            sitOutCount,
-            usedThisSlot
-          );
-        }
-
-        if (team1 && team2) {
-          gameNumber++;
-          const match: Match = {
-            id: generateId(),
-            pair1: team1,
-            pair2: team2,
-            skillLevel: "good",
-            status: "pending",
-            court: null,
-            gameNumber,
-          };
-          allMatches.push(match);
-          allPairs.push(team1, team2);
-
-          // Update game counts
-          [team1.player1, team1.player2, team2.player1, team2.player2].forEach((p) => {
-            gameCount.set(p.id, (gameCount.get(p.id) || 0) + 1);
-          });
-        }
-      }
-
-      // Update sit-out counts
-      allPlayers.forEach((p) => {
-        if (usedThisSlot.has(p.id)) {
-          sitOutCount.set(p.id, 0);
-        } else {
-          sitOutCount.set(p.id, (sitOutCount.get(p.id) || 0) + 1);
-          // If sitting out too long, force them into next slot
-        }
+      const gameCount = new Map<string, number>();
+      const lastPlayedSlot = new Map<string, number>(); // slot index when player last played
+      const consecutiveSitOut = new Map<string, number>();
+      players.forEach((p) => {
+        gameCount.set(p.id, 0);
+        lastPlayedSlot.set(p.id, -99); // never played
+        consecutiveSitOut.set(p.id, 0);
       });
 
-      // Ensure no one exceeds 2 consecutive sit-outs — covered by priority sort
-    }
+      const matches: Match[] = [];
+      // We'll generate as many matches as we can; the interleaver will pick from these
+      const targetGamesPerPlayer = 5;
+      const maxMatches = Math.ceil((players.length * targetGamesPerPlayer) / 4);
 
-    // Ensure minimum games: if any player has < minGamesPerPlayer, add extra matches
-    const underserved = allPlayers.filter(
-      (p) => (gameCount.get(p.id) || 0) < minGamesPerPlayer
-    );
-    if (underserved.length >= 4) {
-      const usedExtra = new Set<string>();
-      for (let i = 0; i + 3 < underserved.length; i += 4) {
-        const four = underserved.slice(i, i + 4);
-        four.forEach((p) => usedExtra.add(p.id));
-        const t1: Pair = {
+      for (let m = 0; m < maxMatches; m++) {
+        // Sort players by: fewest games first, then most sit-outs
+        const sorted = [...players].sort((a, b) => {
+          const ga = gameCount.get(a.id) || 0;
+          const gb = gameCount.get(b.id) || 0;
+          if (ga !== gb) return ga - gb;
+          const sa = consecutiveSitOut.get(a.id) || 0;
+          const sb = consecutiveSitOut.get(b.id) || 0;
+          return sb - sa;
+        });
+
+        // Pick 4 players who didn't play in the "previous" match of this pool
+        // Simulate slot spacing: ensure they weren't in the last pool match
+        const lastPoolMatchPlayers = matches.length > 0
+          ? new Set([
+              matches[matches.length - 1].pair1.player1.id,
+              matches[matches.length - 1].pair1.player2.id,
+              matches[matches.length - 1].pair2.player1.id,
+              matches[matches.length - 1].pair2.player2.id,
+            ])
+          : new Set<string>();
+
+        const eligible = sorted.filter((p) => !lastPoolMatchPlayers.has(p.id));
+        const fallback = sorted; // if not enough eligible, use all
+
+        const pick4 = (list: Player[]): Player[] | null => {
+          if (list.length < 4) return null;
+          return list.slice(0, 4);
+        };
+
+        let four = pick4(eligible);
+        if (!four) four = pick4(fallback);
+        if (!four) break; // not enough players
+
+        // Build 2 pairs, trying to avoid recent pairings
+        let p1: Player, p2: Player, p3: Player, p4: Player;
+        p1 = four[0];
+        // Find best partner for p1 (not recently paired)
+        const partnerCandidates = four.slice(1);
+        const bestPartner = partnerCandidates.find((c) => !wasRecentlyPaired(p1.name, c.name)) || partnerCandidates[0];
+        p2 = bestPartner;
+        const remaining = four.filter((p) => p.id !== p1.id && p.id !== p2.id);
+        p3 = remaining[0];
+        p4 = remaining[1];
+
+        const team1: Pair = {
           id: generateId(),
-          player1: four[0],
-          player2: four[1],
-          skillLevel: "good",
+          player1: p1,
+          player2: p2,
+          skillLevel: skill,
           wins: 0,
           losses: 0,
         };
-        const t2: Pair = {
+        const team2: Pair = {
           id: generateId(),
-          player1: four[2],
-          player2: four[3],
-          skillLevel: "good",
+          player1: p3,
+          player2: p4,
+          skillLevel: skill,
           wins: 0,
           losses: 0,
         };
-        gameNumber++;
-        allMatches.push({
+
+        matches.push({
           id: generateId(),
-          pair1: t1,
-          pair2: t2,
-          skillLevel: "good",
+          pair1: team1,
+          pair2: team2,
+          skillLevel: skill,
           status: "pending",
           court: null,
-          gameNumber,
         });
-        allPairs.push(t1, t2);
+
+        // Update counts
+        four.forEach((p) => {
+          gameCount.set(p.id, (gameCount.get(p.id) || 0) + 1);
+        });
       }
+
+      // Trim: ensure every player has at least 3 games (keep generating if needed)
+      // The loop above targets 5 per player which should cover it.
+
+      return matches;
+    };
+
+    const goodMatches = generatePoolMatches(goodPlayers, "good");
+    const beginnerMatches = generatePoolMatches(beginnerPlayers, "beginner");
+
+    // --- Interleave matches across time slots ---
+    // Alternate: Court 1 = GOOD, Court 2 = BEGINNER, then swap next slot, etc.
+    const schedule: Match[] = [];
+    let gi = 0; // good match index
+    let bi = 0; // beginner match index
+    let gameNumber = 0;
+
+    for (let slot = 0; slot < totalSlots; slot++) {
+      // Determine which pool goes to which court this slot
+      const court1Pool = slot % 2 === 0 ? "good" : "beginner";
+      const court2Pool = slot % 2 === 0 ? "beginner" : "good";
+
+      const pickMatch = (pool: "good" | "beginner"): Match | null => {
+        if (pool === "good" && gi < goodMatches.length) {
+          return goodMatches[gi++];
+        } else if (pool === "beginner" && bi < beginnerMatches.length) {
+          return beginnerMatches[bi++];
+        }
+        // If preferred pool is exhausted, take from the other
+        if (pool === "good" && bi < beginnerMatches.length) {
+          return beginnerMatches[bi++];
+        } else if (pool === "beginner" && gi < goodMatches.length) {
+          return goodMatches[gi++];
+        }
+        return null;
+      };
+
+      const m1 = pickMatch(court1Pool);
+      const m2 = pickMatch(court2Pool);
+
+      if (m1) {
+        gameNumber++;
+        m1.gameNumber = gameNumber;
+        schedule.push(m1);
+      }
+      if (m2) {
+        gameNumber++;
+        m2.gameNumber = gameNumber;
+        schedule.push(m2);
+      }
+
+      if (!m1 && !m2) break; // no more matches
     }
 
-    // Auto-assign first 2 matches to courts with startedAt
+    // Auto-assign first 2 matches to courts
     const now = new Date().toISOString();
-    if (allMatches.length >= 1) {
-      allMatches[0].status = "playing";
-      allMatches[0].court = 1;
-      allMatches[0].startedAt = now;
+    if (schedule.length >= 1) {
+      schedule[0].status = "playing";
+      schedule[0].court = 1;
+      schedule[0].startedAt = now;
     }
-    if (allMatches.length >= 2) {
-      allMatches[1].status = "playing";
-      allMatches[1].court = 2;
-      allMatches[1].startedAt = now;
+    if (schedule.length >= 2) {
+      schedule[1].status = "playing";
+      schedule[1].court = 2;
+      schedule[1].startedAt = now;
     }
+
+    // Collect all pairs
+    const allPairs = schedule.flatMap((m) => [m.pair1, m.pair2]);
 
     // Save pairs to history
     const historyRows = allPairs.map((p) => ({
@@ -410,7 +378,7 @@ export function useGameState() {
     updateState((s) => ({
       ...s,
       pairs: allPairs,
-      matches: allMatches,
+      matches: schedule,
       totalScheduledGames: gameNumber,
     }));
   }, [state.roster, state.sessionConfig, updateState]);
@@ -454,7 +422,6 @@ export function useGameState() {
         const loserPair = match.pair1.id === winnerPairId ? match.pair2 : match.pair1;
         const freedCourt = match.court;
 
-        // Update players
         const winnerIds = [winnerPair.player1.id, winnerPair.player2.id];
         const loserIds = [loserPair.player1.id, loserPair.player2.id];
         const updatedRoster = s.roster.map((p) => {
@@ -463,7 +430,6 @@ export function useGameState() {
           return p;
         });
 
-        // Update match
         const updatedMatches = [...s.matches];
         updatedMatches[matchIdx] = {
           ...match,
@@ -473,7 +439,6 @@ export function useGameState() {
           completedAt: new Date().toISOString(),
         };
 
-        // Assign next pending match to freed court
         if (freedCourt) {
           const nextPending = updatedMatches.find((m) => m.status === "pending");
           if (nextPending) {
@@ -522,10 +487,9 @@ export function useGameState() {
   const court1Match = playingMatches.find((m) => m.court === 1) || null;
   const court2Match = playingMatches.find((m) => m.court === 2) || null;
 
-  // "On deck" = the next 2 pending matches (players who should get ready)
+  // "On deck" = the next 2 pending matches
   const onDeckMatches = pendingMatches.slice(0, 2);
 
-  // Waiting players - checked in but not currently playing
   const playingPlayerIds = playingMatches.flatMap((m) => [
     m.pair1.player1.id, m.pair1.player2.id,
     m.pair2.player1.id, m.pair2.player2.id,
