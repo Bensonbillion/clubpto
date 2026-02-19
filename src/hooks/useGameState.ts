@@ -2,6 +2,12 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { GameState, DEFAULT_STATE, Player, Pair, Match, GameHistory, PlayoffMatch, FixedPair } from "@/types/courtManager";
 
+const VIP_NAMES = ["david", "benson", "albright"];
+function isVip(name: string) { return VIP_NAMES.includes(name.toLowerCase()); }
+function matchHasVip(m: Match): boolean {
+  return [m.pair1.player1, m.pair1.player2, m.pair2.player1, m.pair2.player2].some(p => isVip(p.name));
+}
+
 const ROW_ID = "current"; // stable ID for game state row
 
 function generateId(): string {
@@ -205,7 +211,22 @@ export function useGameState() {
    * - Avoids repeat pairings from the last 14 days.
    */
   const generateFullSchedule = useCallback(async (fixedPairs: FixedPair[] = []) => {
-    const checkedIn = state.roster.filter((p) => p.checkedIn);
+    // Auto-check-in any locked teammates who haven't checked in yet
+    let roster = [...state.roster];
+    const autoCheckInIds: string[] = [];
+    fixedPairs.forEach((fp) => {
+      const teammate = roster.find(
+        (p) => p.name.toLowerCase() === fp.player2Name.toLowerCase() && !p.checkedIn
+      );
+      if (teammate) {
+        autoCheckInIds.push(teammate.id);
+        roster = roster.map((p) =>
+          p.id === teammate.id ? { ...p, checkedIn: true, checkInTime: new Date().toISOString() } : p
+        );
+      }
+    });
+
+    const checkedIn = roster.filter((p) => p.checkedIn);
     if (checkedIn.length < 4) return;
 
     // Fetch pair history from last 2 weeks
@@ -441,6 +462,21 @@ export function useGameState() {
       if (!m1 && !m2) break;
     }
 
+    // --- Push VIP matches out of the first 2 slots ---
+    // VIPs should not play in game 1 or 2 so they can onboard beginners
+    for (let i = 0; i < Math.min(2, schedule.length); i++) {
+      if (matchHasVip(schedule[i])) {
+        // Find the first non-VIP match after position 1
+        const swapIdx = schedule.findIndex((m, idx) => idx > 1 && !matchHasVip(m));
+        if (swapIdx !== -1) {
+          [schedule[i], schedule[swapIdx]] = [schedule[swapIdx], schedule[i]];
+        }
+      }
+    }
+
+    // Re-number games after reorder
+    schedule.forEach((m, idx) => { m.gameNumber = idx + 1; });
+
     // Auto-assign first 2 matches to courts
     const now = new Date().toISOString();
     if (schedule.length >= 1) {
@@ -468,9 +504,10 @@ export function useGameState() {
 
     updateState((s) => ({
       ...s,
+      roster: roster, // persist auto-check-ins
       pairs: allPairs,
       matches: schedule,
-      totalScheduledGames: gameNumber,
+      totalScheduledGames: schedule.length,
     }));
   }, [state.roster, state.sessionConfig, updateState]);
 
