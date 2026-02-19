@@ -36,7 +36,7 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
       {/* Session Configuration */}
       <div className="rounded-lg border border-border bg-card p-6 space-y-4">
         <h3 className="font-display text-xl text-accent">Session Configuration</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1 block">Start Time</label>
             <Input
@@ -55,16 +55,8 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
               className="bg-muted border-border"
             />
           </div>
-          <div>
-            <label className="text-xs uppercase tracking-widest text-muted-foreground mb-1 block">Match Duration (min)</label>
-            <Input
-              type="number"
-              value={state.sessionConfig.matchDurationMinutes}
-              onChange={(e) => setSessionConfig({ matchDurationMinutes: Number(e.target.value) })}
-              className="bg-muted border-border"
-            />
-          </div>
         </div>
+        <p className="text-xs text-muted-foreground">Games are played to 7 points to determine a winner.</p>
       </div>
 
       {/* Add Player */}
