@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useGameState } from "@/hooks/useGameState";
 import { Button } from "@/components/ui/button";
 import { Check, Clock, Swords, Lock, Unlock, UserPlus } from "lucide-react";
@@ -15,24 +15,40 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
   const { state, toggleCheckIn, checkedInPlayers, generateFullSchedule, addLatePlayersToSchedule, lockCheckIn, startSession } = gameState;
   const [generated, setGenerated] = useState(false);
   const [showVipDialog, setShowVipDialog] = useState(false);
+  const vipDialogDismissedRef = useRef(false);
+  const [vipFixedPair, setVipFixedPair] = useState<FixedPair | null>(null);
+
+  // Auto-show VIP dialog when all 3 check in
+  const vipNames = getCheckedInVips(state.roster);
+  useEffect(() => {
+    if (vipNames && !vipDialogDismissedRef.current && state.matches.length === 0) {
+      setShowVipDialog(true);
+    }
+    // Reset if a VIP un-checks
+    if (!vipNames) {
+      vipDialogDismissedRef.current = false;
+      setVipFixedPair(null);
+    }
+  }, [vipNames, state.matches.length]);
 
   const formatTime = (iso: string | null) => {
     if (!iso) return "";
     return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
-  const handleGenerateClick = () => {
-    const vips = getCheckedInVips(state.roster);
-    if (vips) {
-      setShowVipDialog(true);
-    } else {
-      doGenerate(null);
-    }
+  const handleVipClose = () => {
+    setShowVipDialog(false);
+    vipDialogDismissedRef.current = true;
   };
 
-  const doGenerate = async (fixedPair: FixedPair | null) => {
+  const handleVipConfirm = (fixedPair: FixedPair | null) => {
+    setVipFixedPair(fixedPair);
     setShowVipDialog(false);
-    await generateFullSchedule(fixedPair ? [fixedPair] : []);
+    vipDialogDismissedRef.current = true;
+  };
+
+  const handleGenerateClick = async () => {
+    await generateFullSchedule(vipFixedPair ? [vipFixedPair] : []);
     setGenerated(true);
     onSwitchToCourtDisplay?.();
   };
@@ -146,12 +162,12 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
           </Button>
         </div>
       )}
-      {showVipDialog && (
+      {showVipDialog && vipNames && (
         <VipPairingDialog
           open={showVipDialog}
-          onClose={() => setShowVipDialog(false)}
-          onConfirm={(fp) => doGenerate(fp)}
-          vipNames={getCheckedInVips(state.roster) || []}
+          onClose={handleVipClose}
+          onConfirm={handleVipConfirm}
+          vipNames={vipNames}
         />
       )}
     </div>

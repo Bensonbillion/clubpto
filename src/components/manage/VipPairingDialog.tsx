@@ -84,7 +84,7 @@ const VipPairingDialog = ({ open, onClose, onConfirm, vipNames }: VipPairingDial
             onClick={handleConfirm}
             disabled={!selected}
           >
-            Lock Pair & Generate
+            Lock Pair
           </Button>
         </div>
       </DialogContent>
