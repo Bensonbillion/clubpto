@@ -18,7 +18,7 @@ interface AiResult {
 }
 
 const AdminSetup = ({ gameState }: AdminSetupProps) => {
-  const { state, setSessionConfig, addPlayer, removePlayer, toggleSkillLevel, setAllSkillLevels, startSession, resetSession } = gameState;
+  const { state, setSessionConfig, addPlayer, removePlayer, toggleSkillLevel, setAllSkillLevels, setFixedPairs, startSession, resetSession } = gameState;
   const [newName, setNewName] = useState("");
   const [newSkill, setNewSkill] = useState<"beginner" | "good">("beginner");
   const [confirmReset, setConfirmReset] = useState(false);
@@ -96,9 +96,14 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
         toggleSkillLevel(player.id);
       }
     });
-    // Store fixed pairs in session config (we'll pass them on start)
-    // We surface them as a toast for now and store in state via a note
-    toast.success(`AI config applied! ${aiResult.fixedPairs.length} fixed pairs set.`);
+    // Persist fixed pairs into game state so they're enforced on Start Session
+    setFixedPairs(aiResult.fixedPairs);
+    const pairCount = aiResult.fixedPairs.length;
+    const overrideCount = aiResult.skillOverrides.length;
+    const parts: string[] = [];
+    if (pairCount > 0) parts.push(`${pairCount} fixed pair${pairCount > 1 ? "s" : ""} saved`);
+    if (overrideCount > 0) parts.push(`${overrideCount} skill group${overrideCount > 1 ? "s" : ""} updated`);
+    toast.success(parts.length > 0 ? parts.join(" · ") : "AI config applied!");
     setAiResult(null);
     setAiPrompt("");
     setShowAi(false);
@@ -133,6 +138,31 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
           Games are doubles (2v2) played to 7 points (~7 min each). {Math.floor((state.sessionConfig.durationMinutes || 85) / 7)} game slots per court, {Math.floor((state.sessionConfig.durationMinutes || 85) / 7) * 2} total across 2 courts.
         </p>
       </div>
+
+      {/* Active Fixed Pairs Banner */}
+      {(state.fixedPairs ?? []).length > 0 && (
+        <div className="rounded-lg border border-accent/40 bg-accent/5 px-6 py-4 flex flex-wrap items-start gap-4">
+          <div className="flex-1 min-w-0">
+            <p className="text-xs uppercase tracking-widest text-accent mb-2 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" /> AI Fixed Pairs · Active
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {(state.fixedPairs ?? []).map((fp, i) => (
+                <span key={i} className="text-sm bg-accent/15 border border-accent/30 rounded-full px-3 py-1 text-foreground">
+                  {fp.player1Name} &amp; {fp.player2Name}
+                </span>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">These pairs will be locked in when you start the session.</p>
+          </div>
+          <button
+            onClick={() => setFixedPairs([])}
+            className="shrink-0 text-xs uppercase tracking-widest text-muted-foreground hover:text-destructive transition-colors px-3 py-1.5 min-h-[36px]"
+          >
+            Clear
+          </button>
+        </div>
+      )}
 
       {/* Add Player */}
       <div className="rounded-lg border border-border bg-card p-8 space-y-5">
