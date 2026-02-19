@@ -788,6 +788,13 @@ export function useGameState() {
     [updateState]
   );
 
+  const setFixedPairs = useCallback(
+    (pairs: FixedPair[]) => {
+      updateState((s) => ({ ...s, fixedPairs: pairs }));
+    },
+    [updateState]
+  );
+
   const startSession = useCallback(() => {
     updateState((s) => ({ ...s, sessionStarted: true }));
   }, [updateState]);
@@ -907,6 +914,7 @@ export function useGameState() {
     state,
     loading,
     setSessionConfig,
+    setFixedPairs,
     addPlayer,
     removePlayer,
     toggleSkillLevel,
