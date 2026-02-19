@@ -12,7 +12,7 @@ interface CheckInProps {
 }
 
 const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckInProps) => {
-  const { state, toggleCheckIn, checkedInPlayers, generateFullSchedule, addLatePlayersToSchedule, lockCheckIn } = gameState;
+  const { state, toggleCheckIn, checkedInPlayers, generateFullSchedule, addLatePlayersToSchedule, lockCheckIn, startSession } = gameState;
   const [generated, setGenerated] = useState(false);
   const [showVipDialog, setShowVipDialog] = useState(false);
 
@@ -139,8 +139,11 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
         </div>
       )}
       {isAdmin && !state.sessionStarted && (
-        <div className="sticky bottom-4 rounded-lg border border-border bg-card/95 backdrop-blur-sm p-5 text-center shadow-lg">
-          <p className="text-base text-muted-foreground">Start session in Admin Setup before generating games.</p>
+        <div className="sticky bottom-4 rounded-lg border border-accent/30 bg-card/95 backdrop-blur-sm p-5 flex items-center justify-between gap-4 shadow-lg">
+          <p className="text-base text-muted-foreground">Start the session to enable game generation.</p>
+          <Button onClick={startSession} className="bg-accent text-accent-foreground hover:bg-accent/80 shrink-0 min-h-[48px] px-6 text-base">
+            Start Session
+          </Button>
         </div>
       )}
       {showVipDialog && (
