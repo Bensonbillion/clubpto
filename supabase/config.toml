@@ -1,1 +1,4 @@
 project_id = "ikfbtktofcfkpqxwlfku"
+
+[functions.ai-setup-assistant]
+verify_jwt = false

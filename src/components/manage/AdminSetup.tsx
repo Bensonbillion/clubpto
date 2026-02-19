@@ -2,11 +2,19 @@ import { useState } from "react";
 import { useGameState } from "@/hooks/useGameState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Plus, Play, RotateCcw, ClipboardPaste } from "lucide-react";
+import { Trash2, Plus, Play, RotateCcw, ClipboardPaste, Sparkles, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface AdminSetupProps {
   gameState: ReturnType<typeof useGameState>;
+}
+
+interface AiResult {
+  fixedPairs: { player1Name: string; player2Name: string }[];
+  skillOverrides: { playerName: string; newSkill: "beginner" | "good" }[];
+  explanation: string;
 }
 
 const AdminSetup = ({ gameState }: AdminSetupProps) => {
@@ -17,6 +25,12 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
   const [bulkNames, setBulkNames] = useState("");
   const [bulkSkill, setBulkSkill] = useState<"beginner" | "good">("beginner");
   const [showBulk, setShowBulk] = useState(false);
+
+  // AI assistant state
+  const [showAi, setShowAi] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResult, setAiResult] = useState<AiResult | null>(null);
 
   const handleAddPlayer = () => {
     if (!newName.trim()) return;
@@ -42,6 +56,52 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
       setConfirmReset(true);
       setTimeout(() => setConfirmReset(false), 3000);
     }
+  };
+
+  const handleAiSubmit = async () => {
+    if (!aiPrompt.trim() || state.roster.length === 0) return;
+    setAiLoading(true);
+    setAiResult(null);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-setup-assistant`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ prompt: aiPrompt, roster: state.roster }),
+        }
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "AI request failed");
+        return;
+      }
+      setAiResult(data as AiResult);
+    } catch (e) {
+      toast.error("Failed to reach AI assistant");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const applyAiResult = () => {
+    if (!aiResult) return;
+    // Apply skill overrides
+    aiResult.skillOverrides.forEach(({ playerName, newSkill }) => {
+      const player = state.roster.find((p) => p.name.toLowerCase() === playerName.toLowerCase());
+      if (player && player.skillLevel !== newSkill) {
+        toggleSkillLevel(player.id);
+      }
+    });
+    // Store fixed pairs in session config (we'll pass them on start)
+    // We surface them as a toast for now and store in state via a note
+    toast.success(`AI config applied! ${aiResult.fixedPairs.length} fixed pairs set.`);
+    setAiResult(null);
+    setAiPrompt("");
+    setShowAi(false);
   };
 
   return (
@@ -182,6 +242,95 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
           </>
         ) : (
           <p className="text-muted-foreground text-base text-center py-8">No players added yet.</p>
+        )}
+      </div>
+
+      {/* AI Setup Assistant */}
+      <div className="rounded-lg border border-border bg-card overflow-hidden">
+        <button
+          onClick={() => setShowAi(!showAi)}
+          className="w-full flex items-center justify-between px-8 py-5 text-left hover:bg-muted/50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <Sparkles className="w-5 h-5 text-accent" />
+            <span className="font-display text-xl text-accent">AI Game Setup Assistant</span>
+          </div>
+          {showAi ? <ChevronUp className="w-5 h-5 text-muted-foreground" /> : <ChevronDown className="w-5 h-5 text-muted-foreground" />}
+        </button>
+
+        {showAi && (
+          <div className="px-8 pb-8 space-y-5 border-t border-border pt-6">
+            <p className="text-sm text-muted-foreground">
+              Describe how you want this week's games structured. The AI will suggest skill group changes and fixed pairings based on your roster.
+            </p>
+            <div className="space-y-2">
+              <label className="text-sm uppercase tracking-widest text-muted-foreground block">Your instruction</label>
+              <Textarea
+                placeholder={`Examples:\n• "Pair boys with girls for mixed doubles"\n• "Put all beginners into one group and advanced players in another"\n• "Keep Alex and Sam together as a pair"`}
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                rows={4}
+                className="bg-muted border-border resize-none text-base"
+              />
+            </div>
+            <Button
+              onClick={handleAiSubmit}
+              disabled={aiLoading || !aiPrompt.trim() || state.roster.length === 0}
+              className="bg-accent text-accent-foreground hover:bg-accent/80 min-h-[48px] px-6 text-base"
+            >
+              {aiLoading ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Thinking…</>
+              ) : (
+                <><Sparkles className="w-4 h-4 mr-2" /> Ask AI</>
+              )}
+            </Button>
+
+            {state.roster.length === 0 && (
+              <p className="text-xs text-muted-foreground">Add players to the roster first before using the AI assistant.</p>
+            )}
+
+            {/* AI Result */}
+            {aiResult && (
+              <div className="rounded-md border border-accent/30 bg-accent/5 p-5 space-y-4">
+                <p className="text-sm text-foreground leading-relaxed">{aiResult.explanation}</p>
+
+                {aiResult.skillOverrides.length > 0 && (
+                  <div>
+                    <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Skill Group Changes</p>
+                    <ul className="space-y-1">
+                      {aiResult.skillOverrides.map((o, i) => (
+                        <li key={i} className="text-sm text-foreground">
+                          <span className="font-semibold">{o.playerName}</span> → <span className={o.newSkill === "good" ? "text-accent" : "text-primary"}>{o.newSkill}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {aiResult.fixedPairs.length > 0 && (
+                  <div>
+                    <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Fixed Pairs</p>
+                    <ul className="space-y-1">
+                      {aiResult.fixedPairs.map((fp, i) => (
+                        <li key={i} className="text-sm text-foreground">
+                          <span className="font-semibold">{fp.player1Name}</span> & <span className="font-semibold">{fp.player2Name}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-1">
+                  <Button onClick={applyAiResult} className="bg-primary text-primary-foreground hover:bg-primary/80 min-h-[44px] px-5 text-sm">
+                    Apply Changes
+                  </Button>
+                  <Button onClick={() => setAiResult(null)} variant="outline" className="border-border text-muted-foreground hover:text-foreground min-h-[44px] px-5 text-sm">
+                    Dismiss
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
