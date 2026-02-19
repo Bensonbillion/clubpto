@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { GameState, DEFAULT_STATE, Player, Pair, Match, GameHistory, PlayoffMatch } from "@/types/courtManager";
 
-const ROW_ID = "current";
+const ROW_ID = "current"; // stable ID for game state row
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
