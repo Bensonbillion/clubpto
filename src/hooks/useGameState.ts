@@ -151,30 +151,84 @@ export function useGameState() {
     [updateState]
   );
 
-  // Generate pairs from checked-in players
-  const generatePairs = useCallback(() => {
+  // Generate pairs from checked-in players, avoiding recent repeat pairings
+  const generatePairs = useCallback(async () => {
+    // Fetch pair history from last 2 weeks
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+    const { data: history } = await supabase
+      .from("pair_history")
+      .select("player1_name, player2_name")
+      .gte("session_date", twoWeeksAgo.toISOString().split("T")[0]);
+
+    // Build a set of recent pair keys for fast lookup
+    const recentPairs = new Set<string>();
+    (history || []).forEach((h: { player1_name: string; player2_name: string }) => {
+      const key = [h.player1_name, h.player2_name].sort().join("|||");
+      recentPairs.add(key);
+    });
+
+    const pairKey = (a: string, b: string) => [a, b].sort().join("|||");
+    const wasRecentlyPaired = (a: string, b: string) => recentPairs.has(pairKey(a, b));
+
+    // Smart pairing: try to avoid recent pairs, fall back to random if impossible
+    const smartPair = (players: Player[]): Pair[] => {
+      const shuffled = shuffle(players);
+      const used = new Set<string>();
+      const pairs: Pair[] = [];
+
+      // First pass: pair players who haven't been together recently
+      for (let i = 0; i < shuffled.length; i++) {
+        if (used.has(shuffled[i].id)) continue;
+        for (let j = i + 1; j < shuffled.length; j++) {
+          if (used.has(shuffled[j].id)) continue;
+          if (!wasRecentlyPaired(shuffled[i].name, shuffled[j].name)) {
+            pairs.push({
+              id: generateId(),
+              player1: shuffled[i],
+              player2: shuffled[j],
+              skillLevel: shuffled[i].skillLevel,
+              wins: 0,
+              losses: 0,
+            });
+            used.add(shuffled[i].id);
+            used.add(shuffled[j].id);
+            break;
+          }
+        }
+      }
+
+      // Second pass: pair any remaining players (fallback — everyone was recently paired)
+      const remaining = shuffled.filter((p) => !used.has(p.id));
+      for (let i = 0; i + 1 < remaining.length; i += 2) {
+        pairs.push({
+          id: generateId(),
+          player1: remaining[i],
+          player2: remaining[i + 1],
+          skillLevel: remaining[i].skillLevel,
+          wins: 0,
+          losses: 0,
+        });
+      }
+
+      return pairs;
+    };
+
     updateState((s) => {
       const checkedIn = s.roster.filter((p) => p.checkedIn);
-      const beginners = shuffle(checkedIn.filter((p) => p.skillLevel === "beginner"));
-      const good = shuffle(checkedIn.filter((p) => p.skillLevel === "good"));
+      const beginners = checkedIn.filter((p) => p.skillLevel === "beginner");
+      const good = checkedIn.filter((p) => p.skillLevel === "good");
 
-      const newPairs: Pair[] = [];
+      const newPairs = [...smartPair(beginners), ...smartPair(good)];
 
-      const makePairs = (players: Player[]) => {
-        for (let i = 0; i + 1 < players.length; i += 2) {
-          newPairs.push({
-            id: generateId(),
-            player1: players[i],
-            player2: players[i + 1],
-            skillLevel: players[i].skillLevel,
-            wins: 0,
-            losses: 0,
-          });
-        }
-      };
-
-      makePairs(beginners);
-      makePairs(good);
+      // Save new pairs to history (fire and forget)
+      const historyRows = newPairs.map((p) => ({
+        player1_name: p.player1.name,
+        player2_name: p.player2.name,
+      }));
+      if (historyRows.length > 0) {
+        supabase.from("pair_history").insert(historyRows).then(() => {});
+      }
 
       return { ...s, pairs: newPairs };
     });
