@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { useGameState } from "@/hooks/useGameState";
 import { Button } from "@/components/ui/button";
 import { Check, Clock, Swords, Lock, Unlock, UserPlus } from "lucide-react";
-import VipPairingDialog, { getCheckedInVips } from "./VipPairingDialog";
+import VipPairingDialog, { isVipPlayer } from "./VipPairingDialog";
 import { FixedPair } from "@/types/courtManager";
 
 interface CheckInProps {
@@ -14,41 +14,62 @@ interface CheckInProps {
 const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckInProps) => {
   const { state, toggleCheckIn, checkedInPlayers, generateFullSchedule, addLatePlayersToSchedule, lockCheckIn, startSession } = gameState;
   const [generated, setGenerated] = useState(false);
-  const [showVipDialog, setShowVipDialog] = useState(false);
-  const vipDialogDismissedRef = useRef(false);
-  const [vipFixedPair, setVipFixedPair] = useState<FixedPair | null>(null);
-
-  // Auto-show VIP dialog when all 3 check in
-  const vipNames = getCheckedInVips(state.roster);
-  useEffect(() => {
-    if (vipNames && !vipDialogDismissedRef.current && state.matches.length === 0) {
-      setShowVipDialog(true);
-    }
-    // Reset if a VIP un-checks
-    if (!vipNames) {
-      vipDialogDismissedRef.current = false;
-      setVipFixedPair(null);
-    }
-  }, [vipNames, state.matches.length]);
+  const [vipDialogFor, setVipDialogFor] = useState<string | null>(null);
+  const [vipFixedPairs, setVipFixedPairs] = useState<FixedPair[]>([]);
+  const vipsDismissedRef = useRef<Set<string>>(new Set());
 
   const formatTime = (iso: string | null) => {
     if (!iso) return "";
     return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
-  const handleVipClose = () => {
-    setShowVipDialog(false);
-    vipDialogDismissedRef.current = true;
+  const handleCheckIn = (playerId: string) => {
+    const player = state.roster.find((p) => p.id === playerId);
+    if (!player) return;
+
+    // If unchecking, just toggle
+    if (player.checkedIn) {
+      toggleCheckIn(playerId);
+      if (isVipPlayer(player.name)) {
+        vipsDismissedRef.current.delete(player.name.toLowerCase());
+        setVipFixedPairs((prev) =>
+          prev.filter((fp) => fp.player1Name.toLowerCase() !== player.name.toLowerCase())
+        );
+      }
+      return;
+    }
+
+    // Check in the player
+    toggleCheckIn(playerId);
+
+    // If VIP and hasn't already chosen, show dialog
+    if (isVipPlayer(player.name) && !vipsDismissedRef.current.has(player.name.toLowerCase())) {
+      setTimeout(() => setVipDialogFor(player.name), 100);
+    }
   };
 
-  const handleVipConfirm = (fixedPair: FixedPair | null) => {
-    setVipFixedPair(fixedPair);
-    setShowVipDialog(false);
-    vipDialogDismissedRef.current = true;
+  const handleVipClose = () => {
+    if (vipDialogFor) {
+      vipsDismissedRef.current.add(vipDialogFor.toLowerCase());
+    }
+    setVipDialogFor(null);
+  };
+
+  const handleVipConfirm = (teammateName: string | null) => {
+    if (vipDialogFor) {
+      vipsDismissedRef.current.add(vipDialogFor.toLowerCase());
+      if (teammateName) {
+        setVipFixedPairs((prev) => [
+          ...prev.filter((fp) => fp.player1Name.toLowerCase() !== vipDialogFor.toLowerCase()),
+          { player1Name: vipDialogFor, player2Name: teammateName },
+        ]);
+      }
+    }
+    setVipDialogFor(null);
   };
 
   const handleGenerateClick = async () => {
-    await generateFullSchedule(vipFixedPair ? [vipFixedPair] : []);
+    await generateFullSchedule(vipFixedPairs);
     setGenerated(true);
     onSwitchToCourtDisplay?.();
   };
@@ -60,6 +81,11 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
   });
 
   const isLocked = state.sessionConfig.checkInLocked;
+
+  // Available teammates for the current VIP dialog
+  const availableForVip = vipDialogFor
+    ? checkedInPlayers.filter((p) => p.name.toLowerCase() !== vipDialogFor.toLowerCase()).map((p) => p.name)
+    : [];
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -98,7 +124,7 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
           {sortedRoster.map((player) => (
             <button
               key={player.id}
-              onClick={() => toggleCheckIn(player.id)}
+              onClick={() => handleCheckIn(player.id)}
               disabled={isLocked && !isAdmin}
               className={`
                 relative rounded-lg border-2 p-6 text-center transition-all duration-300 min-h-[100px]
@@ -130,7 +156,6 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
         </div>
       )}
 
-      {/* Sticky bottom generate bar — admin only, session started, 4+ checked in */}
       {isAdmin && state.sessionStarted && checkedInPlayers.length >= 4 && (
         <div className="sticky bottom-4 rounded-lg border border-accent/30 bg-card/95 backdrop-blur-sm p-5 flex items-center justify-between gap-4 shadow-lg">
           <p className="text-accent text-base">
@@ -158,12 +183,13 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
           </Button>
         </div>
       )}
-      {showVipDialog && vipNames && (
+      {vipDialogFor && (
         <VipPairingDialog
-          open={showVipDialog}
+          open={!!vipDialogFor}
           onClose={handleVipClose}
           onConfirm={handleVipConfirm}
-          vipNames={vipNames}
+          vipName={vipDialogFor}
+          availablePlayers={availableForVip}
         />
       )}
     </div>
