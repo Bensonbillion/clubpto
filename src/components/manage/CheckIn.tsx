@@ -116,10 +116,6 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
                 </div>
               )}
               <p className="font-display text-xl text-foreground">{player.name}</p>
-              {/* Skill level only visible to admin */}
-              {isAdmin && (
-                <p className="text-xs uppercase tracking-widest text-accent mt-1.5">{player.skillLevel}</p>
-              )}
               <div className="mt-2.5 text-sm text-muted-foreground flex items-center justify-center gap-1.5">
                 {player.checkedIn ? (
                   <>
