@@ -7,6 +7,8 @@ export interface Player {
   wins: number;
   losses: number;
   gamesPlayed: number;
+  /** How many consecutive game slots this player has sat out */
+  consecutiveSitOuts: number;
 }
 
 export interface Pair {
@@ -28,6 +30,9 @@ export interface Match {
   winner?: Pair;
   loser?: Pair;
   completedAt?: string;
+  startedAt?: string;
+  /** 1-indexed game number in the full schedule */
+  gameNumber?: number;
 }
 
 export interface GameHistory {
@@ -40,9 +45,21 @@ export interface GameHistory {
   loserNames: string;
 }
 
+export interface PlayoffMatch {
+  id: string;
+  round: number;
+  seed1: number;
+  seed2: number;
+  pair1: Pair | null;
+  pair2: Pair | null;
+  winner?: Pair;
+  status: "pending" | "playing" | "completed";
+}
+
 export interface SessionConfig {
   startTime: string;
   durationMinutes: number;
+  checkInLocked: boolean;
 }
 
 export interface GameState {
@@ -52,16 +69,19 @@ export interface GameState {
   matches: Match[];
   gameHistory: GameHistory[];
   sessionStarted: boolean;
+  totalScheduledGames: number;
 }
 
 export const DEFAULT_STATE: GameState = {
   sessionConfig: {
     startTime: "20:00",
-    durationMinutes: 120,
+    durationMinutes: 85,
+    checkInLocked: false,
   },
   roster: [],
   pairs: [],
   matches: [],
   gameHistory: [],
   sessionStarted: false,
+  totalScheduledGames: 0,
 };

@@ -50,8 +50,6 @@ const PasscodeGate = ({ onUnlock }: { onUnlock: () => void }) => {
         <h3 className="font-display text-2xl text-accent text-center">Admin Access</h3>
         <p className="text-sm text-muted-foreground text-center mt-1">Enter 4-digit passcode</p>
       </div>
-
-      {/* Dots */}
       <div className="flex gap-3">
         {[0, 1, 2, 3].map((i) => (
           <div
@@ -64,10 +62,7 @@ const PasscodeGate = ({ onUnlock }: { onUnlock: () => void }) => {
           />
         ))}
       </div>
-
       {error && <p className="text-xs text-destructive">Incorrect passcode</p>}
-
-      {/* Numpad */}
       <div className="grid grid-cols-3 gap-3 max-w-[240px]">
         {["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "←"].map((d) =>
           d === "" ? (
@@ -92,19 +87,15 @@ const Manage = () => {
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const gameState = useGameState();
 
-  const handleTabClick = (tabId: Tab) => {
-    setActiveTab(tabId);
-  };
-
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="font-display text-2xl text-accent">Club PTO</h1>
-          <span className="text-xs uppercase tracking-widest text-muted-foreground">Court Manager</span>
+          <span className="text-xs uppercase tracking-widest text-muted-foreground">
+            {adminUnlocked ? "Admin Mode" : "Court Manager"}
+          </span>
         </div>
-        {/* Tab Navigation */}
         <div className="max-w-6xl mx-auto px-4">
           <nav className="flex gap-1 -mb-px overflow-x-auto scrollbar-hide">
             {tabs.map((tab) => {
@@ -112,7 +103,7 @@ const Manage = () => {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => handleTabClick(tab.id)}
+                  onClick={() => setActiveTab(tab.id)}
                   className={`
                     flex items-center gap-2 px-4 py-3 text-sm font-body whitespace-nowrap border-b-2 transition-colors
                     ${
@@ -132,7 +123,6 @@ const Manage = () => {
         </div>
       </header>
 
-      {/* Content */}
       <main className="max-w-6xl mx-auto px-4 py-8">
         {gameState.loading ? (
           <div className="flex items-center justify-center py-20">
@@ -143,7 +133,13 @@ const Manage = () => {
             {activeTab === "admin" && (
               adminUnlocked ? <AdminSetup gameState={gameState} /> : <PasscodeGate onUnlock={() => setAdminUnlocked(true)} />
             )}
-            {activeTab === "checkin" && <CheckIn gameState={gameState} onSwitchToCourtDisplay={() => setActiveTab("courts")} />}
+            {activeTab === "checkin" && (
+              <CheckIn
+                gameState={gameState}
+                onSwitchToCourtDisplay={() => setActiveTab("courts")}
+                isAdmin={adminUnlocked}
+              />
+            )}
             {activeTab === "courts" && <CourtDisplay gameState={gameState} />}
             {activeTab === "stats" && <StatsPlayoffs gameState={gameState} />}
           </>
