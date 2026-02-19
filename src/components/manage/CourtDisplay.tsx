@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useGameState } from "@/hooks/useGameState";
 import { Match } from "@/types/courtManager";
-import { Trophy, Timer, UserCheck, ArrowRightLeft, Maximize, Minimize } from "lucide-react";
+import { Trophy, Timer, UserCheck, ArrowRightLeft, Maximize, Minimize, SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -78,11 +78,15 @@ const CourtCard = ({
   match,
   totalGames,
   onFinish,
+  onSkip,
+  isAdmin,
 }: {
   courtNum: number;
   match: Match | null;
   totalGames: number;
   onFinish: (match: Match) => void;
+  onSkip: (match: Match) => void;
+  isAdmin: boolean;
 }) => (
   <div className="rounded-lg border border-border bg-card p-8 space-y-6 flex-1">
     <div className="flex items-center justify-between">
@@ -123,9 +127,16 @@ const CourtCard = ({
             <p className="font-display text-xl text-foreground">{match.pair2.player2.name}</p>
           </div>
         </div>
-        <Button onClick={() => onFinish(match)} className="w-full bg-accent text-accent-foreground hover:bg-accent/80 min-h-[52px] text-base">
-          <Trophy className="w-5 h-5 mr-2" /> Game Finished
-        </Button>
+        <div className="flex gap-3">
+          <Button onClick={() => onFinish(match)} className="flex-1 bg-accent text-accent-foreground hover:bg-accent/80 min-h-[52px] text-base">
+            <Trophy className="w-5 h-5 mr-2" /> Game Finished
+          </Button>
+          {isAdmin && (
+            <Button variant="outline" onClick={() => onSkip(match)} className="border-border text-muted-foreground hover:text-accent hover:border-accent/40 min-h-[52px] text-base">
+              <SkipForward className="w-5 h-5 mr-1.5" /> Skip
+            </Button>
+          )}
+        </div>
       </div>
     ) : (
       <p className="text-muted-foreground text-center text-lg py-10">No active match</p>
@@ -176,7 +187,7 @@ const SwapPlayerButton = ({
 };
 
 const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDisplayProps) => {
-  const { state, court1Match, court2Match, pendingMatches, upNextMatches, onDeckMatches, completeMatch, swapPlayer, checkedInPlayers } = gameState;
+  const { state, court1Match, court2Match, pendingMatches, upNextMatches, onDeckMatches, completeMatch, skipMatch, swapPlayer, checkedInPlayers } = gameState;
   const [finishingMatch, setFinishingMatch] = useState<Match | null>(null);
   const [searchParams] = useSearchParams();
   const courtFilter = searchParams.get("court");
@@ -257,8 +268,8 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
         </p>
       )}
       <div className={`flex flex-col ${!courtFilter ? "md:flex-row" : ""} gap-6`}>
-        {showCourt1 && <CourtCard courtNum={1} match={court1Match} totalGames={totalGames} onFinish={setFinishingMatch} />}
-        {showCourt2 && <CourtCard courtNum={2} match={court2Match} totalGames={totalGames} onFinish={setFinishingMatch} />}
+        {showCourt1 && <CourtCard courtNum={1} match={court1Match} totalGames={totalGames} onFinish={setFinishingMatch} onSkip={(m) => skipMatch(m.id)} isAdmin={isAdmin} />}
+        {showCourt2 && <CourtCard courtNum={2} match={court2Match} totalGames={totalGames} onFinish={setFinishingMatch} onSkip={(m) => skipMatch(m.id)} isAdmin={isAdmin} />}
       </div>
 
       {/* Up Next — the 2 matches going on court next */}

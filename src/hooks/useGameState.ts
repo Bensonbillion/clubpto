@@ -630,6 +630,50 @@ export function useGameState() {
     });
   }, [updateState]);
 
+  // Skip a playing match — move it back to pending at end of queue, pull next match onto freed court
+  const skipMatch = useCallback(
+    (matchId: string) => {
+      updateState((s) => {
+        const matchIdx = s.matches.findIndex((m) => m.id === matchId);
+        if (matchIdx === -1) return s;
+        const match = s.matches[matchIdx];
+        if (match.status !== "playing") return s;
+
+        const freedCourt = match.court;
+        const updatedMatches = [...s.matches];
+
+        // Reset the skipped match to pending and remove court/timing
+        updatedMatches[matchIdx] = {
+          ...match,
+          status: "pending",
+          court: null,
+          startedAt: undefined,
+        };
+
+        // Move it to end of the list
+        const [skipped] = updatedMatches.splice(matchIdx, 1);
+        updatedMatches.push(skipped);
+
+        // Pull the next pending match onto the freed court
+        if (freedCourt) {
+          const nextPending = updatedMatches.find((m) => m.status === "pending");
+          if (nextPending) {
+            nextPending.status = "playing";
+            nextPending.court = freedCourt;
+            nextPending.startedAt = new Date().toISOString();
+          }
+        }
+
+        // Re-number game numbers
+        let num = 0;
+        updatedMatches.forEach((m) => { num++; m.gameNumber = num; });
+
+        return { ...s, matches: updatedMatches };
+      });
+    },
+    [updateState]
+  );
+
   // Swap a player in a pending match
   const swapPlayer = useCallback(
     (matchId: string, oldPlayerId: string, newPlayerId: string) => {
@@ -844,6 +888,7 @@ export function useGameState() {
     generateFullSchedule,
     addLatePlayersToSchedule,
     swapPlayer,
+    skipMatch,
     completeMatch,
     startSession,
     resetSession,
