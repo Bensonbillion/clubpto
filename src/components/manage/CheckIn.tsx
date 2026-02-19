@@ -5,9 +5,10 @@ import { Check, Clock, Swords } from "lucide-react";
 
 interface CheckInProps {
   gameState: ReturnType<typeof useGameState>;
+  onSwitchToCourtDisplay?: () => void;
 }
 
-const CheckIn = ({ gameState }: CheckInProps) => {
+const CheckIn = ({ gameState, onSwitchToCourtDisplay }: CheckInProps) => {
   const { state, toggleCheckIn, checkedInPlayers, generatePairs, generateMatches } = gameState;
   const [showGeneratePrompt, setShowGeneratePrompt] = useState(false);
   const [generated, setGenerated] = useState(false);
@@ -31,11 +32,11 @@ const CheckIn = ({ gameState }: CheckInProps) => {
 
   const handleGenerate = () => {
     generatePairs();
-    // Small delay to let pairs state update before generating matches
     setTimeout(() => {
       generateMatches();
       setGenerated(true);
       setShowGeneratePrompt(false);
+      onSwitchToCourtDisplay?.();
     }, 100);
   };
 
