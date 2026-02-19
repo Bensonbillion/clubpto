@@ -7,7 +7,6 @@ export interface Player {
   wins: number;
   losses: number;
   gamesPlayed: number;
-  consecutiveSitOuts: number;
 }
 
 export interface Pair {
@@ -70,6 +69,7 @@ export interface GameState {
   gameHistory: GameHistory[];
   sessionStarted: boolean;
   totalScheduledGames: number;
+  playoffMatches: PlayoffMatch[];
 }
 
 export const DEFAULT_STATE: GameState = {
@@ -84,4 +84,5 @@ export const DEFAULT_STATE: GameState = {
   gameHistory: [],
   sessionStarted: false,
   totalScheduledGames: 0,
+  playoffMatches: [],
 };

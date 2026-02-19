@@ -105,8 +105,8 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
         </div>
       )}
 
-      {/* Sticky bottom generate bar — admin only, 4+ checked in */}
-      {isAdmin && checkedInPlayers.length >= 4 && (
+      {/* Sticky bottom generate bar — admin only, session started, 4+ checked in */}
+      {isAdmin && state.sessionStarted && checkedInPlayers.length >= 4 && (
         <div className="sticky bottom-4 rounded-lg border border-accent/30 bg-card/95 backdrop-blur-sm p-4 flex items-center justify-between gap-4 shadow-lg">
           <p className="text-accent text-sm">
             ✦ {checkedInPlayers.length} players ready{state.matches.length > 0 ? " — schedule generated!" : ""}
@@ -123,6 +123,11 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
               </Button>
             )}
           </div>
+        </div>
+      )}
+      {isAdmin && !state.sessionStarted && (
+        <div className="sticky bottom-4 rounded-lg border border-border bg-card/95 backdrop-blur-sm p-4 text-center shadow-lg">
+          <p className="text-sm text-muted-foreground">Start session in Admin Setup before generating games.</p>
         </div>
       )}
     </div>
