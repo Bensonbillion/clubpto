@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { GameState, DEFAULT_STATE, Player, Pair, Match, GameHistory } from "@/types/courtManager";
+import { GameState, DEFAULT_STATE, Player, Pair, Match, GameHistory, PlayoffMatch } from "@/types/courtManager";
 
 const ROW_ID = "current";
 
@@ -99,19 +99,37 @@ export function useGameState() {
 
   // Roster
   const addPlayer = useCallback(
-    (name: string, skillLevel: "beginner" | "good") => {
-      const player: Player = {
-        id: generateId(),
-        name,
-        skillLevel,
-        checkedIn: false,
-        checkInTime: null,
-        wins: 0,
-        losses: 0,
-        gamesPlayed: 0,
-        consecutiveSitOuts: 0,
-      };
-      updateState((s) => ({ ...s, roster: [...s.roster, player] }));
+    (name: string, skillLevel: "beginner" | "good"): boolean => {
+      let added = false;
+      updateState((s) => {
+        // Duplicate name check (case-insensitive)
+        if (s.roster.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
+          return s;
+        }
+        added = true;
+        const player: Player = {
+          id: generateId(),
+          name,
+          skillLevel,
+          checkedIn: false,
+          checkInTime: null,
+          wins: 0,
+          losses: 0,
+          gamesPlayed: 0,
+        };
+        return { ...s, roster: [...s.roster, player] };
+      });
+      return added;
+    },
+    [updateState]
+  );
+
+  const setAllSkillLevels = useCallback(
+    (skillLevel: "beginner" | "good") => {
+      updateState((s) => ({
+        ...s,
+        roster: s.roster.map((p) => (p.skillLevel !== skillLevel ? { ...p, skillLevel } : p)),
+      }));
     },
     [updateState]
   );
@@ -597,10 +615,96 @@ export function useGameState() {
   }, [updateState]);
 
   const resetSession = useCallback(() => {
-    const fresh = { ...DEFAULT_STATE };
+    const fresh = { ...DEFAULT_STATE, playoffMatches: [] };
     setState(fresh);
     persistState(fresh);
   }, [persistState]);
+
+  // Playoff management
+  const generatePlayoffMatches = useCallback(
+    (seeds: { seed: number; player: Player; winPct: number }[]) => {
+      if (seeds.length < 4) return;
+      const matches: PlayoffMatch[] = [];
+      // Build first-round matches: seed 1&last vs seed 2&(last-1), etc.
+      const numMatches = Math.floor(seeds.length / 4);
+      for (let i = 0; i < numMatches; i++) {
+        const s1 = seeds[i * 2];
+        const s2 = seeds[seeds.length - 1 - i * 2];
+        const s3 = seeds[i * 2 + 1];
+        const s4 = seeds[seeds.length - 2 - i * 2];
+        if (!s1 || !s2 || !s3 || !s4) continue;
+        const pair1: Pair = {
+          id: generateId(), player1: s1.player, player2: s2.player,
+          skillLevel: "good", wins: 0, losses: 0,
+        };
+        const pair2: Pair = {
+          id: generateId(), player1: s3.player, player2: s4.player,
+          skillLevel: "good", wins: 0, losses: 0,
+        };
+        matches.push({
+          id: generateId(), round: 1, seed1: s1.seed, seed2: s2.seed,
+          pair1, pair2, status: "pending",
+        });
+      }
+      updateState((s) => ({ ...s, playoffMatches: matches }));
+    },
+    [updateState]
+  );
+
+  const startPlayoffMatch = useCallback(
+    (matchId: string, court: number) => {
+      updateState((s) => ({
+        ...s,
+        playoffMatches: s.playoffMatches.map((m) =>
+          m.id === matchId ? { ...m, status: "playing" as const } : m
+        ),
+        // Also clear the court of any round-robin match
+        matches: s.matches.map((m) =>
+          m.court === court && m.status === "playing" ? { ...m, status: "completed" as const, court: null } : m
+        ),
+      }));
+    },
+    [updateState]
+  );
+
+  const completePlayoffMatch = useCallback(
+    (matchId: string, winnerPairId: string) => {
+      updateState((s) => {
+        const pmIdx = s.playoffMatches.findIndex((m) => m.id === matchId);
+        if (pmIdx === -1) return s;
+        const pm = s.playoffMatches[pmIdx];
+        const winner = pm.pair1?.id === winnerPairId ? pm.pair1 : pm.pair2;
+        const updated = [...s.playoffMatches];
+        updated[pmIdx] = { ...pm, status: "completed", winner: winner || undefined };
+        
+        // Check if all current round matches are complete — generate next round
+        const currentRound = pm.round;
+        const roundMatches = updated.filter((m) => m.round === currentRound);
+        const allComplete = roundMatches.every((m) => m.status === "completed");
+        
+        if (allComplete) {
+          const winners = roundMatches.map((m) => m.winner).filter(Boolean) as Pair[];
+          if (winners.length >= 2) {
+            // Generate next round
+            const nextRound = currentRound + 1;
+            for (let i = 0; i < Math.floor(winners.length / 2); i++) {
+              updated.push({
+                id: generateId(),
+                round: nextRound,
+                seed1: 0, seed2: 0,
+                pair1: winners[i * 2],
+                pair2: winners[i * 2 + 1],
+                status: "pending",
+              });
+            }
+          }
+        }
+        
+        return { ...s, playoffMatches: updated };
+      });
+    },
+    [updateState]
+  );
 
   // Derived
   const checkedInPlayers = state.roster.filter((p) => p.checkedIn);
@@ -610,8 +714,10 @@ export function useGameState() {
   const court1Match = playingMatches.find((m) => m.court === 1) || null;
   const court2Match = playingMatches.find((m) => m.court === 2) || null;
 
-  // "On deck" = the next 2 pending matches
-  const onDeckMatches = pendingMatches.slice(0, 2);
+  // "Up Next" = first 2 pending (going on court next)
+  const upNextMatches = pendingMatches.slice(0, 2);
+  // "On Deck" = the 2 matches AFTER "Up Next" (so those players can get ready)
+  const onDeckMatches = pendingMatches.slice(2, 4);
 
   const playingPlayerIds = playingMatches.flatMap((m) => [
     m.pair1.player1.id, m.pair1.player2.id,
@@ -626,6 +732,7 @@ export function useGameState() {
     addPlayer,
     removePlayer,
     toggleSkillLevel,
+    setAllSkillLevels,
     toggleCheckIn,
     lockCheckIn,
     generateFullSchedule,
@@ -634,6 +741,9 @@ export function useGameState() {
     completeMatch,
     startSession,
     resetSession,
+    generatePlayoffMatches,
+    startPlayoffMatch,
+    completePlayoffMatch,
     checkedInPlayers,
     playingMatches,
     pendingMatches,
@@ -641,6 +751,7 @@ export function useGameState() {
     court1Match,
     court2Match,
     waitingPlayers,
+    upNextMatches,
     onDeckMatches,
   };
 }

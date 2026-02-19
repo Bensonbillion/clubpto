@@ -3,14 +3,14 @@ import { useGameState } from "@/hooks/useGameState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Plus, Play, RotateCcw, Users, ClipboardPaste, Swords } from "lucide-react";
+import { Trash2, Plus, Play, RotateCcw, ClipboardPaste } from "lucide-react";
 
 interface AdminSetupProps {
   gameState: ReturnType<typeof useGameState>;
 }
 
 const AdminSetup = ({ gameState }: AdminSetupProps) => {
-  const { state, setSessionConfig, addPlayer, removePlayer, toggleSkillLevel, generateFullSchedule, startSession, resetSession } = gameState;
+  const { state, setSessionConfig, addPlayer, removePlayer, toggleSkillLevel, setAllSkillLevels, startSession, resetSession } = gameState;
   const [newName, setNewName] = useState("");
   const [newSkill, setNewSkill] = useState<"beginner" | "good">("beginner");
   const [confirmReset, setConfirmReset] = useState(false);
@@ -20,7 +20,11 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
 
   const handleAddPlayer = () => {
     if (!newName.trim()) return;
-    addPlayer(newName.trim(), newSkill);
+    const added = addPlayer(newName.trim(), newSkill);
+    if (!added) {
+      // Could show toast, but for now just don't clear input
+      return;
+    }
     setNewName("");
   };
 
@@ -29,7 +33,11 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
       .split(/[\n,]+/)
       .map((n) => n.replace(/^[\s\-\*•]+\[.*?\]\s*/g, "").replace(/^[\s\-\*•]+/, "").trim())
       .filter((n) => n.length > 0 && n !== "[ ]" && n !== "[x]");
-    names.forEach((name) => addPlayer(name, bulkSkill));
+    let skipped = 0;
+    names.forEach((name) => {
+      const added = addPlayer(name, bulkSkill);
+      if (!added) skipped++;
+    });
     setBulkNames("");
   };
 
@@ -141,13 +149,13 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
             <div className="flex items-center gap-2 mt-2">
               <span className="text-xs text-muted-foreground">Set all to:</span>
               <button
-                onClick={() => state.roster.forEach((p) => p.skillLevel !== "beginner" && toggleSkillLevel(p.id))}
+                onClick={() => setAllSkillLevels("beginner")}
                 className="text-xs uppercase tracking-widest px-3 py-1 rounded-full border border-primary/40 text-primary hover:bg-primary/10 transition-colors"
               >
                 Beginner
               </button>
               <button
-                onClick={() => state.roster.forEach((p) => p.skillLevel !== "good" && toggleSkillLevel(p.id))}
+                onClick={() => setAllSkillLevels("good")}
                 className="text-xs uppercase tracking-widest px-3 py-1 rounded-full border border-accent/40 text-accent hover:bg-accent/10 transition-colors"
               >
                 Good
@@ -187,10 +195,7 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
       {/* Session Controls */}
       <div className="flex flex-wrap gap-3">
         <Button onClick={startSession} disabled={state.sessionStarted || state.roster.length < 4} className="bg-primary text-primary-foreground hover:bg-primary/80">
-          <Play className="w-4 h-4 mr-1" /> Start Session
-        </Button>
-        <Button onClick={generateFullSchedule} disabled={!state.sessionStarted || gameState.checkedInPlayers.length < 4} variant="outline" className="border-accent text-accent hover:bg-accent/10">
-          <Swords className="w-4 h-4 mr-1" /> Generate Full Schedule
+          <Play className="w-4 h-4 mr-1" /> {state.sessionStarted ? "Session Active" : "Start Session"}
         </Button>
         <Button onClick={handleReset} variant="outline" className={confirmReset ? "border-destructive text-destructive animate-pulse-soft" : "border-muted-foreground text-muted-foreground hover:border-destructive hover:text-destructive"}>
           <RotateCcw className="w-4 h-4 mr-1" /> {confirmReset ? "Confirm Reset?" : "Reset Session"}

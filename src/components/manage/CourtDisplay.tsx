@@ -2,12 +2,14 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useGameState } from "@/hooks/useGameState";
 import { Match } from "@/types/courtManager";
-import { Trophy, Timer, UserCheck } from "lucide-react";
+import { Trophy, Timer, UserCheck, ArrowRightLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface CourtDisplayProps {
   gameState: ReturnType<typeof useGameState>;
   onGoToCheckIn?: () => void;
+  isAdmin?: boolean;
 }
 
 const GameTimer = ({ startedAt }: { startedAt?: string }) => {
@@ -131,8 +133,50 @@ const CourtCard = ({
   </div>
 );
 
-const CourtDisplay = ({ gameState, onGoToCheckIn }: CourtDisplayProps) => {
-  const { state, court1Match, court2Match, pendingMatches, onDeckMatches, completeMatch } = gameState;
+const SwapPlayerButton = ({
+  playerName,
+  playerId,
+  matchId,
+  availablePlayers,
+  onSwap,
+}: {
+  playerName: string;
+  playerId: string;
+  matchId: string;
+  availablePlayers: { id: string; name: string }[];
+  onSwap: (matchId: string, oldId: string, newId: string) => void;
+}) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button className="group inline-flex items-center gap-1 hover:text-accent transition-colors">
+          <span>{playerName}</span>
+          <ArrowRightLeft className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-48 p-2 max-h-60 overflow-y-auto" align="start">
+        <p className="text-xs text-muted-foreground mb-2 px-1">Swap with:</p>
+        {availablePlayers.length === 0 ? (
+          <p className="text-xs text-muted-foreground px-1">No available players</p>
+        ) : (
+          availablePlayers.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => { onSwap(matchId, playerId, p.id); setOpen(false); }}
+              className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent/10 hover:text-accent transition-colors"
+            >
+              {p.name}
+            </button>
+          ))
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+};
+
+const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDisplayProps) => {
+  const { state, court1Match, court2Match, pendingMatches, upNextMatches, onDeckMatches, completeMatch, swapPlayer, checkedInPlayers } = gameState;
   const [finishingMatch, setFinishingMatch] = useState<Match | null>(null);
   const [searchParams] = useSearchParams();
   const courtFilter = searchParams.get("court");
@@ -141,13 +185,34 @@ const CourtDisplay = ({ gameState, onGoToCheckIn }: CourtDisplayProps) => {
   const showCourt2 = !courtFilter || courtFilter === "2";
   const totalGames = state.totalScheduledGames;
 
-  // "On deck" players
+  // Players already assigned to upcoming/playing matches
+  const busyPlayerIds = new Set<string>();
+  [court1Match, court2Match, ...upNextMatches].filter(Boolean).forEach((m) => {
+    if (!m) return;
+    [m.pair1.player1.id, m.pair1.player2.id, m.pair2.player1.id, m.pair2.player2.id].forEach((id) => busyPlayerIds.add(id));
+  });
+  const availableForSwap = checkedInPlayers.filter((p) => !busyPlayerIds.has(p.id));
+
+  // "On deck" players (from the matches AFTER up-next)
   const onDeckPlayers = onDeckMatches.flatMap((m) => [
     m.pair1.player1.name,
     m.pair1.player2.name,
     m.pair2.player1.name,
     m.pair2.player2.name,
   ]);
+
+  const renderPlayerName = (name: string, playerId: string, matchId: string) => {
+    if (!isAdmin) return <span>{name}</span>;
+    return (
+      <SwapPlayerButton
+        playerName={name}
+        playerId={playerId}
+        matchId={matchId}
+        availablePlayers={availableForSwap}
+        onSwap={swapPlayer}
+      />
+    );
+  };
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -169,22 +234,28 @@ const CourtDisplay = ({ gameState, onGoToCheckIn }: CourtDisplayProps) => {
         {showCourt2 && <CourtCard courtNum={2} match={court2Match} totalGames={totalGames} onFinish={setFinishingMatch} />}
       </div>
 
-      {/* Up Next */}
-      {pendingMatches.length > 0 && (
+      {/* Up Next — the 2 matches going on court next */}
+      {upNextMatches.length > 0 && (
         <div className="rounded-lg border border-border bg-card p-6 space-y-3">
           <h3 className="font-display text-lg text-accent">Up Next</h3>
-          {pendingMatches.slice(0, 3).map((m) => (
+          {upNextMatches.map((m) => (
             <div key={m.id} className="flex items-center gap-2 text-sm text-foreground/80 border-l-2 border-primary/30 pl-3 py-1">
               {m.gameNumber && <span className="text-accent font-display">#{m.gameNumber}</span>}
-              <span>
-                {m.pair1.player1.name} & {m.pair1.player2.name} vs {m.pair2.player1.name} & {m.pair2.player2.name}
+              <span className="flex flex-wrap items-center gap-1">
+                {renderPlayerName(m.pair1.player1.name, m.pair1.player1.id, m.id)}
+                <span>&</span>
+                {renderPlayerName(m.pair1.player2.name, m.pair1.player2.id, m.id)}
+                <span className="text-muted-foreground mx-1">vs</span>
+                {renderPlayerName(m.pair2.player1.name, m.pair2.player1.id, m.id)}
+                <span>&</span>
+                {renderPlayerName(m.pair2.player2.name, m.pair2.player2.id, m.id)}
               </span>
             </div>
           ))}
         </div>
       )}
 
-      {/* On Deck */}
+      {/* On Deck — the matches AFTER up-next */}
       {onDeckPlayers.length > 0 && (
         <div className="rounded-lg border border-accent/20 bg-accent/5 p-6 space-y-3">
           <h3 className="font-display text-lg text-accent">🏓 On Deck — Get Ready!</h3>
