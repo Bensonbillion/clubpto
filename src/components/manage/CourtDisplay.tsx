@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useGameState } from "@/hooks/useGameState";
 import { Match } from "@/types/courtManager";
-import { Trophy, Timer } from "lucide-react";
+import { Trophy, Timer, UserCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface CourtDisplayProps {
   gameState: ReturnType<typeof useGameState>;
+  onGoToCheckIn?: () => void;
 }
 
 const GameTimer = ({ startedAt }: { startedAt?: string }) => {
@@ -130,7 +131,7 @@ const CourtCard = ({
   </div>
 );
 
-const CourtDisplay = ({ gameState }: CourtDisplayProps) => {
+const CourtDisplay = ({ gameState, onGoToCheckIn }: CourtDisplayProps) => {
   const { state, court1Match, court2Match, pendingMatches, onDeckMatches, completeMatch } = gameState;
   const [finishingMatch, setFinishingMatch] = useState<Match | null>(null);
   const [searchParams] = useSearchParams();
@@ -150,6 +151,14 @@ const CourtDisplay = ({ gameState }: CourtDisplayProps) => {
 
   return (
     <div className="space-y-6 animate-fade-up">
+      {/* Quick check-in link for latecomers */}
+      {onGoToCheckIn && (
+        <div className="flex justify-end">
+          <Button variant="outline" size="sm" onClick={onGoToCheckIn} className="border-accent/40 text-accent hover:bg-accent/10">
+            <UserCheck className="w-4 h-4 mr-1.5" /> Check In
+          </Button>
+        </div>
+      )}
       {courtFilter && (
         <p className="text-xs text-muted-foreground text-center uppercase tracking-widest">
           Showing Court {courtFilter} only

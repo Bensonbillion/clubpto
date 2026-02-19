@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useGameState } from "@/hooks/useGameState";
 import { Button } from "@/components/ui/button";
-import { Check, Clock, Swords, Lock, Unlock } from "lucide-react";
+import { Check, Clock, Swords, Lock, Unlock, UserPlus } from "lucide-react";
 
 interface CheckInProps {
   gameState: ReturnType<typeof useGameState>;
@@ -10,7 +10,7 @@ interface CheckInProps {
 }
 
 const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckInProps) => {
-  const { state, toggleCheckIn, checkedInPlayers, generateFullSchedule, lockCheckIn } = gameState;
+  const { state, toggleCheckIn, checkedInPlayers, generateFullSchedule, addLatePlayersToSchedule, lockCheckIn } = gameState;
   const [generated, setGenerated] = useState(false);
 
   const formatTime = (iso: string | null) => {
@@ -109,13 +109,20 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
       {isAdmin && checkedInPlayers.length >= 4 && (
         <div className="sticky bottom-4 rounded-lg border border-accent/30 bg-card/95 backdrop-blur-sm p-4 flex items-center justify-between gap-4 shadow-lg">
           <p className="text-accent text-sm">
-            ✦ {checkedInPlayers.length} players ready{generated ? " — schedule generated!" : ""}
+            ✦ {checkedInPlayers.length} players ready{state.matches.length > 0 ? " — schedule generated!" : ""}
           </p>
-          {!generated && (
-            <Button onClick={handleGenerate} className="bg-accent text-accent-foreground hover:bg-accent/80 shrink-0">
-              <Swords className="w-4 h-4 mr-1" /> Generate Games
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {state.matches.length > 0 && (
+              <Button onClick={addLatePlayersToSchedule} variant="outline" className="border-accent text-accent hover:bg-accent/10 shrink-0">
+                <UserPlus className="w-4 h-4 mr-1" /> Add Late Players
+              </Button>
+            )}
+            {state.matches.length === 0 && (
+              <Button onClick={handleGenerate} className="bg-accent text-accent-foreground hover:bg-accent/80 shrink-0">
+                <Swords className="w-4 h-4 mr-1" /> Generate Games
+              </Button>
+            )}
+          </div>
         </div>
       )}
     </div>
