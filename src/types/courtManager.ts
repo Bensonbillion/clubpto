@@ -56,7 +56,7 @@ export interface GameState {
 
 export const DEFAULT_STATE: GameState = {
   sessionConfig: {
-    startTime: "18:00",
+    startTime: "20:00",
     durationMinutes: 120,
   },
   roster: [],
