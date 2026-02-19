@@ -12,6 +12,7 @@ const MobileNav = () => {
     { href: "/book", label: "Book" },
     { href: "/about", label: "About" },
     { href: "/faq", label: "FAQ" },
+    { href: "/manage", label: "Court Manager" },
   ];
 
   const isActive = (href: string) => location.pathname === href;
