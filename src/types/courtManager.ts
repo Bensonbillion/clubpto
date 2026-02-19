@@ -61,6 +61,11 @@ export interface SessionConfig {
   checkInLocked: boolean;
 }
 
+export interface FixedPair {
+  player1Name: string;
+  player2Name: string;
+}
+
 export interface GameState {
   sessionConfig: SessionConfig;
   roster: Player[];
@@ -70,6 +75,7 @@ export interface GameState {
   sessionStarted: boolean;
   totalScheduledGames: number;
   playoffMatches: PlayoffMatch[];
+  fixedPairs?: FixedPair[];
 }
 
 export const DEFAULT_STATE: GameState = {
@@ -85,4 +91,5 @@ export const DEFAULT_STATE: GameState = {
   sessionStarted: false,
   totalScheduledGames: 0,
   playoffMatches: [],
+  fixedPairs: [],
 };

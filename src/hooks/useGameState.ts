@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { GameState, DEFAULT_STATE, Player, Pair, Match, GameHistory, PlayoffMatch } from "@/types/courtManager";
+import { GameState, DEFAULT_STATE, Player, Pair, Match, GameHistory, PlayoffMatch, FixedPair } from "@/types/courtManager";
 
 const ROW_ID = "current"; // stable ID for game state row
 
@@ -204,7 +204,7 @@ export function useGameState() {
    * - Players with fewer games are prioritised.
    * - Avoids repeat pairings from the last 14 days.
    */
-  const generateFullSchedule = useCallback(async () => {
+  const generateFullSchedule = useCallback(async (fixedPairs: FixedPair[] = []) => {
     const checkedIn = state.roster.filter((p) => p.checkedIn);
     if (checkedIn.length < 4) return;
 
@@ -235,26 +235,33 @@ export function useGameState() {
     // --- Generate matches for a single skill pool ---
     const generatePoolMatches = (
       players: Player[],
-      skill: "beginner" | "good"
+      skill: "beginner" | "good",
+      lockedPairs: FixedPair[]
     ): Match[] => {
       if (players.length < 4) return [];
 
+      // Identify locked pairs within this pool
+      const resolvedLocked: [Player, Player][] = [];
+      lockedPairs.forEach((fp) => {
+        const p1 = players.find((p) => p.name.toLowerCase() === fp.player1Name.toLowerCase());
+        const p2 = players.find((p) => p.name.toLowerCase() === fp.player2Name.toLowerCase());
+        if (p1 && p2) resolvedLocked.push([p1, p2]);
+      });
+
       const gameCount = new Map<string, number>();
-      const lastPlayedSlot = new Map<string, number>(); // slot index when player last played
+      const lastPlayedSlot = new Map<string, number>();
       const consecutiveSitOut = new Map<string, number>();
       players.forEach((p) => {
         gameCount.set(p.id, 0);
-        lastPlayedSlot.set(p.id, -99); // never played
+        lastPlayedSlot.set(p.id, -99);
         consecutiveSitOut.set(p.id, 0);
       });
 
       const matches: Match[] = [];
-      // We'll generate as many matches as we can; the interleaver will pick from these
       const targetGamesPerPlayer = 5;
       const maxMatches = Math.ceil((players.length * targetGamesPerPlayer) / 4);
 
       for (let m = 0; m < maxMatches; m++) {
-        // Sort players by: fewest games first, then most sit-outs
         const sorted = [...players].sort((a, b) => {
           const ga = gameCount.get(a.id) || 0;
           const gb = gameCount.get(b.id) || 0;
@@ -264,8 +271,6 @@ export function useGameState() {
           return sb - sa;
         });
 
-        // Pick 4 players who didn't play in the "previous" match of this pool
-        // Simulate slot spacing: ensure they weren't in the last pool match
         const lastPoolMatchPlayers = matches.length > 0
           ? new Set([
               matches[matches.length - 1].pair1.player1.id,
@@ -276,7 +281,7 @@ export function useGameState() {
           : new Set<string>();
 
         const eligible = sorted.filter((p) => !lastPoolMatchPlayers.has(p.id));
-        const fallback = sorted; // if not enough eligible, use all
+        const fallback = sorted;
 
         const pick4 = (list: Player[]): Player[] | null => {
           if (list.length < 4) return null;
@@ -285,18 +290,71 @@ export function useGameState() {
 
         let four = pick4(eligible);
         if (!four) four = pick4(fallback);
-        if (!four) break; // not enough players
+        if (!four) break;
 
-        // Build 2 pairs, trying to avoid recent pairings
+        // Check if any locked pair members are in the four — if so, ensure they're paired together
         let p1: Player, p2: Player, p3: Player, p4: Player;
-        p1 = four[0];
-        // Find best partner for p1 (not recently paired)
-        const partnerCandidates = four.slice(1);
-        const bestPartner = partnerCandidates.find((c) => !wasRecentlyPaired(p1.name, c.name)) || partnerCandidates[0];
-        p2 = bestPartner;
-        const remaining = four.filter((p) => p.id !== p1.id && p.id !== p2.id);
-        p3 = remaining[0];
-        p4 = remaining[1];
+
+        const lockedInFour = resolvedLocked.find(
+          ([a, b]) => four!.some((p) => p.id === a.id) && four!.some((p) => p.id === b.id)
+        );
+
+        if (lockedInFour) {
+          // Force the locked pair together
+          p1 = lockedInFour[0];
+          p2 = lockedInFour[1];
+          const remaining = four.filter((p) => p.id !== p1.id && p.id !== p2.id);
+          p3 = remaining[0];
+          p4 = remaining[1];
+        } else if (resolvedLocked.length > 0) {
+          // A locked pair member is in four but not both — try to bring their partner in
+          const partialLock = resolvedLocked.find(
+            ([a, b]) => four!.some((p) => p.id === a.id) || four!.some((p) => p.id === b.id)
+          );
+          if (partialLock) {
+            const inFour = four.find((p) => p.id === partialLock[0].id || p.id === partialLock[1].id)!;
+            const partner = partialLock[0].id === inFour.id ? partialLock[1] : partialLock[0];
+            // Swap the last non-locked player for the partner
+            const others = four.filter((p) => p.id !== inFour.id);
+            if (others.length >= 3) {
+              others[others.length - 1] = partner; // replace least priority
+            }
+            p1 = inFour;
+            p2 = partner;
+            const remaining = others.filter((p) => p.id !== partner.id).slice(0, 2);
+            if (remaining.length < 2) {
+              // Fallback to default
+              p1 = four[0];
+              const partnerCandidates = four.slice(1);
+              const bestPartner = partnerCandidates.find((c) => !wasRecentlyPaired(p1.name, c.name)) || partnerCandidates[0];
+              p2 = bestPartner;
+              const rest = four.filter((p) => p.id !== p1.id && p.id !== p2.id);
+              p3 = rest[0];
+              p4 = rest[1];
+            } else {
+              p3 = remaining[0];
+              p4 = remaining[1];
+            }
+          } else {
+            // Default pairing
+            p1 = four[0];
+            const partnerCandidates = four.slice(1);
+            const bestPartner = partnerCandidates.find((c) => !wasRecentlyPaired(p1.name, c.name)) || partnerCandidates[0];
+            p2 = bestPartner;
+            const remaining = four.filter((p) => p.id !== p1.id && p.id !== p2.id);
+            p3 = remaining[0];
+            p4 = remaining[1];
+          }
+        } else {
+          // No locked pairs — default logic
+          p1 = four[0];
+          const partnerCandidates = four.slice(1);
+          const bestPartner = partnerCandidates.find((c) => !wasRecentlyPaired(p1.name, c.name)) || partnerCandidates[0];
+          p2 = bestPartner;
+          const remaining = four.filter((p) => p.id !== p1.id && p.id !== p2.id);
+          p3 = remaining[0];
+          p4 = remaining[1];
+        }
 
         const team1: Pair = {
           id: generateId(),
@@ -324,20 +382,16 @@ export function useGameState() {
           court: null,
         });
 
-        // Update counts
         four.forEach((p) => {
           gameCount.set(p.id, (gameCount.get(p.id) || 0) + 1);
         });
       }
 
-      // Trim: ensure every player has at least 3 games (keep generating if needed)
-      // The loop above targets 5 per player which should cover it.
-
       return matches;
     };
 
-    const goodMatches = generatePoolMatches(goodPlayers, "good");
-    const beginnerMatches = generatePoolMatches(beginnerPlayers, "beginner");
+    const goodMatches = generatePoolMatches(goodPlayers, "good", fixedPairs);
+    const beginnerMatches = generatePoolMatches(beginnerPlayers, "beginner", fixedPairs);
 
     // --- Interleave matches across time slots ---
     // Start with GOOD games on BOTH courts first (so beginners can watch & learn),
