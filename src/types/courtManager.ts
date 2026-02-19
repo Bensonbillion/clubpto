@@ -43,7 +43,6 @@ export interface GameHistory {
 export interface SessionConfig {
   startTime: string;
   durationMinutes: number;
-  matchDurationMinutes: number;
 }
 
 export interface GameState {
@@ -59,7 +58,6 @@ export const DEFAULT_STATE: GameState = {
   sessionConfig: {
     startTime: "18:00",
     durationMinutes: 120,
-    matchDurationMinutes: 15,
   },
   roster: [],
   pairs: [],
