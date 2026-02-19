@@ -30,9 +30,9 @@ const GameTimer = ({ startedAt }: { startedAt?: string }) => {
   }, [startedAt]);
 
   return (
-    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-      <Timer className="w-3.5 h-3.5" />
-      <span className="font-mono">{elapsed}</span>
+    <div className="flex items-center gap-2 text-base text-muted-foreground">
+      <Timer className="w-4 h-4" />
+      <span className="font-mono text-lg">{elapsed}</span>
     </div>
   );
 };
@@ -48,25 +48,25 @@ const WinnerModal = ({
   onClose: () => void;
 }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in" onClick={onClose}>
-    <div className="bg-card border border-border rounded-lg p-8 max-w-md w-full mx-4 space-y-6" onClick={(e) => e.stopPropagation()}>
-      <h3 className="font-display text-2xl text-accent text-center">Which team won?</h3>
-      <div className="space-y-3">
+    <div className="bg-card border border-border rounded-lg p-10 max-w-lg w-full mx-4 space-y-8" onClick={(e) => e.stopPropagation()}>
+      <h3 className="font-display text-3xl text-accent text-center">Which team won?</h3>
+      <div className="space-y-4">
         <button
           onClick={() => onSelect(match.pair1.id)}
-          className="w-full rounded-lg border-2 border-border bg-muted p-4 text-center hover:border-accent hover:bg-accent/10 transition-all"
+          className="w-full rounded-lg border-2 border-border bg-muted p-6 text-center hover:border-accent hover:bg-accent/10 transition-all active:scale-[0.98] min-h-[80px]"
         >
-          <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Team A</p>
-          <p className="font-display text-lg text-foreground">{match.pair1.player1.name} & {match.pair1.player2.name}</p>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Team A</p>
+          <p className="font-display text-xl text-foreground">{match.pair1.player1.name} & {match.pair1.player2.name}</p>
         </button>
         <button
           onClick={() => onSelect(match.pair2.id)}
-          className="w-full rounded-lg border-2 border-border bg-muted p-4 text-center hover:border-accent hover:bg-accent/10 transition-all"
+          className="w-full rounded-lg border-2 border-border bg-muted p-6 text-center hover:border-accent hover:bg-accent/10 transition-all active:scale-[0.98] min-h-[80px]"
         >
-          <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Team B</p>
-          <p className="font-display text-lg text-foreground">{match.pair2.player1.name} & {match.pair2.player2.name}</p>
+          <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Team B</p>
+          <p className="font-display text-xl text-foreground">{match.pair2.player1.name} & {match.pair2.player2.name}</p>
         </button>
       </div>
-      <button onClick={onClose} className="w-full text-muted-foreground text-sm hover:text-foreground transition-colors">
+      <button onClick={onClose} className="w-full text-muted-foreground text-base hover:text-foreground transition-colors py-2">
         Cancel
       </button>
     </div>
@@ -84,24 +84,24 @@ const CourtCard = ({
   totalGames: number;
   onFinish: (match: Match) => void;
 }) => (
-  <div className="rounded-lg border border-border bg-card p-6 space-y-5 flex-1">
+  <div className="rounded-lg border border-border bg-card p-8 space-y-6 flex-1">
     <div className="flex items-center justify-between">
       <div className="space-y-1">
-        <h3 className="font-display text-2xl text-accent">Court {courtNum}</h3>
+        <h3 className="font-display text-3xl text-accent">Court {courtNum}</h3>
         {match?.gameNumber && totalGames > 0 && (
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Game {match.gameNumber} of {totalGames}
           </p>
         )}
       </div>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4">
         {match && <GameTimer startedAt={match.startedAt} />}
         {match ? (
-          <span className="text-xs uppercase tracking-widest bg-accent/20 text-accent px-3 py-1 rounded-full border border-accent/30">
+          <span className="text-xs uppercase tracking-widest bg-accent/20 text-accent px-4 py-1.5 rounded-full border border-accent/30">
             Playing
           </span>
         ) : (
-          <span className="text-xs uppercase tracking-widest bg-primary/20 text-primary px-3 py-1 rounded-full border border-primary/30">
+          <span className="text-xs uppercase tracking-widest bg-primary/20 text-primary px-4 py-1.5 rounded-full border border-primary/30">
             Waiting
           </span>
         )}
@@ -109,26 +109,26 @@ const CourtCard = ({
     </div>
 
     {match ? (
-      <div className="space-y-4">
-        <div className="flex items-center gap-4">
-          <div className="flex-1 text-center space-y-1 rounded-md bg-muted/50 p-3">
+      <div className="space-y-5">
+        <div className="flex items-center gap-6">
+          <div className="flex-1 text-center space-y-1.5 rounded-md bg-muted/50 p-5">
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Team A</p>
-            <p className="font-display text-lg text-foreground">{match.pair1.player1.name}</p>
-            <p className="font-display text-lg text-foreground">{match.pair1.player2.name}</p>
+            <p className="font-display text-xl text-foreground">{match.pair1.player1.name}</p>
+            <p className="font-display text-xl text-foreground">{match.pair1.player2.name}</p>
           </div>
-          <div className="font-display text-2xl text-accent">VS</div>
-          <div className="flex-1 text-center space-y-1 rounded-md bg-muted/50 p-3">
+          <div className="font-display text-3xl text-accent">VS</div>
+          <div className="flex-1 text-center space-y-1.5 rounded-md bg-muted/50 p-5">
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Team B</p>
-            <p className="font-display text-lg text-foreground">{match.pair2.player1.name}</p>
-            <p className="font-display text-lg text-foreground">{match.pair2.player2.name}</p>
+            <p className="font-display text-xl text-foreground">{match.pair2.player1.name}</p>
+            <p className="font-display text-xl text-foreground">{match.pair2.player2.name}</p>
           </div>
         </div>
-        <Button onClick={() => onFinish(match)} className="w-full bg-accent text-accent-foreground hover:bg-accent/80">
-          <Trophy className="w-4 h-4 mr-1" /> Game Finished
+        <Button onClick={() => onFinish(match)} className="w-full bg-accent text-accent-foreground hover:bg-accent/80 min-h-[52px] text-base">
+          <Trophy className="w-5 h-5 mr-2" /> Game Finished
         </Button>
       </div>
     ) : (
-      <p className="text-muted-foreground text-center py-8">No active match</p>
+      <p className="text-muted-foreground text-center text-lg py-10">No active match</p>
     )}
   </div>
 );
@@ -150,12 +150,12 @@ const SwapPlayerButton = ({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button className="group inline-flex items-center gap-1 hover:text-accent transition-colors">
+        <button className="group inline-flex items-center gap-1.5 hover:text-accent transition-colors min-h-[36px]">
           <span>{playerName}</span>
-          <ArrowRightLeft className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+          <ArrowRightLeft className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-48 p-2 max-h-60 overflow-y-auto" align="start">
+      <PopoverContent className="w-52 p-2 max-h-60 overflow-y-auto" align="start">
         <p className="text-xs text-muted-foreground mb-2 px-1">Swap with:</p>
         {availablePlayers.length === 0 ? (
           <p className="text-xs text-muted-foreground px-1">No available players</p>
@@ -164,7 +164,7 @@ const SwapPlayerButton = ({
             <button
               key={p.id}
               onClick={() => { onSwap(matchId, playerId, p.id); setOpen(false); }}
-              className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent/10 hover:text-accent transition-colors"
+              className="w-full text-left px-3 py-2.5 text-base rounded hover:bg-accent/10 hover:text-accent transition-colors min-h-[44px]"
             >
               {p.name}
             </button>
@@ -215,37 +215,37 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
   };
 
   return (
-    <div className="space-y-6 animate-fade-up">
+    <div className="space-y-8 animate-fade-up">
       {/* Quick check-in link for latecomers */}
       {onGoToCheckIn && (
         <div className="flex justify-end">
-          <Button variant="outline" size="sm" onClick={onGoToCheckIn} className="border-accent/40 text-accent hover:bg-accent/10">
-            <UserCheck className="w-4 h-4 mr-1.5" /> Check In
+          <Button variant="outline" size="default" onClick={onGoToCheckIn} className="border-accent/40 text-accent hover:bg-accent/10 min-h-[48px] px-5 text-base">
+            <UserCheck className="w-5 h-5 mr-2" /> Check In
           </Button>
         </div>
       )}
       {courtFilter && (
-        <p className="text-xs text-muted-foreground text-center uppercase tracking-widest">
+        <p className="text-sm text-muted-foreground text-center uppercase tracking-widest">
           Showing Court {courtFilter} only
         </p>
       )}
-      <div className={`flex flex-col ${!courtFilter ? "md:flex-row" : ""} gap-4`}>
+      <div className={`flex flex-col ${!courtFilter ? "md:flex-row" : ""} gap-6`}>
         {showCourt1 && <CourtCard courtNum={1} match={court1Match} totalGames={totalGames} onFinish={setFinishingMatch} />}
         {showCourt2 && <CourtCard courtNum={2} match={court2Match} totalGames={totalGames} onFinish={setFinishingMatch} />}
       </div>
 
       {/* Up Next — the 2 matches going on court next */}
       {upNextMatches.length > 0 && (
-        <div className="rounded-lg border border-border bg-card p-6 space-y-3">
-          <h3 className="font-display text-lg text-accent">Up Next</h3>
+        <div className="rounded-lg border border-border bg-card p-8 space-y-4">
+          <h3 className="font-display text-xl text-accent">Up Next</h3>
           {upNextMatches.map((m) => (
-            <div key={m.id} className="flex items-center gap-2 text-sm text-foreground/80 border-l-2 border-primary/30 pl-3 py-1">
-              {m.gameNumber && <span className="text-accent font-display">#{m.gameNumber}</span>}
-              <span className="flex flex-wrap items-center gap-1">
+            <div key={m.id} className="flex items-center gap-3 text-base text-foreground/80 border-l-2 border-primary/30 pl-4 py-2">
+              {m.gameNumber && <span className="text-accent font-display text-lg">#{m.gameNumber}</span>}
+              <span className="flex flex-wrap items-center gap-1.5">
                 {renderPlayerName(m.pair1.player1.name, m.pair1.player1.id, m.id)}
                 <span>&</span>
                 {renderPlayerName(m.pair1.player2.name, m.pair1.player2.id, m.id)}
-                <span className="text-muted-foreground mx-1">vs</span>
+                <span className="text-muted-foreground mx-2">vs</span>
                 {renderPlayerName(m.pair2.player1.name, m.pair2.player1.id, m.id)}
                 <span>&</span>
                 {renderPlayerName(m.pair2.player2.name, m.pair2.player2.id, m.id)}
@@ -257,11 +257,11 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
 
       {/* On Deck — the matches AFTER up-next */}
       {onDeckPlayers.length > 0 && (
-        <div className="rounded-lg border border-accent/20 bg-accent/5 p-6 space-y-3">
-          <h3 className="font-display text-lg text-accent">🏓 On Deck — Get Ready!</h3>
-          <div className="flex flex-wrap gap-2">
+        <div className="rounded-lg border border-accent/20 bg-accent/5 p-8 space-y-4">
+          <h3 className="font-display text-xl text-accent">🏓 On Deck — Get Ready!</h3>
+          <div className="flex flex-wrap gap-3">
             {[...new Set(onDeckPlayers)].map((name) => (
-              <span key={name} className="rounded-full border border-accent/40 bg-accent/10 px-4 py-1.5 text-sm font-display text-foreground">
+              <span key={name} className="rounded-full border border-accent/40 bg-accent/10 px-5 py-2 text-base font-display text-foreground">
                 {name}
               </span>
             ))}

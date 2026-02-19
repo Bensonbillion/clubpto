@@ -43,18 +43,18 @@ const PasscodeGate = ({ onUnlock }: { onUnlock: () => void }) => {
 
   return (
     <div className="flex flex-col items-center justify-center py-20 space-y-8 animate-fade-up">
-      <div className="w-16 h-16 rounded-full bg-accent/10 border border-accent/30 flex items-center justify-center">
-        <Lock className="w-8 h-8 text-accent" />
+      <div className="w-20 h-20 rounded-full bg-accent/10 border border-accent/30 flex items-center justify-center">
+        <Lock className="w-10 h-10 text-accent" />
       </div>
       <div>
-        <h3 className="font-display text-2xl text-accent text-center">Admin Access</h3>
-        <p className="text-sm text-muted-foreground text-center mt-1">Enter 4-digit passcode</p>
+        <h3 className="font-display text-3xl text-accent text-center">Admin Access</h3>
+        <p className="text-base text-muted-foreground text-center mt-2">Enter 4-digit passcode</p>
       </div>
-      <div className="flex gap-3">
+      <div className="flex gap-4">
         {[0, 1, 2, 3].map((i) => (
           <div
             key={i}
-            className={`w-4 h-4 rounded-full border-2 transition-all duration-200 ${
+            className={`w-5 h-5 rounded-full border-2 transition-all duration-200 ${
               i < code.length
                 ? "bg-accent border-accent scale-110"
                 : "border-muted-foreground/40"
@@ -62,8 +62,8 @@ const PasscodeGate = ({ onUnlock }: { onUnlock: () => void }) => {
           />
         ))}
       </div>
-      {error && <p className="text-xs text-destructive">Incorrect passcode</p>}
-      <div className="grid grid-cols-3 gap-3 max-w-[240px]">
+      {error && <p className="text-sm text-destructive">Incorrect passcode</p>}
+      <div className="grid grid-cols-3 gap-4 max-w-[300px]">
         {["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "←"].map((d) =>
           d === "" ? (
             <div key="empty" />
@@ -71,7 +71,7 @@ const PasscodeGate = ({ onUnlock }: { onUnlock: () => void }) => {
             <button
               key={d}
               onClick={() => (d === "←" ? handleDelete() : handleDigit(d))}
-              className="w-16 h-16 rounded-lg border border-border bg-card text-foreground font-display text-xl hover:bg-muted hover:border-accent/40 transition-all active:scale-95"
+              className="w-20 h-20 rounded-lg border border-border bg-card text-foreground font-display text-2xl hover:bg-muted hover:border-accent/40 transition-all active:scale-95"
             >
               {d}
             </button>
@@ -90,14 +90,14 @@ const Manage = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="font-display text-2xl text-accent">Club PTO</h1>
-          <span className="text-xs uppercase tracking-widest text-muted-foreground">
+        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+          <h1 className="font-display text-3xl text-accent">Club PTO</h1>
+          <span className="text-sm uppercase tracking-widest text-muted-foreground">
             {adminUnlocked ? "Admin Mode" : "Court Manager"}
           </span>
         </div>
-        <div className="max-w-6xl mx-auto px-4">
-          <nav className="flex gap-1 -mb-px overflow-x-auto scrollbar-hide">
+        <div className="max-w-6xl mx-auto px-6">
+          <nav className="flex gap-2 -mb-px overflow-x-auto scrollbar-hide">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -105,7 +105,7 @@ const Manage = () => {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`
-                    flex items-center gap-2 px-4 py-3 text-sm font-body whitespace-nowrap border-b-2 transition-colors
+                    flex items-center gap-2.5 px-5 py-4 text-base font-body whitespace-nowrap border-b-2 transition-colors min-h-[48px]
                     ${
                       activeTab === tab.id
                         ? "border-accent text-accent"
@@ -113,9 +113,9 @@ const Manage = () => {
                     }
                   `}
                 >
-                  <Icon className="w-4 h-4" />
-                  <span className="hidden sm:inline">{tab.label}</span>
-                  {tab.id === "admin" && !adminUnlocked && <Lock className="w-3 h-3 ml-0.5" />}
+                  <Icon className="w-5 h-5" />
+                  <span>{tab.label}</span>
+                  {tab.id === "admin" && !adminUnlocked && <Lock className="w-3.5 h-3.5 ml-0.5" />}
                 </button>
               );
             })}
@@ -123,10 +123,10 @@ const Manage = () => {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-6 py-8">
         {gameState.loading ? (
           <div className="flex items-center justify-center py-20">
-            <div className="text-muted-foreground text-sm animate-pulse-soft">Loading game state…</div>
+            <div className="text-muted-foreground text-base animate-pulse-soft">Loading game state…</div>
           </div>
         ) : (
           <>
