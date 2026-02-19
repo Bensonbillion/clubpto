@@ -93,7 +93,7 @@ const Manage = () => {
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <h1 className="font-display text-3xl text-accent">Club PTO</h1>
           <span className="text-sm uppercase tracking-widest text-muted-foreground">
-            {adminUnlocked ? "Admin Mode" : "Court Manager"}
+            Court Manager
           </span>
         </div>
         <div className="max-w-6xl mx-auto px-6">
