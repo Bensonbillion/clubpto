@@ -82,9 +82,9 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
 
   const isLocked = state.sessionConfig.checkInLocked;
 
-  // Available teammates for the current VIP dialog
+  // Available teammates: entire roster minus the VIP themselves
   const availableForVip = vipDialogFor
-    ? checkedInPlayers.filter((p) => p.name.toLowerCase() !== vipDialogFor.toLowerCase()).map((p) => p.name)
+    ? state.roster.filter((p) => p.name.toLowerCase() !== vipDialogFor.toLowerCase()).map((p) => p.name)
     : [];
 
   return (
