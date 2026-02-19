@@ -10,7 +10,7 @@ interface AdminSetupProps {
 }
 
 const AdminSetup = ({ gameState }: AdminSetupProps) => {
-  const { state, setSessionConfig, addPlayer, removePlayer, generatePairs, startSession, resetSession, generateMatches } = gameState;
+  const { state, setSessionConfig, addPlayer, removePlayer, toggleSkillLevel, generatePairs, startSession, resetSession, generateMatches } = gameState;
   const [newName, setNewName] = useState("");
   const [newSkill, setNewSkill] = useState<"beginner" | "good">("beginner");
   const [confirmReset, setConfirmReset] = useState(false);
@@ -27,7 +27,7 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
   const handleBulkAdd = () => {
     const names = bulkNames
       .split(/[\n,]+/)
-      .map((n) => n.trim())
+      .map((n) => n.replace(/^[-*•]\s*\[.\]\s*/, "").replace(/^[-*•]\s*/, "").trim())
       .filter((n) => n.length > 0);
     names.forEach((name) => addPlayer(name, bulkSkill));
     setBulkNames("");
@@ -143,7 +143,13 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
               >
                 <div>
                   <p className="font-display text-lg text-foreground">{player.name}</p>
-                  <p className="text-xs uppercase tracking-widest text-accent">{player.skillLevel}</p>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleSkillLevel(player.id); }}
+                    className="text-xs uppercase tracking-widest text-accent hover:text-primary transition-colors cursor-pointer"
+                    title="Click to toggle skill level"
+                  >
+                    {player.skillLevel} ↔
+                  </button>
                 </div>
                 <button onClick={() => removePlayer(player.id)} className="text-muted-foreground hover:text-destructive transition-colors">
                   <Trash2 className="w-4 h-4" />

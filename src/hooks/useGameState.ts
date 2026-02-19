@@ -67,6 +67,18 @@ export function useGameState() {
     [updateState]
   );
 
+  const toggleSkillLevel = useCallback(
+    (id: string) => {
+      updateState((s) => ({
+        ...s,
+        roster: s.roster.map((p) =>
+          p.id === id ? { ...p, skillLevel: p.skillLevel === "beginner" ? "good" : "beginner" } : p
+        ),
+      }));
+    },
+    [updateState]
+  );
+
   // Check-in
   const toggleCheckIn = useCallback(
     (id: string) => {
@@ -236,6 +248,7 @@ export function useGameState() {
     setSessionConfig,
     addPlayer,
     removePlayer,
+    toggleSkillLevel,
     toggleCheckIn,
     generatePairs,
     generateMatches,
