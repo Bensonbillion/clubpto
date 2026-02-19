@@ -134,12 +134,20 @@ const Manage = () => {
 
       {/* Content */}
       <main className="max-w-6xl mx-auto px-4 py-8">
-        {activeTab === "admin" && (
-          adminUnlocked ? <AdminSetup gameState={gameState} /> : <PasscodeGate onUnlock={() => setAdminUnlocked(true)} />
+        {gameState.loading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="text-muted-foreground text-sm animate-pulse-soft">Loading game state…</div>
+          </div>
+        ) : (
+          <>
+            {activeTab === "admin" && (
+              adminUnlocked ? <AdminSetup gameState={gameState} /> : <PasscodeGate onUnlock={() => setAdminUnlocked(true)} />
+            )}
+            {activeTab === "checkin" && <CheckIn gameState={gameState} onSwitchToCourtDisplay={() => setActiveTab("courts")} />}
+            {activeTab === "courts" && <CourtDisplay gameState={gameState} />}
+            {activeTab === "stats" && <StatsPlayoffs gameState={gameState} />}
+          </>
         )}
-        {activeTab === "checkin" && <CheckIn gameState={gameState} onSwitchToCourtDisplay={() => setActiveTab("courts")} />}
-        {activeTab === "courts" && <CourtDisplay gameState={gameState} />}
-        {activeTab === "stats" && <StatsPlayoffs gameState={gameState} />}
       </main>
     </div>
   );

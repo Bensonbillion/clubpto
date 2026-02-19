@@ -55,6 +55,24 @@ export type Database = {
           },
         ]
       }
+      game_state: {
+        Row: {
+          id: string
+          state: Json
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          state?: Json
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          state?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sessions: {
         Row: {
           created_at: string

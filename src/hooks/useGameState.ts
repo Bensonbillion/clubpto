@@ -1,7 +1,8 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { GameState, DEFAULT_STATE, Player, Pair, Match, GameHistory } from "@/types/courtManager";
 
-const STORAGE_KEY = "clubpto-game-state";
+const ROW_ID = "current";
 
 function generateId(): string {
   return Math.random().toString(36).substring(2, 11);
@@ -17,22 +18,78 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 export function useGameState() {
-  const [state, setState] = useState<GameState>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      return saved ? JSON.parse(saved) : DEFAULT_STATE;
-    } catch {
-      return DEFAULT_STATE;
-    }
-  });
+  const [state, setState] = useState<GameState>(DEFAULT_STATE);
+  const [loading, setLoading] = useState(true);
+  const savingRef = useRef(false);
+  const pendingRef = useRef<GameState | null>(null);
 
+  // Load initial state from DB
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [state]);
-
-  const updateState = useCallback((updater: (prev: GameState) => GameState) => {
-    setState((prev) => updater(prev));
+    const load = async () => {
+      const { data } = await supabase
+        .from("game_state")
+        .select("state")
+        .eq("id", ROW_ID)
+        .single();
+      if (data?.state) {
+        setState(data.state as unknown as GameState);
+      }
+      setLoading(false);
+    };
+    load();
   }, []);
+
+  // Subscribe to realtime changes
+  useEffect(() => {
+    const channel = supabase
+      .channel("game_state_sync")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "game_state", filter: `id=eq.${ROW_ID}` },
+        (payload) => {
+          if (payload.new && (payload.new as any).state) {
+            setState((payload.new as any).state as GameState);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Persist state to DB (debounced, non-blocking)
+  const persistState = useCallback(async (newState: GameState) => {
+    if (savingRef.current) {
+      pendingRef.current = newState;
+      return;
+    }
+    savingRef.current = true;
+    await supabase
+      .from("game_state")
+      .update({ state: JSON.parse(JSON.stringify(newState)), updated_at: new Date().toISOString() })
+      .eq("id", ROW_ID);
+    savingRef.current = false;
+
+    // If there was a queued update, flush it
+    if (pendingRef.current) {
+      const queued = pendingRef.current;
+      pendingRef.current = null;
+      persistState(queued);
+    }
+  }, []);
+
+  const updateState = useCallback(
+    (updater: (prev: GameState) => GameState) => {
+      setState((prev) => {
+        const next = updater(prev);
+        persistState(next);
+        return next;
+      });
+    },
+    [persistState]
+  );
 
   // Session config
   const setSessionConfig = useCallback(
@@ -228,8 +285,10 @@ export function useGameState() {
   }, [updateState]);
 
   const resetSession = useCallback(() => {
-    setState(DEFAULT_STATE);
-  }, []);
+    const fresh = { ...DEFAULT_STATE };
+    setState(fresh);
+    persistState(fresh);
+  }, [persistState]);
 
   // Derived
   const checkedInPlayers = state.roster.filter((p) => p.checkedIn);
@@ -245,6 +304,7 @@ export function useGameState() {
 
   return {
     state,
+    loading,
     setSessionConfig,
     addPlayer,
     removePlayer,
