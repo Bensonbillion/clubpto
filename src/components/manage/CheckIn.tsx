@@ -10,7 +10,6 @@ interface CheckInProps {
 
 const CheckIn = ({ gameState, onSwitchToCourtDisplay }: CheckInProps) => {
   const { state, toggleCheckIn, checkedInPlayers, generatePairs, generateMatches } = gameState;
-  const [showGeneratePrompt, setShowGeneratePrompt] = useState(false);
   const [generated, setGenerated] = useState(false);
 
   const formatTime = (iso: string | null) => {
@@ -18,24 +17,11 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay }: CheckInProps) => {
     return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
-  const handleCheckIn = (id: string) => {
-    toggleCheckIn(id);
-    // After toggling, check if we should show the generate prompt
-    // We check current state + toggle logic
-    const player = state.roster.find((p) => p.id === id);
-    const willBeCheckedIn = player ? !player.checkedIn : false;
-    const newCount = willBeCheckedIn ? checkedInPlayers.length + 1 : checkedInPlayers.length - 1;
-    if (newCount >= 4 && newCount % 4 === 0 && willBeCheckedIn && !generated) {
-      setShowGeneratePrompt(true);
-    }
-  };
-
   const handleGenerate = () => {
     generatePairs();
     setTimeout(() => {
       generateMatches();
       setGenerated(true);
-      setShowGeneratePrompt(false);
       onSwitchToCourtDisplay?.();
     }, 100);
   };
@@ -56,7 +42,7 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay }: CheckInProps) => {
           {state.roster.map((player) => (
             <button
               key={player.id}
-              onClick={() => handleCheckIn(player.id)}
+              onClick={() => toggleCheckIn(player.id)}
               className={`
                 relative rounded-lg border-2 p-5 text-center transition-all duration-300 
                 ${
@@ -87,40 +73,17 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay }: CheckInProps) => {
         </div>
       )}
 
-      {/* Always show generate button when 4+ checked in */}
+      {/* Sticky bottom generate bar — always visible when 4+ checked in */}
       {checkedInPlayers.length >= 4 && (
-        <div className="rounded-lg border border-accent/30 bg-accent/5 p-4 text-center space-y-3">
+        <div className="sticky bottom-4 rounded-lg border border-accent/30 bg-card/95 backdrop-blur-sm p-4 flex items-center justify-between gap-4 shadow-lg">
           <p className="text-accent text-sm">
-            ✦ {checkedInPlayers.length} players checked in — {generated ? "games generated!" : "ready to generate games!"}
+            ✦ {checkedInPlayers.length} players ready{generated ? " — games generated!" : ""}
           </p>
           {!generated && (
-            <Button onClick={handleGenerate} className="bg-accent text-accent-foreground hover:bg-accent/80">
+            <Button onClick={handleGenerate} className="bg-accent text-accent-foreground hover:bg-accent/80 shrink-0">
               <Swords className="w-4 h-4 mr-1" /> Generate Games
             </Button>
           )}
-        </div>
-      )}
-
-      {/* Generate popup */}
-      {showGeneratePrompt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in" onClick={() => setShowGeneratePrompt(false)}>
-          <div className="bg-card border border-border rounded-lg p-8 max-w-sm w-full mx-4 text-center space-y-5" onClick={(e) => e.stopPropagation()}>
-            <div className="w-14 h-14 rounded-full bg-accent/20 border border-accent/40 flex items-center justify-center mx-auto">
-              <Swords className="w-7 h-7 text-accent" />
-            </div>
-            <h3 className="font-display text-2xl text-accent">{checkedInPlayers.length + 1} Players Ready!</h3>
-            <p className="text-sm text-muted-foreground">
-              Enough players have checked in. Generate pairs and start matches?
-            </p>
-            <div className="flex gap-3">
-              <Button onClick={() => setShowGeneratePrompt(false)} variant="outline" className="flex-1 border-border text-muted-foreground">
-                Not Yet
-              </Button>
-              <Button onClick={handleGenerate} className="flex-1 bg-accent text-accent-foreground hover:bg-accent/80">
-                Generate Games
-              </Button>
-            </div>
-          </div>
         </div>
       )}
     </div>
