@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useGameState } from "@/hooks/useGameState";
 import { Button } from "@/components/ui/button";
 import { Check, Clock, Swords, Lock, Unlock, UserPlus } from "lucide-react";
+import VipPairingDialog, { getCheckedInVips } from "./VipPairingDialog";
+import { FixedPair } from "@/types/courtManager";
 
 interface CheckInProps {
   gameState: ReturnType<typeof useGameState>;
@@ -12,14 +14,25 @@ interface CheckInProps {
 const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckInProps) => {
   const { state, toggleCheckIn, checkedInPlayers, generateFullSchedule, addLatePlayersToSchedule, lockCheckIn } = gameState;
   const [generated, setGenerated] = useState(false);
+  const [showVipDialog, setShowVipDialog] = useState(false);
 
   const formatTime = (iso: string | null) => {
     if (!iso) return "";
     return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
-  const handleGenerate = async () => {
-    await generateFullSchedule();
+  const handleGenerateClick = () => {
+    const vips = getCheckedInVips(state.roster);
+    if (vips) {
+      setShowVipDialog(true);
+    } else {
+      doGenerate(null);
+    }
+  };
+
+  const doGenerate = async (fixedPair: FixedPair | null) => {
+    setShowVipDialog(false);
+    await generateFullSchedule(fixedPair ? [fixedPair] : []);
     setGenerated(true);
     onSwitchToCourtDisplay?.();
   };
@@ -118,7 +131,7 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
               </Button>
             )}
             {state.matches.length === 0 && (
-              <Button onClick={handleGenerate} className="bg-accent text-accent-foreground hover:bg-accent/80 shrink-0 min-h-[48px] px-6 text-base">
+              <Button onClick={handleGenerateClick} className="bg-accent text-accent-foreground hover:bg-accent/80 shrink-0 min-h-[48px] px-6 text-base">
                 <Swords className="w-5 h-5 mr-2" /> Generate Games
               </Button>
             )}
@@ -129,6 +142,14 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
         <div className="sticky bottom-4 rounded-lg border border-border bg-card/95 backdrop-blur-sm p-5 text-center shadow-lg">
           <p className="text-base text-muted-foreground">Start session in Admin Setup before generating games.</p>
         </div>
+      )}
+      {showVipDialog && (
+        <VipPairingDialog
+          open={showVipDialog}
+          onClose={() => setShowVipDialog(false)}
+          onConfirm={(fp) => doGenerate(fp)}
+          vipNames={getCheckedInVips(state.roster) || []}
+        />
       )}
     </div>
   );
