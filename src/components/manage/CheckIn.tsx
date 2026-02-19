@@ -163,7 +163,7 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
           </p>
           <div className="flex items-center gap-3">
             {state.matches.length > 0 && (
-              <Button onClick={addLatePlayersToSchedule} variant="outline" className="border-accent text-accent hover:bg-accent/10 shrink-0 min-h-[48px] px-6 text-base">
+              <Button onClick={() => { addLatePlayersToSchedule(); onSwitchToCourtDisplay?.(); }} variant="outline" className="border-accent text-accent hover:bg-accent/10 shrink-0 min-h-[48px] px-6 text-base">
                 <UserPlus className="w-5 h-5 mr-2" /> Add Late Players
               </Button>
             )}
