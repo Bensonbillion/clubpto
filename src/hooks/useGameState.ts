@@ -387,6 +387,125 @@ export function useGameState() {
     }));
   }, [state.roster, state.sessionConfig, updateState]);
 
+  /**
+   * Add late-arriving players into the existing schedule.
+   * Finds players who are checked in but have 0 games scheduled,
+   * then appends new matches for them without touching existing games.
+   */
+  const addLatePlayersToSchedule = useCallback(() => {
+    updateState((s) => {
+      if (s.matches.length === 0) return s; // no schedule yet
+
+      // Find players who are checked in but not in any match
+      const scheduledPlayerIds = new Set<string>();
+      s.matches.forEach((m) => {
+        [m.pair1.player1.id, m.pair1.player2.id, m.pair2.player1.id, m.pair2.player2.id].forEach((id) =>
+          scheduledPlayerIds.add(id)
+        );
+      });
+
+      const latePlayers = s.roster.filter((p) => p.checkedIn && !scheduledPlayerIds.has(p.id));
+      if (latePlayers.length === 0) return s; // nobody new
+
+      // Group by skill
+      const lateGood = latePlayers.filter((p) => p.skillLevel === "good");
+      const lateBeginner = latePlayers.filter((p) => p.skillLevel === "beginner");
+
+      // Also grab existing scheduled players who have fewer games to mix them in
+      const existingPlayers = s.roster.filter((p) => p.checkedIn && scheduledPlayerIds.has(p.id));
+
+      const newMatches: Match[] = [];
+      let gameNum = s.totalScheduledGames;
+
+      const buildMatchesForGroup = (newPlayers: Player[], pool: Player[], skill: "good" | "beginner") => {
+        if (newPlayers.length === 0) return;
+        // Combine new players with existing pool players sorted by fewest games
+        const existingPool = pool.filter((p) => p.skillLevel === skill).sort((a, b) => a.gamesPlayed - b.gamesPlayed);
+        // Each new player should get at least 3 games
+        const allAvailable = [...shuffle(newPlayers), ...existingPool];
+
+        // Generate matches ensuring each new player appears at least 3 times
+        const newPlayerGameCount = new Map<string, number>();
+        newPlayers.forEach((p) => newPlayerGameCount.set(p.id, 0));
+
+        const targetGames = 3;
+        let attempts = 0;
+        const maxAttempts = newPlayers.length * targetGames * 2;
+
+        while (attempts < maxAttempts) {
+          attempts++;
+          // Find a new player who still needs games
+          const needsGames = newPlayers.find((p) => (newPlayerGameCount.get(p.id) || 0) < targetGames);
+          if (!needsGames) break;
+
+          // Pick 3 more players (prefer other new players who need games, then existing low-game players)
+          const candidates = allAvailable.filter((p) => p.id !== needsGames.id);
+          if (candidates.length < 3) break;
+
+          // Don't pick players who were in the last new match
+          const lastMatch = newMatches[newMatches.length - 1];
+          const lastIds = lastMatch
+            ? new Set([lastMatch.pair1.player1.id, lastMatch.pair1.player2.id, lastMatch.pair2.player1.id, lastMatch.pair2.player2.id])
+            : new Set<string>();
+
+          const eligible = candidates.filter((p) => !lastIds.has(p.id));
+          const pickFrom = eligible.length >= 3 ? eligible : candidates;
+
+          const three = pickFrom.slice(0, 3);
+          const four = [needsGames, ...three];
+
+          const team1: Pair = {
+            id: generateId(),
+            player1: four[0],
+            player2: four[1],
+            skillLevel: skill,
+            wins: 0,
+            losses: 0,
+          };
+          const team2: Pair = {
+            id: generateId(),
+            player1: four[2],
+            player2: four[3],
+            skillLevel: skill,
+            wins: 0,
+            losses: 0,
+          };
+
+          gameNum++;
+          newMatches.push({
+            id: generateId(),
+            pair1: team1,
+            pair2: team2,
+            skillLevel: skill,
+            status: "pending",
+            court: null,
+            gameNumber: gameNum,
+          });
+
+          four.forEach((p) => {
+            if (newPlayerGameCount.has(p.id)) {
+              newPlayerGameCount.set(p.id, (newPlayerGameCount.get(p.id) || 0) + 1);
+            }
+          });
+        }
+      };
+
+      buildMatchesForGroup(lateGood, existingPlayers, "good");
+      buildMatchesForGroup(lateBeginner, existingPlayers, "beginner");
+
+      if (newMatches.length === 0) return s;
+
+      const allNewPairs = newMatches.flatMap((m) => [m.pair1, m.pair2]);
+
+      return {
+        ...s,
+        pairs: [...s.pairs, ...allNewPairs],
+        matches: [...s.matches, ...newMatches],
+        totalScheduledGames: gameNum,
+      };
+    });
+  }, [updateState]);
+
   // Swap a player in a pending match
   const swapPlayer = useCallback(
     (matchId: string, oldPlayerId: string, newPlayerId: string) => {
@@ -510,6 +629,7 @@ export function useGameState() {
     toggleCheckIn,
     lockCheckIn,
     generateFullSchedule,
+    addLatePlayersToSchedule,
     swapPlayer,
     completeMatch,
     startSession,

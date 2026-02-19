@@ -140,7 +140,7 @@ const Manage = () => {
                 isAdmin={adminUnlocked}
               />
             )}
-            {activeTab === "courts" && <CourtDisplay gameState={gameState} />}
+            {activeTab === "courts" && <CourtDisplay gameState={gameState} onGoToCheckIn={() => setActiveTab("checkin")} />}
             {activeTab === "stats" && <StatsPlayoffs gameState={gameState} />}
           </>
         )}
