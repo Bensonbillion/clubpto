@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useGameState } from "@/hooks/useGameState";
 import { Match } from "@/types/courtManager";
-import { Trophy, Timer, UserCheck, ArrowRightLeft } from "lucide-react";
+import { Trophy, Timer, UserCheck, ArrowRightLeft, Maximize, Minimize } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -180,6 +180,22 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
   const [finishingMatch, setFinishingMatch] = useState<Match | null>(null);
   const [searchParams] = useSearchParams();
   const courtFilter = searchParams.get("court");
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen?.();
+    } else {
+      document.exitFullscreen?.();
+    }
+  }, []);
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
 
   const showCourt1 = !courtFilter || courtFilter === "1";
   const showCourt2 = !courtFilter || courtFilter === "2";
@@ -215,15 +231,26 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
   };
 
   return (
-    <div className="space-y-8 animate-fade-up">
-      {/* Quick check-in link for latecomers */}
-      {onGoToCheckIn && (
-        <div className="flex justify-end">
-          <Button variant="outline" size="default" onClick={onGoToCheckIn} className="border-accent/40 text-accent hover:bg-accent/10 min-h-[48px] px-5 text-base">
-            <UserCheck className="w-5 h-5 mr-2" /> Check In
+    <div ref={containerRef} className={`animate-fade-up ${isFullscreen ? "bg-background min-h-screen p-8 flex flex-col justify-center gap-8" : "space-y-8"}`}>
+      {/* Toolbar: fullscreen + check-in */}
+      <div className="flex items-center justify-between">
+        <div>
+          {isFullscreen && (
+            <h2 className="font-display text-3xl text-accent">Club PTO</h2>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          {onGoToCheckIn && !isFullscreen && (
+            <Button variant="outline" size="default" onClick={onGoToCheckIn} className="border-accent/40 text-accent hover:bg-accent/10 min-h-[48px] px-5 text-base">
+              <UserCheck className="w-5 h-5 mr-2" /> Check In
+            </Button>
+          )}
+          <Button variant="outline" size="default" onClick={toggleFullscreen} className="border-accent/40 text-accent hover:bg-accent/10 min-h-[48px] px-5 text-base">
+            {isFullscreen ? <Minimize className="w-5 h-5 mr-2" /> : <Maximize className="w-5 h-5 mr-2" />}
+            {isFullscreen ? "Exit" : "Fullscreen"}
           </Button>
         </div>
-      )}
+      </div>
       {courtFilter && (
         <p className="text-sm text-muted-foreground text-center uppercase tracking-widest">
           Showing Court {courtFilter} only
