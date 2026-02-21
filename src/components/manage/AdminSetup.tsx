@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Trash2, Plus, Play, RotateCcw, ClipboardPaste, Sparkles, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { SkillTier } from "@/types/courtManager";
 
 interface AdminSetupProps {
   gameState: ReturnType<typeof useGameState>;
@@ -13,17 +14,23 @@ interface AdminSetupProps {
 
 interface AiResult {
   fixedPairs: { player1Name: string; player2Name: string }[];
-  skillOverrides: { playerName: string; newSkill: "beginner" | "good" }[];
+  skillOverrides: { playerName: string; newSkill: SkillTier }[];
   explanation: string;
 }
 
+const TIER_STYLES: Record<SkillTier, { border: string; bg: string; text: string; label: string }> = {
+  A: { border: "border-yellow-500/60", bg: "bg-yellow-500/15", text: "text-yellow-400", label: "Tier A" },
+  B: { border: "border-gray-300/60", bg: "bg-gray-300/15", text: "text-gray-300", label: "Tier B" },
+  C: { border: "border-amber-700/60", bg: "bg-amber-700/15", text: "text-amber-600", label: "Tier C" },
+};
+
 const AdminSetup = ({ gameState }: AdminSetupProps) => {
-  const { state, setSessionConfig, addPlayer, removePlayer, toggleSkillLevel, setAllSkillLevels, setFixedPairs, startSession, resetSession } = gameState;
+  const { state, setSessionConfig, addPlayer, removePlayer, setPlayerSkillLevel, setAllSkillLevels, setFixedPairs, startSession, resetSession } = gameState;
   const [newName, setNewName] = useState("");
-  const [newSkill, setNewSkill] = useState<"beginner" | "good">("beginner");
+  const [newSkill, setNewSkill] = useState<SkillTier>("C");
   const [confirmReset, setConfirmReset] = useState(false);
   const [bulkNames, setBulkNames] = useState("");
-  const [bulkSkill, setBulkSkill] = useState<"beginner" | "good">("beginner");
+  const [bulkSkill, setBulkSkill] = useState<SkillTier>("C");
   const [showBulk, setShowBulk] = useState(false);
 
   // AI assistant state
@@ -93,21 +100,40 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
     aiResult.skillOverrides.forEach(({ playerName, newSkill }) => {
       const player = state.roster.find((p) => p.name.toLowerCase() === playerName.toLowerCase());
       if (player && player.skillLevel !== newSkill) {
-        toggleSkillLevel(player.id);
+        setPlayerSkillLevel(player.id, newSkill);
       }
     });
-    // Persist fixed pairs into game state so they're enforced on Start Session
+    // Persist fixed pairs
     setFixedPairs(aiResult.fixedPairs);
     const pairCount = aiResult.fixedPairs.length;
     const overrideCount = aiResult.skillOverrides.length;
     const parts: string[] = [];
     if (pairCount > 0) parts.push(`${pairCount} fixed pair${pairCount > 1 ? "s" : ""} saved`);
-    if (overrideCount > 0) parts.push(`${overrideCount} skill group${overrideCount > 1 ? "s" : ""} updated`);
+    if (overrideCount > 0) parts.push(`${overrideCount} tier${overrideCount > 1 ? "s" : ""} updated`);
     toast.success(parts.length > 0 ? parts.join(" · ") : "AI config applied!");
     setAiResult(null);
     setAiPrompt("");
     setShowAi(false);
   };
+
+  const tierSelect = (value: SkillTier, onChange: (v: SkillTier) => void, className?: string) => (
+    <Select value={value} onValueChange={(v) => onChange(v as SkillTier)}>
+      <SelectTrigger className={`bg-muted border-border min-h-[48px] text-base ${className || "w-full sm:w-44"}`}>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="A">
+          <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-yellow-400" /> Tier A — Advanced</span>
+        </SelectItem>
+        <SelectItem value="B">
+          <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-gray-300" /> Tier B — Intermediate</span>
+        </SelectItem>
+        <SelectItem value="C">
+          <span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-600" /> Tier C — Beginner</span>
+        </SelectItem>
+      </SelectContent>
+    </Select>
+  );
 
   return (
     <div className="space-y-8 animate-fade-up">
@@ -187,15 +213,7 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
               className="w-full rounded-md border border-border bg-muted px-4 py-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none font-body"
             />
             <div className="flex gap-4">
-              <Select value={bulkSkill} onValueChange={(v) => setBulkSkill(v as "beginner" | "good")}>
-                <SelectTrigger className="w-44 bg-muted border-border min-h-[48px] text-base">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="beginner">Beginner</SelectItem>
-                  <SelectItem value="good">Good</SelectItem>
-                </SelectContent>
-              </Select>
+              {tierSelect(bulkSkill, setBulkSkill, "w-44")}
               <Button onClick={handleBulkAdd} disabled={!bulkNames.trim()} className="bg-primary text-primary-foreground hover:bg-primary/80 min-h-[48px] px-6 text-base">
                 <Plus className="w-5 h-5 mr-1.5" /> Add All
               </Button>
@@ -211,15 +229,7 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
               onKeyDown={(e) => e.key === "Enter" && handleAddPlayer()}
               className="bg-muted border-border flex-1 min-h-[48px] text-base"
             />
-            <Select value={newSkill} onValueChange={(v) => setNewSkill(v as "beginner" | "good")}>
-              <SelectTrigger className="w-full sm:w-44 bg-muted border-border min-h-[48px] text-base">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="beginner">Beginner</SelectItem>
-                <SelectItem value="good">Good</SelectItem>
-              </SelectContent>
-            </Select>
+            {tierSelect(newSkill, setNewSkill)}
             <Button onClick={handleAddPlayer} className="bg-primary text-primary-foreground hover:bg-primary/80 min-h-[48px] px-6 text-base">
               <Plus className="w-5 h-5 mr-1.5" /> Add
             </Button>
@@ -231,43 +241,46 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
           <>
             <div className="flex items-center gap-3 mt-3">
               <span className="text-sm text-muted-foreground">Set all to:</span>
-              <button
-                onClick={() => setAllSkillLevels("beginner")}
-                className="text-sm uppercase tracking-widest px-4 py-2 rounded-full border border-primary/40 text-primary hover:bg-primary/10 transition-colors min-h-[40px]"
-              >
-                Beginner
-              </button>
-              <button
-                onClick={() => setAllSkillLevels("good")}
-                className="text-sm uppercase tracking-widest px-4 py-2 rounded-full border border-accent/40 text-accent hover:bg-accent/10 transition-colors min-h-[40px]"
-              >
-                Good
-              </button>
+              {(["A", "B", "C"] as SkillTier[]).map((tier) => {
+                const style = TIER_STYLES[tier];
+                return (
+                  <button
+                    key={tier}
+                    onClick={() => setAllSkillLevels(tier)}
+                    className={`text-sm uppercase tracking-widest px-4 py-2 rounded-full border ${style.border} ${style.text} hover:${style.bg} transition-colors min-h-[40px]`}
+                  >
+                    {style.label}
+                  </button>
+                );
+              })}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {state.roster.map((player) => (
-                <div
-                  key={player.id}
-                  className="flex items-center justify-between rounded-md border border-border bg-muted p-4 card-hover min-h-[56px]"
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <p className="font-display text-xl text-foreground truncate">{player.name}</p>
-                    <button
-                      onClick={() => toggleSkillLevel(player.id)}
-                      className={`shrink-0 text-xs uppercase tracking-widest px-3 py-1 rounded-full border transition-all cursor-pointer min-h-[32px] ${
-                        player.skillLevel === "good"
-                          ? "border-accent/60 bg-accent/15 text-accent hover:bg-accent/25"
-                          : "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
-                      }`}
-                    >
-                      {player.skillLevel}
+              {state.roster.map((player) => {
+                const style = TIER_STYLES[player.skillLevel] || TIER_STYLES.C;
+                return (
+                  <div
+                    key={player.id}
+                    className="flex items-center justify-between rounded-md border border-border bg-muted p-4 card-hover min-h-[56px]"
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <p className="font-display text-xl text-foreground truncate">{player.name}</p>
+                      <Select value={player.skillLevel} onValueChange={(v) => setPlayerSkillLevel(player.id, v as SkillTier)}>
+                        <SelectTrigger className={`shrink-0 w-auto min-w-[80px] h-8 text-xs uppercase tracking-widest px-3 rounded-full border ${style.border} ${style.bg} ${style.text} hover:opacity-80`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="A"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-yellow-400" /> A</span></SelectItem>
+                          <SelectItem value="B"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-gray-300" /> B</span></SelectItem>
+                          <SelectItem value="C"><span className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-600" /> C</span></SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <button onClick={() => removePlayer(player.id)} className="ml-3 text-muted-foreground hover:text-destructive transition-colors p-2 min-h-[44px] min-w-[44px] flex items-center justify-center">
+                      <Trash2 className="w-5 h-5" />
                     </button>
                   </div>
-                  <button onClick={() => removePlayer(player.id)} className="ml-3 text-muted-foreground hover:text-destructive transition-colors p-2 min-h-[44px] min-w-[44px] flex items-center justify-center">
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </>
         ) : (
@@ -291,12 +304,12 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
         {showAi && (
           <div className="px-8 pb-8 space-y-5 border-t border-border pt-6">
             <p className="text-sm text-muted-foreground">
-              Describe how you want this week's games structured. The AI will suggest skill group changes and fixed pairings based on your roster.
+              Describe how you want this week's games structured. The AI will suggest tier changes and fixed pairings based on your roster.
             </p>
             <div className="space-y-2">
               <label className="text-sm uppercase tracking-widest text-muted-foreground block">Your instruction</label>
               <Textarea
-                placeholder={`Examples:\n• "Pair boys with girls for mixed doubles"\n• "Put all beginners into one group and advanced players in another"\n• "Keep Alex and Sam together as a pair"`}
+                placeholder={`Examples:\n• "Pair boys with girls for mixed doubles"\n• "Put all beginners into Tier C and advanced players into Tier A"\n• "Keep Alex and Sam together as a pair"`}
                 value={aiPrompt}
                 onChange={(e) => setAiPrompt(e.target.value)}
                 rows={4}
@@ -326,13 +339,16 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
 
                 {aiResult.skillOverrides.length > 0 && (
                   <div>
-                    <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Skill Group Changes</p>
+                    <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Tier Changes</p>
                     <ul className="space-y-1">
-                      {aiResult.skillOverrides.map((o, i) => (
-                        <li key={i} className="text-sm text-foreground">
-                          <span className="font-semibold">{o.playerName}</span> → <span className={o.newSkill === "good" ? "text-accent" : "text-primary"}>{o.newSkill}</span>
-                        </li>
-                      ))}
+                      {aiResult.skillOverrides.map((o, i) => {
+                        const style = TIER_STYLES[o.newSkill] || TIER_STYLES.C;
+                        return (
+                          <li key={i} className="text-sm text-foreground">
+                            <span className="font-semibold">{o.playerName}</span> → <span className={style.text}>{style.label}</span>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 )}

@@ -99,6 +99,11 @@ const CourtCard = ({
         )}
       </div>
       <div className="flex items-center gap-4">
+        {match?.matchupLabel && (
+          <span className="text-[10px] uppercase tracking-widest bg-muted/50 text-muted-foreground px-3 py-1 rounded-full border border-border/60">
+            {match.matchupLabel}
+          </span>
+        )}
         {match && <GameTimer startedAt={match.startedAt} />}
         {match ? (
           <span className="text-xs uppercase tracking-widest bg-accent/20 text-accent px-4 py-1.5 rounded-full border border-accent/30">
