@@ -88,7 +88,7 @@ const CourtCard = ({
   onSkip: (match: Match) => void;
   isAdmin: boolean;
 }) => (
-  <div className="rounded-lg border border-border bg-card p-8 space-y-6 flex-1">
+  <div className="rounded-lg border border-border bg-card p-5 md:p-8 space-y-5 md:space-y-6 flex-1 min-w-0">
     <div className="flex items-center justify-between">
       <div className="space-y-1">
         <h3 className="font-display text-3xl text-accent">Court {courtNum}</h3>
@@ -248,7 +248,7 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
   };
 
   return (
-    <div ref={containerRef} className={`animate-fade-up ${isFullscreen ? "bg-background min-h-screen p-8 flex flex-col justify-center gap-8" : "space-y-8"}`}>
+    <div ref={containerRef} className={`animate-fade-up ${isFullscreen ? "bg-background min-h-screen p-4 md:p-8 flex flex-col justify-center gap-6 md:gap-8 overflow-y-auto" : "space-y-6 md:space-y-8"}`}>
       {/* Toolbar: fullscreen + check-in */}
       <div className="flex items-center justify-between">
         <div>
@@ -280,7 +280,7 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
 
       {/* Up Next — the 2 matches going on court next */}
       {upNextMatches.length > 0 && (
-        <div className="rounded-lg border border-border bg-card p-8 space-y-4">
+        <div className="rounded-lg border border-border bg-card p-5 md:p-8 space-y-4">
           <h3 className="font-display text-xl text-accent">Up Next</h3>
           {upNextMatches.map((m) => (
             <div key={m.id} className="flex items-center gap-3 text-base text-foreground/80 border-l-2 border-primary/30 pl-4 py-2">
@@ -301,7 +301,7 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
 
       {/* On Deck — the matches AFTER up-next, shown as pairs */}
       {onDeckMatches.length > 0 && (
-        <div className="rounded-lg border border-accent/20 bg-accent/5 p-8 space-y-4">
+        <div className="rounded-lg border border-accent/20 bg-accent/5 p-5 md:p-8 space-y-4">
           <h3 className="font-display text-xl text-accent">🏓 On Deck — Get Ready!</h3>
           {onDeckMatches.map((m) => (
             <div key={m.id} className="flex items-center gap-3 text-base text-foreground/80 border-l-2 border-accent/30 pl-4 py-2">
@@ -318,12 +318,12 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
 
       {/* All Pairs — so every player can see who their partner is */}
       {allUniquePairs.length > 0 && (
-        <div className="rounded-lg border border-border bg-card p-8 space-y-4">
+        <div className="rounded-lg border border-border bg-card p-5 md:p-8 space-y-4">
           <div className="flex items-center gap-2">
             <Users className="w-5 h-5 text-accent" />
             <h3 className="font-display text-xl text-accent">All Pairs</h3>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {allUniquePairs.map((pair, i) => (
               <div key={i} className="rounded-md border border-border/60 bg-muted/30 px-4 py-3 text-center">
                 <p className="font-display text-base text-foreground">{pair.player1}</p>
