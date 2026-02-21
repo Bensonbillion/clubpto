@@ -91,13 +91,13 @@ const Manage = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
-          <h1 className="font-display text-3xl text-accent">Club PTO</h1>
-          <span className="text-sm uppercase tracking-widest text-muted-foreground">
+        <div className="max-w-full xl:max-w-6xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
+          <h1 className="font-display text-2xl md:text-3xl text-accent">Club PTO</h1>
+          <span className="text-xs md:text-sm uppercase tracking-widest text-muted-foreground">
             Court Manager
           </span>
         </div>
-        <div className="max-w-6xl mx-auto px-6">
+        <div className="max-w-full xl:max-w-6xl mx-auto px-4 md:px-6">
           <nav className="flex gap-2 -mb-px overflow-x-auto scrollbar-hide">
             {tabs.map((tab) => {
               const Icon = tab.icon;
@@ -125,7 +125,7 @@ const Manage = () => {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <main className="max-w-full xl:max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-8">
         {gameState.loading ? (
           <div className="flex items-center justify-center py-20">
             <div className="text-muted-foreground text-base animate-pulse-soft">Loading game state…</div>
