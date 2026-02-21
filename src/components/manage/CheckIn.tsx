@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useGameState } from "@/hooks/useGameState";
 import { Button } from "@/components/ui/button";
-import { Check, Clock, Swords, Lock, Unlock, UserPlus } from "lucide-react";
+import { Check, Clock, Swords, Lock, Unlock, UserPlus, X } from "lucide-react";
 import VipPairingDialog, { isVipPlayer } from "./VipPairingDialog";
 import { FixedPair } from "@/types/courtManager";
 
@@ -17,6 +17,10 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
   const [vipDialogFor, setVipDialogFor] = useState<string | null>(null);
   const [vipFixedPairs, setVipFixedPairs] = useState<FixedPair[]>([]);
   const vipsDismissedRef = useRef<Set<string>>(new Set());
+  const [showPasscodeModal, setShowPasscodeModal] = useState(false);
+  const [passcodeInput, setPasscodeInput] = useState("");
+  const [passcodeError, setPasscodeError] = useState(false);
+  const ADMIN_PASSCODE = "9999";
 
   const formatTime = (iso: string | null) => {
     if (!iso) return "";
@@ -72,6 +76,38 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
     await generateFullSchedule(vipFixedPairs);
     setGenerated(true);
     onSwitchToCourtDisplay?.();
+  };
+
+  const handleGenerateWithPasscode = () => {
+    if (isAdmin) {
+      handleGenerateClick();
+    } else {
+      setPasscodeInput("");
+      setPasscodeError(false);
+      setShowPasscodeModal(true);
+    }
+  };
+
+  const handlePasscodeDigit = (d: string) => {
+    const next = passcodeInput + d;
+    setPasscodeError(false);
+    if (next.length === 4) {
+      if (next === ADMIN_PASSCODE) {
+        setShowPasscodeModal(false);
+        setPasscodeInput("");
+        handleGenerateClick();
+      } else {
+        setPasscodeError(true);
+        setPasscodeInput("");
+      }
+    } else {
+      setPasscodeInput(next);
+    }
+  };
+
+  const handlePasscodeDelete = () => {
+    setPasscodeInput((c) => c.slice(0, -1));
+    setPasscodeError(false);
   };
 
   // Sort: checked-in first, then alphabetical
@@ -156,19 +192,20 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
         </div>
       )}
 
-      {isAdmin && state.sessionStarted && checkedInPlayers.length >= 4 && (
+      {state.sessionStarted && checkedInPlayers.length >= 4 && (
         <div className="sticky bottom-4 rounded-lg border border-accent/30 bg-card/95 backdrop-blur-sm p-5 flex items-center justify-between gap-4 shadow-lg">
           <p className="text-accent text-base">
             ✦ {checkedInPlayers.length} players ready{state.matches.length > 0 ? " — schedule generated!" : ""}
           </p>
           <div className="flex items-center gap-3">
-            {state.matches.length > 0 && (
+            {isAdmin && state.matches.length > 0 && (
               <Button onClick={() => { addLatePlayersToSchedule(); onSwitchToCourtDisplay?.(); }} variant="outline" className="border-accent text-accent hover:bg-accent/10 shrink-0 min-h-[48px] px-6 text-base">
                 <UserPlus className="w-5 h-5 mr-2" /> Add Late Players
               </Button>
             )}
             {state.matches.length === 0 && (
-              <Button onClick={handleGenerateClick} className="bg-accent text-accent-foreground hover:bg-accent/80 shrink-0 min-h-[48px] px-6 text-base">
+              <Button onClick={handleGenerateWithPasscode} className="bg-accent text-accent-foreground hover:bg-accent/80 shrink-0 min-h-[48px] px-6 text-base">
+                {!isAdmin && <Lock className="w-4 h-4 mr-2" />}
                 <Swords className="w-5 h-5 mr-2" /> Generate Games
               </Button>
             )}
@@ -183,6 +220,49 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
           </Button>
         </div>
       )}
+
+      {/* Passcode modal for Generate Games */}
+      {showPasscodeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in" onClick={() => setShowPasscodeModal(false)}>
+          <div className="bg-card border border-border rounded-lg p-8 max-w-sm w-full mx-4 space-y-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-display text-2xl text-accent">Enter Passcode</h3>
+              <button onClick={() => setShowPasscodeModal(false)} className="text-muted-foreground hover:text-foreground transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex gap-4 justify-center">
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className={`w-5 h-5 rounded-full border-2 transition-all duration-200 ${
+                    i < passcodeInput.length
+                      ? "bg-accent border-accent scale-110"
+                      : "border-muted-foreground/40"
+                  } ${passcodeError ? "border-destructive bg-destructive/30 animate-pulse-soft" : ""}`}
+                />
+              ))}
+            </div>
+            {passcodeError && <p className="text-sm text-destructive text-center">Incorrect passcode</p>}
+            <div className="grid grid-cols-3 gap-3 max-w-[240px] mx-auto">
+              {["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "←"].map((d) =>
+                d === "" ? (
+                  <div key="empty" />
+                ) : (
+                  <button
+                    key={d}
+                    onClick={() => (d === "←" ? handlePasscodeDelete() : handlePasscodeDigit(d))}
+                    className="w-16 h-16 rounded-lg border border-border bg-card text-foreground font-display text-xl hover:bg-muted hover:border-accent/40 transition-all active:scale-95"
+                  >
+                    {d}
+                  </button>
+                )
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {vipDialogFor && (
         <VipPairingDialog
           open={!!vipDialogFor}
