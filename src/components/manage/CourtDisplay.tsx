@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useGameState } from "@/hooks/useGameState";
 import { Match } from "@/types/courtManager";
-import { Trophy, Timer, UserCheck, ArrowRightLeft, Maximize, Minimize, SkipForward } from "lucide-react";
+import { Trophy, Timer, UserCheck, ArrowRightLeft, Maximize, Minimize, SkipForward, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -220,13 +220,19 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
   });
   const availableForSwap = checkedInPlayers.filter((p) => !busyPlayerIds.has(p.id));
 
-  // "On deck" players (from the matches AFTER up-next)
-  const onDeckPlayers = onDeckMatches.flatMap((m) => [
-    m.pair1.player1.name,
-    m.pair1.player2.name,
-    m.pair2.player1.name,
-    m.pair2.player2.name,
-  ]);
+  // Build unique pair list from ALL scheduled matches for "All Pairs" section
+  const allPairsMap = new Map<string, { player1: string; player2: string }>();
+  state.matches.forEach((m) => {
+    const addPair = (p: typeof m.pair1) => {
+      const key = [p.player1.id, p.player2.id].sort().join("|||");
+      if (!allPairsMap.has(key)) {
+        allPairsMap.set(key, { player1: p.player1.name, player2: p.player2.name });
+      }
+    };
+    addPair(m.pair1);
+    addPair(m.pair2);
+  });
+  const allUniquePairs = Array.from(allPairsMap.values());
 
   const renderPlayerName = (name: string, playerId: string, matchId: string) => {
     if (!isAdmin) return <span>{name}</span>;
@@ -293,15 +299,37 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
         </div>
       )}
 
-      {/* On Deck — the matches AFTER up-next */}
-      {onDeckPlayers.length > 0 && (
+      {/* On Deck — the matches AFTER up-next, shown as pairs */}
+      {onDeckMatches.length > 0 && (
         <div className="rounded-lg border border-accent/20 bg-accent/5 p-8 space-y-4">
           <h3 className="font-display text-xl text-accent">🏓 On Deck — Get Ready!</h3>
-          <div className="flex flex-wrap gap-3">
-            {[...new Set(onDeckPlayers)].map((name) => (
-              <span key={name} className="rounded-full border border-accent/40 bg-accent/10 px-5 py-2 text-base font-display text-foreground">
-                {name}
+          {onDeckMatches.map((m) => (
+            <div key={m.id} className="flex items-center gap-3 text-base text-foreground/80 border-l-2 border-accent/30 pl-4 py-2">
+              {m.gameNumber && <span className="text-accent font-display text-lg">#{m.gameNumber}</span>}
+              <span>
+                {m.pair1.player1.name} & {m.pair1.player2.name}
+                <span className="text-muted-foreground mx-2">vs</span>
+                {m.pair2.player1.name} & {m.pair2.player2.name}
               </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* All Pairs — so every player can see who their partner is */}
+      {allUniquePairs.length > 0 && (
+        <div className="rounded-lg border border-border bg-card p-8 space-y-4">
+          <div className="flex items-center gap-2">
+            <Users className="w-5 h-5 text-accent" />
+            <h3 className="font-display text-xl text-accent">All Pairs</h3>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {allUniquePairs.map((pair, i) => (
+              <div key={i} className="rounded-md border border-border/60 bg-muted/30 px-4 py-3 text-center">
+                <p className="font-display text-base text-foreground">{pair.player1}</p>
+                <p className="text-xs text-muted-foreground my-0.5">&</p>
+                <p className="font-display text-base text-foreground">{pair.player2}</p>
+              </div>
             ))}
           </div>
         </div>
