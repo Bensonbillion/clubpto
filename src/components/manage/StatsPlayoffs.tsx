@@ -1,5 +1,5 @@
 import { useGameState } from "@/hooks/useGameState";
-import { Player, Pair, PlayoffMatch } from "@/types/courtManager";
+import { Player, Pair, PlayoffMatch, SkillTier } from "@/types/courtManager";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { Trophy, Medal, Play } from "lucide-react";
@@ -23,6 +23,12 @@ interface PairStanding {
   gamesPlayed: number;
   winPct: number;
 }
+
+const TIER_LABELS: Record<string, string> = {
+  A: "Tier A — Advanced",
+  B: "Tier B — Intermediate",
+  C: "Tier C — Beginner",
+};
 
 const PairLeaderboard = ({ title, pairs }: { title: string; pairs: PairStanding[] }) => (
   <div className="rounded-lg border border-border bg-card p-6 space-y-3">
@@ -149,8 +155,8 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
   const { state, checkedInPlayers, completedMatches, generatePlayoffMatches, startPlayoffMatch, completePlayoffMatch } = gameState;
   const [playoffSeeds, setPlayoffSeeds] = useState<PlayoffSeed[]>([]);
 
-  // Build pair standings from completed matches
-  const buildPairStandings = (skillLevel: "good" | "beginner"): PairStanding[] => {
+  // Build pair standings from completed matches per tier
+  const buildPairStandings = (skillLevel: SkillTier | "cross"): PairStanding[] => {
     const pairMap = new Map<string, PairStanding>();
     
     for (const match of state.matches.filter((m) => m.status === "completed" && m.skillLevel === skillLevel)) {
@@ -161,10 +167,7 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
             id: key,
             player1Name: pair.player1.name,
             player2Name: pair.player2.name,
-            wins: 0,
-            losses: 0,
-            gamesPlayed: 0,
-            winPct: 0,
+            wins: 0, losses: 0, gamesPlayed: 0, winPct: 0,
           });
         }
         const s = pairMap.get(key)!;
@@ -186,10 +189,11 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
     });
   };
 
-  const goodPairStandings = buildPairStandings("good");
-  const beginnerPairStandings = buildPairStandings("beginner");
+  const aPairStandings = buildPairStandings("A");
+  const crossPairStandings = buildPairStandings("cross");
+  const cPairStandings = buildPairStandings("C");
 
-  // Individual standings still needed for playoff seeding
+  // Individual standings for playoff seeding
   const withWinPct = (players: Player[]) =>
     players
       .filter((p) => p.checkedIn)
@@ -202,20 +206,22 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
         return b.wins - a.wins;
       });
 
-  const goodStandings = withWinPct(state.roster.filter((p) => p.skillLevel === "good"));
-  const beginnerStandings = withWinPct(state.roster.filter((p) => p.skillLevel === "beginner"));
+  const aStandings = withWinPct(state.roster.filter((p) => p.skillLevel === "A"));
+  const bStandings = withWinPct(state.roster.filter((p) => p.skillLevel === "B"));
+  const cStandings = withWinPct(state.roster.filter((p) => p.skillLevel === "C"));
 
   const handleGeneratePlayoffSeeds = () => {
     const seeded: PlayoffSeed[] = [];
     let seed = 1;
-    goodStandings.forEach((p) => {
-      seeded.push({ seed: seed++, player: p, winPct: p.winPct });
-    });
-    beginnerStandings.forEach((p) => {
-      seeded.push({ seed: seed++, player: p, winPct: p.winPct });
-    });
-    setPlayoffSeeds(seeded);
-    generatePlayoffMatches(seeded);
+    // Priority: A first, then B, then C
+    aStandings.forEach((p) => { seeded.push({ seed: seed++, player: p, winPct: p.winPct }); });
+    bStandings.forEach((p) => { seeded.push({ seed: seed++, player: p, winPct: p.winPct }); });
+    cStandings.forEach((p) => { seeded.push({ seed: seed++, player: p, winPct: p.winPct }); });
+    // Take top 8
+    const top8 = seeded.slice(0, 8);
+    top8.forEach((s, i) => { s.seed = i + 1; });
+    setPlayoffSeeds(top8);
+    generatePlayoffMatches(top8);
   };
 
   const roundRobinComplete = state.matches.length > 0 && state.matches.every((m) => m.status === "completed");
@@ -229,6 +235,8 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
   const allPlayoffComplete = (state.playoffMatches || []).length > 0 && (state.playoffMatches || []).every((m) => m.status === "completed");
   const lastRound = rounds[rounds.length - 1];
   const champion = allPlayoffComplete && lastRound ? playoffMatchesByRound[lastRound]?.[0]?.winner : null;
+
+  const totalPlayers = aStandings.length + bStandings.length + cStandings.length;
 
   return (
     <div className="space-y-8 animate-fade-up">
@@ -257,10 +265,13 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
         </div>
       </div>
 
-      {/* Pair Leaderboards by skill group */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <PairLeaderboard title="Standings — Group A" pairs={goodPairStandings} />
-        <PairLeaderboard title="Standings — Group B" pairs={beginnerPairStandings} />
+      {/* Pair Leaderboards by tier */}
+      <div className="space-y-4">
+        <PairLeaderboard title="Standings — Tier A (Advanced)" pairs={aPairStandings} />
+        {crossPairStandings.length > 0 && (
+          <PairLeaderboard title="Standings — Cross-Tier (B vs A/C)" pairs={crossPairStandings} />
+        )}
+        <PairLeaderboard title="Standings — Tier C (Beginner)" pairs={cPairStandings} />
       </div>
 
       {/* Playoff Section */}
@@ -280,7 +291,7 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
         {(state.playoffMatches || []).length === 0 ? (
           <>
             <p className="text-sm text-muted-foreground">
-              Players seeded by Win%. Single-elimination bracket with doubles teams.
+              Top 8 players seeded by tier priority (A → B → C) then Win%. NBA-style bracket with doubles teams.
             </p>
             {roundRobinComplete && (
               <div className="rounded-md border border-accent/30 bg-accent/5 p-3 text-sm text-accent">
@@ -289,13 +300,12 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
             )}
             <Button
               onClick={handleGeneratePlayoffSeeds}
-              disabled={goodStandings.length + beginnerStandings.length < 4}
+              disabled={totalPlayers < 4}
               className="bg-accent text-accent-foreground hover:bg-accent/80"
             >
               <Trophy className="w-4 h-4 mr-1" /> Generate Playoff Bracket
             </Button>
 
-            {/* Preview seeds */}
             {playoffSeeds.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                 {playoffSeeds.map((s) => (
@@ -307,6 +317,12 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
                         <span>{s.player.wins}W - {s.player.losses}L</span>
                         <span>•</span>
                         <span className="font-mono">{(s.winPct * 100).toFixed(0)}%</span>
+                        <span>•</span>
+                        <span className={
+                          s.player.skillLevel === "A" ? "text-yellow-400" :
+                          s.player.skillLevel === "B" ? "text-gray-300" :
+                          "text-amber-600"
+                        }>Tier {s.player.skillLevel}</span>
                       </div>
                     </div>
                     {s.seed <= 3 && (
@@ -318,7 +334,6 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
             )}
           </>
         ) : (
-          /* Interactive Bracket */
           <div className="space-y-6">
             {rounds.map((round) => (
               <div key={round} className="space-y-3">

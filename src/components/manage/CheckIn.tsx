@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useGameState } from "@/hooks/useGameState";
 import { Button } from "@/components/ui/button";
-import { Check, Clock, Swords, Lock, Unlock, UserPlus, X } from "lucide-react";
+import { Check, Clock, Swords, Lock, Unlock, UserPlus, X, Users } from "lucide-react";
 import VipPairingDialog, { isVipPlayer } from "./VipPairingDialog";
 import { FixedPair } from "@/types/courtManager";
 
@@ -31,7 +31,6 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
     const player = state.roster.find((p) => p.id === playerId);
     if (!player) return;
 
-    // If unchecking, just toggle
     if (player.checkedIn) {
       toggleCheckIn(playerId);
       if (isVipPlayer(player.name)) {
@@ -43,10 +42,8 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
       return;
     }
 
-    // Check in the player
     toggleCheckIn(playerId);
 
-    // If VIP and hasn't already chosen, show dialog
     if (isVipPlayer(player.name) && !vipsDismissedRef.current.has(player.name.toLowerCase())) {
       setTimeout(() => setVipDialogFor(player.name), 100);
     }
@@ -118,31 +115,40 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
 
   const isLocked = state.sessionConfig.checkInLocked;
 
-  // Available teammates: entire roster minus the VIP themselves
   const availableForVip = vipDialogFor
     ? state.roster.filter((p) => p.name.toLowerCase() !== vipDialogFor.toLowerCase()).map((p) => p.name)
     : [];
+
+  // Tier style helper — only used in admin mode
+  const getTierBadge = (tier: string) => {
+    const styles: Record<string, string> = {
+      A: "bg-yellow-500/15 border-yellow-500/40 text-yellow-400",
+      B: "bg-gray-300/15 border-gray-300/40 text-gray-300",
+      C: "bg-amber-700/15 border-amber-700/40 text-amber-600",
+    };
+    return styles[tier] || styles.C;
+  };
 
   return (
     <div className="space-y-6 animate-fade-up">
       <div className="flex items-center justify-between">
         <h3 className="font-display text-2xl text-accent">Player Check-In</h3>
         <div className="flex items-center gap-4">
+          {/* Player count — visible to everyone */}
+          <span className="text-base text-muted-foreground flex items-center gap-1.5">
+            <Users className="w-4 h-4" />
+            {checkedInPlayers.length} of {state.roster.length} checked in
+          </span>
           {isAdmin && (
-            <>
-              <Button
-                variant="outline"
-                size="default"
-                onClick={() => lockCheckIn(!isLocked)}
-                className={`min-h-[48px] px-5 ${isLocked ? "border-destructive text-destructive" : "border-accent text-accent"}`}
-              >
-                {isLocked ? <Lock className="w-4 h-4 mr-1.5" /> : <Unlock className="w-4 h-4 mr-1.5" />}
-                {isLocked ? "Locked" : "Lock Check-In"}
-              </Button>
-              <span className="text-base text-muted-foreground">
-                {checkedInPlayers.length} of {state.roster.length} checked in
-              </span>
-            </>
+            <Button
+              variant="outline"
+              size="default"
+              onClick={() => lockCheckIn(!isLocked)}
+              className={`min-h-[48px] px-5 ${isLocked ? "border-destructive text-destructive" : "border-accent text-accent"}`}
+            >
+              {isLocked ? <Lock className="w-4 h-4 mr-1.5" /> : <Unlock className="w-4 h-4 mr-1.5" />}
+              {isLocked ? "Locked" : "Lock Check-In"}
+            </Button>
           )}
         </div>
       </div>
@@ -178,6 +184,14 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
                 </div>
               )}
               <p className="font-display text-xl text-foreground">{player.name}</p>
+              
+              {/* Tier badge — admin only */}
+              {isAdmin && (
+                <span className={`inline-block mt-1.5 text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full border ${getTierBadge(player.skillLevel)}`}>
+                  {player.skillLevel}
+                </span>
+              )}
+              
               <div className="mt-2.5 text-sm text-muted-foreground flex items-center justify-center gap-1.5">
                 {player.checkedIn ? (
                   <>

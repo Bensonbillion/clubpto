@@ -15,15 +15,17 @@ serve(async (req) => {
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
     const rosterSummary = roster
-      .map((p: { name: string; skillLevel: string }) => `- ${p.name} (${p.skillLevel})`)
+      .map((p: { name: string; skillLevel: string }) => `- ${p.name} (Tier ${p.skillLevel})`)
       .join("\n");
 
     const systemPrompt = `You are a padel game night assistant helping an admin configure sessions.
 The admin will describe how they want games structured this week (e.g. "pair boys and girls together", "keep all men separate from women", "create mixed pairs").
 
+The tier system uses A (Advanced), B (Intermediate), and C (Beginner).
+
 Your job is to return a JSON object with:
 1. "fixedPairs": an array of { player1Name, player2Name } objects — specific players who MUST be paired together as teammates.
-2. "skillOverrides": an array of { playerName, newSkill } where newSkill is "good" or "beginner" — use this to reassign players to different groups if needed.
+2. "skillOverrides": an array of { playerName, newSkill } where newSkill is "A", "B", or "C" — use this to reassign players to different tiers if needed.
 3. "explanation": a short plain-English summary (1-3 sentences) of what you're doing and why.
 
 Important rules:
@@ -80,7 +82,6 @@ ${rosterSummary}`;
     try {
       parsed = JSON.parse(raw);
     } catch {
-      // Try to extract JSON from the response if it has extra text
       const match = raw.match(/\{[\s\S]*\}/);
       if (match) {
         try { parsed = JSON.parse(match[0]); } catch { /* ignore */ }

@@ -1,7 +1,9 @@
+export type SkillTier = "A" | "B" | "C";
+
 export interface Player {
   id: string;
   name: string;
-  skillLevel: "beginner" | "good";
+  skillLevel: SkillTier;
   checkedIn: boolean;
   checkInTime: string | null;
   wins: number;
@@ -13,7 +15,7 @@ export interface Pair {
   id: string;
   player1: Player;
   player2: Player;
-  skillLevel: "beginner" | "good";
+  skillLevel: SkillTier;
   wins: number;
   losses: number;
 }
@@ -22,8 +24,10 @@ export interface Match {
   id: string;
   pair1: Pair;
   pair2: Pair;
-  /** Which skill pool this match belongs to */
-  skillLevel: "beginner" | "good";
+  /** Which skill pool this match belongs to, or "cross" for B vs A/C */
+  skillLevel: SkillTier | "cross";
+  /** Describes the matchup type, e.g. "A vs A", "B vs A", "B vs C" */
+  matchupLabel?: string;
   status: "pending" | "playing" | "completed";
   court: number | null;
   winner?: Pair;
