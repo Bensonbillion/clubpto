@@ -772,14 +772,137 @@ export function useGameState() {
   );
 
   const startSession = useCallback(() => {
-    updateState((s) => ({ ...s, sessionStarted: true }));
+    updateState((s) => ({
+      ...s,
+      sessionStarted: true,
+      sessionConfig: { ...s.sessionConfig, sessionStartedAt: new Date().toISOString() },
+    }));
   }, [updateState]);
 
   const resetSession = useCallback(() => {
-    const fresh = { ...DEFAULT_STATE, playoffMatches: [] };
+    const fresh = { ...DEFAULT_STATE, playoffMatches: [], playoffsStarted: false };
     setState(fresh);
     persistState(fresh);
   }, [persistState]);
+
+  // Start playoffs manually
+  const startPlayoffs = useCallback(() => {
+    updateState((s) => ({ ...s, playoffsStarted: true }));
+  }, [updateState]);
+
+  // Remove player mid-session: remove from future pending matches, replace with resting players
+  const removePlayerMidSession = useCallback(
+    (playerId: string) => {
+      updateState((s) => {
+        const player = s.roster.find((p) => p.id === playerId);
+        if (!player) return s;
+
+        // Mark player as not checked in
+        const updatedRoster = s.roster.map((p) =>
+          p.id === playerId ? { ...p, checkedIn: false } : p
+        );
+
+        // Find all players currently in playing matches
+        const playingIds = new Set<string>();
+        s.matches.filter((m) => m.status === "playing").forEach((m) => {
+          [m.pair1.player1.id, m.pair1.player2.id, m.pair2.player1.id, m.pair2.player2.id].forEach((id) => playingIds.add(id));
+        });
+
+        // Get resting checked-in players (excluding the removed one)
+        const allScheduledIds = new Set<string>();
+        s.matches.filter((m) => m.status !== "completed").forEach((m) => {
+          [m.pair1.player1.id, m.pair1.player2.id, m.pair2.player1.id, m.pair2.player2.id].forEach((id) => allScheduledIds.add(id));
+        });
+
+        const restingPlayers = updatedRoster.filter(
+          (p) => p.checkedIn && p.id !== playerId && !playingIds.has(p.id)
+        );
+
+        // Remove player from pending matches or replace them
+        const updatedMatches = s.matches.map((m) => {
+          if (m.status !== "pending") return m;
+          const hasPlayer = [m.pair1.player1.id, m.pair1.player2.id, m.pair2.player1.id, m.pair2.player2.id].includes(playerId);
+          if (!hasPlayer) return m;
+
+          // Try to find a replacement from resting players
+          const matchPlayerIds = new Set([m.pair1.player1.id, m.pair1.player2.id, m.pair2.player1.id, m.pair2.player2.id]);
+          const replacement = restingPlayers.find((p) => !matchPlayerIds.has(p.id));
+
+          if (replacement) {
+            const replaceInPair = (pair: typeof m.pair1) => {
+              if (pair.player1.id === playerId) return { ...pair, player1: replacement };
+              if (pair.player2.id === playerId) return { ...pair, player2: replacement };
+              return pair;
+            };
+            return { ...m, pair1: replaceInPair(m.pair1), pair2: replaceInPair(m.pair2) };
+          }
+
+          // No replacement available — remove match
+          return null;
+        }).filter(Boolean) as typeof s.matches;
+
+        // Renumber
+        updatedMatches.forEach((m, i) => { m.gameNumber = i + 1; });
+
+        return {
+          ...s,
+          roster: updatedRoster,
+          matches: updatedMatches,
+          totalScheduledGames: updatedMatches.length,
+        };
+      });
+    },
+    [updateState]
+  );
+
+  // Correct a game result — flip winner/loser and recalculate stats
+  const correctGameResult = useCallback(
+    (matchId: string, newWinnerPairId: string) => {
+      updateState((s) => {
+        const matchIdx = s.matches.findIndex((m) => m.id === matchId);
+        if (matchIdx === -1) return s;
+        const match = s.matches[matchIdx];
+        if (match.status !== "completed" || !match.winner || !match.loser) return s;
+
+        // If already the winner, no change needed
+        if (match.winner.id === newWinnerPairId) return s;
+
+        const newWinner = match.pair1.id === newWinnerPairId ? match.pair1 : match.pair2;
+        const newLoser = match.pair1.id === newWinnerPairId ? match.pair2 : match.pair1;
+        const oldWinnerIds = [match.winner.player1.id, match.winner.player2.id];
+        const oldLoserIds = [match.loser.player1.id, match.loser.player2.id];
+
+        // Recalculate roster stats: reverse old result, apply new
+        const updatedRoster = s.roster.map((p) => {
+          let { wins, losses } = p;
+          // Undo old
+          if (oldWinnerIds.includes(p.id)) { wins--; losses++; }
+          if (oldLoserIds.includes(p.id)) { losses--; wins++; }
+          return { ...p, wins: Math.max(0, wins), losses: Math.max(0, losses) };
+        });
+
+        const updatedMatches = [...s.matches];
+        updatedMatches[matchIdx] = { ...match, winner: newWinner, loser: newLoser };
+
+        // Update game history entry
+        const updatedHistory = s.gameHistory.map((h) => {
+          if (h.winnerPairId === match.winner!.id && h.loserPairId === match.loser!.id && h.timestamp === match.completedAt) {
+            return {
+              ...h,
+              winnerPairId: newWinner.id,
+              loserPairId: newLoser.id,
+              winnerNames: `${newWinner.player1.name} & ${newWinner.player2.name}`,
+              loserNames: `${newLoser.player1.name} & ${newLoser.player2.name}`,
+            };
+          }
+          return h;
+        });
+
+        return { ...s, roster: updatedRoster, matches: updatedMatches, gameHistory: updatedHistory };
+      });
+    },
+    [updateState]
+  );
 
   // Playoff management
   const generatePlayoffMatches = useCallback(
@@ -899,6 +1022,9 @@ export function useGameState() {
     completeMatch,
     startSession,
     resetSession,
+    startPlayoffs,
+    removePlayerMidSession,
+    correctGameResult,
     generatePlayoffMatches,
     startPlayoffMatch,
     completePlayoffMatch,

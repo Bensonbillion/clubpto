@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useGameState } from "@/hooks/useGameState";
-import { Match } from "@/types/courtManager";
-import { Trophy, Timer, UserCheck, ArrowRightLeft, Maximize, Minimize, SkipForward, Users } from "lucide-react";
+import { Match, Player } from "@/types/courtManager";
+import { Trophy, Timer, UserCheck, ArrowRightLeft, Maximize, Minimize, SkipForward, Users, BarChart3, Clock, UserMinus, Swords } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import GameHistoryLog from "./GameHistoryLog";
 
 interface CourtDisplayProps {
   gameState: ReturnType<typeof useGameState>;
@@ -12,6 +13,45 @@ interface CourtDisplayProps {
   isAdmin?: boolean;
 }
 
+/* ── Session Countdown Clock ──────────────────────────────────────── */
+const SessionClock = ({ startedAt, durationMinutes }: { startedAt?: string; durationMinutes: number }) => {
+  const [remaining, setRemaining] = useState("");
+  const [pct, setPct] = useState(100);
+
+  useEffect(() => {
+    if (!startedAt) { setRemaining("Not started"); return; }
+    const totalMs = durationMinutes * 60 * 1000;
+    const start = new Date(startedAt).getTime();
+
+    const tick = () => {
+      const elapsed = Date.now() - start;
+      const left = Math.max(0, totalMs - elapsed);
+      const mins = Math.floor(left / 60000);
+      const secs = Math.floor((left % 60000) / 1000);
+      setRemaining(`${mins}:${secs.toString().padStart(2, "0")}`);
+      setPct(Math.max(0, (left / totalMs) * 100));
+    };
+    tick();
+    const iv = setInterval(tick, 1000);
+    return () => clearInterval(iv);
+  }, [startedAt, durationMinutes]);
+
+  const urgency = pct < 15 ? "text-destructive" : pct < 35 ? "text-yellow-400" : "text-accent";
+
+  return (
+    <div className="flex items-center gap-2">
+      <Clock className={`w-5 h-5 ${urgency}`} />
+      <span className={`font-mono text-lg font-display ${urgency}`}>{remaining}</span>
+      {startedAt && (
+        <div className="hidden sm:block w-24 h-2 rounded-full bg-muted overflow-hidden">
+          <div className={`h-full rounded-full transition-all ${pct < 15 ? "bg-destructive" : pct < 35 ? "bg-yellow-500" : "bg-accent"}`} style={{ width: `${pct}%` }} />
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ── Per-game timer ───────────────────────────────────────────────── */
 const GameTimer = ({ startedAt }: { startedAt?: string }) => {
   const [elapsed, setElapsed] = useState("0:00");
 
@@ -37,82 +77,53 @@ const GameTimer = ({ startedAt }: { startedAt?: string }) => {
   );
 };
 
-
+/* ── Winner modal ─────────────────────────────────────────────────── */
 const WinnerModal = ({
-  match,
-  onSelect,
-  onClose,
+  match, onSelect, onClose,
 }: {
-  match: Match;
-  onSelect: (pairId: string) => void;
-  onClose: () => void;
+  match: Match; onSelect: (pairId: string) => void; onClose: () => void;
 }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in" onClick={onClose}>
     <div className="bg-card border border-border rounded-lg p-10 max-w-lg w-full mx-4 space-y-8" onClick={(e) => e.stopPropagation()}>
       <h3 className="font-display text-3xl text-accent text-center">Which team won?</h3>
       <div className="space-y-4">
-        <button
-          onClick={() => onSelect(match.pair1.id)}
-          className="w-full rounded-lg border-2 border-border bg-muted p-6 text-center hover:border-accent hover:bg-accent/10 transition-all active:scale-[0.98] min-h-[80px]"
-        >
+        <button onClick={() => onSelect(match.pair1.id)} className="w-full rounded-lg border-2 border-border bg-muted p-6 text-center hover:border-accent hover:bg-accent/10 transition-all active:scale-[0.98] min-h-[80px]">
           <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Team A</p>
           <p className="font-display text-xl text-foreground">{match.pair1.player1.name} & {match.pair1.player2.name}</p>
         </button>
-        <button
-          onClick={() => onSelect(match.pair2.id)}
-          className="w-full rounded-lg border-2 border-border bg-muted p-6 text-center hover:border-accent hover:bg-accent/10 transition-all active:scale-[0.98] min-h-[80px]"
-        >
+        <button onClick={() => onSelect(match.pair2.id)} className="w-full rounded-lg border-2 border-border bg-muted p-6 text-center hover:border-accent hover:bg-accent/10 transition-all active:scale-[0.98] min-h-[80px]">
           <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Team B</p>
           <p className="font-display text-xl text-foreground">{match.pair2.player1.name} & {match.pair2.player2.name}</p>
         </button>
       </div>
-      <button onClick={onClose} className="w-full text-muted-foreground text-base hover:text-foreground transition-colors py-2">
-        Cancel
-      </button>
+      <button onClick={onClose} className="w-full text-muted-foreground text-base hover:text-foreground transition-colors py-2">Cancel</button>
     </div>
   </div>
 );
 
+/* ── Court card ───────────────────────────────────────────────────── */
 const CourtCard = ({
-  courtNum,
-  match,
-  totalGames,
-  onFinish,
-  onSkip,
-  isAdmin,
+  courtNum, match, totalGames, onFinish, onSkip, isAdmin,
 }: {
-  courtNum: number;
-  match: Match | null;
-  totalGames: number;
-  onFinish: (match: Match) => void;
-  onSkip: (match: Match) => void;
-  isAdmin: boolean;
+  courtNum: number; match: Match | null; totalGames: number; onFinish: (match: Match) => void; onSkip: (match: Match) => void; isAdmin: boolean;
 }) => (
   <div className="rounded-lg border border-border bg-card p-5 md:p-8 space-y-5 md:space-y-6 flex-1 min-w-0">
     <div className="flex items-center justify-between">
       <div className="space-y-1">
         <h3 className="font-display text-3xl text-accent">Court {courtNum}</h3>
         {match?.gameNumber && totalGames > 0 && (
-          <p className="text-sm text-muted-foreground">
-            Game {match.gameNumber} of {totalGames}
-          </p>
+          <p className="text-sm text-muted-foreground">Game {match.gameNumber} of {totalGames}</p>
         )}
       </div>
       <div className="flex items-center gap-4">
         {match?.matchupLabel && (
-          <span className="text-[10px] uppercase tracking-widest bg-muted/50 text-muted-foreground px-3 py-1 rounded-full border border-border/60">
-            {match.matchupLabel}
-          </span>
+          <span className="text-[10px] uppercase tracking-widest bg-muted/50 text-muted-foreground px-3 py-1 rounded-full border border-border/60">{match.matchupLabel}</span>
         )}
         {match && <GameTimer startedAt={match.startedAt} />}
         {match ? (
-          <span className="text-xs uppercase tracking-widest bg-accent/20 text-accent px-4 py-1.5 rounded-full border border-accent/30">
-            Playing
-          </span>
+          <span className="text-xs uppercase tracking-widest bg-accent/20 text-accent px-4 py-1.5 rounded-full border border-accent/30">Playing</span>
         ) : (
-          <span className="text-xs uppercase tracking-widest bg-primary/20 text-primary px-4 py-1.5 rounded-full border border-primary/30">
-            Waiting
-          </span>
+          <span className="text-xs uppercase tracking-widest bg-primary/20 text-primary px-4 py-1.5 rounded-full border border-primary/30">Waiting</span>
         )}
       </div>
     </div>
@@ -149,18 +160,11 @@ const CourtCard = ({
   </div>
 );
 
+/* ── Swap player popover ──────────────────────────────────────────── */
 const SwapPlayerButton = ({
-  playerName,
-  playerId,
-  matchId,
-  availablePlayers,
-  onSwap,
+  playerName, playerId, matchId, availablePlayers, onSwap,
 }: {
-  playerName: string;
-  playerId: string;
-  matchId: string;
-  availablePlayers: { id: string; name: string }[];
-  onSwap: (matchId: string, oldId: string, newId: string) => void;
+  playerName: string; playerId: string; matchId: string; availablePlayers: { id: string; name: string }[]; onSwap: (matchId: string, oldId: string, newId: string) => void;
 }) => {
   const [open, setOpen] = useState(false);
   return (
@@ -177,13 +181,8 @@ const SwapPlayerButton = ({
           <p className="text-xs text-muted-foreground px-1">No available players</p>
         ) : (
           availablePlayers.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => { onSwap(matchId, playerId, p.id); setOpen(false); }}
-              className="w-full text-left px-3 py-2.5 text-base rounded hover:bg-accent/10 hover:text-accent transition-colors min-h-[44px]"
-            >
-              {p.name}
-            </button>
+            <button key={p.id} onClick={() => { onSwap(matchId, playerId, p.id); setOpen(false); }}
+              className="w-full text-left px-3 py-2.5 text-base rounded hover:bg-accent/10 hover:text-accent transition-colors min-h-[44px]">{p.name}</button>
           ))
         )}
       </PopoverContent>
@@ -191,9 +190,71 @@ const SwapPlayerButton = ({
   );
 };
 
+/* ── Mini standings overlay ───────────────────────────────────────── */
+const MiniStandings = ({ roster }: { roster: Player[] }) => {
+  const players = roster
+    .filter((p) => p.checkedIn && p.gamesPlayed > 0)
+    .sort((a, b) => {
+      const aPct = a.gamesPlayed > 0 ? a.wins / a.gamesPlayed : 0;
+      const bPct = b.gamesPlayed > 0 ? b.wins / b.gamesPlayed : 0;
+      if (bPct !== aPct) return bPct - aPct;
+      return b.wins - a.wins;
+    });
+
+  if (players.length === 0) return null;
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-5 space-y-3">
+      <div className="flex items-center gap-2">
+        <BarChart3 className="w-5 h-5 text-accent" />
+        <h3 className="font-display text-lg text-accent">Live Standings</h3>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-[300px] overflow-y-auto">
+        {players.map((p, i) => {
+          const pct = p.gamesPlayed > 0 ? Math.round((p.wins / p.gamesPlayed) * 100) : 0;
+          return (
+            <div key={p.id} className="rounded-md border border-border/60 bg-muted/30 px-3 py-2 text-center">
+              <p className="font-display text-sm text-foreground">{p.name}</p>
+              <p className="text-xs text-muted-foreground">{p.wins}W-{p.losses}L</p>
+              <p className="font-mono text-xs text-accent">{pct}%</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+/* ── Remove Player modal ──────────────────────────────────────────── */
+const RemovePlayerModal = ({
+  players, onRemove, onClose,
+}: {
+  players: Player[]; onRemove: (id: string) => void; onClose: () => void;
+}) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+    <div className="bg-card border border-border rounded-lg p-8 max-w-md w-full mx-4 space-y-4" onClick={(e) => e.stopPropagation()}>
+      <h3 className="font-display text-2xl text-accent">Remove Player</h3>
+      <p className="text-sm text-muted-foreground">Select a player to remove from the session. Their pending matches will be reassigned.</p>
+      <div className="space-y-2 max-h-[300px] overflow-y-auto">
+        {players.map((p) => (
+          <button key={p.id} onClick={() => { onRemove(p.id); onClose(); }}
+            className="w-full text-left px-4 py-3 rounded-md border border-border bg-muted/30 hover:border-destructive/40 hover:bg-destructive/5 transition-all text-base font-display text-foreground">
+            {p.name}
+          </button>
+        ))}
+      </div>
+      <button onClick={onClose} className="w-full text-muted-foreground text-sm hover:text-foreground transition-colors py-2">Cancel</button>
+    </div>
+  </div>
+);
+
+/* ── Main CourtDisplay ────────────────────────────────────────────── */
 const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDisplayProps) => {
-  const { state, court1Match, court2Match, pendingMatches, upNextMatches, onDeckMatches, completeMatch, skipMatch, swapPlayer, checkedInPlayers } = gameState;
+  const { state, court1Match, court2Match, pendingMatches, upNextMatches, onDeckMatches, completeMatch, skipMatch, swapPlayer, checkedInPlayers, startPlayoffs, removePlayerMidSession } = gameState;
   const [finishingMatch, setFinishingMatch] = useState<Match | null>(null);
+  const [showStandings, setShowStandings] = useState(false);
+  const [showRemovePlayer, setShowRemovePlayer] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [searchParams] = useSearchParams();
   const courtFilter = searchParams.get("court");
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -217,7 +278,6 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
   const showCourt2 = !courtFilter || courtFilter === "2";
   const totalGames = state.totalScheduledGames;
 
-  // Players already assigned to upcoming/playing matches
   const busyPlayerIds = new Set<string>();
   [court1Match, court2Match, ...upNextMatches].filter(Boolean).forEach((m) => {
     if (!m) return;
@@ -225,14 +285,11 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
   });
   const availableForSwap = checkedInPlayers.filter((p) => !busyPlayerIds.has(p.id));
 
-  // Build unique pair list from ALL scheduled matches for "All Pairs" section
   const allPairsMap = new Map<string, { player1: string; player2: string }>();
   state.matches.forEach((m) => {
     const addPair = (p: typeof m.pair1) => {
       const key = [p.player1.id, p.player2.id].sort().join("|||");
-      if (!allPairsMap.has(key)) {
-        allPairsMap.set(key, { player1: p.player1.name, player2: p.player2.name });
-      }
+      if (!allPairsMap.has(key)) allPairsMap.set(key, { player1: p.player1.name, player2: p.player2.name });
     };
     addPair(m.pair1);
     addPair(m.pair2);
@@ -241,49 +298,88 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
 
   const renderPlayerName = (name: string, playerId: string, matchId: string) => {
     if (!isAdmin) return <span>{name}</span>;
-    return (
-      <SwapPlayerButton
-        playerName={name}
-        playerId={playerId}
-        matchId={matchId}
-        availablePlayers={availableForSwap}
-        onSwap={swapPlayer}
-      />
-    );
+    return <SwapPlayerButton playerName={name} playerId={playerId} matchId={matchId} availablePlayers={availableForSwap} onSwap={swapPlayer} />;
   };
+
+  const hasActiveMatches = state.matches.length > 0;
+  const roundRobinInProgress = hasActiveMatches && !state.playoffsStarted;
 
   return (
     <div ref={containerRef} className={`animate-fade-up ${isFullscreen ? "bg-background min-h-screen p-4 md:p-8 flex flex-col justify-center gap-6 md:gap-8 overflow-y-auto" : "space-y-6 md:space-y-8"}`}>
-      {/* Toolbar: fullscreen + check-in */}
-      <div className="flex items-center justify-between">
-        <div>
-          {isFullscreen && (
-            <h2 className="font-display text-3xl text-accent">Club PTO</h2>
+      {/* Toolbar */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-4">
+          {isFullscreen && <h2 className="font-display text-3xl text-accent">Club PTO</h2>}
+          {/* Session clock */}
+          {hasActiveMatches && (
+            <SessionClock startedAt={state.sessionConfig.sessionStartedAt} durationMinutes={state.sessionConfig.durationMinutes} />
           )}
         </div>
-        <div className="flex items-center gap-3">
-          {onGoToCheckIn && !isFullscreen && (
-            <Button variant="outline" size="default" onClick={onGoToCheckIn} className="border-accent/40 text-accent hover:bg-accent/10 min-h-[48px] px-5 text-base">
-              <UserCheck className="w-5 h-5 mr-2" /> Check In
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Mini standings toggle */}
+          {hasActiveMatches && (
+            <Button variant="outline" size="default" onClick={() => setShowStandings((v) => !v)}
+              className={`border-accent/40 text-accent hover:bg-accent/10 min-h-[44px] px-4 text-sm ${showStandings ? "bg-accent/10" : ""}`}>
+              <BarChart3 className="w-4 h-4 mr-1.5" /> Standings
             </Button>
           )}
-          <Button variant="outline" size="default" onClick={toggleFullscreen} className="border-accent/40 text-accent hover:bg-accent/10 min-h-[48px] px-5 text-base">
-            {isFullscreen ? <Minimize className="w-5 h-5 mr-2" /> : <Maximize className="w-5 h-5 mr-2" />}
+          {/* Game history toggle (admin) */}
+          {isAdmin && hasActiveMatches && (
+            <Button variant="outline" size="default" onClick={() => setShowHistory((v) => !v)}
+              className={`border-accent/40 text-accent hover:bg-accent/10 min-h-[44px] px-4 text-sm ${showHistory ? "bg-accent/10" : ""}`}>
+              <Clock className="w-4 h-4 mr-1.5" /> History
+            </Button>
+          )}
+          {/* Remove player (admin) */}
+          {isAdmin && roundRobinInProgress && (
+            <Button variant="outline" size="default" onClick={() => setShowRemovePlayer(true)}
+              className="border-destructive/40 text-destructive hover:bg-destructive/10 min-h-[44px] px-4 text-sm">
+              <UserMinus className="w-4 h-4 mr-1.5" /> Remove
+            </Button>
+          )}
+          {/* Start Playoffs (admin) */}
+          {isAdmin && roundRobinInProgress && (
+            <Button onClick={() => startPlayoffs()} className="bg-accent text-accent-foreground hover:bg-accent/80 min-h-[44px] px-5 text-sm">
+              <Swords className="w-4 h-4 mr-1.5" /> Start Playoffs
+            </Button>
+          )}
+          {onGoToCheckIn && !isFullscreen && (
+            <Button variant="outline" size="default" onClick={onGoToCheckIn} className="border-accent/40 text-accent hover:bg-accent/10 min-h-[44px] px-4 text-sm">
+              <UserCheck className="w-4 h-4 mr-1.5" /> Check In
+            </Button>
+          )}
+          <Button variant="outline" size="default" onClick={toggleFullscreen} className="border-accent/40 text-accent hover:bg-accent/10 min-h-[44px] px-4 text-sm">
+            {isFullscreen ? <Minimize className="w-4 h-4 mr-1.5" /> : <Maximize className="w-4 h-4 mr-1.5" />}
             {isFullscreen ? "Exit" : "Fullscreen"}
           </Button>
         </div>
       </div>
-      {courtFilter && (
-        <p className="text-sm text-muted-foreground text-center uppercase tracking-widest">
-          Showing Court {courtFilter} only
-        </p>
+
+      {/* Playoffs started banner */}
+      {state.playoffsStarted && (
+        <div className="rounded-lg border-2 border-accent bg-accent/10 p-4 text-center">
+          <p className="font-display text-xl text-accent">🏆 Playoff Mode Active</p>
+          <p className="text-sm text-muted-foreground mt-1">Round-robin is over. Head to Stats & Playoffs to manage the bracket.</p>
+        </div>
       )}
+
+      {courtFilter && (
+        <p className="text-sm text-muted-foreground text-center uppercase tracking-widest">Showing Court {courtFilter} only</p>
+      )}
+
+      {/* Mini standings panel */}
+      {showStandings && <MiniStandings roster={state.roster} />}
+
+      {/* Game history panel (admin) */}
+      {showHistory && isAdmin && <GameHistoryLog gameState={gameState} />}
+
+      {/* Courts */}
       <div className={`flex flex-col ${!courtFilter ? "md:flex-row" : ""} gap-6`}>
         {showCourt1 && <CourtCard courtNum={1} match={court1Match} totalGames={totalGames} onFinish={setFinishingMatch} onSkip={(m) => skipMatch(m.id)} isAdmin={isAdmin} />}
         {showCourt2 && <CourtCard courtNum={2} match={court2Match} totalGames={totalGames} onFinish={setFinishingMatch} onSkip={(m) => skipMatch(m.id)} isAdmin={isAdmin} />}
       </div>
 
-      {/* Up Next — the 2 matches going on court next */}
+      {/* Up Next */}
       {upNextMatches.length > 0 && (
         <div className="rounded-lg border border-border bg-card p-5 md:p-8 space-y-4">
           <h3 className="font-display text-xl text-accent">Up Next</h3>
@@ -304,7 +400,7 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
         </div>
       )}
 
-      {/* On Deck — the matches AFTER up-next, shown as pairs */}
+      {/* On Deck */}
       {onDeckMatches.length > 0 && (
         <div className="rounded-lg border border-accent/20 bg-accent/5 p-5 md:p-8 space-y-4">
           <h3 className="font-display text-xl text-accent">🏓 On Deck — Get Ready!</h3>
@@ -321,7 +417,7 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
         </div>
       )}
 
-      {/* All Pairs — so every player can see who their partner is */}
+      {/* All Pairs */}
       {allUniquePairs.length > 0 && (
         <div className="rounded-lg border border-border bg-card p-5 md:p-8 space-y-4">
           <div className="flex items-center gap-2">
@@ -340,14 +436,20 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
         </div>
       )}
 
+      {/* Modals */}
       {finishingMatch && (
         <WinnerModal
           match={finishingMatch}
-          onSelect={(pairId) => {
-            completeMatch(finishingMatch.id, pairId);
-            setFinishingMatch(null);
-          }}
+          onSelect={(pairId) => { completeMatch(finishingMatch.id, pairId); setFinishingMatch(null); }}
           onClose={() => setFinishingMatch(null)}
+        />
+      )}
+
+      {showRemovePlayer && (
+        <RemovePlayerModal
+          players={checkedInPlayers}
+          onRemove={removePlayerMidSession}
+          onClose={() => setShowRemovePlayer(false)}
         />
       )}
     </div>

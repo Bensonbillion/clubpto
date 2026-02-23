@@ -63,6 +63,7 @@ export interface SessionConfig {
   startTime: string;
   durationMinutes: number;
   checkInLocked: boolean;
+  sessionStartedAt?: string;
 }
 
 export interface FixedPair {
@@ -77,6 +78,7 @@ export interface GameState {
   matches: Match[];
   gameHistory: GameHistory[];
   sessionStarted: boolean;
+  playoffsStarted: boolean;
   totalScheduledGames: number;
   playoffMatches: PlayoffMatch[];
   fixedPairs?: FixedPair[];
@@ -93,6 +95,7 @@ export const DEFAULT_STATE: GameState = {
   matches: [],
   gameHistory: [],
   sessionStarted: false,
+  playoffsStarted: false,
   totalScheduledGames: 0,
   playoffMatches: [],
   fixedPairs: [],
