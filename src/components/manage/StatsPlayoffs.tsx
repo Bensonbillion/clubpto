@@ -269,16 +269,6 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
       <div className="rounded-lg border border-border bg-card p-6 space-y-4">
         <h3 className="font-display text-xl text-accent">Playoffs</h3>
 
-        {champion && (
-          <div className="rounded-lg border-2 border-accent bg-accent/10 p-6 text-center space-y-2">
-            <Trophy className="w-10 h-10 text-accent mx-auto" />
-            <h4 className="font-display text-2xl text-accent">Champions!</h4>
-            <p className="font-display text-xl text-foreground">
-              {champion.player1.name} & {champion.player2.name}
-            </p>
-          </div>
-        )}
-
         {(state.playoffMatches || []).length === 0 ? (
           <>
             <p className="text-sm text-muted-foreground">
