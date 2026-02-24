@@ -6,7 +6,6 @@ import { Trophy, Timer, UserCheck, ArrowRightLeft, Maximize, Minimize, SkipForwa
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import GameHistoryLog from "./GameHistoryLog";
-import CourtConflictAlert from "./CourtConflictAlert";
 import PlayoffBracket from "./PlayoffBracket";
 import SessionExport from "./SessionExport";
 
@@ -289,16 +288,12 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
   });
   const availableForSwap = checkedInPlayers.filter((p) => !busyPlayerIds.has(p.id));
 
-  const allPairsMap = new Map<string, { player1: string; player2: string }>();
-  state.matches.forEach((m) => {
-    const addPair = (p: typeof m.pair1) => {
-      const key = [p.player1.id, p.player2.id].sort().join("|||");
-      if (!allPairsMap.has(key)) allPairsMap.set(key, { player1: p.player1.name, player2: p.player2.name });
-    };
-    addPair(m.pair1);
-    addPair(m.pair2);
-  });
-  const allUniquePairs = Array.from(allPairsMap.values());
+  // Use fixed pairs from state instead of deriving from matches
+  const allUniquePairs = state.pairs.map((p) => ({
+    player1: p.player1.name,
+    player2: p.player2.name,
+    tier: p.skillLevel,
+  }));
 
   const renderPlayerName = (name: string, playerId: string, matchId: string) => {
     if (!isAdmin) return <span>{name}</span>;
@@ -366,10 +361,7 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
         </div>
       </div>
 
-      {/* Court conflict alerts */}
-      {hasActiveMatches && (
-        <CourtConflictAlert court1Match={court1Match} court2Match={court2Match} upNextMatches={upNextMatches} />
-      )}
+      {/* Conflicts are prevented by scheduling logic — no alert needed */}
 
       {/* Playoffs bracket on Court Display */}
       {state.playoffsStarted && (state.playoffMatches || []).length > 0 && (
@@ -451,13 +443,17 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
             <h3 className="font-display text-xl text-accent">All Pairs</h3>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {allUniquePairs.map((pair, i) => (
-              <div key={i} className="rounded-md border border-border/60 bg-muted/30 px-4 py-3 text-center">
-                <p className="font-display text-base text-foreground">{pair.player1}</p>
-                <p className="text-xs text-muted-foreground my-0.5">&</p>
-                <p className="font-display text-base text-foreground">{pair.player2}</p>
-              </div>
-            ))}
+            {allUniquePairs.map((pair, i) => {
+              const tierColor = pair.tier === "A" ? "border-yellow-500/40" : pair.tier === "B" ? "border-gray-300/40" : "border-amber-700/40";
+              return (
+                <div key={i} className={`rounded-md border ${tierColor} bg-muted/30 px-4 py-3 text-center`}>
+                  <p className="font-display text-base text-foreground">{pair.player1}</p>
+                  <p className="text-xs text-muted-foreground my-0.5">&</p>
+                  <p className="font-display text-base text-foreground">{pair.player2}</p>
+                  <p className={`text-[10px] uppercase tracking-widest mt-1 ${pair.tier === "A" ? "text-yellow-400" : pair.tier === "B" ? "text-gray-300" : "text-amber-600"}`}>Tier {pair.tier}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

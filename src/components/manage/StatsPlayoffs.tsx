@@ -10,20 +10,22 @@ interface StatsPlayoffsProps {
   gameState: ReturnType<typeof useGameState>;
 }
 
-interface PlayoffSeed {
+interface PlayoffPairSeed {
   seed: number;
-  player: Player;
+  pair: Pair;
   winPct: number;
 }
 
 interface PairStanding {
   id: string;
+  pair: Pair;
   player1Name: string;
   player2Name: string;
   wins: number;
   losses: number;
   gamesPlayed: number;
   winPct: number;
+  skillLevel: SkillTier;
 }
 
 const TIER_LABELS: Record<string, string> = {
@@ -76,9 +78,9 @@ const PairLeaderboard = ({ title, pairs }: { title: string; pairs: PairStanding[
 
 const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
   const { state, checkedInPlayers, completedMatches, generatePlayoffMatches, startPlayoffMatch, completePlayoffMatch } = gameState;
-  const [playoffSeeds, setPlayoffSeeds] = useState<PlayoffSeed[]>([]);
+  const [playoffSeeds, setPlayoffSeeds] = useState<PlayoffPairSeed[]>([]);
 
-  // Build pair standings from completed matches per tier
+  // Build pair standings from completed matches
   const buildPairStandings = (skillLevel: SkillTier | "cross"): PairStanding[] => {
     const pairMap = new Map<string, PairStanding>();
     
@@ -88,9 +90,47 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
         if (!pairMap.has(key)) {
           pairMap.set(key, {
             id: key,
+            pair,
             player1Name: pair.player1.name,
             player2Name: pair.player2.name,
             wins: 0, losses: 0, gamesPlayed: 0, winPct: 0,
+            skillLevel: pair.skillLevel,
+          });
+        }
+        const s = pairMap.get(key)!;
+        s.gamesPlayed++;
+        if (won) s.wins++;
+        else s.losses++;
+        s.winPct = s.gamesPlayed > 0 ? s.wins / s.gamesPlayed : 0;
+      };
+
+      if (match.winner && match.loser) {
+        processPair(match.winner, true);
+        processPair(match.loser, false);
+      }
+    }
+
+    return Array.from(pairMap.values()).sort((a, b) => {
+      if (b.winPct !== a.winPct) return b.winPct - a.winPct;
+      return b.wins - a.wins;
+    });
+  };
+
+  // Build ALL pair standings (across all match types) for playoff seeding
+  const buildAllPairStandings = (): PairStanding[] => {
+    const pairMap = new Map<string, PairStanding>();
+    
+    for (const match of state.matches.filter((m) => m.status === "completed")) {
+      const processPair = (pair: Pair, won: boolean) => {
+        const key = [pair.player1.id, pair.player2.id].sort().join("|||");
+        if (!pairMap.has(key)) {
+          pairMap.set(key, {
+            id: key,
+            pair,
+            player1Name: pair.player1.name,
+            player2Name: pair.player2.name,
+            wins: 0, losses: 0, gamesPlayed: 0, winPct: 0,
+            skillLevel: pair.skillLevel,
           });
         }
         const s = pairMap.get(key)!;
@@ -115,63 +155,45 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
   const aPairStandings = buildPairStandings("A");
   const crossPairStandings = buildPairStandings("cross");
   const cPairStandings = buildPairStandings("C");
-
-  // Individual standings for playoff seeding
-  const withWinPct = (players: Player[]) =>
-    players
-      .filter((p) => p.checkedIn)
-      .map((p) => ({
-        ...p,
-        winPct: p.gamesPlayed > 0 ? p.wins / p.gamesPlayed : 0,
-      }))
-      .sort((a, b) => {
-        if (b.winPct !== a.winPct) return b.winPct - a.winPct;
-        return b.wins - a.wins;
-      });
-
-  const aStandings = withWinPct(state.roster.filter((p) => p.skillLevel === "A"));
-  const bStandings = withWinPct(state.roster.filter((p) => p.skillLevel === "B"));
-  const cStandings = withWinPct(state.roster.filter((p) => p.skillLevel === "C"));
+  const allPairStandings = buildAllPairStandings();
 
   const handleGeneratePlayoffSeeds = () => {
-    // Build set of C player IDs who beat a B player in cross-tier matches
-    const cBeatB = new Set<string>();
-    const bBeatenByC = new Set<string>();
+    // C-beats-B override: find C pairs that beat B pairs in cross-tier
+    const cBeatBPairIds = new Set<string>();
+    const bBeatenByCPairIds = new Set<string>();
     for (const match of state.matches) {
       if (match.status !== "completed" || match.skillLevel !== "cross" || !match.winner || !match.loser) continue;
-      const winnerTier = match.winner.skillLevel;
-      const loserTier = match.loser.skillLevel;
-      if (winnerTier === "C" && loserTier === "B") {
-        [match.winner.player1.id, match.winner.player2.id].forEach((id) => cBeatB.add(id));
-        [match.loser.player1.id, match.loser.player2.id].forEach((id) => bBeatenByC.add(id));
+      if (match.winner.skillLevel === "C" && match.loser.skillLevel === "B") {
+        const winKey = [match.winner.player1.id, match.winner.player2.id].sort().join("|||");
+        const loseKey = [match.loser.player1.id, match.loser.player2.id].sort().join("|||");
+        cBeatBPairIds.add(winKey);
+        bBeatenByCPairIds.add(loseKey);
       }
     }
 
-    // Priority: A first, then B/C with override rule
-    const seeded: PlayoffSeed[] = [];
+    // Separate standings by tier
+    const aPairs = allPairStandings.filter((p) => p.skillLevel === "A");
+    const bPairs = allPairStandings.filter((p) => p.skillLevel === "B");
+    const cPairs = allPairStandings.filter((p) => p.skillLevel === "C");
 
-    // 1. All A players
-    aStandings.forEach((p) => { seeded.push({ seed: 0, player: p, winPct: p.winPct }); });
+    const promotedC = cPairs.filter((p) => cBeatBPairIds.has(p.id));
+    const demotedB = bPairs.filter((p) => bBeatenByCPairIds.has(p.id));
+    const normalB = bPairs.filter((p) => !bBeatenByCPairIds.has(p.id));
+    const normalC = cPairs.filter((p) => !cBeatBPairIds.has(p.id));
 
-    // 2. Interleave B and C with override:
-    //    - C players who beat B get promoted above the B players they beat
-    //    - B players beaten by C get demoted below those C players
-    const promotedC = cStandings.filter((p) => cBeatB.has(p.id));
-    const demotedB = bStandings.filter((p) => bBeatenByC.has(p.id));
-    const normalB = bStandings.filter((p) => !bBeatenByC.has(p.id));
-    const normalC = cStandings.filter((p) => !cBeatB.has(p.id));
+    // Priority order: A pairs → normal B → promoted C → demoted B → normal C
+    const ordered: PairStanding[] = [...aPairs, ...normalB, ...promotedC, ...demotedB, ...normalC];
 
-    // Order: normal B, then promoted C (above demoted B), then demoted B, then normal C
-    normalB.forEach((p) => { seeded.push({ seed: 0, player: p, winPct: p.winPct }); });
-    promotedC.forEach((p) => { seeded.push({ seed: 0, player: p, winPct: p.winPct }); });
-    demotedB.forEach((p) => { seeded.push({ seed: 0, player: p, winPct: p.winPct }); });
-    normalC.forEach((p) => { seeded.push({ seed: 0, player: p, winPct: p.winPct }); });
+    // Take top 4 pairs (8 players) for playoff bracket
+    const top = ordered.slice(0, 4);
+    const seeds: PlayoffPairSeed[] = top.map((ps, i) => ({
+      seed: i + 1,
+      pair: ps.pair,
+      winPct: ps.winPct,
+    }));
 
-    // Take top 8 and assign seeds
-    const top8 = seeded.slice(0, 8);
-    top8.forEach((s, i) => { s.seed = i + 1; });
-    setPlayoffSeeds(top8);
-    generatePlayoffMatches(top8);
+    setPlayoffSeeds(seeds);
+    generatePlayoffMatches(seeds);
   };
 
   const roundRobinComplete = state.matches.length > 0 && state.matches.every((m) => m.status === "completed");
@@ -186,7 +208,7 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
   const lastRound = rounds[rounds.length - 1];
   const champion = allPlayoffComplete && lastRound ? playoffMatchesByRound[lastRound]?.[0]?.winner : null;
 
-  const totalPlayers = aStandings.length + bStandings.length + cStandings.length;
+  const totalPairs = allPairStandings.length;
 
   return (
     <div className="space-y-8 animate-fade-up">
@@ -199,12 +221,12 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
             <p className="text-xs uppercase tracking-widest text-muted-foreground">Players</p>
           </div>
           <div>
-            <p className="font-display text-3xl text-foreground">{completedMatches.length}</p>
-            <p className="text-xs uppercase tracking-widest text-muted-foreground">Completed</p>
+            <p className="font-display text-3xl text-foreground">{state.pairs.length}</p>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground">Pairs</p>
           </div>
           <div>
-            <p className="font-display text-3xl text-foreground">{state.totalScheduledGames}</p>
-            <p className="text-xs uppercase tracking-widest text-muted-foreground">Total Games</p>
+            <p className="font-display text-3xl text-foreground">{completedMatches.length}</p>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground">Completed</p>
           </div>
           <div>
             <p className="font-display text-3xl text-foreground">
@@ -214,6 +236,26 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
           </div>
         </div>
       </div>
+
+      {/* Fixed Pairs Display */}
+      {state.pairs.length > 0 && (
+        <div className="rounded-lg border border-border bg-card p-6 space-y-3">
+          <h4 className="font-display text-lg text-accent">Session Pairs (Fixed)</h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {state.pairs.map((pair) => {
+              const tierColor = pair.skillLevel === "A" ? "text-yellow-400 border-yellow-500/40" :
+                               pair.skillLevel === "B" ? "text-gray-300 border-gray-300/40" :
+                               "text-amber-600 border-amber-700/40";
+              return (
+                <div key={pair.id} className={`rounded-md border ${tierColor} bg-muted/30 p-3 text-center`}>
+                  <p className="font-display text-foreground">{pair.player1.name} & {pair.player2.name}</p>
+                  <p className={`text-xs uppercase tracking-widest ${tierColor.split(" ")[0]}`}>Tier {pair.skillLevel}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Pair Leaderboards by tier */}
       <div className="space-y-4">
@@ -241,7 +283,7 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
         {(state.playoffMatches || []).length === 0 ? (
           <>
             <p className="text-sm text-muted-foreground">
-              Top 8 players seeded by tier priority (A → B → C) then Win%. NBA-style bracket with doubles teams.
+              Top pairs seeded by tier priority (A → B → C) then Win%. Same pairs from round-robin carry into playoffs. C-beats-B override active.
             </p>
             {roundRobinComplete && (
               <div className="rounded-md border border-accent/30 bg-accent/5 p-3 text-sm text-accent">
@@ -250,7 +292,7 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
             )}
             <Button
               onClick={handleGeneratePlayoffSeeds}
-              disabled={totalPlayers < 4}
+              disabled={totalPairs < 2}
               className="bg-accent text-accent-foreground hover:bg-accent/80"
             >
               <Trophy className="w-4 h-4 mr-1" /> Generate Playoff Bracket
@@ -258,28 +300,26 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
 
             {playoffSeeds.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-                {playoffSeeds.map((s) => (
-                  <div key={s.player.id} className="flex items-center gap-3 rounded-md border border-border bg-muted p-3">
-                    <span className="font-display text-2xl text-accent w-8 text-center">{s.seed}</span>
-                    <div className="flex-1">
-                      <p className="font-display text-foreground">{s.player.name}</p>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{s.player.wins}W - {s.player.losses}L</span>
-                        <span>•</span>
-                        <span className="font-mono">{(s.winPct * 100).toFixed(0)}%</span>
-                        <span>•</span>
-                        <span className={
-                          s.player.skillLevel === "A" ? "text-yellow-400" :
-                          s.player.skillLevel === "B" ? "text-gray-300" :
-                          "text-amber-600"
-                        }>Tier {s.player.skillLevel}</span>
+                {playoffSeeds.map((s) => {
+                  const tierColor = s.pair.skillLevel === "A" ? "text-yellow-400" :
+                                   s.pair.skillLevel === "B" ? "text-gray-300" : "text-amber-600";
+                  return (
+                    <div key={s.pair.id} className="flex items-center gap-3 rounded-md border border-border bg-muted p-3">
+                      <span className="font-display text-2xl text-accent w-8 text-center">{s.seed}</span>
+                      <div className="flex-1">
+                        <p className="font-display text-foreground">{s.pair.player1.name} & {s.pair.player2.name}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="font-mono">{(s.winPct * 100).toFixed(0)}%</span>
+                          <span>•</span>
+                          <span className={tierColor}>Tier {s.pair.skillLevel}</span>
+                        </div>
                       </div>
+                      {s.seed <= 3 && (
+                        <Medal className={`w-5 h-5 ${s.seed === 1 ? "text-yellow-400" : s.seed === 2 ? "text-gray-300" : "text-amber-600"}`} />
+                      )}
                     </div>
-                    {s.seed <= 3 && (
-                      <Medal className={`w-5 h-5 ${s.seed === 1 ? "text-yellow-400" : s.seed === 2 ? "text-gray-300" : "text-amber-600"}`} />
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </>
