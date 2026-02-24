@@ -435,25 +435,21 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
         </div>
       )}
 
-      {/* All Pairs — admin only */}
-      {isAdmin && allUniquePairs.length > 0 && (
-        <div className="rounded-lg border border-border bg-card p-5 md:p-8 space-y-4">
+      {/* All Pairs */}
+      {allUniquePairs.length > 0 && (
+        <div className="rounded-lg border border-border bg-card p-4 md:p-6 space-y-3">
           <div className="flex items-center gap-2">
             <Users className="w-5 h-5 text-accent" />
             <h3 className="font-display text-xl text-accent">All Pairs</h3>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {allUniquePairs.map((pair, i) => {
-              const tierColor = pair.tier === "A" ? "border-yellow-500/40" : pair.tier === "B" ? "border-gray-300/40" : "border-amber-700/40";
-              return (
-                <div key={i} className={`rounded-md border ${tierColor} bg-muted/30 px-4 py-3 text-center`}>
-                  <p className="font-display text-base text-foreground">{pair.player1}</p>
-                  <p className="text-xs text-muted-foreground my-0.5">&</p>
-                  <p className="font-display text-base text-foreground">{pair.player2}</p>
-                  <p className={`text-[10px] uppercase tracking-widest mt-1 ${pair.tier === "A" ? "text-yellow-400" : pair.tier === "B" ? "text-gray-300" : "text-amber-600"}`}>Tier {pair.tier}</p>
-                </div>
-              );
-            })}
+            {allUniquePairs.map((pair, i) => (
+              <div key={i} className="rounded-md border border-border/60 bg-muted/30 px-4 py-3 text-center">
+                <p className="font-display text-base text-foreground">{pair.player1}</p>
+                <p className="text-xs text-muted-foreground my-0.5">&</p>
+                <p className="font-display text-base text-foreground">{pair.player2}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
