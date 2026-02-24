@@ -159,16 +159,19 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
   const allPairStandings = buildAllPairStandings();
 
   const handleGeneratePlayoffSeeds = () => {
+    // B-beats-A override: find B pairs that beat A pairs in cross-tier
+    const bBeatAPairIds = new Set<string>();
     // C-beats-B override: find C pairs that beat B pairs in cross-tier
     const cBeatBPairIds = new Set<string>();
-    const bBeatenByCPairIds = new Set<string>();
     for (const match of state.matches) {
       if (match.status !== "completed" || match.skillLevel !== "cross" || !match.winner || !match.loser) continue;
+      if (match.winner.skillLevel === "B" && match.loser.skillLevel === "A") {
+        const winKey = [match.winner.player1.id, match.winner.player2.id].sort().join("|||");
+        bBeatAPairIds.add(winKey);
+      }
       if (match.winner.skillLevel === "C" && match.loser.skillLevel === "B") {
         const winKey = [match.winner.player1.id, match.winner.player2.id].sort().join("|||");
-        const loseKey = [match.loser.player1.id, match.loser.player2.id].sort().join("|||");
         cBeatBPairIds.add(winKey);
-        bBeatenByCPairIds.add(loseKey);
       }
     }
 
@@ -177,16 +180,16 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
     const bPairs = allPairStandings.filter((p) => p.skillLevel === "B");
     const cPairs = allPairStandings.filter((p) => p.skillLevel === "C");
 
+    const promotedB = bPairs.filter((p) => bBeatAPairIds.has(p.id));
+    const normalB = bPairs.filter((p) => !bBeatAPairIds.has(p.id));
     const promotedC = cPairs.filter((p) => cBeatBPairIds.has(p.id));
-    const demotedB = bPairs.filter((p) => bBeatenByCPairIds.has(p.id));
-    const normalB = bPairs.filter((p) => !bBeatenByCPairIds.has(p.id));
     const normalC = cPairs.filter((p) => !cBeatBPairIds.has(p.id));
 
-    // Priority order: A pairs → normal B → promoted C → demoted B → normal C
-    const ordered: PairStanding[] = [...aPairs, ...normalB, ...promotedC, ...demotedB, ...normalC];
+    // Strict priority: A → promoted B (beat A) → normal B → promoted C (beat B) → normal C
+    const ordered: PairStanding[] = [...aPairs, ...promotedB, ...normalB, ...promotedC, ...normalC];
 
-    // Take top 4 pairs (8 players) for playoff bracket
-    const top = ordered.slice(0, 4);
+    // Take top 8 pairs for playoff bracket
+    const top = ordered.slice(0, 8);
     const seeds: PlayoffPairSeed[] = top.map((ps, i) => ({
       seed: i + 1,
       pair: ps.pair,
@@ -272,7 +275,7 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
         {(state.playoffMatches || []).length === 0 ? (
           <>
             <p className="text-sm text-muted-foreground">
-              Top pairs seeded by tier priority (A → B → C) then Win%. Same pairs from round-robin carry into playoffs. C-beats-B override active.
+              Top 8 pairs seeded by strict tier priority (A → B → C) then Win%. B-beats-A and C-beats-B overrides active. 8-team single-elimination bracket.
             </p>
             {roundRobinComplete && (
               <div className="rounded-md border border-accent/30 bg-accent/5 p-3 text-sm text-accent">

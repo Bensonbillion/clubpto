@@ -127,8 +127,10 @@ const PlayoffBracket = ({ playoffMatches, onStart, onComplete, isAdmin }: Playof
   const champion = allComplete && lastRound ? byRound[lastRound]?.[0]?.winner : null;
 
   const getRoundLabel = (round: number) => {
-    if (round === rounds[rounds.length - 1]) return "Final";
-    if (round === 1) return "Semi-Finals";
+    const totalRounds = rounds.length;
+    if (round === rounds[totalRounds - 1]) return "Final";
+    if (round === rounds[totalRounds - 2]) return "Semi-Finals";
+    if (round === rounds[totalRounds - 3]) return "Quarter-Finals";
     return `Round ${round}`;
   };
 
