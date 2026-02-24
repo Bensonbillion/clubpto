@@ -1,69 +1,77 @@
 
 
-## Problem Diagnosis
+# Final Review: Court Manager — Issues Found
 
-There are two critical bugs causing players to appear in different pairs across matches:
-
-### Bug 1: `swapPlayer` breaks fixed pairs
-The `swapPlayer` function (line 659) replaces a player inside a **single match's pair only**. It does not update `state.pairs` (the master pair list) or propagate the change to all other matches containing that pair. This means after a swap, the pair composition differs between matches — violating the fixed-pair rule.
-
-### Bug 2: `completeMatch` never updates pair-level stats
-When a match finishes, `completeMatch` updates individual player W/L but never updates `pair.wins` and `pair.losses` on the `state.pairs` objects. The `StatsPlayoffs` component reads pair stats for seeding, so standings may show 0-0 for all pairs.
-
-### Bug 3: Match objects contain independent pair copies
-Each `Match` stores its own copy of the `Pair` objects. There is no referential link back to `state.pairs`. If any function modifies a pair inside one match, it diverges from the master list and from other matches.
+After a thorough audit of every component in the Court Manager section, here is what I found:
 
 ---
 
-## Plan
+## Issues to Fix
 
-### 1. Make matches reference pairs by ID, not by copy
+### 1. Session Export shows individual player standings, not pair standings
+**File:** `SessionExport.tsx` (lines 35-51)
+**Problem:** The `buildStandings` function in the export uses individual player stats (`state.roster`) instead of pair-level standings. The rest of the system tracks wins/losses at the pair level, so the export is inconsistent. It should mirror the pair-based leaderboard used in `StatsPlayoffs.tsx`.
+**Fix:** Refactor the standings section in `buildTextSummary` to iterate through completed matches and aggregate by pair (same logic as `buildPairStandingsByTier`), showing "Alex & Brian — 3W 1L (75%)" instead of individual names.
 
-Instead of embedding full `Pair` objects inside each `Match`, all match logic will use the master `state.pairs` array as the single source of truth. When rendering or processing a match, pairs will be looked up from `state.pairs` by ID.
+### 2. Game History Log leaks matchup labels to non-admin
+**File:** `GameHistoryLog.tsx` (lines 96-99)
+**Problem:** The `match.matchupLabel` (e.g., "B VS A", "C VS C") is rendered unconditionally at the bottom of each history entry. However, this component is only shown when `isAdmin && showHistory` is true in `CourtDisplay.tsx`, so this is **safe for now**. No fix needed — the component is already gated behind admin access.
 
-**Changes to `src/types/courtManager.ts`:**
-- Keep the current `Match` structure (embedding pairs) for simplicity of rendering, but enforce that all mutations go through a centralized update that keeps match-level pair references in sync with `state.pairs`.
+### 3. CourtConflictAlert component is imported but never used
+**File:** `CourtConflictAlert.tsx`
+**Problem:** This component exists but is not imported or used anywhere. It's dead code. The CourtDisplay has a comment saying "Conflicts are prevented by scheduling logic — no alert needed." This is fine — no functional issue, just cleanup.
 
-### 2. Fix `swapPlayer` to update globally
+### 4. No error handling if `game_state` row doesn't exist on first load
+**File:** `useGameState.ts` (lines 54-67)
+**Problem:** On first load, if the `game_state` table has no row with `id = "current"`, the state simply stays as `DEFAULT_STATE` which is correct. However, when `persistState` runs, it does an `update` which will silently fail because there's no row to update. The first session would appear to work in-memory but never persist.
+**Fix:** Add an `upsert` instead of `update` in `persistState`, or ensure the row is created on first use.
 
-Rewrite `swapPlayer` so that when a player is swapped:
-- The master `state.pairs` entry is updated
-- **Every** match referencing that pair ID gets the updated pair object
-- This ensures the pair composition is consistent everywhere
+### 5. Polling + realtime creates potential state overwrites
+**File:** `useGameState.ts` (lines 69-102)
+**Problem:** The 10-second polling fallback calls `setState` unconditionally, which can overwrite local state that hasn't been persisted yet. If an admin makes a change and the poll fires before the save completes, the local change is lost. This is a race condition risk during rapid interactions (e.g., completing matches quickly).
+**Fix:** Add a guard: skip polling updates when `savingRef.current` is true or when the `updated_at` timestamp from the DB matches what we last saved.
 
-### 3. Fix `completeMatch` to update pair W/L
-
-When a match completes:
-- Update `pair.wins` / `pair.losses` on the winning and losing pairs in `state.pairs`
-- Propagate updated pair objects into all match references
-
-### 4. Add a helper function: `syncPairsToMatches`
-
-Create a utility that takes the current `state.pairs` and replaces all pair references inside `state.matches` with the latest version from the master list. Call this after any pair mutation (swap, result correction, etc.).
-
-### 5. Fix `correctGameResult` to update pair stats
-
-Currently it only updates player-level stats. Add pair-level stat reversal and re-application, then sync pairs to matches.
-
-### 6. Fix `removePlayerMidSession`
-
-When a player is removed, also remove their pair from `state.pairs` and cancel all that pair's pending matches — this part already works but should also sync remaining pairs.
+### 6. `startPlayoffMatch` incorrectly forces round-robin matches to "completed"
+**File:** `useGameState.ts` (lines 930-943)
+**Problem:** When starting a playoff match on a court, any round-robin match currently "playing" on that court gets force-completed (status set to "completed") without recording a winner. This creates ghost completed matches with no winner, which breaks standings calculations and history.
+**Fix:** Only clear the court assignment (set court to null) without changing the round-robin match status. Or better yet, only allow playoff matches to start when courts are free.
 
 ---
 
-### Technical detail: the sync helper
+## Confirmed Working (No Issues)
 
-```text
-syncPairsToMatches(pairs, matches):
-  for each match in matches:
-    match.pair1 = pairs.find(p => p.id === match.pair1.id) || match.pair1
-    match.pair2 = pairs.find(p => p.id === match.pair2.id) || match.pair2
-  return matches
-```
+- **Pair consistency:** `syncPairsToMatches` correctly propagates pair updates across all matches.
+- **Privacy:** Court Display hides tier labels, matchup tags, All Pairs grid, and Standings from non-admin users.
+- **Check-In privacy:** Tier badges are admin-only. Player counts are visible (appropriate).
+- **Standings by tier:** `buildPairStandingsByTier` correctly counts cross-tier matches for each pair's own tier.
+- **Champion banner:** Shows only once (from `PlayoffBracket`).
+- **Playoff seeding:** C-beats-B override and NBA-style seeding work correctly.
+- **Game history correction:** `correctGameResult` properly reverses and reapplies both player and pair stats.
+- **Player removal mid-session:** Correctly removes the pair and all pending matches.
+- **VIP pairing dialog:** Works correctly for David, Benson, Albright.
+- **Session clock and game timers:** Function correctly.
+- **Fullscreen mode:** Works with proper state tracking.
 
-This single function, called at the end of every state mutation, guarantees pair consistency across the entire session.
+---
 
-### Files to modify
-- `src/hooks/useGameState.ts` — all fixes above
-- No other files need changes; the UI already reads from `state.pairs` and `state.matches`
+## Recommended Fixes (Priority Order)
+
+| # | Issue | Severity | Effort |
+|---|-------|----------|--------|
+| 1 | `persistState` uses `update` instead of `upsert` — first session won't save | High | Small |
+| 2 | `startPlayoffMatch` force-completes round-robin matches without a winner | High | Small |
+| 3 | Polling can overwrite unsaved local state | Medium | Small |
+| 4 | Session Export uses individual stats instead of pair stats | Medium | Medium |
+
+---
+
+## Technical Details
+
+**Fix 1 — Upsert:** Change `persistState` from `.update(...)` to `.upsert({ id: ROW_ID, state: ..., updated_at: ... })`.
+
+**Fix 2 — Playoff court assignment:** Remove the line that sets round-robin matches to "completed" when a playoff match starts. Instead, simply don't allow starting a playoff match if a round-robin match is still active on that court, or just ignore the court collision since playoffs are a separate stage.
+
+**Fix 3 — Polling guard:** Track `lastSavedAt` and skip `setState` in the polling interval if `savingRef.current` is true.
+
+**Fix 4 — Export standings:** Replace the individual `buildStandings` function in `SessionExport.tsx` with pair-based aggregation matching the `StatsPlayoffs` logic.
 
