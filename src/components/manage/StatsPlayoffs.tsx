@@ -2,7 +2,9 @@ import { useGameState } from "@/hooks/useGameState";
 import { Player, Pair, PlayoffMatch, SkillTier } from "@/types/courtManager";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { Trophy, Medal, Play } from "lucide-react";
+import { Trophy, Medal } from "lucide-react";
+import PlayoffBracket from "./PlayoffBracket";
+import SessionExport from "./SessionExport";
 
 interface StatsPlayoffsProps {
   gameState: ReturnType<typeof useGameState>;
@@ -71,85 +73,6 @@ const PairLeaderboard = ({ title, pairs }: { title: string; pairs: PairStanding[
     )}
   </div>
 );
-
-const PlayoffMatchCard = ({
-  match,
-  onStart,
-  onComplete,
-}: {
-  match: PlayoffMatch;
-  onStart: (id: string, court: number) => void;
-  onComplete: (id: string, winnerPairId: string) => void;
-}) => {
-  const [selectingWinner, setSelectingWinner] = useState(false);
-
-  if (!match.pair1 || !match.pair2) {
-    return (
-      <div className="rounded-md border border-border/50 bg-muted/30 p-3 text-sm text-muted-foreground text-center">
-        Waiting for teams…
-      </div>
-    );
-  }
-
-  const team1Label = `${match.pair1.player1.name} & ${match.pair1.player2.name}`;
-  const team2Label = `${match.pair2.player1.name} & ${match.pair2.player2.name}`;
-
-  return (
-    <div className={`rounded-md border p-3 space-y-2 ${
-      match.status === "completed" ? "border-accent/30 bg-accent/5" :
-      match.status === "playing" ? "border-accent border-2 bg-card" :
-      "border-border bg-card"
-    }`}>
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>Round {match.round}</span>
-        <span className={`uppercase tracking-widest ${
-          match.status === "playing" ? "text-accent" : 
-          match.status === "completed" ? "text-accent/60" : ""
-        }`}>{match.status}</span>
-      </div>
-      <div className="space-y-1">
-        <p className={`text-sm font-display ${match.winner?.id === match.pair1.id ? "text-accent" : "text-foreground"}`}>
-          {team1Label} {match.winner?.id === match.pair1.id && "🏆"}
-        </p>
-        <p className="text-xs text-muted-foreground text-center">vs</p>
-        <p className={`text-sm font-display ${match.winner?.id === match.pair2.id ? "text-accent" : "text-foreground"}`}>
-          {team2Label} {match.winner?.id === match.pair2.id && "🏆"}
-        </p>
-      </div>
-
-      {match.status === "pending" && (
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" className="flex-1 text-xs border-accent text-accent" onClick={() => onStart(match.id, 1)}>
-            <Play className="w-3 h-3 mr-1" /> Court 1
-          </Button>
-          <Button size="sm" variant="outline" className="flex-1 text-xs border-accent text-accent" onClick={() => onStart(match.id, 2)}>
-            <Play className="w-3 h-3 mr-1" /> Court 2
-          </Button>
-        </div>
-      )}
-
-      {match.status === "playing" && !selectingWinner && (
-        <Button size="sm" className="w-full bg-accent text-accent-foreground text-xs" onClick={() => setSelectingWinner(true)}>
-          <Trophy className="w-3 h-3 mr-1" /> Game Finished
-        </Button>
-      )}
-
-      {match.status === "playing" && selectingWinner && (
-        <div className="space-y-1">
-          <p className="text-xs text-muted-foreground text-center">Who won?</p>
-          <button onClick={() => { onComplete(match.id, match.pair1!.id); setSelectingWinner(false); }}
-            className="w-full text-left text-xs rounded border border-border p-2 hover:border-accent hover:bg-accent/10 transition-all">
-            {team1Label}
-          </button>
-          <button onClick={() => { onComplete(match.id, match.pair2!.id); setSelectingWinner(false); }}
-            className="w-full text-left text-xs rounded border border-border p-2 hover:border-accent hover:bg-accent/10 transition-all">
-            {team2Label}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-};
 
 const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
   const { state, checkedInPlayers, completedMatches, generatePlayoffMatches, startPlayoffMatch, completePlayoffMatch } = gameState;
@@ -225,14 +148,14 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
   };
 
   const roundRobinComplete = state.matches.length > 0 && state.matches.every((m) => m.status === "completed");
+
+  const allPlayoffComplete = (state.playoffMatches || []).length > 0 && (state.playoffMatches || []).every((m) => m.status === "completed");
   const playoffMatchesByRound = (state.playoffMatches || []).reduce((acc, m) => {
     if (!acc[m.round]) acc[m.round] = [];
     acc[m.round].push(m);
     return acc;
   }, {} as Record<number, PlayoffMatch[]>);
   const rounds = Object.keys(playoffMatchesByRound).map(Number).sort((a, b) => a - b);
-
-  const allPlayoffComplete = (state.playoffMatches || []).length > 0 && (state.playoffMatches || []).every((m) => m.status === "completed");
   const lastRound = rounds[rounds.length - 1];
   const champion = allPlayoffComplete && lastRound ? playoffMatchesByRound[lastRound]?.[0]?.winner : null;
 
@@ -334,29 +257,17 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
             )}
           </>
         ) : (
-          <div className="space-y-6">
-            {rounds.map((round) => (
-              <div key={round} className="space-y-3">
-                <h4 className="font-display text-lg text-accent">
-                  {rounds.length === 1 ? "Final" : 
-                   round === rounds[rounds.length - 1] ? "Final" :
-                   round === 1 ? "Semi-Finals" : `Round ${round}`}
-                </h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {playoffMatchesByRound[round].map((m) => (
-                    <PlayoffMatchCard
-                      key={m.id}
-                      match={m}
-                      onStart={startPlayoffMatch}
-                      onComplete={completePlayoffMatch}
-                    />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+          <PlayoffBracket
+            playoffMatches={state.playoffMatches}
+            onStart={startPlayoffMatch}
+            onComplete={completePlayoffMatch}
+            isAdmin={true}
+          />
         )}
       </div>
+
+      {/* Session Export */}
+      <SessionExport state={state} />
     </div>
   );
 };
