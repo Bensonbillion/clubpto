@@ -118,7 +118,7 @@ const CourtCard = ({
         )}
       </div>
       <div className="flex items-center gap-4">
-        {match?.matchupLabel && (
+        {isAdmin && match?.matchupLabel && (
           <span className="text-[10px] uppercase tracking-widest bg-muted/50 text-muted-foreground px-3 py-1 rounded-full border border-border/60">{match.matchupLabel}</span>
         )}
         {match && <GameTimer startedAt={match.startedAt} />}
@@ -315,8 +315,8 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
           )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Mini standings toggle */}
-          {hasActiveMatches && (
+          {/* Mini standings toggle — admin only */}
+          {isAdmin && hasActiveMatches && (
             <Button variant="outline" size="default" onClick={() => setShowStandings((v) => !v)}
               className={`border-accent/40 text-accent hover:bg-accent/10 min-h-[44px] px-4 text-sm ${showStandings ? "bg-accent/10" : ""}`}>
               <BarChart3 className="w-4 h-4 mr-1.5" /> Standings
@@ -383,7 +383,7 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
       )}
 
       {/* Mini standings panel */}
-      {showStandings && <MiniStandings roster={state.roster} />}
+      {showStandings && isAdmin && <MiniStandings roster={state.roster} />}
 
       {/* Game history panel (admin) */}
       {showHistory && isAdmin && <GameHistoryLog gameState={gameState} />}
@@ -435,8 +435,8 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
         </div>
       )}
 
-      {/* All Pairs */}
-      {allUniquePairs.length > 0 && (
+      {/* All Pairs — admin only */}
+      {isAdmin && allUniquePairs.length > 0 && (
         <div className="rounded-lg border border-border bg-card p-5 md:p-8 space-y-4">
           <div className="flex items-center gap-2">
             <Users className="w-5 h-5 text-accent" />
