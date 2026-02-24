@@ -66,7 +66,7 @@ export function useGameState() {
     load();
   }, []);
 
-  // Subscribe to realtime changes
+  // Subscribe to realtime changes — skip if a save is in progress
   useEffect(() => {
     const channel = supabase
       .channel("game_state_sync")
@@ -74,6 +74,7 @@ export function useGameState() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "game_state", filter: `id=eq.${ROW_ID}` },
         (payload) => {
+          if (savingRef.current) return;
           if (payload.new && (payload.new as any).state) {
             setState((payload.new as any).state as GameState);
           }
@@ -794,10 +795,8 @@ export function useGameState() {
   }, [updateState]);
 
   const resetSession = useCallback(() => {
-    const fresh = { ...DEFAULT_STATE, playoffMatches: [], playoffsStarted: false };
-    setState(fresh);
-    persistState(fresh);
-  }, [persistState]);
+    updateState(() => ({ ...DEFAULT_STATE, playoffMatches: [], playoffsStarted: false }));
+  }, [updateState]);
 
   const startPlayoffs = useCallback(() => {
     updateState((s) => ({ ...s, playoffsStarted: true }));
