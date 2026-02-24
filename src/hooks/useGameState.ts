@@ -104,25 +104,24 @@ export function useGameState() {
   }, []);
 
   const persistState = useCallback(async (newState: GameState) => {
-    if (savingRef.current) {
-      pendingRef.current = newState;
-      return;
-    }
+    pendingRef.current = newState;
+    if (savingRef.current) return;
     savingRef.current = true;
-    await supabase
-      .from("game_state")
-      .upsert({ id: ROW_ID, state: JSON.parse(JSON.stringify(newState)), updated_at: new Date().toISOString() });
-    savingRef.current = false;
 
-    if (pendingRef.current) {
-      const queued = pendingRef.current;
+    while (pendingRef.current) {
+      const toSave = pendingRef.current;
       pendingRef.current = null;
-      persistState(queued);
+      await supabase
+        .from("game_state")
+        .upsert({ id: ROW_ID, state: JSON.parse(JSON.stringify(toSave)), updated_at: new Date().toISOString() });
     }
+
+    savingRef.current = false;
   }, []);
 
   const updateState = useCallback(
     (updater: (prev: GameState) => GameState) => {
+      savingRef.current = true; // Guard realtime/polling immediately
       setState((prev) => {
         const next = updater(prev);
         persistState(next);
