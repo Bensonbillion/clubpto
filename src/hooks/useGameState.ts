@@ -86,15 +86,16 @@ export function useGameState() {
     };
   }, []);
 
-  // Polling fallback every 10s
+  // Polling fallback every 10s — skip if a save is in progress
   useEffect(() => {
     const interval = setInterval(async () => {
+      if (savingRef.current) return;
       const { data } = await supabase
         .from("game_state")
         .select("state")
         .eq("id", ROW_ID)
         .single();
-      if (data?.state) {
+      if (data?.state && !savingRef.current) {
         setState(data.state as unknown as GameState);
       }
     }, 10_000);
@@ -109,8 +110,7 @@ export function useGameState() {
     savingRef.current = true;
     await supabase
       .from("game_state")
-      .update({ state: JSON.parse(JSON.stringify(newState)), updated_at: new Date().toISOString() })
-      .eq("id", ROW_ID);
+      .upsert({ id: ROW_ID, state: JSON.parse(JSON.stringify(newState)), updated_at: new Date().toISOString() });
     savingRef.current = false;
 
     if (pendingRef.current) {
@@ -929,15 +929,17 @@ export function useGameState() {
 
   const startPlayoffMatch = useCallback(
     (matchId: string, court: number) => {
-      updateState((s) => ({
-        ...s,
-        playoffMatches: s.playoffMatches.map((m) =>
-          m.id === matchId ? { ...m, status: "playing" as const } : m
-        ),
-        matches: s.matches.map((m) =>
-          m.court === court && m.status === "playing" ? { ...m, status: "completed" as const, court: null } : m
-        ),
-      }));
+      updateState((s) => {
+        // Don't start if a round-robin match is still playing on this court
+        const courtBusy = s.matches.some((m) => m.court === court && m.status === "playing");
+        if (courtBusy) return s;
+        return {
+          ...s,
+          playoffMatches: s.playoffMatches.map((m) =>
+            m.id === matchId ? { ...m, status: "playing" as const } : m
+          ),
+        };
+      });
     },
     [updateState]
   );
