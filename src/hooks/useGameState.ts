@@ -31,6 +31,19 @@ function getMatchPlayerIds(m: Match): string[] {
   return [...getPairPlayerIds(m.pair1), ...getPairPlayerIds(m.pair2)];
 }
 
+/** Single source of truth: push master pairs into every match reference */
+function syncPairsToMatches(pairs: Pair[], matches: Match[]): Match[] {
+  const pairMap = new Map(pairs.map(p => [p.id, p]));
+  return matches.map(m => ({
+    ...m,
+    pair1: pairMap.get(m.pair1.id) || m.pair1,
+    pair2: pairMap.get(m.pair2.id) || m.pair2,
+    // Also sync winner/loser references for completed matches
+    ...(m.winner ? { winner: pairMap.get(m.winner.id) || m.winner } : {}),
+    ...(m.loser ? { loser: pairMap.get(m.loser.id) || m.loser } : {}),
+  }));
+}
+
 export function useGameState() {
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
   const [loading, setLoading] = useState(true);
@@ -655,7 +668,7 @@ export function useGameState() {
     [updateState]
   );
 
-  // Swap a player in a pending match (replaces within the pair)
+  // Swap a player GLOBALLY — updates master pairs + syncs to all matches
   const swapPlayer = useCallback(
     (matchId: string, oldPlayerId: string, newPlayerId: string) => {
       updateState((s) => {
@@ -664,26 +677,30 @@ export function useGameState() {
         const newPlayer = s.roster.find((p) => p.id === newPlayerId);
         if (!newPlayer) return s;
 
-        const replaceInPair = (pair: Pair): Pair => {
+        // Find which pair contains the old player
+        const targetPairId = [match.pair1, match.pair2].find(
+          (p) => p.player1.id === oldPlayerId || p.player2.id === oldPlayerId
+        )?.id;
+        if (!targetPairId) return s;
+
+        // Update the master pairs list
+        const updatedPairs = s.pairs.map((pair) => {
+          if (pair.id !== targetPairId) return pair;
           if (pair.player1.id === oldPlayerId) return { ...pair, player1: newPlayer };
           if (pair.player2.id === oldPlayerId) return { ...pair, player2: newPlayer };
           return pair;
-        };
+        });
 
-        return {
-          ...s,
-          matches: s.matches.map((m) =>
-            m.id === matchId
-              ? { ...m, pair1: replaceInPair(m.pair1), pair2: replaceInPair(m.pair2) }
-              : m
-          ),
-        };
+        // Sync all matches to use updated pairs
+        const updatedMatches = syncPairsToMatches(updatedPairs, s.matches);
+
+        return { ...s, pairs: updatedPairs, matches: updatedMatches };
       });
     },
     [updateState]
   );
 
-  // Complete match — picks next match avoiding pair conflicts
+  // Complete match — updates pair W/L + picks next match avoiding conflicts
   const completeMatch = useCallback(
     (matchId: string, winnerPairId: string) => {
       updateState((s) => {
@@ -702,10 +719,20 @@ export function useGameState() {
           return p;
         });
 
-        const updatedMatches = [...s.matches];
+        // Update pair-level W/L on master pairs
+        const updatedPairs = s.pairs.map((p) => {
+          if (p.id === winnerPair.id) return { ...p, wins: p.wins + 1 };
+          if (p.id === loserPair.id) return { ...p, losses: p.losses + 1 };
+          return p;
+        });
+
+        let updatedMatches = [...s.matches];
         updatedMatches[matchIdx] = {
           ...match, status: "completed", winner: winnerPair, loser: loserPair, completedAt: new Date().toISOString(),
         };
+
+        // Sync pairs into all matches
+        updatedMatches = syncPairsToMatches(updatedPairs, updatedMatches);
 
         // Find next pending match that doesn't conflict with the other court
         if (freedCourt) {
@@ -742,6 +769,7 @@ export function useGameState() {
         return {
           ...s,
           roster: updatedRoster,
+          pairs: updatedPairs,
           matches: updatedMatches,
           gameHistory: [...s.gameHistory, historyEntry],
         };
@@ -775,7 +803,7 @@ export function useGameState() {
     updateState((s) => ({ ...s, playoffsStarted: true }));
   }, [updateState]);
 
-  // Remove player mid-session
+  // Remove player mid-session — also removes their pair and syncs
   const removePlayerMidSession = useCallback(
     (playerId: string) => {
       updateState((s) => {
@@ -786,7 +814,7 @@ export function useGameState() {
           p.id === playerId ? { ...p, checkedIn: false } : p
         );
 
-        // Remove all pending matches that include this player's pair
+        // Find and remove pairs containing this player
         const playerPairIds = new Set<string>();
         s.pairs.forEach((pair) => {
           if (pair.player1.id === playerId || pair.player2.id === playerId) {
@@ -794,16 +822,22 @@ export function useGameState() {
           }
         });
 
-        const updatedMatches = s.matches.filter((m) => {
+        const updatedPairs = s.pairs.filter((p) => !playerPairIds.has(p.id));
+
+        // Remove all pending matches that include this player's pair
+        let updatedMatches = s.matches.filter((m) => {
           if (m.status !== "pending") return true;
           return !playerPairIds.has(m.pair1.id) && !playerPairIds.has(m.pair2.id);
         });
 
+        // Sync remaining pairs
+        updatedMatches = syncPairsToMatches(updatedPairs, updatedMatches);
         updatedMatches.forEach((m, i) => { m.gameNumber = i + 1; });
 
         return {
           ...s,
           roster: updatedRoster,
+          pairs: updatedPairs,
           matches: updatedMatches,
           totalScheduledGames: updatedMatches.length,
         };
@@ -812,7 +846,7 @@ export function useGameState() {
     [updateState]
   );
 
-  // Correct a game result
+  // Correct a game result — updates both player and pair stats, then syncs
   const correctGameResult = useCallback(
     (matchId: string, newWinnerPairId: string) => {
       updateState((s) => {
@@ -834,8 +868,22 @@ export function useGameState() {
           return { ...p, wins: Math.max(0, wins), losses: Math.max(0, losses) };
         });
 
-        const updatedMatches = [...s.matches];
+        // Reverse old pair stats + apply new
+        const updatedPairs = s.pairs.map((p) => {
+          if (p.id === match.winner!.id) {
+            // Was winner, now loser
+            return { ...p, wins: Math.max(0, p.wins - 1), losses: p.losses + 1 };
+          }
+          if (p.id === match.loser!.id) {
+            // Was loser, now winner
+            return { ...p, losses: Math.max(0, p.losses - 1), wins: p.wins + 1 };
+          }
+          return p;
+        });
+
+        let updatedMatches = [...s.matches];
         updatedMatches[matchIdx] = { ...match, winner: newWinner, loser: newLoser };
+        updatedMatches = syncPairsToMatches(updatedPairs, updatedMatches);
 
         const updatedHistory = s.gameHistory.map((h) => {
           if (h.winnerPairId === match.winner!.id && h.loserPairId === match.loser!.id && h.timestamp === match.completedAt) {
@@ -850,7 +898,7 @@ export function useGameState() {
           return h;
         });
 
-        return { ...s, roster: updatedRoster, matches: updatedMatches, gameHistory: updatedHistory };
+        return { ...s, roster: updatedRoster, pairs: updatedPairs, matches: updatedMatches, gameHistory: updatedHistory };
       });
     },
     [updateState]
