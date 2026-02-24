@@ -134,13 +134,40 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
   const cStandings = withWinPct(state.roster.filter((p) => p.skillLevel === "C"));
 
   const handleGeneratePlayoffSeeds = () => {
+    // Build set of C player IDs who beat a B player in cross-tier matches
+    const cBeatB = new Set<string>();
+    const bBeatenByC = new Set<string>();
+    for (const match of state.matches) {
+      if (match.status !== "completed" || match.skillLevel !== "cross" || !match.winner || !match.loser) continue;
+      const winnerTier = match.winner.skillLevel;
+      const loserTier = match.loser.skillLevel;
+      if (winnerTier === "C" && loserTier === "B") {
+        [match.winner.player1.id, match.winner.player2.id].forEach((id) => cBeatB.add(id));
+        [match.loser.player1.id, match.loser.player2.id].forEach((id) => bBeatenByC.add(id));
+      }
+    }
+
+    // Priority: A first, then B/C with override rule
     const seeded: PlayoffSeed[] = [];
-    let seed = 1;
-    // Priority: A first, then B, then C
-    aStandings.forEach((p) => { seeded.push({ seed: seed++, player: p, winPct: p.winPct }); });
-    bStandings.forEach((p) => { seeded.push({ seed: seed++, player: p, winPct: p.winPct }); });
-    cStandings.forEach((p) => { seeded.push({ seed: seed++, player: p, winPct: p.winPct }); });
-    // Take top 8
+
+    // 1. All A players
+    aStandings.forEach((p) => { seeded.push({ seed: 0, player: p, winPct: p.winPct }); });
+
+    // 2. Interleave B and C with override:
+    //    - C players who beat B get promoted above the B players they beat
+    //    - B players beaten by C get demoted below those C players
+    const promotedC = cStandings.filter((p) => cBeatB.has(p.id));
+    const demotedB = bStandings.filter((p) => bBeatenByC.has(p.id));
+    const normalB = bStandings.filter((p) => !bBeatenByC.has(p.id));
+    const normalC = cStandings.filter((p) => !cBeatB.has(p.id));
+
+    // Order: normal B, then promoted C (above demoted B), then demoted B, then normal C
+    normalB.forEach((p) => { seeded.push({ seed: 0, player: p, winPct: p.winPct }); });
+    promotedC.forEach((p) => { seeded.push({ seed: 0, player: p, winPct: p.winPct }); });
+    demotedB.forEach((p) => { seeded.push({ seed: 0, player: p, winPct: p.winPct }); });
+    normalC.forEach((p) => { seeded.push({ seed: 0, player: p, winPct: p.winPct }); });
+
+    // Take top 8 and assign seeds
     const top8 = seeded.slice(0, 8);
     top8.forEach((s, i) => { s.seed = i + 1; });
     setPlayoffSeeds(top8);
