@@ -80,12 +80,13 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
   const { state, checkedInPlayers, completedMatches, generatePlayoffMatches, startPlayoffMatch, completePlayoffMatch } = gameState;
   const [playoffSeeds, setPlayoffSeeds] = useState<PlayoffPairSeed[]>([]);
 
-  // Build pair standings from completed matches
-  const buildPairStandings = (skillLevel: SkillTier | "cross"): PairStanding[] => {
+  // Build pair standings filtered by pair's own tier (counts ALL matches that pair played)
+  const buildPairStandingsByTier = (tier: SkillTier): PairStanding[] => {
     const pairMap = new Map<string, PairStanding>();
     
-    for (const match of state.matches.filter((m) => m.status === "completed" && m.skillLevel === skillLevel)) {
+    for (const match of state.matches.filter((m) => m.status === "completed")) {
       const processPair = (pair: Pair, won: boolean) => {
+        if (pair.skillLevel !== tier) return; // only count pairs belonging to this tier
         const key = [pair.player1.id, pair.player2.id].sort().join("|||");
         if (!pairMap.has(key)) {
           pairMap.set(key, {
@@ -152,9 +153,9 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
     });
   };
 
-  const aPairStandings = buildPairStandings("A");
-  const crossPairStandings = buildPairStandings("cross");
-  const cPairStandings = buildPairStandings("C");
+  const aPairStandings = buildPairStandingsByTier("A");
+  const bPairStandings = buildPairStandingsByTier("B");
+  const cPairStandings = buildPairStandingsByTier("C");
   const allPairStandings = buildAllPairStandings();
 
   const handleGeneratePlayoffSeeds = () => {
@@ -260,9 +261,7 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
       {/* Pair Leaderboards by tier */}
       <div className="space-y-4">
         <PairLeaderboard title="Standings — Tier A (Advanced)" pairs={aPairStandings} />
-        {crossPairStandings.length > 0 && (
-          <PairLeaderboard title="Standings — Cross-Tier (B vs A/C)" pairs={crossPairStandings} />
-        )}
+        <PairLeaderboard title="Standings — Tier B (Intermediate)" pairs={bPairStandings} />
         <PairLeaderboard title="Standings — Tier C (Beginner)" pairs={cPairStandings} />
       </div>
 
