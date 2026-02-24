@@ -1,77 +1,65 @@
 
 
-# Final Review: Court Manager — Issues Found
+## Plan: 8-Team Single-Elimination Playoff Bracket with Strict Tier Priority
 
-After a thorough audit of every component in the Court Manager section, here is what I found:
+### What's Changing
 
----
+Currently the system seeds **4 pairs** into a 2-round bracket (Semi-Finals → Final). You want **8 pairs** in a 3-round bracket (Quarter-Finals → Semi-Finals → Final) with strict tier-priority seeding.
 
-## Issues to Fix
+### Seeding Rules (Clarified)
 
-### 1. Session Export shows individual player standings, not pair standings
-**File:** `SessionExport.tsx` (lines 35-51)
-**Problem:** The `buildStandings` function in the export uses individual player stats (`state.roster`) instead of pair-level standings. The rest of the system tracks wins/losses at the pair level, so the export is inconsistent. It should mirror the pair-based leaderboard used in `StatsPlayoffs.tsx`.
-**Fix:** Refactor the standings section in `buildTextSummary` to iterate through completed matches and aggregate by pair (same logic as `buildPairStandingsByTier`), showing "Alex & Brian — 3W 1L (75%)" instead of individual names.
+The priority order is absolute — tier membership trumps win percentage:
 
-### 2. Game History Log leaks matchup labels to non-admin
-**File:** `GameHistoryLog.tsx` (lines 96-99)
-**Problem:** The `match.matchupLabel` (e.g., "B VS A", "C VS C") is rendered unconditionally at the bottom of each history entry. However, this component is only shown when `isAdmin && showHistory` is true in `CourtDisplay.tsx`, so this is **safe for now**. No fix needed — the component is already gated behind admin access.
+1. **All Tier A pairs** (sorted by Win% among themselves)
+2. **Tier B pairs that beat an A pair** in round-robin — promoted above normal B pairs
+3. **Normal Tier B pairs** (sorted by Win%)
+4. **Tier C pairs that beat a B pair** in round-robin — promoted above normal C pairs
+5. **Normal Tier C pairs** (sorted by Win%)
 
-### 3. CourtConflictAlert component is imported but never used
-**File:** `CourtConflictAlert.tsx`
-**Problem:** This component exists but is not imported or used anywhere. It's dead code. The CourtDisplay has a comment saying "Conflicts are prevented by scheduling logic — no alert needed." This is fine — no functional issue, just cleanup.
+Override logic works both ways:
+- A **B pair** that beats an **A pair** gets promoted above other B pairs (but still below all A pairs)
+- A **C pair** that beats a **B pair** gets promoted above other C pairs (but still below all B pairs)
 
-### 4. No error handling if `game_state` row doesn't exist on first load
-**File:** `useGameState.ts` (lines 54-67)
-**Problem:** On first load, if the `game_state` table has no row with `id = "current"`, the state simply stays as `DEFAULT_STATE` which is correct. However, when `persistState` runs, it does an `update` which will silently fail because there's no row to update. The first session would appear to work in-memory but never persist.
-**Fix:** Add an `upsert` instead of `update` in `persistState`, or ensure the row is created on first use.
+Top 8 from this ordered list enter the bracket.
 
-### 5. Polling + realtime creates potential state overwrites
-**File:** `useGameState.ts` (lines 69-102)
-**Problem:** The 10-second polling fallback calls `setState` unconditionally, which can overwrite local state that hasn't been persisted yet. If an admin makes a change and the poll fires before the save completes, the local change is lost. This is a race condition risk during rapid interactions (e.g., completing matches quickly).
-**Fix:** Add a guard: skip polling updates when `savingRef.current` is true or when the `updated_at` timestamp from the DB matches what we last saved.
+### Bracket Structure (NBA-Style, 8 Teams)
 
-### 6. `startPlayoffMatch` incorrectly forces round-robin matches to "completed"
-**File:** `useGameState.ts` (lines 930-943)
-**Problem:** When starting a playoff match on a court, any round-robin match currently "playing" on that court gets force-completed (status set to "completed") without recording a winner. This creates ghost completed matches with no winner, which breaks standings calculations and history.
-**Fix:** Only clear the court assignment (set court to null) without changing the round-robin match status. Or better yet, only allow playoff matches to start when courts are free.
+```text
+Quarter-Finals          Semi-Finals          Final
+  #1 vs #8  ──┐
+               ├── Winner vs Winner ──┐
+  #4 vs #5  ──┘                       ├── Champion
+  #2 vs #7  ──┐                       │
+               ├── Winner vs Winner ──┘
+  #3 vs #6  ──┘
+```
 
----
+### Files to Modify
 
-## Confirmed Working (No Issues)
+**1. `src/components/manage/StatsPlayoffs.tsx`** (seeding logic)
+- Change `handleGeneratePlayoffSeeds` to:
+  - Add B-beats-A override detection (scan completed cross-tier matches where winner is B and loser is A)
+  - Keep existing C-beats-B override detection
+  - Reorder priority: A → promoted-B (beat A) → normal-B → promoted-C (beat B) → normal-C
+  - Change `.slice(0, 4)` → `.slice(0, 8)` to take top 8 pairs
+- Update the descriptive text from "Top pairs" to reflect 8-team bracket
+- Update `disabled` check from `totalPairs < 2` to `totalPairs < 2` (keep minimum viable, bracket handles fewer gracefully)
 
-- **Pair consistency:** `syncPairsToMatches` correctly propagates pair updates across all matches.
-- **Privacy:** Court Display hides tier labels, matchup tags, All Pairs grid, and Standings from non-admin users.
-- **Check-In privacy:** Tier badges are admin-only. Player counts are visible (appropriate).
-- **Standings by tier:** `buildPairStandingsByTier` correctly counts cross-tier matches for each pair's own tier.
-- **Champion banner:** Shows only once (from `PlayoffBracket`).
-- **Playoff seeding:** C-beats-B override and NBA-style seeding work correctly.
-- **Game history correction:** `correctGameResult` properly reverses and reapplies both player and pair stats.
-- **Player removal mid-session:** Correctly removes the pair and all pending matches.
-- **VIP pairing dialog:** Works correctly for David, Benson, Albright.
-- **Session clock and game timers:** Function correctly.
-- **Fullscreen mode:** Works with proper state tracking.
+**2. `src/hooks/useGameState.ts`** (`generatePlayoffMatches` function)
+- The existing code already handles arbitrary seed counts with NBA-style pairing (`#1 vs #last`, etc.) and auto-generates next rounds when a round completes — so it already supports 8 teams with 3 rounds (QF → SF → Final). **No changes needed here.**
 
----
+**3. `src/components/manage/PlayoffBracket.tsx`** (round labels)
+- Update `getRoundLabel` to handle 3 rounds: Round 1 = "Quarter-Finals", Round 2 = "Semi-Finals", Round 3 = "Final"
 
-## Recommended Fixes (Priority Order)
+### Technical Detail
 
-| # | Issue | Severity | Effort |
-|---|-------|----------|--------|
-| 1 | `persistState` uses `update` instead of `upsert` — first session won't save | High | Small |
-| 2 | `startPlayoffMatch` force-completes round-robin matches without a winner | High | Small |
-| 3 | Polling can overwrite unsaved local state | Medium | Small |
-| 4 | Session Export uses individual stats instead of pair stats | Medium | Medium |
+The `generatePlayoffMatches` function in `useGameState.ts` already uses a generic loop:
+```
+for (let i = 0; i < numMatches; i++) {
+  seeds[i] vs seeds[seeds.length - 1 - i]
+}
+```
+With 8 seeds this produces 4 QF matches. The `completePlayoffMatch` function already auto-creates the next round when all matches in a round complete, pairing winners sequentially. So the bracket progression (4 QF → 2 SF → 1 Final) works automatically.
 
----
-
-## Technical Details
-
-**Fix 1 — Upsert:** Change `persistState` from `.update(...)` to `.upsert({ id: ROW_ID, state: ..., updated_at: ... })`.
-
-**Fix 2 — Playoff court assignment:** Remove the line that sets round-robin matches to "completed" when a playoff match starts. Instead, simply don't allow starting a playoff match if a round-robin match is still active on that court, or just ignore the court collision since playoffs are a separate stage.
-
-**Fix 3 — Polling guard:** Track `lastSavedAt` and skip `setState` in the polling interval if `savingRef.current` is true.
-
-**Fix 4 — Export standings:** Replace the individual `buildStandings` function in `SessionExport.tsx` with pair-based aggregation matching the `StatsPlayoffs` logic.
+The only substantive changes are in the **seeding algorithm** (StatsPlayoffs) and **round labels** (PlayoffBracket).
 
