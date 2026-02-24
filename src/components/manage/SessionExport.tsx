@@ -31,28 +31,32 @@ function buildTextSummary(state: GameState): string {
     });
   }
 
-  // Standings by tier
-  const buildStandings = (tier: SkillTier, label: string) => {
-    const players = state.roster
-      .filter((p) => p.checkedIn && p.skillLevel === tier && p.gamesPlayed > 0)
+  // Standings by tier — pair-based (matches the leaderboard)
+  const buildPairStandings = (tier: SkillTier, label: string) => {
+    const tierPairs = state.pairs.filter((p) => p.skillLevel === tier);
+    if (tierPairs.length === 0) return;
+
+    const pairStats = tierPairs.map((p) => {
+      const total = p.wins + p.losses;
+      const pct = total > 0 ? Math.round((p.wins / total) * 100) : 0;
+      return { name: `${p.player1.name} & ${p.player2.name}`, wins: p.wins, losses: p.losses, pct, total };
+    }).filter((p) => p.total > 0)
       .sort((a, b) => {
-        const aPct = a.gamesPlayed > 0 ? a.wins / a.gamesPlayed : 0;
-        const bPct = b.gamesPlayed > 0 ? b.wins / b.gamesPlayed : 0;
-        if (bPct !== aPct) return bPct - aPct;
+        if (b.pct !== a.pct) return b.pct - a.pct;
         return b.wins - a.wins;
       });
-    if (players.length === 0) return;
+
+    if (pairStats.length === 0) return;
     lines.push(`📊 STANDINGS — ${label}`);
-    players.forEach((p, i) => {
-      const pct = p.gamesPlayed > 0 ? Math.round((p.wins / p.gamesPlayed) * 100) : 0;
-      lines.push(`  ${i + 1}. ${p.name} — ${p.wins}W ${p.losses}L (${pct}%)`);
+    pairStats.forEach((p, i) => {
+      lines.push(`  ${i + 1}. ${p.name} — ${p.wins}W ${p.losses}L (${p.pct}%)`);
     });
     lines.push("");
   };
 
-  buildStandings("A", "Tier A (Advanced)");
-  buildStandings("B", "Tier B (Intermediate)");
-  buildStandings("C", "Tier C (Beginner)");
+  buildPairStandings("A", "Tier A (Advanced)");
+  buildPairStandings("B", "Tier B (Intermediate)");
+  buildPairStandings("C", "Tier C (Beginner)");
 
   // Playoff bracket
   if (state.playoffMatches && state.playoffMatches.length > 0) {
