@@ -45,7 +45,7 @@ const SessionClock = ({ startedAt, durationMinutes }: { startedAt?: string; dura
       <Clock className={`w-5 h-5 ${urgency}`} />
       <span className={`font-mono text-lg font-display ${urgency}`}>{remaining}</span>
       {startedAt && (
-        <div className="hidden sm:block w-24 h-2 rounded-full bg-muted overflow-hidden">
+        <div className="w-24 h-2 rounded-full bg-muted overflow-hidden">
           <div className={`h-full rounded-full transition-all ${pct < 15 ? "bg-destructive" : pct < 35 ? "bg-yellow-500" : "bg-accent"}`} style={{ width: `${pct}%` }} />
         </div>
       )}
@@ -109,7 +109,7 @@ const CourtCard = ({
 }: {
   courtNum: number; match: Match | null; totalGames: number; onFinish: (match: Match) => void; onSkip: (match: Match) => void; isAdmin: boolean;
 }) => (
-  <div className="rounded-lg border border-border bg-card p-5 md:p-8 space-y-5 md:space-y-6 flex-1 min-w-0">
+  <div className="rounded-lg border border-border bg-card p-4 md:p-6 space-y-4 md:space-y-5 flex-1 min-w-0">
     <div className="flex items-center justify-between">
       <div className="space-y-1">
         <h3 className="font-display text-3xl text-accent">Court {courtNum}</h3>
@@ -132,17 +132,17 @@ const CourtCard = ({
 
     {match ? (
       <div className="space-y-5">
-        <div className="flex items-center gap-6">
-          <div className="flex-1 text-center space-y-1.5 rounded-md bg-muted/50 p-5">
+        <div className="flex items-center gap-4">
+          <div className="flex-1 text-center space-y-1 rounded-md bg-muted/50 p-3 md:p-4">
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Team A</p>
-            <p className="font-display text-xl text-foreground">{match.pair1.player1.name}</p>
-            <p className="font-display text-xl text-foreground">{match.pair1.player2.name}</p>
+            <p className="font-display text-lg md:text-xl text-foreground">{match.pair1.player1.name}</p>
+            <p className="font-display text-lg md:text-xl text-foreground">{match.pair1.player2.name}</p>
           </div>
-          <div className="font-display text-3xl text-accent">VS</div>
-          <div className="flex-1 text-center space-y-1.5 rounded-md bg-muted/50 p-5">
+          <div className="font-display text-2xl md:text-3xl text-accent">VS</div>
+          <div className="flex-1 text-center space-y-1 rounded-md bg-muted/50 p-3 md:p-4">
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Team B</p>
-            <p className="font-display text-xl text-foreground">{match.pair2.player1.name}</p>
-            <p className="font-display text-xl text-foreground">{match.pair2.player2.name}</p>
+            <p className="font-display text-lg md:text-xl text-foreground">{match.pair2.player1.name}</p>
+            <p className="font-display text-lg md:text-xl text-foreground">{match.pair2.player2.name}</p>
           </div>
         </div>
         <div className="flex gap-3">
@@ -304,7 +304,7 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
   const roundRobinInProgress = hasActiveMatches && !state.playoffsStarted;
 
   return (
-    <div ref={containerRef} className={`animate-fade-up ${isFullscreen ? "bg-background min-h-screen p-4 md:p-8 flex flex-col justify-center gap-6 md:gap-8 overflow-y-auto" : "space-y-6 md:space-y-8"}`}>
+    <div ref={containerRef} className={`animate-fade-up ${isFullscreen ? "bg-background min-h-screen p-3 md:p-6 flex flex-col justify-start gap-4 md:gap-5 overflow-y-auto" : "space-y-6 md:space-y-8"}`}>
       {/* Toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-4">
@@ -399,7 +399,7 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
 
       {/* Up Next */}
       {upNextMatches.length > 0 && (
-        <div className="rounded-lg border border-border bg-card p-5 md:p-8 space-y-4">
+        <div className="rounded-lg border border-border bg-card p-4 md:p-6 space-y-3">
           <h3 className="font-display text-xl text-accent">Up Next</h3>
           {upNextMatches.map((m) => (
             <div key={m.id} className="flex items-center gap-3 text-base text-foreground/80 border-l-2 border-primary/30 pl-4 py-2">
@@ -420,7 +420,7 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
 
       {/* On Deck */}
       {onDeckMatches.length > 0 && (
-        <div className="rounded-lg border border-accent/20 bg-accent/5 p-5 md:p-8 space-y-4">
+        <div className="rounded-lg border border-accent/20 bg-accent/5 p-4 md:p-6 space-y-3">
           <h3 className="font-display text-xl text-accent">🏓 On Deck — Get Ready!</h3>
           {onDeckMatches.map((m) => (
             <div key={m.id} className="flex items-center gap-3 text-base text-foreground/80 border-l-2 border-accent/30 pl-4 py-2">
