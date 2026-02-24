@@ -2,10 +2,13 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useGameState } from "@/hooks/useGameState";
 import { Match, Player } from "@/types/courtManager";
-import { Trophy, Timer, UserCheck, ArrowRightLeft, Maximize, Minimize, SkipForward, Users, BarChart3, Clock, UserMinus, Swords } from "lucide-react";
+import { Trophy, Timer, UserCheck, ArrowRightLeft, Maximize, Minimize, SkipForward, Users, BarChart3, Clock, UserMinus, Swords, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import GameHistoryLog from "./GameHistoryLog";
+import CourtConflictAlert from "./CourtConflictAlert";
+import PlayoffBracket from "./PlayoffBracket";
+import SessionExport from "./SessionExport";
 
 interface CourtDisplayProps {
   gameState: ReturnType<typeof useGameState>;
@@ -250,7 +253,8 @@ const RemovePlayerModal = ({
 
 /* ── Main CourtDisplay ────────────────────────────────────────────── */
 const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDisplayProps) => {
-  const { state, court1Match, court2Match, pendingMatches, upNextMatches, onDeckMatches, completeMatch, skipMatch, swapPlayer, checkedInPlayers, startPlayoffs, removePlayerMidSession } = gameState;
+  const { state, court1Match, court2Match, pendingMatches, upNextMatches, onDeckMatches, completeMatch, skipMatch, swapPlayer, checkedInPlayers, startPlayoffs, removePlayerMidSession, startPlayoffMatch, completePlayoffMatch } = gameState;
+  const [showExport, setShowExport] = useState(false);
   const [finishingMatch, setFinishingMatch] = useState<Match | null>(null);
   const [showStandings, setShowStandings] = useState(false);
   const [showRemovePlayer, setShowRemovePlayer] = useState(false);
@@ -330,6 +334,13 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
               <Clock className="w-4 h-4 mr-1.5" /> History
             </Button>
           )}
+          {/* Export toggle (admin) */}
+          {isAdmin && hasActiveMatches && (
+            <Button variant="outline" size="default" onClick={() => setShowExport((v) => !v)}
+              className={`border-accent/40 text-accent hover:bg-accent/10 min-h-[44px] px-4 text-sm ${showExport ? "bg-accent/10" : ""}`}>
+              <Share2 className="w-4 h-4 mr-1.5" /> Export
+            </Button>
+          )}
           {/* Remove player (admin) */}
           {isAdmin && roundRobinInProgress && (
             <Button variant="outline" size="default" onClick={() => setShowRemovePlayer(true)}
@@ -355,11 +366,23 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
         </div>
       </div>
 
-      {/* Playoffs started banner */}
-      {state.playoffsStarted && (
-        <div className="rounded-lg border-2 border-accent bg-accent/10 p-4 text-center">
-          <p className="font-display text-xl text-accent">🏆 Playoff Mode Active</p>
-          <p className="text-sm text-muted-foreground mt-1">Round-robin is over. Head to Stats & Playoffs to manage the bracket.</p>
+      {/* Court conflict alerts */}
+      {hasActiveMatches && (
+        <CourtConflictAlert court1Match={court1Match} court2Match={court2Match} upNextMatches={upNextMatches} />
+      )}
+
+      {/* Playoffs bracket on Court Display */}
+      {state.playoffsStarted && (state.playoffMatches || []).length > 0 && (
+        <div className="space-y-4">
+          <div className="rounded-lg border-2 border-accent bg-accent/10 p-4 text-center">
+            <p className="font-display text-xl text-accent">🏆 Playoff Mode Active</p>
+          </div>
+          <PlayoffBracket
+            playoffMatches={state.playoffMatches}
+            onStart={startPlayoffMatch}
+            onComplete={completePlayoffMatch}
+            isAdmin={isAdmin}
+          />
         </div>
       )}
 
@@ -372,6 +395,9 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
 
       {/* Game history panel (admin) */}
       {showHistory && isAdmin && <GameHistoryLog gameState={gameState} />}
+
+      {/* Session export panel (admin) */}
+      {showExport && isAdmin && <SessionExport state={state} />}
 
       {/* Courts */}
       <div className={`flex flex-col ${!courtFilter ? "md:flex-row" : ""} gap-6`}>
