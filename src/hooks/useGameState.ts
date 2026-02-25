@@ -66,7 +66,7 @@ export function useGameState() {
     load();
   }, []);
 
-  // Subscribe to realtime changes — skip if a save is in progress
+  // Subscribe to realtime changes — skip if a save is in progress or pending
   useEffect(() => {
     const channel = supabase
       .channel("game_state_sync")
@@ -74,7 +74,7 @@ export function useGameState() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "game_state", filter: `id=eq.${ROW_ID}` },
         (payload) => {
-          if (savingRef.current) return;
+          if (savingRef.current || pendingRef.current) return;
           if (payload.new && (payload.new as any).state) {
             setState((payload.new as any).state as GameState);
           }
@@ -87,24 +87,23 @@ export function useGameState() {
     };
   }, []);
 
-  // Polling fallback every 10s — skip if a save is in progress
+  // Polling fallback every 10s — skip if a save is in progress or pending
   useEffect(() => {
     const interval = setInterval(async () => {
-      if (savingRef.current) return;
+      if (savingRef.current || pendingRef.current) return;
       const { data } = await supabase
         .from("game_state")
         .select("state")
         .eq("id", ROW_ID)
         .single();
-      if (data?.state && !savingRef.current) {
+      if (data?.state && !savingRef.current && !pendingRef.current) {
         setState(data.state as unknown as GameState);
       }
     }, 10_000);
     return () => clearInterval(interval);
   }, []);
 
-  const persistState = useCallback(async (newState: GameState) => {
-    pendingRef.current = newState;
+  const drainSave = useCallback(async () => {
     if (savingRef.current) return;
     savingRef.current = true;
 
@@ -121,14 +120,16 @@ export function useGameState() {
 
   const updateState = useCallback(
     (updater: (prev: GameState) => GameState) => {
-      savingRef.current = true; // Guard realtime/polling immediately
       setState((prev) => {
         const next = updater(prev);
-        persistState(next);
+        // Queue the state for saving and kick off the drain loop
+        pendingRef.current = next;
+        // Use queueMicrotask so the drain starts after setState completes
+        queueMicrotask(() => drainSave());
         return next;
       });
     },
-    [persistState]
+    [drainSave]
   );
 
   // Session config
