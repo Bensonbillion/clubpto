@@ -1,19 +1,20 @@
 import { PlayoffMatch, Pair } from "@/types/courtManager";
 import { Button } from "@/components/ui/button";
-import { Trophy, Play } from "lucide-react";
+import { Trophy } from "lucide-react";
 import { useState } from "react";
 
 interface PlayoffBracketProps {
   playoffMatches: PlayoffMatch[];
-  onStart: (matchId: string, court: number) => void;
+  onStart?: (matchId: string, court: number) => void;
   onComplete: (matchId: string, winnerPairId: string) => void;
   isAdmin: boolean;
 }
 
-const TeamLabel = ({ pair, isWinner }: { pair: Pair | null; isWinner: boolean }) => {
+const TeamLabel = ({ pair, seed, isWinner }: { pair: Pair | null; seed?: number; isWinner: boolean }) => {
   if (!pair) return <span className="text-muted-foreground text-sm italic">TBD</span>;
   return (
-    <span className={`font-display text-sm ${isWinner ? "text-accent" : "text-foreground"}`}>
+    <span className={`font-display text-sm ${isWinner ? "text-accent" : "text-foreground"} flex items-center gap-2`}>
+      {seed ? <span className="text-accent font-mono text-xs bg-accent/10 rounded px-1.5 py-0.5">#{seed}</span> : null}
       {pair.player1.name} & {pair.player2.name}
       {isWinner && " 🏆"}
     </span>
@@ -22,18 +23,17 @@ const TeamLabel = ({ pair, isWinner }: { pair: Pair | null; isWinner: boolean })
 
 const BracketMatchCard = ({
   match,
-  onStart,
   onComplete,
   isAdmin,
   roundLabel,
 }: {
   match: PlayoffMatch;
-  onStart: (id: string, court: number) => void;
   onComplete: (id: string, winnerPairId: string) => void;
   isAdmin: boolean;
   roundLabel: string;
 }) => {
   const [selectingWinner, setSelectingWinner] = useState(false);
+  const court = (match as any).court as number | undefined;
 
   const borderClass =
     match.status === "completed"
@@ -46,42 +46,38 @@ const BracketMatchCard = ({
     <div className={`rounded-lg border p-4 space-y-3 ${borderClass} min-w-[260px]`}>
       <div className="flex items-center justify-between">
         <span className="text-[10px] uppercase tracking-widest text-muted-foreground">{roundLabel}</span>
-        <span
-          className={`text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full ${
-            match.status === "playing"
-              ? "bg-accent/20 text-accent"
-              : match.status === "completed"
-              ? "bg-accent/10 text-accent/60"
-              : "bg-muted text-muted-foreground"
-          }`}
-        >
-          {match.status}
-        </span>
+        <div className="flex items-center gap-2">
+          {court && match.status === "playing" && (
+            <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full bg-primary/20 text-primary border border-primary/30">
+              Court {court}
+            </span>
+          )}
+          <span
+            className={`text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full ${
+              match.status === "playing"
+                ? "bg-accent/20 text-accent"
+                : match.status === "completed"
+                ? "bg-accent/10 text-accent/60"
+                : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {match.status}
+          </span>
+        </div>
       </div>
 
       <div className="space-y-2">
         <div className={`rounded-md px-3 py-2 ${match.winner?.id === match.pair1?.id ? "bg-accent/10 border border-accent/30" : "bg-muted/30"}`}>
-          <TeamLabel pair={match.pair1} isWinner={match.winner?.id === match.pair1?.id} />
+          <TeamLabel pair={match.pair1} seed={match.seed1 || undefined} isWinner={match.winner?.id === match.pair1?.id} />
         </div>
         <p className="text-xs text-muted-foreground text-center font-display">VS</p>
         <div className={`rounded-md px-3 py-2 ${match.winner?.id === match.pair2?.id ? "bg-accent/10 border border-accent/30" : "bg-muted/30"}`}>
-          <TeamLabel pair={match.pair2} isWinner={match.winner?.id === match.pair2?.id} />
+          <TeamLabel pair={match.pair2} seed={match.seed2 || undefined} isWinner={match.winner?.id === match.pair2?.id} />
         </div>
       </div>
 
       {isAdmin && match.pair1 && match.pair2 && (
         <>
-          {match.status === "pending" && (
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" className="flex-1 text-xs border-accent/40 text-accent" onClick={() => onStart(match.id, 1)}>
-                <Play className="w-3 h-3 mr-1" /> Court 1
-              </Button>
-              <Button size="sm" variant="outline" className="flex-1 text-xs border-accent/40 text-accent" onClick={() => onStart(match.id, 2)}>
-                <Play className="w-3 h-3 mr-1" /> Court 2
-              </Button>
-            </div>
-          )}
-
           {match.status === "playing" && !selectingWinner && (
             <Button size="sm" className="w-full bg-accent text-accent-foreground text-xs" onClick={() => setSelectingWinner(true)}>
               <Trophy className="w-3 h-3 mr-1" /> Game Finished
@@ -112,7 +108,7 @@ const BracketMatchCard = ({
   );
 };
 
-const PlayoffBracket = ({ playoffMatches, onStart, onComplete, isAdmin }: PlayoffBracketProps) => {
+const PlayoffBracket = ({ playoffMatches, onComplete, isAdmin }: PlayoffBracketProps) => {
   if (playoffMatches.length === 0) return null;
 
   const byRound = playoffMatches.reduce((acc, m) => {
@@ -156,7 +152,6 @@ const PlayoffBracket = ({ playoffMatches, onStart, onComplete, isAdmin }: Playof
                 <BracketMatchCard
                   key={m.id}
                   match={m}
-                  onStart={onStart}
                   onComplete={onComplete}
                   isAdmin={isAdmin}
                   roundLabel={getRoundLabel(round)}

@@ -362,13 +362,47 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
 
       {/* Playoffs bracket on Court Display */}
       {state.playoffsStarted && (state.playoffMatches || []).length > 0 && (
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div className="rounded-lg border-2 border-accent bg-accent/10 p-4 text-center">
             <p className="font-display text-xl text-accent">🏆 Playoff Mode Active</p>
           </div>
+
+          {/* Playoff courts — show which playoff matches are currently on court */}
+          {(() => {
+            const playingPlayoff = (state.playoffMatches || []).filter((m) => m.status === "playing");
+            if (playingPlayoff.length === 0) return null;
+            return (
+              <div className="flex flex-col md:flex-row gap-6">
+                {playingPlayoff.map((pm) => {
+                  const court = (pm as any).court as number | undefined;
+                  return (
+                    <div key={pm.id} className="rounded-lg border border-border bg-card p-4 md:p-6 space-y-4 flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-display text-3xl text-accent">Court {court || "?"}</h3>
+                        <span className="text-xs uppercase tracking-widest bg-accent/20 text-accent px-4 py-1.5 rounded-full border border-accent/30">Playoff</span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="flex-1 text-center space-y-1 rounded-md bg-muted/50 p-3 md:p-4">
+                          {pm.seed1 ? <p className="text-accent font-mono text-xs">Seed #{pm.seed1}</p> : null}
+                          <p className="font-display text-lg md:text-xl text-foreground">{pm.pair1?.player1.name}</p>
+                          <p className="font-display text-lg md:text-xl text-foreground">{pm.pair1?.player2.name}</p>
+                        </div>
+                        <div className="font-display text-2xl md:text-3xl text-accent">VS</div>
+                        <div className="flex-1 text-center space-y-1 rounded-md bg-muted/50 p-3 md:p-4">
+                          {pm.seed2 ? <p className="text-accent font-mono text-xs">Seed #{pm.seed2}</p> : null}
+                          <p className="font-display text-lg md:text-xl text-foreground">{pm.pair2?.player1.name}</p>
+                          <p className="font-display text-lg md:text-xl text-foreground">{pm.pair2?.player2.name}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
           <PlayoffBracket
             playoffMatches={state.playoffMatches}
-            onStart={startPlayoffMatch}
             onComplete={completePlayoffMatch}
             isAdmin={isAdmin}
           />
@@ -388,67 +422,71 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
       {/* Session export panel (admin) */}
       {showExport && isAdmin && <SessionExport state={state} />}
 
-      {/* Courts */}
-      <div className={`flex flex-col ${!courtFilter ? "md:flex-row" : ""} gap-6`}>
-        {showCourt1 && <CourtCard courtNum={1} match={court1Match} totalGames={totalGames} onFinish={setFinishingMatch} onSkip={(m) => skipMatch(m.id)} isAdmin={isAdmin} />}
-        {showCourt2 && <CourtCard courtNum={2} match={court2Match} totalGames={totalGames} onFinish={setFinishingMatch} onSkip={(m) => skipMatch(m.id)} isAdmin={isAdmin} />}
-      </div>
-
-      {/* Up Next */}
-      {upNextMatches.length > 0 && (
-        <div className="rounded-lg border border-border bg-card p-4 md:p-6 space-y-3">
-          <h3 className="font-display text-xl text-accent">Up Next</h3>
-          {upNextMatches.map((m) => (
-            <div key={m.id} className="flex items-center gap-3 text-base text-foreground/80 border-l-2 border-primary/30 pl-4 py-2">
-              {m.gameNumber && <span className="text-accent font-display text-lg">#{m.gameNumber}</span>}
-              <span className="flex flex-wrap items-center gap-1.5">
-                {renderPlayerName(m.pair1.player1.name, m.pair1.player1.id, m.id)}
-                <span>&</span>
-                {renderPlayerName(m.pair1.player2.name, m.pair1.player2.id, m.id)}
-                <span className="text-muted-foreground mx-2">vs</span>
-                {renderPlayerName(m.pair2.player1.name, m.pair2.player1.id, m.id)}
-                <span>&</span>
-                {renderPlayerName(m.pair2.player2.name, m.pair2.player2.id, m.id)}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* On Deck */}
-      {onDeckMatches.length > 0 && (
-        <div className="rounded-lg border border-accent/20 bg-accent/5 p-4 md:p-6 space-y-3">
-          <h3 className="font-display text-xl text-accent">🏓 On Deck — Get Ready!</h3>
-          {onDeckMatches.map((m) => (
-            <div key={m.id} className="flex items-center gap-3 text-base text-foreground/80 border-l-2 border-accent/30 pl-4 py-2">
-              {m.gameNumber && <span className="text-accent font-display text-lg">#{m.gameNumber}</span>}
-              <span>
-                {m.pair1.player1.name} & {m.pair1.player2.name}
-                <span className="text-muted-foreground mx-2">vs</span>
-                {m.pair2.player1.name} & {m.pair2.player2.name}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* All Pairs */}
-      {allUniquePairs.length > 0 && (
-        <div className="rounded-lg border border-border bg-card p-4 md:p-6 space-y-3">
-          <div className="flex items-center gap-2">
-            <Users className="w-5 h-5 text-accent" />
-            <h3 className="font-display text-xl text-accent">All Pairs</h3>
+      {/* Courts — hide during playoffs */}
+      {!state.playoffsStarted && (
+        <>
+          <div className={`flex flex-col ${!courtFilter ? "md:flex-row" : ""} gap-6`}>
+            {showCourt1 && <CourtCard courtNum={1} match={court1Match} totalGames={totalGames} onFinish={setFinishingMatch} onSkip={(m) => skipMatch(m.id)} isAdmin={isAdmin} />}
+            {showCourt2 && <CourtCard courtNum={2} match={court2Match} totalGames={totalGames} onFinish={setFinishingMatch} onSkip={(m) => skipMatch(m.id)} isAdmin={isAdmin} />}
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {allUniquePairs.map((pair, i) => (
-              <div key={i} className="rounded-md border border-border/60 bg-muted/30 px-4 py-3 text-center">
-                <p className="font-display text-base text-foreground">{pair.player1}</p>
-                <p className="text-xs text-muted-foreground my-0.5">&</p>
-                <p className="font-display text-base text-foreground">{pair.player2}</p>
+
+          {/* Up Next */}
+          {upNextMatches.length > 0 && (
+            <div className="rounded-lg border border-border bg-card p-4 md:p-6 space-y-3">
+              <h3 className="font-display text-xl text-accent">Up Next</h3>
+              {upNextMatches.map((m) => (
+                <div key={m.id} className="flex items-center gap-3 text-base text-foreground/80 border-l-2 border-primary/30 pl-4 py-2">
+                  {m.gameNumber && <span className="text-accent font-display text-lg">#{m.gameNumber}</span>}
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    {renderPlayerName(m.pair1.player1.name, m.pair1.player1.id, m.id)}
+                    <span>&</span>
+                    {renderPlayerName(m.pair1.player2.name, m.pair1.player2.id, m.id)}
+                    <span className="text-muted-foreground mx-2">vs</span>
+                    {renderPlayerName(m.pair2.player1.name, m.pair2.player1.id, m.id)}
+                    <span>&</span>
+                    {renderPlayerName(m.pair2.player2.name, m.pair2.player2.id, m.id)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* On Deck */}
+          {onDeckMatches.length > 0 && (
+            <div className="rounded-lg border border-accent/20 bg-accent/5 p-4 md:p-6 space-y-3">
+              <h3 className="font-display text-xl text-accent">🏓 On Deck — Get Ready!</h3>
+              {onDeckMatches.map((m) => (
+                <div key={m.id} className="flex items-center gap-3 text-base text-foreground/80 border-l-2 border-accent/30 pl-4 py-2">
+                  {m.gameNumber && <span className="text-accent font-display text-lg">#{m.gameNumber}</span>}
+                  <span>
+                    {m.pair1.player1.name} & {m.pair1.player2.name}
+                    <span className="text-muted-foreground mx-2">vs</span>
+                    {m.pair2.player1.name} & {m.pair2.player2.name}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* All Pairs */}
+          {allUniquePairs.length > 0 && (
+            <div className="rounded-lg border border-border bg-card p-4 md:p-6 space-y-3">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-accent" />
+                <h3 className="font-display text-xl text-accent">All Pairs</h3>
               </div>
-            ))}
-          </div>
-        </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                {allUniquePairs.map((pair, i) => (
+                  <div key={i} className="rounded-md border border-border/60 bg-muted/30 px-4 py-3 text-center">
+                    <p className="font-display text-base text-foreground">{pair.player1}</p>
+                    <p className="text-xs text-muted-foreground my-0.5">&</p>
+                    <p className="font-display text-base text-foreground">{pair.player2}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Modals */}

@@ -800,7 +800,86 @@ export function useGameState() {
   }, [updateState]);
 
   const startPlayoffs = useCallback(() => {
-    updateState((s) => ({ ...s, playoffsStarted: true }));
+    updateState((s) => {
+      // Build pair standings from completed matches
+      const pairMap = new Map<string, { pair: Pair; wins: number; losses: number; gamesPlayed: number; winPct: number }>();
+      for (const match of s.matches.filter((m) => m.status === "completed")) {
+        const processPair = (pair: Pair, won: boolean) => {
+          const key = [pair.player1.id, pair.player2.id].sort().join("|||");
+          if (!pairMap.has(key)) {
+            pairMap.set(key, { pair, wins: 0, losses: 0, gamesPlayed: 0, winPct: 0 });
+          }
+          const st = pairMap.get(key)!;
+          st.gamesPlayed++;
+          if (won) st.wins++;
+          else st.losses++;
+          st.winPct = st.gamesPlayed > 0 ? st.wins / st.gamesPlayed : 0;
+        };
+        if (match.winner && match.loser) {
+          processPair(match.winner, true);
+          processPair(match.loser, false);
+        }
+      }
+
+      // B-beats-A and C-beats-B overrides
+      const bBeatAPairIds = new Set<string>();
+      const cBeatBPairIds = new Set<string>();
+      for (const match of s.matches) {
+        if (match.status !== "completed" || match.skillLevel !== "cross" || !match.winner || !match.loser) continue;
+        if (match.winner.skillLevel === "B" && match.loser.skillLevel === "A") {
+          bBeatAPairIds.add([match.winner.player1.id, match.winner.player2.id].sort().join("|||"));
+        }
+        if (match.winner.skillLevel === "C" && match.loser.skillLevel === "B") {
+          cBeatBPairIds.add([match.winner.player1.id, match.winner.player2.id].sort().join("|||"));
+        }
+      }
+
+      const allStandings = Array.from(pairMap.entries()).map(([key, v]) => ({ key, ...v }));
+      const byTier = (tier: SkillTier) => allStandings.filter((p) => p.pair.skillLevel === tier).sort((a, b) => b.winPct !== a.winPct ? b.winPct - a.winPct : b.wins - a.wins);
+
+      const aPairs = byTier("A");
+      const bPairsAll = byTier("B");
+      const cPairsAll = byTier("C");
+      const promotedB = bPairsAll.filter((p) => bBeatAPairIds.has(p.key));
+      const normalB = bPairsAll.filter((p) => !bBeatAPairIds.has(p.key));
+      const promotedC = cPairsAll.filter((p) => cBeatBPairIds.has(p.key));
+      const normalC = cPairsAll.filter((p) => !cBeatBPairIds.has(p.key));
+
+      const ordered = [...aPairs, ...promotedB, ...normalB, ...promotedC, ...normalC];
+      const top = ordered.slice(0, 8);
+
+      if (top.length < 2) return { ...s, playoffsStarted: true };
+
+      // Generate bracket
+      const seeds = top.map((ps, i) => ({ seed: i + 1, pair: ps.pair, winPct: ps.winPct }));
+      const playoffMatches: PlayoffMatch[] = [];
+      const numMatches = Math.floor(seeds.length / 2);
+      for (let i = 0; i < numMatches; i++) {
+        const s1 = seeds[i];
+        const s2 = seeds[seeds.length - 1 - i];
+        if (!s1 || !s2) continue;
+        playoffMatches.push({
+          id: generateId(), round: 1, seed1: s1.seed, seed2: s2.seed,
+          pair1: s1.pair, pair2: s2.pair, status: "pending",
+        });
+      }
+
+      // Auto-assign first 2 QF matches to courts (no player overlap)
+      const assignedPlayerIds = new Set<string>();
+      let courtNum = 1;
+      for (const pm of playoffMatches) {
+        if (courtNum > 2) break;
+        if (!pm.pair1 || !pm.pair2) continue;
+        const ids = [pm.pair1.player1.id, pm.pair1.player2.id, pm.pair2.player1.id, pm.pair2.player2.id];
+        if (ids.some((id) => assignedPlayerIds.has(id))) continue;
+        ids.forEach((id) => assignedPlayerIds.add(id));
+        pm.status = "playing";
+        (pm as any).court = courtNum;
+        courtNum++;
+      }
+
+      return { ...s, playoffsStarted: true, playoffMatches };
+    });
   }, [updateState]);
 
   // Remove player mid-session — also removes their pair and syncs
@@ -951,6 +1030,7 @@ export function useGameState() {
         if (pmIdx === -1) return s;
         const pm = s.playoffMatches[pmIdx];
         const winner = pm.pair1?.id === winnerPairId ? pm.pair1 : pm.pair2;
+        const freedCourt = (pm as any).court || null;
         const updated = [...s.playoffMatches];
         updated[pmIdx] = { ...pm, status: "completed", winner: winner || undefined };
         
@@ -972,6 +1052,26 @@ export function useGameState() {
                 status: "pending",
               });
             }
+          }
+        }
+
+        // Auto-assign next pending playoff match to the freed court
+        if (freedCourt) {
+          const playingPlayerIds = new Set<string>();
+          updated.filter((m) => m.status === "playing").forEach((m) => {
+            if (m.pair1) [m.pair1.player1.id, m.pair1.player2.id].forEach((id) => playingPlayerIds.add(id));
+            if (m.pair2) [m.pair2.player1.id, m.pair2.player2.id].forEach((id) => playingPlayerIds.add(id));
+          });
+
+          const nextPending = updated.find((m) => {
+            if (m.status !== "pending" || !m.pair1 || !m.pair2) return false;
+            const ids = [m.pair1.player1.id, m.pair1.player2.id, m.pair2.player1.id, m.pair2.player2.id];
+            return !ids.some((id) => playingPlayerIds.has(id));
+          });
+
+          if (nextPending) {
+            nextPending.status = "playing";
+            (nextPending as any).court = freedCourt;
           }
         }
         
