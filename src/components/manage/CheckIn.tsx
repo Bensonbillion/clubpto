@@ -119,15 +119,6 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
     ? state.roster.filter((p) => p.name.toLowerCase() !== vipDialogFor.toLowerCase()).map((p) => p.name)
     : [];
 
-  // Tier style helper — only used in admin mode
-  const getTierBadge = (tier: string) => {
-    const styles: Record<string, string> = {
-      A: "bg-yellow-500/15 border-yellow-500/40 text-yellow-400",
-      B: "bg-gray-300/15 border-gray-300/40 text-gray-300",
-      C: "bg-amber-700/15 border-amber-700/40 text-amber-600",
-    };
-    return styles[tier] || styles.C;
-  };
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -185,12 +176,6 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
               )}
               <p className="font-display text-xl text-foreground">{player.name}</p>
               
-              {/* Tier badge — admin only */}
-              {isAdmin && (
-                <span className={`inline-block mt-1.5 text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full border ${getTierBadge(player.skillLevel)}`}>
-                  {player.skillLevel}
-                </span>
-              )}
               
               <div className="mt-2.5 text-sm text-muted-foreground flex items-center justify-center gap-1.5">
                 {player.checkedIn ? (
