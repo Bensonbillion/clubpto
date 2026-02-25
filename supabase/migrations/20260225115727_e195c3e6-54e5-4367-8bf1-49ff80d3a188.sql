@@ -1,0 +1,1 @@
+UPDATE public.game_state SET state = '{"sessionConfig":{"startTime":"20:00","durationMinutes":85,"checkInLocked":false},"roster":[],"pairs":[],"matches":[],"gameHistory":[],"sessionStarted":false,"playoffsStarted":false,"totalScheduledGames":0,"playoffMatches":[],"fixedPairs":[]}'::jsonb, updated_at = now() WHERE id = 'current';
