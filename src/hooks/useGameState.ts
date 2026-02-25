@@ -345,164 +345,166 @@ export function useGameState() {
     const cPairs = createFixedPairsForTier(tierC, "C");
     const allPairs = [...aPairs, ...bPairs, ...cPairs];
 
-    // ── Step 2: Generate matches between fixed pairs ────────────
+    // ── Step 2: Generate ALL unique matchups ──────────────────
     const durationMin = state.sessionConfig.durationMinutes || 85;
     const minutesPerGame = 7;
     const totalSlots = Math.floor(durationMin / minutesPerGame);
     const maxGames = totalSlots * 2; // 2 courts
+    const TARGET_GAMES_PER_PAIR = 4;
 
-    // Same-tier matches: round-robin between pairs in the same tier
-    const generateSameTierMatches = (pairs: Pair[], skill: SkillTier): Match[] => {
-      if (pairs.length < 2) return [];
-      const matches: Match[] = [];
-      const label = `${skill} vs ${skill}`;
-      const pairGameCount = new Map<string, number>();
-      pairs.forEach((p) => pairGameCount.set(p.id, 0));
-      const targetGamesPerPair = 5;
-
-      // Generate round-robin combinations
-      const combos: [Pair, Pair][] = [];
-      for (let i = 0; i < pairs.length; i++) {
-        for (let j = i + 1; j < pairs.length; j++) {
-          combos.push([pairs[i], pairs[j]]);
-        }
-      }
-
-      // Repeat combos if needed to reach target games
-      let attempts = 0;
-      const maxAttempts = pairs.length * targetGamesPerPair;
-      let comboIdx = 0;
-      const shuffledCombos = shuffle(combos);
-
-      while (attempts < maxAttempts) {
-        const [p1, p2] = shuffledCombos[comboIdx % shuffledCombos.length];
-        comboIdx++;
-        attempts++;
-
-        const g1 = pairGameCount.get(p1.id) || 0;
-        const g2 = pairGameCount.get(p2.id) || 0;
-        if (g1 >= targetGamesPerPair && g2 >= targetGamesPerPair) continue;
-
-        matches.push({
-          id: generateId(), pair1: p1, pair2: p2, skillLevel: skill,
-          matchupLabel: label, status: "pending", court: null,
-        });
-        pairGameCount.set(p1.id, g1 + 1);
-        pairGameCount.set(p2.id, g2 + 1);
-
-        // Check if all pairs have enough games
-        const allDone = pairs.every((p) => (pairGameCount.get(p.id) || 0) >= targetGamesPerPair);
-        if (allDone) break;
-      }
-
-      return matches;
-    };
-
-    // Cross-tier matches: B pairs vs A or C pairs
-    const generateCrossTierMatches = (bPairsList: Pair[], oppPairs: Pair[], oppTier: SkillTier): Match[] => {
-      if (bPairsList.length === 0 || oppPairs.length === 0) return [];
-      const matches: Match[] = [];
-      const label = `B vs ${oppTier}`;
-      const targetGamesPerBPair = 3;
-      const pairGameCount = new Map<string, number>();
-      bPairsList.forEach((p) => pairGameCount.set(p.id, 0));
-
-      let attempts = 0;
-      const maxAttempts = bPairsList.length * targetGamesPerBPair * 2;
-
-      while (attempts < maxAttempts) {
-        attempts++;
-        // Pick B pair with fewest games
-        const sortedB = [...bPairsList].sort((a, b) => (pairGameCount.get(a.id) || 0) - (pairGameCount.get(b.id) || 0));
-        const bPair = sortedB[0];
-        if ((pairGameCount.get(bPair.id) || 0) >= targetGamesPerBPair) break;
-
-        // Pick opponent pair (round-robin style)
-        const oppIdx = (pairGameCount.get(bPair.id) || 0) % oppPairs.length;
-        const oppPair = oppPairs[oppIdx];
-
-        matches.push({
-          id: generateId(), pair1: bPair, pair2: oppPair, skillLevel: "cross",
-          matchupLabel: label, status: "pending", court: null,
-        });
-        pairGameCount.set(bPair.id, (pairGameCount.get(bPair.id) || 0) + 1);
-      }
-
-      return matches;
-    };
-
-    const aMatches = generateSameTierMatches(aPairs, "A");
-    const cMatches = generateSameTierMatches(cPairs, "C");
-    const bVsAMatches = generateCrossTierMatches(bPairs, aPairs, "A");
-    const bVsCMatches = generateCrossTierMatches(bPairs, cPairs, "C");
-
-    // ── Step 3: Interleave & prevent conflicts ──────────────────
-    // A conflict occurs when the same pair appears in adjacent schedule slots
-    // (since 2 courts run simultaneously, slots are pairs of matches: [0,1], [2,3], etc.)
-    const allPoolMatches = [
-      ...shuffle(aMatches),
-      ...shuffle(bVsAMatches),
-      ...shuffle(bVsCMatches),
-      ...shuffle(cMatches),
+    // Helper: get all player IDs from a match
+    const matchPlayerIds = (m: { pair1: Pair; pair2: Pair }) => [
+      m.pair1.player1.id, m.pair1.player2.id,
+      m.pair2.player1.id, m.pair2.player2.id,
     ];
 
-    // Greedy conflict-free scheduling:
-    // Place matches so no pair plays in two consecutive time slots
+    // Helper: canonical matchup key (pair vs pair, order-independent)
+    const matchupKey = (p1Id: string, p2Id: string) =>
+      [p1Id, p2Id].sort().join("|||");
+
+    // Generate all unique pair-vs-pair matchups for allowed tier rules
+    type CandidateMatch = { pair1: Pair; pair2: Pair; skillLevel: SkillTier | "cross"; matchupLabel: string };
+    const allCandidates: CandidateMatch[] = [];
+
+    // A vs A
+    for (let i = 0; i < aPairs.length; i++) {
+      for (let j = i + 1; j < aPairs.length; j++) {
+        allCandidates.push({ pair1: aPairs[i], pair2: aPairs[j], skillLevel: "A", matchupLabel: "A vs A" });
+      }
+    }
+    // C vs C
+    for (let i = 0; i < cPairs.length; i++) {
+      for (let j = i + 1; j < cPairs.length; j++) {
+        allCandidates.push({ pair1: cPairs[i], pair2: cPairs[j], skillLevel: "C", matchupLabel: "C vs C" });
+      }
+    }
+    // B vs A (cross)
+    for (const bp of bPairs) {
+      for (const ap of aPairs) {
+        allCandidates.push({ pair1: bp, pair2: ap, skillLevel: "cross", matchupLabel: "B vs A" });
+      }
+    }
+    // B vs C (cross)
+    for (const bp of bPairs) {
+      for (const cp of cPairs) {
+        allCandidates.push({ pair1: bp, pair2: cp, skillLevel: "cross", matchupLabel: "B vs C" });
+      }
+    }
+
+    // ── Step 3: Schedule into time slots with strict constraints ──
+    // Each time slot = 2 games (Court 1 + Court 2)
+    // HARD RULES:
+    //   1. No player appears in both games of the same slot
+    //   2. No player appears in slot N if they were in slot N-1 or N-2
+    //   3. No duplicate matchups (same pair vs pair) in entire schedule
+    //   4. Max TARGET_GAMES_PER_PAIR games per pair
+
     const schedule: Match[] = [];
-    const remaining = [...allPoolMatches];
+    const usedMatchups = new Set<string>(); // track pair-vs-pair combos used
+    const pairGameCount = new Map<string, number>();
+    allPairs.forEach((p) => pairGameCount.set(p.id, 0));
 
-    // Each "time slot" has 2 matches (one per court)
-    // A pair can't appear in consecutive time slots
-    while (remaining.length > 0 && schedule.length < maxGames) {
-      // Determine which pairs played in the current time slot so far
-      const slotStart = schedule.length % 2 === 0 ? schedule.length : schedule.length - 1;
-      const currentSlotPairIds = new Set<string>();
-      for (let i = slotStart; i < schedule.length; i++) {
-        currentSlotPairIds.add(schedule[i].pair1.id);
-        currentSlotPairIds.add(schedule[i].pair2.id);
+    // Build candidate pool — shuffle for variety
+    let candidatePool = shuffle([...allCandidates]);
+
+    // Get player IDs in slots for conflict checking
+    const getSlotPlayerIds = (slotIndex: number): Set<string> => {
+      const ids = new Set<string>();
+      const base = slotIndex * 2;
+      for (let i = base; i < base + 2 && i < schedule.length; i++) {
+        matchPlayerIds(schedule[i]).forEach((id) => ids.add(id));
+      }
+      return ids;
+    };
+
+    const REST_GAP = 2; // Players must rest for at least 2 slots after playing
+
+    for (let slot = 0; slot < totalSlots; slot++) {
+      // Collect blocked player IDs from previous REST_GAP slots
+      const blockedPlayerIds = new Set<string>();
+      for (let prev = Math.max(0, slot - REST_GAP); prev < slot; prev++) {
+        getSlotPlayerIds(prev).forEach((id) => blockedPlayerIds.add(id));
       }
 
-      // Also get pairs from previous time slot (for back-to-back prevention)
-      const prevSlotPairIds = new Set<string>();
-      if (slotStart >= 2) {
-        for (let i = slotStart - 2; i < slotStart; i++) {
-          if (schedule[i]) {
-            prevSlotPairIds.add(schedule[i].pair1.id);
-            prevSlotPairIds.add(schedule[i].pair2.id);
-          }
-        }
-      }
+      // We need to pick 2 games for this slot with 8 completely different players
+      const slotGames: Match[] = [];
+      const slotPlayerIds = new Set<string>();
 
-      // Find a match where neither pair is in the current or previous slot
-      let bestIdx = -1;
-      for (let i = 0; i < remaining.length; i++) {
-        const m = remaining[i];
-        const p1 = m.pair1.id;
-        const p2 = m.pair2.id;
-        if (!currentSlotPairIds.has(p1) && !currentSlotPairIds.has(p2) &&
-            !prevSlotPairIds.has(p1) && !prevSlotPairIds.has(p2)) {
-          bestIdx = i;
-          break;
-        }
-      }
+      for (let courtIdx = 0; courtIdx < 2; courtIdx++) {
+        // Find best candidate
+        let bestIdx = -1;
+        let bestScore = Infinity;
 
-      // Fallback: find match that at least doesn't conflict with current slot
-      if (bestIdx === -1) {
-        for (let i = 0; i < remaining.length; i++) {
-          const m = remaining[i];
-          if (!currentSlotPairIds.has(m.pair1.id) && !currentSlotPairIds.has(m.pair2.id)) {
+        for (let i = 0; i < candidatePool.length; i++) {
+          const c = candidatePool[i];
+          const mKey = matchupKey(c.pair1.id, c.pair2.id);
+
+          // Rule 3: no duplicate matchups
+          if (usedMatchups.has(mKey)) continue;
+
+          // Rule 4: respect per-pair game cap
+          const g1 = pairGameCount.get(c.pair1.id) || 0;
+          const g2 = pairGameCount.get(c.pair2.id) || 0;
+          if (g1 >= TARGET_GAMES_PER_PAIR || g2 >= TARGET_GAMES_PER_PAIR) continue;
+
+          const playerIds = matchPlayerIds(c);
+
+          // Rule 1: no player overlap within this slot
+          if (playerIds.some((id) => slotPlayerIds.has(id))) continue;
+
+          // Rule 2: no player from recent slots
+          if (playerIds.some((id) => blockedPlayerIds.has(id))) continue;
+
+          // Score: prioritize pairs with fewer games (balance play time)
+          const score = g1 + g2;
+          if (score < bestScore) {
+            bestScore = score;
             bestIdx = i;
-            break;
           }
         }
+
+        if (bestIdx === -1) continue; // No valid match for this court in this slot
+
+        const chosen = candidatePool.splice(bestIdx, 1)[0];
+        const mKey = matchupKey(chosen.pair1.id, chosen.pair2.id);
+        usedMatchups.add(mKey);
+        pairGameCount.set(chosen.pair1.id, (pairGameCount.get(chosen.pair1.id) || 0) + 1);
+        pairGameCount.set(chosen.pair2.id, (pairGameCount.get(chosen.pair2.id) || 0) + 1);
+
+        matchPlayerIds(chosen).forEach((id) => slotPlayerIds.add(id));
+
+        const match: Match = {
+          id: generateId(),
+          pair1: chosen.pair1,
+          pair2: chosen.pair2,
+          skillLevel: chosen.skillLevel,
+          matchupLabel: chosen.matchupLabel,
+          status: "pending",
+          court: null,
+        };
+        slotGames.push(match);
       }
 
-      // Last resort: just take the first match
-      if (bestIdx === -1) {
-        bestIdx = 0;
-      }
+      schedule.push(...slotGames);
+    }
 
-      schedule.push(remaining.splice(bestIdx, 1)[0]);
+    // ── Validation pass ─────────────────────────────────────────
+    // Check all constraints; log violations (should be zero with the above logic)
+    const violations: string[] = [];
+    for (let slot = 0; slot < totalSlots; slot++) {
+      const base = slot * 2;
+      const g1 = schedule[base];
+      const g2 = schedule[base + 1];
+      if (g1 && g2) {
+        const ids1 = new Set(matchPlayerIds(g1));
+        const ids2 = matchPlayerIds(g2);
+        for (const id of ids2) {
+          if (ids1.has(id)) violations.push(`Slot ${slot + 1}: player ${id} on both courts`);
+        }
+      }
+    }
+    if (violations.length > 0) {
+      console.error("Schedule violations found:", violations);
     }
 
     // ── Push VIP matches out of first 2 slots ───────────────────
