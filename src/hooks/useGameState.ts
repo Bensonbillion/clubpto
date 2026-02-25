@@ -107,15 +107,26 @@ export function useGameState() {
     if (savingRef.current) return;
     savingRef.current = true;
 
-    while (pendingRef.current) {
-      const toSave = pendingRef.current;
-      pendingRef.current = null;
-      await supabase
-        .from("game_state")
-        .upsert({ id: ROW_ID, state: JSON.parse(JSON.stringify(toSave)), updated_at: new Date().toISOString() });
+    try {
+      while (pendingRef.current) {
+        const toSave = pendingRef.current;
+        pendingRef.current = null;
+        const { error } = await supabase
+          .from("game_state")
+          .upsert({ id: ROW_ID, state: JSON.parse(JSON.stringify(toSave)), updated_at: new Date().toISOString() });
+        if (error) {
+          console.error("Failed to save game state:", error);
+          // Retry once after a short delay
+          await new Promise(r => setTimeout(r, 500));
+          const { error: retryError } = await supabase
+            .from("game_state")
+            .upsert({ id: ROW_ID, state: JSON.parse(JSON.stringify(toSave)), updated_at: new Date().toISOString() });
+          if (retryError) console.error("Retry also failed:", retryError);
+        }
+      }
+    } finally {
+      savingRef.current = false;
     }
-
-    savingRef.current = false;
   }, []);
 
   const updateState = useCallback(
