@@ -483,10 +483,15 @@ export function useGameState() {
 
     let candidatePool = shuffle([...allCandidates]);
 
+    // Track which matches belong to each slot (handles variable-size slots)
+    const slotBoundaries: number[] = []; // index into schedule where each slot starts
+
     const getSlotPlayerIds = (slotIndex: number): Set<string> => {
       const ids = new Set<string>();
-      const base = slotIndex * courtCount;
-      for (let i = base; i < base + courtCount && i < schedule.length; i++) {
+      if (slotIndex < 0 || slotIndex >= slotBoundaries.length) return ids;
+      const start = slotBoundaries[slotIndex];
+      const end = slotIndex + 1 < slotBoundaries.length ? slotBoundaries[slotIndex + 1] : schedule.length;
+      for (let i = start; i < end; i++) {
         matchPlayerIds(schedule[i]).forEach((id) => ids.add(id));
       }
       return ids;
@@ -547,6 +552,8 @@ export function useGameState() {
     };
 
     for (let slot = 0; slot < totalSlots; slot++) {
+      slotBoundaries.push(schedule.length);
+
       const blockedPlayerIds = new Set<string>();
       for (let prev = Math.max(0, slot - REST_GAP); prev < slot; prev++) {
         getSlotPlayerIds(prev).forEach((id) => blockedPlayerIds.add(id));
@@ -575,31 +582,82 @@ export function useGameState() {
       schedule.push(...slotGames);
     }
 
-    // ── Validation pass ─────────────────────────────────────────
-    const violations: string[] = [];
-    for (let slot = 0; slot < totalSlots; slot++) {
-      const base = slot * courtCount;
-      const slotMatches = schedule.slice(base, base + courtCount).filter(Boolean);
-      const allIds = new Set<string>();
-      for (const m of slotMatches) {
-        for (const id of matchPlayerIds(m)) {
-          if (allIds.has(id)) violations.push(`Slot ${slot + 1}: player ${id} on multiple courts`);
-          allIds.add(id);
-        }
-      }
-    }
-    if (violations.length > 0) {
-      console.error("Schedule violations found:", violations);
-    }
-
-    // ── Push VIP matches out of first 2 slots ───────────────────
+    // ── Push VIP matches out of first 2 slots (conflict-safe) ──
     const vipSlotSize = courtCount;
     for (let i = 0; i < Math.min(vipSlotSize * 2, schedule.length); i++) {
       if (matchHasVip(schedule[i])) {
-        const swapIdx = schedule.findIndex((m, idx) => idx >= vipSlotSize * 2 && !matchHasVip(m));
-        if (swapIdx !== -1) {
+        // Find a swap candidate that won't create a cross-court conflict
+        const iSlot = Math.floor(i / courtCount);
+        for (let swapIdx = vipSlotSize * 2; swapIdx < schedule.length; swapIdx++) {
+          if (matchHasVip(schedule[swapIdx])) continue;
+          const swapSlot = Math.floor(swapIdx / courtCount);
+
+          // Check: after swap, would slot `iSlot` have conflicts?
+          const slotIMatches = schedule.filter((_, idx) => Math.floor(idx / courtCount) === iSlot && idx !== i);
+          const slotIPlayerIds = new Set<string>();
+          slotIMatches.forEach((m) => matchPlayerIds(m).forEach((id) => slotIPlayerIds.add(id)));
+          const candidateForI = schedule[swapIdx];
+          if (matchPlayerIds(candidateForI).some((id) => slotIPlayerIds.has(id))) continue;
+
+          // Check: after swap, would slot `swapSlot` have conflicts?
+          const slotSwapMatches = schedule.filter((_, idx) => Math.floor(idx / courtCount) === swapSlot && idx !== swapIdx);
+          const slotSwapPlayerIds = new Set<string>();
+          slotSwapMatches.forEach((m) => matchPlayerIds(m).forEach((id) => slotSwapPlayerIds.add(id)));
+          const candidateForSwap = schedule[i];
+          if (matchPlayerIds(candidateForSwap).some((id) => slotSwapPlayerIds.has(id))) continue;
+
+          // Safe to swap
           [schedule[i], schedule[swapIdx]] = [schedule[swapIdx], schedule[i]];
+          break;
         }
+      }
+    }
+
+    // ── Post-generation validation pass ─────────────────────────
+    const validateSchedule = (sched: Match[]): string[] => {
+      const violations: string[] = [];
+      const slotCount = Math.ceil(sched.length / courtCount);
+      for (let slot = 0; slot < slotCount; slot++) {
+        const base = slot * courtCount;
+        const slotMatches = sched.slice(base, base + courtCount).filter(Boolean);
+        const allIds = new Set<string>();
+        for (const m of slotMatches) {
+          for (const id of matchPlayerIds(m)) {
+            if (allIds.has(id)) {
+              const player = roster.find((p) => p.id === id);
+              violations.push(`Slot ${slot + 1}: ${player?.name || id} on multiple courts`);
+            }
+            allIds.add(id);
+          }
+        }
+      }
+      return violations;
+    };
+
+    const violations = validateSchedule(schedule);
+    if (violations.length > 0) {
+      console.error("Schedule conflicts detected, attempting repair:", violations);
+      // Repair: for each conflicting slot, remove the later match and try to fill it with a non-conflicting one
+      const slotCount = Math.ceil(schedule.length / courtCount);
+      for (let slot = 0; slot < slotCount; slot++) {
+        const base = slot * courtCount;
+        const slotPlayerIds = new Set<string>();
+        for (let ci = base; ci < base + courtCount && ci < schedule.length; ci++) {
+          const pids = matchPlayerIds(schedule[ci]);
+          if (pids.some((id) => slotPlayerIds.has(id))) {
+            // Conflict — remove this match and push to end
+            const [conflicting] = schedule.splice(ci, 1);
+            schedule.push(conflicting);
+            ci--; // re-check this index
+          } else {
+            pids.forEach((id) => slotPlayerIds.add(id));
+          }
+        }
+      }
+      // Re-validate
+      const remaining = validateSchedule(schedule);
+      if (remaining.length > 0) {
+        console.error("Could not fully resolve conflicts:", remaining);
       }
     }
 
@@ -716,33 +774,62 @@ export function useGameState() {
       return currentMatches.length;
     })();
 
-    // Split: frozen portion + mutable portion
     const frozen = currentMatches.slice(0, freezeLine);
-    const mutable = currentMatches.slice(freezeLine);
+    const mutable = [...currentMatches.slice(freezeLine)];
 
-    // Interleave: put new pair's matches early in the mutable portion
-    const combined: Match[] = [];
-    let newIdx = 0;
-    let mutIdx = 0;
+    // Insert new matches into the mutable portion using slot-aware placement
+    // to avoid cross-court player conflicts
+    const combined = [...mutable];
+    const getMatchPlayerIds = (m: Match) => [
+      m.pair1.player1.id, m.pair1.player2.id, m.pair2.player1.id, m.pair2.player2.id,
+    ];
 
-    // Insert first new match within 2 slots
-    for (let slot = 0; slot < 2 && newIdx < newMatches.length; slot++) {
-      combined.push(newMatches[newIdx++]);
-    }
+    for (const nm of newMatches) {
+      const nmPlayerIds = getMatchPlayerIds(nm);
+      let inserted = false;
 
-    // Interleave remaining
-    while (mutIdx < mutable.length || newIdx < newMatches.length) {
-      // Add 2 existing, then 1 new to spread them out
-      for (let i = 0; i < 2 && mutIdx < mutable.length; i++) {
-        combined.push(mutable[mutIdx++]);
+      // Try to insert early, checking each slot for player conflicts
+      for (let insertPos = 0; insertPos <= combined.length; insertPos++) {
+        // Determine which slot this position belongs to (relative to frozen)
+        const absoluteIdx = frozen.length + insertPos;
+        const slot = Math.floor(absoluteIdx / courtCount);
+        const slotBase = slot * courtCount;
+
+        // Collect player IDs already in this slot
+        const slotPlayerIds = new Set<string>();
+        for (let si = slotBase; si < slotBase + courtCount; si++) {
+          if (si === absoluteIdx) continue; // Skip the position we're inserting at
+          const existingIdx = si - frozen.length;
+          let match: Match | undefined;
+          if (si < frozen.length) {
+            match = frozen[si];
+          } else if (existingIdx >= 0 && existingIdx < combined.length) {
+            match = combined[existingIdx];
+          }
+          if (match) {
+            getMatchPlayerIds(match).forEach((id) => slotPlayerIds.add(id));
+          }
+        }
+
+        // Also check frozen matches in this slot
+        for (let si = slotBase; si < slotBase + courtCount && si < frozen.length; si++) {
+          getMatchPlayerIds(frozen[si]).forEach((id) => slotPlayerIds.add(id));
+        }
+
+        if (!nmPlayerIds.some((id) => slotPlayerIds.has(id))) {
+          combined.splice(insertPos, 0, nm);
+          inserted = true;
+          break;
+        }
       }
-      if (newIdx < newMatches.length) {
-        combined.push(newMatches[newIdx++]);
+
+      // Fallback: append at end
+      if (!inserted) {
+        combined.push(nm);
       }
     }
 
     const result = [...frozen, ...combined];
-    // Renumber all games
     result.forEach((m, i) => { m.gameNumber = i + 1; });
     return result;
   }, []);
@@ -963,12 +1050,15 @@ export function useGameState() {
       ];
 
       const regenerated: Match[] = [];
+      const regenSlotBoundaries: number[] = [];
       const REST_GAP = 2;
 
       const getSlotPlayerIds = (slotIndex: number): Set<string> => {
         const ids = new Set<string>();
-        const base = slotIndex * courtCount;
-        for (let i = base; i < base + courtCount && i < regenerated.length; i++) {
+        if (slotIndex < 0 || slotIndex >= regenSlotBoundaries.length) return ids;
+        const start = regenSlotBoundaries[slotIndex];
+        const end = slotIndex + 1 < regenSlotBoundaries.length ? regenSlotBoundaries[slotIndex + 1] : regenerated.length;
+        for (let i = start; i < end; i++) {
           matchPlayerIds(regenerated[i]).forEach((id) => ids.add(id));
         }
         return ids;
@@ -1014,6 +1104,8 @@ export function useGameState() {
       };
 
       for (let slot = 0; slot < remainingSlots; slot++) {
+        regenSlotBoundaries.push(regenerated.length);
+
         const blockedPlayerIds = new Set<string>();
         for (let prev = Math.max(0, slot - REST_GAP); prev < slot; prev++) {
           getSlotPlayerIds(prev).forEach((id) => blockedPlayerIds.add(id));

@@ -296,6 +296,23 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
   /** Check if a match contains a newly added pair */
   const matchHasNewPair = (m: Match) => highlightPairIds.has(m.pair1.id) || highlightPairIds.has(m.pair2.id);
 
+  // Runtime guard: detect cross-court player conflicts in playing matches
+  useEffect(() => {
+    const playingMatches = state.matches.filter((m) => m.status === "playing");
+    if (playingMatches.length < 2) return;
+    const playerCourtMap = new Map<string, { name: string; court: number }>();
+    for (const m of playingMatches) {
+      const players = [m.pair1.player1, m.pair1.player2, m.pair2.player1, m.pair2.player2];
+      for (const p of players) {
+        const existing = playerCourtMap.get(p.id);
+        if (existing && existing.court !== m.court) {
+          toast.error(`⚠️ ${p.name} is on Court ${existing.court} AND Court ${m.court} simultaneously!`, { duration: 10000 });
+        }
+        if (!existing) playerCourtMap.set(p.id, { name: p.name, court: m.court! });
+      }
+    }
+  }, [state.matches]);
+
   const hasActiveMatches = state.matches.length > 0;
   const roundRobinInProgress = hasActiveMatches && !state.playoffsStarted;
 
