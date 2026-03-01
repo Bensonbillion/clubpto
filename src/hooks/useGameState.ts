@@ -61,6 +61,40 @@ function syncPairsToMatches(pairs: Pair[], matches: Match[]): Match[] {
   }));
 }
 
+/** Find the next pending match eligible for a freed court, enforcing:
+ *  - No player currently on another court
+ *  - Rest gap: no player who just completed a match (recentPlayerIds)
+ *  - 3-court routing: Court 1 = C-pool only, Courts 2-3 = AB-pool only */
+function findNextPendingForCourt(
+  matches: Match[],
+  freedCourt: number,
+  courtCount: number,
+  recentPlayerIds: Set<string>,
+): Match | undefined {
+  const busyPlayerIds = new Set<string>();
+  matches.filter((m) => m.status === "playing" && m.court !== freedCourt).forEach((m) => {
+    getMatchPlayerIds(m).forEach((id) => busyPlayerIds.add(id));
+  });
+
+  // Court pool filter for 3-court mode
+  const poolFilter: "C" | "AB" | null = courtCount === 3
+    ? (freedCourt === 1 ? "C" : "AB")
+    : null;
+
+  return matches.find((m) => {
+    if (m.status !== "pending") return false;
+    const playerIds = getMatchPlayerIds(m);
+    if (playerIds.some((id) => busyPlayerIds.has(id))) return false;
+    if (playerIds.some((id) => recentPlayerIds.has(id))) return false;
+    // Court pool routing
+    if (poolFilter) {
+      const matchPool = m.skillLevel === "C" ? "C" : "AB";
+      if (poolFilter !== matchPool) return false;
+    }
+    return true;
+  });
+}
+
 export function useGameState() {
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
   const [loading, setLoading] = useState(true);
@@ -687,21 +721,13 @@ export function useGameState() {
         const [skipped] = updatedMatches.splice(matchIdx, 1);
         updatedMatches.push(skipped);
 
-        // Find next pending match that doesn't conflict with any playing court
+        // Find next pending match respecting rest gap and court routing
         if (freedCourt) {
-          const busyPairIds = new Set<string>();
-          const busyPlayerIdsSet = new Set<string>();
-          updatedMatches.filter((m) => m.status === "playing" && m.court !== freedCourt).forEach((m) => {
-            busyPairIds.add(m.pair1.id);
-            busyPairIds.add(m.pair2.id);
-            getMatchPlayerIds(m).forEach((id) => busyPlayerIdsSet.add(id));
-          });
+          // Players from the skipped match need rest
+          const recentPlayerIds = new Set(getMatchPlayerIds(skipped));
+          const courtCount = s.sessionConfig.courtCount || 2;
 
-          const nextPending = updatedMatches.find(
-            (m) => m.status === "pending" &&
-            !busyPairIds.has(m.pair1.id) && !busyPairIds.has(m.pair2.id) &&
-            !getMatchPlayerIds(m).some((id) => busyPlayerIdsSet.has(id))
-          );
+          const nextPending = findNextPendingForCourt(updatedMatches, freedCourt, courtCount, recentPlayerIds);
           if (nextPending) {
             nextPending.status = "playing";
             nextPending.court = freedCourt;
@@ -920,21 +946,13 @@ export function useGameState() {
         // Sync pairs into all matches
         updatedMatches = syncPairsToMatches(updatedPairs, updatedMatches);
 
-        // Find next pending match that doesn't conflict with any other playing court
+        // Find next pending match respecting rest gap and court routing
         if (freedCourt) {
-          const busyPairIds = new Set<string>();
-          const busyPlayerIdsSet = new Set<string>();
-          updatedMatches.filter((m) => m.status === "playing" && m.court !== freedCourt).forEach((m) => {
-            busyPairIds.add(m.pair1.id);
-            busyPairIds.add(m.pair2.id);
-            getMatchPlayerIds(m).forEach((id) => busyPlayerIdsSet.add(id));
-          });
+          // Players from the just-completed match need rest
+          const recentPlayerIds = new Set([...winnerIds, ...loserIds]);
+          const courtCount = s.sessionConfig.courtCount || 2;
 
-          const nextPending = updatedMatches.find(
-            (m) => m.status === "pending" &&
-            !busyPairIds.has(m.pair1.id) && !busyPairIds.has(m.pair2.id) &&
-            !getMatchPlayerIds(m).some((id) => busyPlayerIdsSet.has(id))
-          );
+          const nextPending = findNextPendingForCourt(updatedMatches, freedCourt, courtCount, recentPlayerIds);
           if (nextPending) {
             nextPending.status = "playing";
             nextPending.court = freedCourt;
@@ -1080,7 +1098,7 @@ export function useGameState() {
     });
   }, [updateState]);
 
-  // Remove player mid-session — also removes their pair and syncs
+  // Remove player mid-session — also removes their pair, generates replacement matches for orphaned opponents
   // Returns { success, affected } for UI feedback
   const removePlayerMidSession = useCallback(
     (playerId: string): { success: boolean; affected: number } => {
@@ -1109,6 +1127,14 @@ export function useGameState() {
 
         const updatedPairs = s.pairs.filter((p) => !playerPairIds.has(p.id));
 
+        // Find orphaned opponents (pairs that lose games due to removal)
+        const orphanedPairIds = new Set<string>();
+        s.matches.forEach((m) => {
+          if (m.status !== "pending") return;
+          if (playerPairIds.has(m.pair1.id)) orphanedPairIds.add(m.pair2.id);
+          if (playerPairIds.has(m.pair2.id)) orphanedPairIds.add(m.pair1.id);
+        });
+
         // Count and remove pending matches that include this player's pair
         const beforeCount = s.matches.filter((m) => m.status === "pending").length;
         let updatedMatches = s.matches.filter((m) => {
@@ -1117,6 +1143,66 @@ export function useGameState() {
         });
         const afterCount = updatedMatches.filter((m) => m.status === "pending").length;
         const affected = beforeCount - afterCount;
+
+        // Generate replacement matches for orphaned pairs
+        const existingMatchups = new Set<string>();
+        updatedMatches.forEach((m) => {
+          existingMatchups.add([m.pair1.id, m.pair2.id].sort().join("|||"));
+        });
+
+        const courtCount = s.sessionConfig.courtCount || 2;
+        let gameNum = updatedMatches.length;
+        const replacementMatches: Match[] = [];
+
+        for (const orphanId of orphanedPairIds) {
+          if (playerPairIds.has(orphanId)) continue; // Skip if orphan is also being removed
+          const orphanPair = updatedPairs.find((p) => p.id === orphanId);
+          if (!orphanPair) continue;
+
+          // Count how many games this pair still has pending
+          const pendingGames = updatedMatches.filter(
+            (m) => m.status === "pending" && (m.pair1.id === orphanId || m.pair2.id === orphanId)
+          ).length;
+
+          // Find eligible opponents
+          const tier = orphanPair.skillLevel;
+          let opponents: Pair[];
+          if (tier === "B") {
+            opponents = courtCount === 3
+              ? updatedPairs.filter((p) => p.skillLevel === "A" && p.id !== orphanId)
+              : updatedPairs.filter((p) => (p.skillLevel === "A" || p.skillLevel === "C") && p.id !== orphanId);
+          } else {
+            opponents = updatedPairs.filter((p) => p.skillLevel === tier && p.id !== orphanId);
+          }
+
+          const targetTotal = 3; // Aim for minimum games
+          const needed = Math.max(0, targetTotal - pendingGames);
+          let added = 0;
+
+          for (const opp of shuffle(opponents)) {
+            if (added >= needed) break;
+            const mKey = [orphanId, opp.id].sort().join("|||");
+            if (existingMatchups.has(mKey)) continue;
+
+            const matchSkill = tier === "B" || opp.skillLevel !== tier ? "cross" as const : tier;
+            const label = tier === "B" ? `B vs ${opp.skillLevel}` : `${tier} vs ${tier}`;
+            gameNum++;
+            replacementMatches.push({
+              id: generateId(),
+              pair1: orphanPair,
+              pair2: opp,
+              skillLevel: matchSkill,
+              matchupLabel: label,
+              status: "pending",
+              court: null,
+              gameNumber: gameNum,
+            });
+            existingMatchups.add(mKey);
+            added++;
+          }
+        }
+
+        updatedMatches = [...updatedMatches, ...replacementMatches];
 
         // Sync remaining pairs
         updatedMatches = syncPairsToMatches(updatedPairs, updatedMatches);
