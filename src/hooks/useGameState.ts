@@ -1028,14 +1028,22 @@ export function useGameState() {
   }, [updateState]);
 
   // Remove player mid-session — also removes their pair and syncs
+  // Returns { success, affected } for UI feedback
   const removePlayerMidSession = useCallback(
-    (playerId: string) => {
+    (playerId: string): { success: boolean; affected: number } => {
+      let result = { success: false, affected: 0 };
       updateState((s) => {
         const player = s.roster.find((p) => p.id === playerId);
         if (!player) return s;
 
+        // Block if the player is currently playing
+        const isPlaying = s.matches.some(
+          (m) => m.status === "playing" && getMatchPlayerIds(m).includes(playerId)
+        );
+        if (isPlaying) return s;
+
         const updatedRoster = s.roster.map((p) =>
-          p.id === playerId ? { ...p, checkedIn: false } : p
+          p.id === playerId ? { ...p, checkedIn: false, isActive: false } : p
         );
 
         // Find and remove pairs containing this player
@@ -1048,15 +1056,20 @@ export function useGameState() {
 
         const updatedPairs = s.pairs.filter((p) => !playerPairIds.has(p.id));
 
-        // Remove all pending matches that include this player's pair
+        // Count and remove pending matches that include this player's pair
+        const beforeCount = s.matches.filter((m) => m.status === "pending").length;
         let updatedMatches = s.matches.filter((m) => {
           if (m.status !== "pending") return true;
           return !playerPairIds.has(m.pair1.id) && !playerPairIds.has(m.pair2.id);
         });
+        const afterCount = updatedMatches.filter((m) => m.status === "pending").length;
+        const affected = beforeCount - afterCount;
 
         // Sync remaining pairs
         updatedMatches = syncPairsToMatches(updatedPairs, updatedMatches);
         updatedMatches.forEach((m, i) => { m.gameNumber = i + 1; });
+
+        result = { success: true, affected };
 
         return {
           ...s,
@@ -1066,6 +1079,186 @@ export function useGameState() {
           totalScheduledGames: updatedMatches.length,
         };
       });
+      return result;
+    },
+    [updateState]
+  );
+
+  // Swap a player out of the session and replace with a new named player
+  // The new player inherits the old player's pair and remaining schedule
+  const swapPlayerMidSession = useCallback(
+    (oldPlayerId: string, newPlayerName: string, tier: SkillTier): { success: boolean; affected: number } => {
+      let result = { success: false, affected: 0 };
+      updateState((s) => {
+        const oldPlayer = s.roster.find((p) => p.id === oldPlayerId);
+        if (!oldPlayer) return s;
+
+        // Block if the old player is currently playing
+        const isPlaying = s.matches.some(
+          (m) => m.status === "playing" && getMatchPlayerIds(m).includes(oldPlayerId)
+        );
+        if (isPlaying) return s;
+
+        // Create the new player
+        const newPlayer: Player = {
+          id: generateId(),
+          name: newPlayerName,
+          skillLevel: tier,
+          checkedIn: true,
+          checkInTime: new Date().toISOString(),
+          wins: 0,
+          losses: 0,
+          gamesPlayed: 0,
+        };
+
+        // Find which pair contains the old player
+        const targetPair = s.pairs.find(
+          (p) => p.player1.id === oldPlayerId || p.player2.id === oldPlayerId
+        );
+        if (!targetPair) return s;
+
+        // Update the master pairs list — replace old player with new
+        const updatedPairs = s.pairs.map((pair) => {
+          if (pair.id !== targetPair.id) return pair;
+          if (pair.player1.id === oldPlayerId) return { ...pair, player1: newPlayer };
+          if (pair.player2.id === oldPlayerId) return { ...pair, player2: newPlayer };
+          return pair;
+        });
+
+        // Sync only non-completed matches
+        let affected = 0;
+        const updatedMatches = s.matches.map((m) => {
+          if (m.status === "completed") return m;
+          const pairMap = new Map(updatedPairs.map((p) => [p.id, p]));
+          const involves = m.pair1.id === targetPair.id || m.pair2.id === targetPair.id;
+          if (involves) affected++;
+          return {
+            ...m,
+            pair1: pairMap.get(m.pair1.id) || m.pair1,
+            pair2: pairMap.get(m.pair2.id) || m.pair2,
+          };
+        });
+
+        // Update roster: mark old player inactive, add new player
+        const updatedRoster = [
+          ...s.roster.map((p) =>
+            p.id === oldPlayerId ? { ...p, checkedIn: false, isActive: false } : p
+          ),
+          newPlayer,
+        ];
+
+        result = { success: true, affected };
+
+        return { ...s, roster: updatedRoster, pairs: updatedPairs, matches: updatedMatches };
+      });
+      return result;
+    },
+    [updateState]
+  );
+
+  // Add a player mid-session — creates pair with another unpaired same-tier player or solo
+  const addPlayerMidSession = useCallback(
+    (name: string, tier: SkillTier): { success: boolean; affected: number } => {
+      let result = { success: false, affected: 0 };
+      updateState((s) => {
+        // Check for duplicate name
+        if (s.roster.some((p) => p.name.toLowerCase() === name.toLowerCase())) return s;
+
+        const newPlayer: Player = {
+          id: generateId(),
+          name,
+          skillLevel: tier,
+          checkedIn: true,
+          checkInTime: new Date().toISOString(),
+          wins: 0,
+          losses: 0,
+          gamesPlayed: 0,
+        };
+
+        const updatedRoster = [...s.roster, newPlayer];
+
+        // Find an unpaired same-tier player (checked in but not in any active pair)
+        const pairedPlayerIds = new Set<string>();
+        s.pairs.forEach((p) => {
+          pairedPlayerIds.add(p.player1.id);
+          pairedPlayerIds.add(p.player2.id);
+        });
+
+        const unpairedSameTier = updatedRoster.filter(
+          (p) => p.checkedIn && p.skillLevel === tier && !pairedPlayerIds.has(p.id) && p.id !== newPlayer.id
+        );
+
+        if (unpairedSameTier.length === 0) {
+          // No partner available — add to roster but can't schedule yet
+          result = { success: true, affected: 0 };
+          return { ...s, roster: updatedRoster };
+        }
+
+        const partner = unpairedSameTier[0];
+        const newPair: Pair = {
+          id: generateId(),
+          player1: newPlayer,
+          player2: partner,
+          skillLevel: tier,
+          wins: 0,
+          losses: 0,
+        };
+
+        // Generate matches for the new pair against existing pairs
+        const courtCount = s.sessionConfig.courtCount || 2;
+        const newMatches: Match[] = [];
+        let gameNum = s.totalScheduledGames;
+
+        // Find opponent pairs
+        let opponents: Pair[];
+        if (tier === "B") {
+          if (courtCount === 3) {
+            opponents = s.pairs.filter((p) => p.skillLevel === "A");
+          } else {
+            opponents = s.pairs.filter((p) => p.skillLevel === "A" || p.skillLevel === "C");
+          }
+        } else {
+          opponents = s.pairs.filter((p) => p.skillLevel === tier);
+        }
+
+        // Existing matchup keys to avoid duplicates
+        const existingMatchups = new Set<string>();
+        s.matches.forEach((m) => {
+          existingMatchups.add([m.pair1.id, m.pair2.id].sort().join("|||"));
+        });
+
+        const targetGames = 4;
+        for (let g = 0; g < opponents.length && newMatches.length < targetGames; g++) {
+          const opp = opponents[g];
+          const mKey = [newPair.id, opp.id].sort().join("|||");
+          if (existingMatchups.has(mKey)) continue;
+
+          const matchSkill = tier === "B" || opp.skillLevel !== tier ? "cross" as const : tier;
+          const label = tier === "B" ? `B vs ${opp.skillLevel}` : `${tier} vs ${tier}`;
+          gameNum++;
+          newMatches.push({
+            id: generateId(),
+            pair1: newPair,
+            pair2: opp,
+            skillLevel: matchSkill,
+            matchupLabel: label,
+            status: "pending",
+            court: null,
+            gameNumber: gameNum,
+          });
+        }
+
+        result = { success: true, affected: newMatches.length };
+
+        return {
+          ...s,
+          roster: updatedRoster,
+          pairs: [...s.pairs, newPair],
+          matches: [...s.matches, ...newMatches],
+          totalScheduledGames: gameNum,
+        };
+      });
+      return result;
     },
     [updateState]
   );
@@ -1266,6 +1459,8 @@ export function useGameState() {
     resetSession,
     startPlayoffs,
     removePlayerMidSession,
+    swapPlayerMidSession,
+    addPlayerMidSession,
     correctGameResult,
     generatePlayoffMatches,
     startPlayoffMatch,
