@@ -121,19 +121,18 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
   const vipPlayer = vipDialogFor ? state.roster.find((p) => p.name.toLowerCase() === vipDialogFor.toLowerCase()) : null;
   const availableForVip = vipDialogFor && vipPlayer
     ? state.roster
-        .filter((p) => p.name.toLowerCase() !== vipDialogFor.toLowerCase() && p.skillLevel === vipPlayer.skillLevel)
+        .filter((p) => p.name.toLowerCase() !== vipDialogFor.toLowerCase() && p.skillLevel === vipPlayer.skillLevel && p.checkedIn)
         .map((p) => p.name)
     : [];
 
   // Detect odd player counts per tier
   const oddTiers = useMemo(() => {
     const tiers: SkillTier[] = ["A", "B", "C"];
-    const result: { tier: SkillTier; players: typeof checkedInPlayers; oddPlayer: typeof checkedInPlayers[0] }[] = [];
+    const result: { tier: SkillTier; players: typeof checkedInPlayers }[] = [];
     for (const tier of tiers) {
       const tierPlayers = checkedInPlayers.filter((p) => p.skillLevel === tier);
       if (tierPlayers.length > 0 && tierPlayers.length % 2 !== 0) {
-        // Last player in the shuffled list is the "odd one out"
-        result.push({ tier, players: tierPlayers, oddPlayer: tierPlayers[tierPlayers.length - 1] });
+        result.push({ tier, players: tierPlayers });
       }
     }
     return result;
