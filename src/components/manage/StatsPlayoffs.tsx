@@ -1,9 +1,10 @@
 import { useGameState } from "@/hooks/useGameState";
 import { getHeadToHead } from "@/hooks/useGameState";
-import { Player, Pair, PlayoffMatch, SkillTier } from "@/types/courtManager";
+import { Player, Pair, Match, PlayoffMatch, SkillTier } from "@/types/courtManager";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { Trophy, Medal } from "lucide-react";
+import { Trophy, Medal, Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import PlayoffBracket from "./PlayoffBracket";
 import SessionExport from "./SessionExport";
 
@@ -15,6 +16,7 @@ interface PlayoffPairSeed {
   seed: number;
   pair: Pair;
   winPct: number;
+  tiebreakerReason?: string;
 }
 
 interface PairStanding {
@@ -27,6 +29,7 @@ interface PairStanding {
   gamesPlayed: number;
   winPct: number;
   skillLevel: SkillTier;
+  tiebreakerReason?: string;
 }
 
 const TIER_LABELS: Record<string, string> = {
@@ -35,47 +38,107 @@ const TIER_LABELS: Record<string, string> = {
   C: "Tier C — Beginner",
 };
 
-const PairLeaderboard = ({ title, pairs }: { title: string; pairs: PairStanding[] }) => (
-  <div className="rounded-lg border border-border bg-card p-6 space-y-3">
-    <h4 className="font-display text-lg text-accent">{title}</h4>
-    {pairs.length === 0 ? (
-      <p className="text-sm text-muted-foreground text-center py-4">No games played yet.</p>
-    ) : (
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left">
-              <th className="py-2 pr-2 text-xs uppercase tracking-widest text-muted-foreground w-8">#</th>
-              <th className="py-2 pr-2 text-xs uppercase tracking-widest text-muted-foreground">Pair</th>
-              <th className="py-2 px-2 text-xs uppercase tracking-widest text-muted-foreground text-center">W</th>
-              <th className="py-2 px-2 text-xs uppercase tracking-widest text-muted-foreground text-center">L</th>
-              <th className="py-2 px-2 text-xs uppercase tracking-widest text-muted-foreground text-center">GP</th>
-              <th className="py-2 pl-2 text-xs uppercase tracking-widest text-muted-foreground text-right">Win%</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pairs.map((p, i) => (
-              <tr key={p.id} className="border-b border-border/50 hover:bg-muted/50">
-                <td className="py-2.5 pr-2">
-                  <span className="font-display text-accent">{i + 1}</span>
-                </td>
-                <td className="py-2.5 pr-2">
-                  <span className="font-display text-foreground">{p.player1Name} & {p.player2Name}</span>
-                </td>
-                <td className="py-2.5 px-2 text-center text-foreground">{p.wins}</td>
-                <td className="py-2.5 px-2 text-center text-foreground">{p.losses}</td>
-                <td className="py-2.5 px-2 text-center text-muted-foreground">{p.gamesPlayed}</td>
-                <td className="py-2.5 pl-2 text-right">
-                  <span className="font-mono text-accent">{(p.winPct * 100).toFixed(0)}%</span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+/** Annotate tiebreaker reasons for pairs with the same Win% */
+function annotateTiebreakers(pairs: PairStanding[], matches: Match[]): PairStanding[] {
+  if (pairs.length <= 1) return pairs;
+  const result = pairs.map(p => ({ ...p }));
+
+  for (let i = 0; i < result.length; i++) {
+    // Find group of pairs tied on Win%
+    let j = i;
+    while (j < result.length && Math.abs(result[j].winPct - result[i].winPct) < 0.001) j++;
+    const tiedGroup = result.slice(i, j);
+    if (tiedGroup.length <= 1) continue;
+
+    // For each consecutive pair in the sorted tied group, explain the tiebreaker
+    for (let k = i; k < j - 1; k++) {
+      const a = result[k];
+      const b = result[k + 1];
+      const h2h = getHeadToHead(a.pair.id, b.pair.id, matches);
+      if (h2h === 1) {
+        result[k].tiebreakerReason = result[k].tiebreakerReason || "Wins H2H tiebreaker";
+        result[k + 1].tiebreakerReason = result[k + 1].tiebreakerReason || "Loses H2H tiebreaker";
+      } else if (h2h === -1) {
+        // shouldn't happen since sort already ordered them, but safety
+        result[k].tiebreakerReason = result[k].tiebreakerReason || "Loses H2H tiebreaker";
+        result[k + 1].tiebreakerReason = result[k + 1].tiebreakerReason || "Wins H2H tiebreaker";
+      } else {
+        // H2H tied or never played — check games played
+        if (a.gamesPlayed !== b.gamesPlayed) {
+          result[k].tiebreakerReason = result[k].tiebreakerReason || "Wins on games played";
+          result[k + 1].tiebreakerReason = result[k + 1].tiebreakerReason || "Fewer games played";
+        } else if (a.wins !== b.wins) {
+          result[k].tiebreakerReason = result[k].tiebreakerReason || "Wins on total wins";
+          result[k + 1].tiebreakerReason = result[k + 1].tiebreakerReason || "Fewer total wins";
+        } else {
+          result[k].tiebreakerReason = result[k].tiebreakerReason || "Tied — same record";
+          result[k + 1].tiebreakerReason = result[k + 1].tiebreakerReason || "Tied — same record";
+        }
+      }
+    }
+    i = j - 1; // skip to end of tied group
+  }
+  return result;
+}
+
+const PairLeaderboard = ({ title, pairs, matches }: { title: string; pairs: PairStanding[]; matches: Match[] }) => {
+  const annotated = annotateTiebreakers(pairs, matches);
+  return (
+    <TooltipProvider>
+      <div className="rounded-lg border border-border bg-card p-6 space-y-3">
+        <h4 className="font-display text-lg text-accent">{title}</h4>
+        {annotated.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">No games played yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left">
+                  <th className="py-2 pr-2 text-xs uppercase tracking-widest text-muted-foreground w-8">#</th>
+                  <th className="py-2 pr-2 text-xs uppercase tracking-widest text-muted-foreground">Pair</th>
+                  <th className="py-2 px-2 text-xs uppercase tracking-widest text-muted-foreground text-center">W</th>
+                  <th className="py-2 px-2 text-xs uppercase tracking-widest text-muted-foreground text-center">L</th>
+                  <th className="py-2 px-2 text-xs uppercase tracking-widest text-muted-foreground text-center">GP</th>
+                  <th className="py-2 pl-2 text-xs uppercase tracking-widest text-muted-foreground text-right">Win%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {annotated.map((p, i) => (
+                  <tr key={p.id} className="border-b border-border/50 hover:bg-muted/50">
+                    <td className="py-2.5 pr-2">
+                      <span className="font-display text-accent">{i + 1}</span>
+                    </td>
+                    <td className="py-2.5 pr-2">
+                      <span className="font-display text-foreground">{p.player1Name} & {p.player2Name}</span>
+                      {p.tiebreakerReason && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="ml-1.5 inline-flex items-center">
+                              <Info className="w-3.5 h-3.5 text-muted-foreground/60 hover:text-accent cursor-help" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-xs max-w-[200px]">
+                            <p>Tied on W% — {p.tiebreakerReason.toLowerCase()}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </td>
+                    <td className="py-2.5 px-2 text-center text-foreground">{p.wins}</td>
+                    <td className="py-2.5 px-2 text-center text-foreground">{p.losses}</td>
+                    <td className="py-2.5 px-2 text-center text-muted-foreground">{p.gamesPlayed}</td>
+                    <td className="py-2.5 pl-2 text-right">
+                      <span className="font-mono text-accent">{(p.winPct * 100).toFixed(0)}%</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
-    )}
-  </div>
-);
+    </TooltipProvider>
+  );
+};
 
 const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
   const { state, checkedInPlayers, completedMatches, generatePlayoffMatches, startPlayoffMatch, completePlayoffMatch } = gameState;
@@ -195,12 +258,14 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
     // Strict priority: A → promoted B (beat A) → normal B → promoted C (beat B) → normal C
     const ordered: PairStanding[] = [...aPairs, ...promotedB, ...normalB, ...promotedC, ...normalC];
 
-    // Take top 8 pairs for playoff bracket
+    // Take top 8 pairs for playoff bracket, annotate tiebreakers
     const top = ordered.slice(0, 8);
-    const seeds: PlayoffPairSeed[] = top.map((ps, i) => ({
+    const annotatedTop = annotateTiebreakers(top, state.matches);
+    const seeds: PlayoffPairSeed[] = annotatedTop.map((ps, i) => ({
       seed: i + 1,
       pair: ps.pair,
       winPct: ps.winPct,
+      tiebreakerReason: ps.tiebreakerReason,
     }));
 
     setPlayoffSeeds(seeds);
@@ -270,9 +335,9 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
 
       {/* Pair Leaderboards by tier */}
       <div className="space-y-4">
-        <PairLeaderboard title="Standings — Tier A (Advanced)" pairs={aPairStandings} />
-        <PairLeaderboard title="Standings — Tier B (Intermediate)" pairs={bPairStandings} />
-        <PairLeaderboard title="Standings — Tier C (Beginner)" pairs={cPairStandings} />
+        <PairLeaderboard title="Standings — Tier A (Advanced)" pairs={aPairStandings} matches={state.matches} />
+        <PairLeaderboard title="Standings — Tier B (Intermediate)" pairs={bPairStandings} matches={state.matches} />
+        <PairLeaderboard title="Standings — Tier C (Beginner)" pairs={cPairStandings} matches={state.matches} />
       </div>
 
       {/* Playoff Section */}
@@ -311,6 +376,12 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
                           <span className="font-mono">{(s.winPct * 100).toFixed(0)}%</span>
                           <span>•</span>
                           <span className={tierColor}>Tier {s.pair.skillLevel}</span>
+                          {s.tiebreakerReason && (
+                            <>
+                              <span>•</span>
+                              <span className="italic text-muted-foreground/70">{s.tiebreakerReason}</span>
+                            </>
+                          )}
                         </div>
                       </div>
                       {s.seed <= 3 && (
