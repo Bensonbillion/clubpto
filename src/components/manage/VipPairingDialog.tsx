@@ -37,7 +37,7 @@ const VipPairingDialog = ({ open, onClose, onConfirm, vipName, availablePlayers 
             {vipName}'s Teammate
           </DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Pick a teammate for {vipName} or let the randomizer decide.
+            Pick a same-tier teammate for {vipName} or let the randomizer decide.
           </DialogDescription>
         </DialogHeader>
 

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { GameState, DEFAULT_STATE, Player, Pair, Match, GameHistory, PlayoffMatch, FixedPair, SkillTier } from "@/types/courtManager";
+import { GameState, DEFAULT_STATE, Player, Pair, Match, GameHistory, PlayoffMatch, FixedPair, SkillTier, OddPlayerDecision } from "@/types/courtManager";
 
 const VIP_NAMES = ["david", "benson", "albright"];
 function isVip(name: string) { return VIP_NAMES.includes(name.toLowerCase()); }
@@ -29,6 +29,23 @@ function getPairPlayerIds(pair: Pair): string[] {
 
 function getMatchPlayerIds(m: Match): string[] {
   return [...getPairPlayerIds(m.pair1), ...getPairPlayerIds(m.pair2)];
+}
+
+/** Head-to-head result between two pairs across completed matches.
+ *  Returns 1 if pairA beat pairB more often, -1 if pairB beat pairA, 0 if tied/never met. */
+export function getHeadToHead(pairAId: string, pairBId: string, matches: Match[]): number {
+  let aWins = 0;
+  let bWins = 0;
+  for (const m of matches) {
+    if (m.status !== "completed" || !m.winner || !m.loser) continue;
+    const ids = [m.pair1.id, m.pair2.id];
+    if (!ids.includes(pairAId) || !ids.includes(pairBId)) continue;
+    if (m.winner.id === pairAId) aWins++;
+    else if (m.winner.id === pairBId) bWins++;
+  }
+  if (aWins > bWins) return 1;
+  if (bWins > aWins) return -1;
+  return 0;
 }
 
 /** Single source of truth: push master pairs into every match reference */
@@ -274,6 +291,15 @@ export function useGameState() {
     const checkedIn = roster.filter((p) => p.checkedIn);
     if (checkedIn.length < 4) return;
 
+    // Handle odd player decisions
+    const decisions = state.oddPlayerDecisions || [];
+    const sitOutIds = new Set(decisions.filter((d) => d.decision === "sit_out").map((d) => d.playerId));
+    const crossPairDecisions = decisions.filter((d) => d.decision === "cross_pair");
+    const waitlistedIds = [...sitOutIds];
+
+    // Remove sit-out players from the active pool
+    const activePlayers = checkedIn.filter((p) => !sitOutIds.has(p.id));
+
     // Fetch pair history from last 2 weeks to avoid repeat pairings
     const twoWeeksAgo = new Date();
     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
@@ -289,10 +315,14 @@ export function useGameState() {
     const wasRecentlyPaired = (a: string, b: string) =>
       recentPairs.has([a, b].sort().join("|||"));
 
-    // Split by tier
-    const tierA = shuffle(checkedIn.filter((p) => p.skillLevel === "A"));
-    const tierB = shuffle(checkedIn.filter((p) => p.skillLevel === "B"));
-    const tierC = shuffle(checkedIn.filter((p) => p.skillLevel === "C"));
+    // Split by tier — cross-pair players join their target tier for pairing
+    const getEffectiveTier = (p: Player): SkillTier => {
+      const cpd = crossPairDecisions.find((d) => d.playerId === p.id);
+      return cpd?.crossPairTier || p.skillLevel;
+    };
+    const tierA = shuffle(activePlayers.filter((p) => getEffectiveTier(p) === "A"));
+    const tierB = shuffle(activePlayers.filter((p) => getEffectiveTier(p) === "B"));
+    const tierC = shuffle(activePlayers.filter((p) => getEffectiveTier(p) === "C"));
 
     // ── Step 1: Create FIXED pairs ──────────────────────────────
     const createFixedPairsForTier = (players: Player[], skill: SkillTier): Pair[] => {
@@ -361,7 +391,8 @@ export function useGameState() {
     const durationMin = state.sessionConfig.durationMinutes || 85;
     const minutesPerGame = 7;
     const totalSlots = Math.floor(durationMin / minutesPerGame);
-    const maxGames = totalSlots * 2; // 2 courts
+    const courtCount = state.sessionConfig.courtCount || 2;
+    const maxGames = totalSlots * courtCount;
     const TARGET_GAMES_PER_PAIR = 4;
 
     // Helper: get all player IDs from a match
@@ -375,143 +406,146 @@ export function useGameState() {
       [p1Id, p2Id].sort().join("|||");
 
     // Generate all unique pair-vs-pair matchups for allowed tier rules
-    type CandidateMatch = { pair1: Pair; pair2: Pair; skillLevel: SkillTier | "cross"; matchupLabel: string };
+    type CandidateMatch = { pair1: Pair; pair2: Pair; skillLevel: SkillTier | "cross"; matchupLabel: string; courtPool?: "C" | "AB" };
     const allCandidates: CandidateMatch[] = [];
 
     // A vs A
     for (let i = 0; i < aPairs.length; i++) {
       for (let j = i + 1; j < aPairs.length; j++) {
-        allCandidates.push({ pair1: aPairs[i], pair2: aPairs[j], skillLevel: "A", matchupLabel: "A vs A" });
+        allCandidates.push({ pair1: aPairs[i], pair2: aPairs[j], skillLevel: "A", matchupLabel: "A vs A", courtPool: "AB" });
       }
     }
     // C vs C
     for (let i = 0; i < cPairs.length; i++) {
       for (let j = i + 1; j < cPairs.length; j++) {
-        allCandidates.push({ pair1: cPairs[i], pair2: cPairs[j], skillLevel: "C", matchupLabel: "C vs C" });
+        allCandidates.push({ pair1: cPairs[i], pair2: cPairs[j], skillLevel: "C", matchupLabel: "C vs C", courtPool: "C" });
       }
     }
     // B vs A (cross)
     for (const bp of bPairs) {
       for (const ap of aPairs) {
-        allCandidates.push({ pair1: bp, pair2: ap, skillLevel: "cross", matchupLabel: "B vs A" });
+        allCandidates.push({ pair1: bp, pair2: ap, skillLevel: "cross", matchupLabel: "B vs A", courtPool: "AB" });
       }
     }
-    // B vs C (cross)
-    for (const bp of bPairs) {
-      for (const cp of cPairs) {
-        allCandidates.push({ pair1: bp, pair2: cp, skillLevel: "cross", matchupLabel: "B vs C" });
+    // B vs C (cross) — only in 2-court mode
+    if (courtCount === 2) {
+      for (const bp of bPairs) {
+        for (const cp of cPairs) {
+          allCandidates.push({ pair1: bp, pair2: cp, skillLevel: "cross", matchupLabel: "B vs C", courtPool: "C" });
+        }
       }
     }
 
     // ── Step 3: Schedule into time slots with strict constraints ──
-    // Each time slot = 2 games (Court 1 + Court 2)
-    // HARD RULES:
-    //   1. No player appears in both games of the same slot
-    //   2. No player appears in slot N if they were in slot N-1 or N-2
-    //   3. No duplicate matchups (same pair vs pair) in entire schedule
-    //   4. Max TARGET_GAMES_PER_PAIR games per pair
-
     const schedule: Match[] = [];
-    const usedMatchups = new Set<string>(); // track pair-vs-pair combos used
+    const usedMatchups = new Set<string>();
     const pairGameCount = new Map<string, number>();
     allPairs.forEach((p) => pairGameCount.set(p.id, 0));
 
-    // Build candidate pool — shuffle for variety
     let candidatePool = shuffle([...allCandidates]);
 
-    // Get player IDs in slots for conflict checking
     const getSlotPlayerIds = (slotIndex: number): Set<string> => {
       const ids = new Set<string>();
-      const base = slotIndex * 2;
-      for (let i = base; i < base + 2 && i < schedule.length; i++) {
+      const base = slotIndex * courtCount;
+      for (let i = base; i < base + courtCount && i < schedule.length; i++) {
         matchPlayerIds(schedule[i]).forEach((id) => ids.add(id));
       }
       return ids;
     };
 
-    const REST_GAP = 2; // Players must rest for at least 2 slots after playing
+    const REST_GAP = 2;
+
+    const pickBestCandidate = (
+      pool: CandidateMatch[],
+      slotPlayerIds: Set<string>,
+      blockedPlayerIds: Set<string>,
+      courtPoolFilter?: "C" | "AB"
+    ): number => {
+      let bestIdx = -1;
+      let bestScore = Infinity;
+
+      for (let i = 0; i < pool.length; i++) {
+        const c = pool[i];
+        if (courtPoolFilter && c.courtPool !== courtPoolFilter) continue;
+
+        const mKey = matchupKey(c.pair1.id, c.pair2.id);
+        if (usedMatchups.has(mKey)) continue;
+
+        const g1 = pairGameCount.get(c.pair1.id) || 0;
+        const g2 = pairGameCount.get(c.pair2.id) || 0;
+        if (g1 >= TARGET_GAMES_PER_PAIR || g2 >= TARGET_GAMES_PER_PAIR) continue;
+
+        const playerIds = matchPlayerIds(c);
+        if (playerIds.some((id) => slotPlayerIds.has(id))) continue;
+        if (playerIds.some((id) => blockedPlayerIds.has(id))) continue;
+
+        const score = g1 + g2;
+        if (score < bestScore) {
+          bestScore = score;
+          bestIdx = i;
+        }
+      }
+      return bestIdx;
+    };
+
+    const commitCandidate = (idx: number, slotPlayerIds: Set<string>): Match => {
+      const chosen = candidatePool.splice(idx, 1)[0];
+      const mKey = matchupKey(chosen.pair1.id, chosen.pair2.id);
+      usedMatchups.add(mKey);
+      pairGameCount.set(chosen.pair1.id, (pairGameCount.get(chosen.pair1.id) || 0) + 1);
+      pairGameCount.set(chosen.pair2.id, (pairGameCount.get(chosen.pair2.id) || 0) + 1);
+      matchPlayerIds(chosen).forEach((id) => slotPlayerIds.add(id));
+
+      return {
+        id: generateId(),
+        pair1: chosen.pair1,
+        pair2: chosen.pair2,
+        skillLevel: chosen.skillLevel,
+        matchupLabel: chosen.matchupLabel,
+        status: "pending",
+        court: null,
+      };
+    };
 
     for (let slot = 0; slot < totalSlots; slot++) {
-      // Collect blocked player IDs from previous REST_GAP slots
       const blockedPlayerIds = new Set<string>();
       for (let prev = Math.max(0, slot - REST_GAP); prev < slot; prev++) {
         getSlotPlayerIds(prev).forEach((id) => blockedPlayerIds.add(id));
       }
 
-      // We need to pick 2 games for this slot with 8 completely different players
       const slotGames: Match[] = [];
       const slotPlayerIds = new Set<string>();
 
-      for (let courtIdx = 0; courtIdx < 2; courtIdx++) {
-        // Find best candidate
-        let bestIdx = -1;
-        let bestScore = Infinity;
+      if (courtCount === 3) {
+        // 3-court mode: Court 1 = C only, Courts 2 & 3 = A/B only
+        const cIdx = pickBestCandidate(candidatePool, slotPlayerIds, blockedPlayerIds, "C");
+        if (cIdx !== -1) slotGames.push(commitCandidate(cIdx, slotPlayerIds));
 
-        for (let i = 0; i < candidatePool.length; i++) {
-          const c = candidatePool[i];
-          const mKey = matchupKey(c.pair1.id, c.pair2.id);
-
-          // Rule 3: no duplicate matchups
-          if (usedMatchups.has(mKey)) continue;
-
-          // Rule 4: respect per-pair game cap
-          const g1 = pairGameCount.get(c.pair1.id) || 0;
-          const g2 = pairGameCount.get(c.pair2.id) || 0;
-          if (g1 >= TARGET_GAMES_PER_PAIR || g2 >= TARGET_GAMES_PER_PAIR) continue;
-
-          const playerIds = matchPlayerIds(c);
-
-          // Rule 1: no player overlap within this slot
-          if (playerIds.some((id) => slotPlayerIds.has(id))) continue;
-
-          // Rule 2: no player from recent slots
-          if (playerIds.some((id) => blockedPlayerIds.has(id))) continue;
-
-          // Score: prioritize pairs with fewer games (balance play time)
-          const score = g1 + g2;
-          if (score < bestScore) {
-            bestScore = score;
-            bestIdx = i;
-          }
+        for (let courtIdx = 0; courtIdx < 2; courtIdx++) {
+          const abIdx = pickBestCandidate(candidatePool, slotPlayerIds, blockedPlayerIds, "AB");
+          if (abIdx !== -1) slotGames.push(commitCandidate(abIdx, slotPlayerIds));
         }
-
-        if (bestIdx === -1) continue; // No valid match for this court in this slot
-
-        const chosen = candidatePool.splice(bestIdx, 1)[0];
-        const mKey = matchupKey(chosen.pair1.id, chosen.pair2.id);
-        usedMatchups.add(mKey);
-        pairGameCount.set(chosen.pair1.id, (pairGameCount.get(chosen.pair1.id) || 0) + 1);
-        pairGameCount.set(chosen.pair2.id, (pairGameCount.get(chosen.pair2.id) || 0) + 1);
-
-        matchPlayerIds(chosen).forEach((id) => slotPlayerIds.add(id));
-
-        const match: Match = {
-          id: generateId(),
-          pair1: chosen.pair1,
-          pair2: chosen.pair2,
-          skillLevel: chosen.skillLevel,
-          matchupLabel: chosen.matchupLabel,
-          status: "pending",
-          court: null,
-        };
-        slotGames.push(match);
+      } else {
+        // 2-court mode: any matchup on any court
+        for (let courtIdx = 0; courtIdx < 2; courtIdx++) {
+          const idx = pickBestCandidate(candidatePool, slotPlayerIds, blockedPlayerIds);
+          if (idx !== -1) slotGames.push(commitCandidate(idx, slotPlayerIds));
+        }
       }
 
       schedule.push(...slotGames);
     }
 
     // ── Validation pass ─────────────────────────────────────────
-    // Check all constraints; log violations (should be zero with the above logic)
     const violations: string[] = [];
     for (let slot = 0; slot < totalSlots; slot++) {
-      const base = slot * 2;
-      const g1 = schedule[base];
-      const g2 = schedule[base + 1];
-      if (g1 && g2) {
-        const ids1 = new Set(matchPlayerIds(g1));
-        const ids2 = matchPlayerIds(g2);
-        for (const id of ids2) {
-          if (ids1.has(id)) violations.push(`Slot ${slot + 1}: player ${id} on both courts`);
+      const base = slot * courtCount;
+      const slotMatches = schedule.slice(base, base + courtCount).filter(Boolean);
+      const allIds = new Set<string>();
+      for (const m of slotMatches) {
+        for (const id of matchPlayerIds(m)) {
+          if (allIds.has(id)) violations.push(`Slot ${slot + 1}: player ${id} on multiple courts`);
+          allIds.add(id);
         }
       }
     }
@@ -520,9 +554,10 @@ export function useGameState() {
     }
 
     // ── Push VIP matches out of first 2 slots ───────────────────
-    for (let i = 0; i < Math.min(2, schedule.length); i++) {
+    const vipSlotSize = courtCount;
+    for (let i = 0; i < Math.min(vipSlotSize * 2, schedule.length); i++) {
       if (matchHasVip(schedule[i])) {
-        const swapIdx = schedule.findIndex((m, idx) => idx > 1 && !matchHasVip(m));
+        const swapIdx = schedule.findIndex((m, idx) => idx >= vipSlotSize * 2 && !matchHasVip(m));
         if (swapIdx !== -1) {
           [schedule[i], schedule[swapIdx]] = [schedule[swapIdx], schedule[i]];
         }
@@ -532,17 +567,12 @@ export function useGameState() {
     // Number games
     schedule.forEach((m, idx) => { m.gameNumber = idx + 1; });
 
-    // Auto-assign first 2 matches to courts
+    // Auto-assign first matches to courts
     const now = new Date().toISOString();
-    if (schedule.length >= 1) {
-      schedule[0].status = "playing";
-      schedule[0].court = 1;
-      schedule[0].startedAt = now;
-    }
-    if (schedule.length >= 2) {
-      schedule[1].status = "playing";
-      schedule[1].court = 2;
-      schedule[1].startedAt = now;
+    for (let c = 0; c < courtCount && c < schedule.length; c++) {
+      schedule[c].status = "playing";
+      schedule[c].court = c + 1;
+      schedule[c].startedAt = now;
     }
 
     // Save pairs to history
@@ -560,6 +590,7 @@ export function useGameState() {
       pairs: allPairs,
       matches: schedule,
       totalScheduledGames: schedule.length,
+      waitlistedPlayers: waitlistedIds,
     }));
   }, [state.roster, state.sessionConfig, updateState]);
 
@@ -651,20 +682,20 @@ export function useGameState() {
         const [skipped] = updatedMatches.splice(matchIdx, 1);
         updatedMatches.push(skipped);
 
-        // Find next pending match that doesn't conflict with the other court
+        // Find next pending match that doesn't conflict with any playing court
         if (freedCourt) {
-          const otherCourtMatch = updatedMatches.find(
-            (m) => m.status === "playing" && m.court !== freedCourt
-          );
-          const otherPairIds = new Set<string>();
-          if (otherCourtMatch) {
-            otherPairIds.add(otherCourtMatch.pair1.id);
-            otherPairIds.add(otherCourtMatch.pair2.id);
-          }
+          const busyPairIds = new Set<string>();
+          const busyPlayerIdsSet = new Set<string>();
+          updatedMatches.filter((m) => m.status === "playing" && m.court !== freedCourt).forEach((m) => {
+            busyPairIds.add(m.pair1.id);
+            busyPairIds.add(m.pair2.id);
+            getMatchPlayerIds(m).forEach((id) => busyPlayerIdsSet.add(id));
+          });
 
           const nextPending = updatedMatches.find(
             (m) => m.status === "pending" &&
-            !otherPairIds.has(m.pair1.id) && !otherPairIds.has(m.pair2.id)
+            !busyPairIds.has(m.pair1.id) && !busyPairIds.has(m.pair2.id) &&
+            !getMatchPlayerIds(m).some((id) => busyPlayerIdsSet.has(id))
           );
           if (nextPending) {
             nextPending.status = "playing";
@@ -677,6 +708,89 @@ export function useGameState() {
         updatedMatches.forEach((m) => { num++; m.gameNumber = num; });
 
         return { ...s, matches: updatedMatches };
+      });
+    },
+    [updateState]
+  );
+
+  // Swap two players between different pairs (same tier) — for pair editing
+  const swapPlayersInPairs = useCallback(
+    (pairAId: string, playerAId: string, pairBId: string, playerBId: string) => {
+      updateState((s) => {
+        const pairA = s.pairs.find((p) => p.id === pairAId);
+        const pairB = s.pairs.find((p) => p.id === pairBId);
+        if (!pairA || !pairB) return s;
+        if (pairA.skillLevel !== pairB.skillLevel) return s;
+
+        const playerA = pairA.player1.id === playerAId ? pairA.player1 : pairA.player2;
+        const playerB = pairB.player1.id === playerBId ? pairB.player1 : pairB.player2;
+
+        const updatedPairs = s.pairs.map((p) => {
+          if (p.id === pairAId) {
+            if (p.player1.id === playerAId) return { ...p, player1: playerB };
+            return { ...p, player2: playerB };
+          }
+          if (p.id === pairBId) {
+            if (p.player1.id === playerBId) return { ...p, player1: playerA };
+            return { ...p, player2: playerA };
+          }
+          return p;
+        });
+
+        const updatedMatches = syncPairsToMatches(updatedPairs, s.matches);
+        return { ...s, pairs: updatedPairs, matches: updatedMatches };
+      });
+    },
+    [updateState]
+  );
+
+  // Replace a player in their fixed pair across ALL non-completed matches (mid-session swap)
+  const replacePlayerInPair = useCallback(
+    (oldPlayerId: string, newPlayerId: string) => {
+      updateState((s) => {
+        const oldPlayer = s.roster.find((p) => p.id === oldPlayerId);
+        let newPlayer = s.roster.find((p) => p.id === newPlayerId);
+        if (!oldPlayer || !newPlayer) return s;
+
+        // Block if the old player is currently playing
+        const isPlaying = s.matches.some(
+          (m) => m.status === "playing" && getMatchPlayerIds(m).includes(oldPlayerId)
+        );
+        if (isPlaying) return s;
+
+        // Find which pair contains the old player
+        const targetPair = s.pairs.find(
+          (p) => p.player1.id === oldPlayerId || p.player2.id === oldPlayerId
+        );
+        if (!targetPair) return s;
+
+        // Update the master pairs list
+        const updatedPairs = s.pairs.map((pair) => {
+          if (pair.id !== targetPair.id) return pair;
+          if (pair.player1.id === oldPlayerId) return { ...pair, player1: newPlayer! };
+          if (pair.player2.id === oldPlayerId) return { ...pair, player2: newPlayer! };
+          return pair;
+        });
+
+        // Sync only non-completed matches
+        const updatedMatches = s.matches.map((m) => {
+          if (m.status === "completed") return m;
+          const pairMap = new Map(updatedPairs.map((p) => [p.id, p]));
+          return {
+            ...m,
+            pair1: pairMap.get(m.pair1.id) || m.pair1,
+            pair2: pairMap.get(m.pair2.id) || m.pair2,
+          };
+        });
+
+        // Mark old player as checked out, new player as checked in
+        const updatedRoster = s.roster.map((p) => {
+          if (p.id === oldPlayerId) return { ...p, checkedIn: false };
+          if (p.id === newPlayerId) return { ...p, checkedIn: true, checkInTime: new Date().toISOString() };
+          return p;
+        });
+
+        return { ...s, roster: updatedRoster, pairs: updatedPairs, matches: updatedMatches };
       });
     },
     [updateState]
@@ -748,20 +862,20 @@ export function useGameState() {
         // Sync pairs into all matches
         updatedMatches = syncPairsToMatches(updatedPairs, updatedMatches);
 
-        // Find next pending match that doesn't conflict with the other court
+        // Find next pending match that doesn't conflict with any other playing court
         if (freedCourt) {
-          const otherCourtMatch = updatedMatches.find(
-            (m) => m.status === "playing" && m.court !== freedCourt
-          );
-          const otherPairIds = new Set<string>();
-          if (otherCourtMatch) {
-            otherPairIds.add(otherCourtMatch.pair1.id);
-            otherPairIds.add(otherCourtMatch.pair2.id);
-          }
+          const busyPairIds = new Set<string>();
+          const busyPlayerIdsSet = new Set<string>();
+          updatedMatches.filter((m) => m.status === "playing" && m.court !== freedCourt).forEach((m) => {
+            busyPairIds.add(m.pair1.id);
+            busyPairIds.add(m.pair2.id);
+            getMatchPlayerIds(m).forEach((id) => busyPlayerIdsSet.add(id));
+          });
 
           const nextPending = updatedMatches.find(
             (m) => m.status === "pending" &&
-            !otherPairIds.has(m.pair1.id) && !otherPairIds.has(m.pair2.id)
+            !busyPairIds.has(m.pair1.id) && !busyPairIds.has(m.pair2.id) &&
+            !getMatchPlayerIds(m).some((id) => busyPlayerIdsSet.has(id))
           );
           if (nextPending) {
             nextPending.status = "playing";
@@ -788,6 +902,13 @@ export function useGameState() {
           gameHistory: [...s.gameHistory, historyEntry],
         };
       });
+    },
+    [updateState]
+  );
+
+  const setOddPlayerDecisions = useCallback(
+    (decisions: OddPlayerDecision[]) => {
+      updateState((s) => ({ ...s, oddPlayerDecisions: decisions }));
     },
     [updateState]
   );
@@ -847,7 +968,14 @@ export function useGameState() {
       }
 
       const allStandings = Array.from(pairMap.entries()).map(([key, v]) => ({ key, ...v }));
-      const byTier = (tier: SkillTier) => allStandings.filter((p) => p.pair.skillLevel === tier).sort((a, b) => b.winPct !== a.winPct ? b.winPct - a.winPct : b.wins - a.wins);
+      const byTier = (tier: SkillTier) => allStandings.filter((p) => p.pair.skillLevel === tier).sort((a, b) => {
+        if (b.winPct !== a.winPct) return b.winPct - a.winPct;
+        // Head-to-head tiebreaker
+        const h2h = getHeadToHead(a.pair.id, b.pair.id, s.matches);
+        if (h2h !== 0) return -h2h; // positive means a wins, so a should rank higher (lower index)
+        if (b.gamesPlayed !== a.gamesPlayed) return b.gamesPlayed - a.gamesPlayed;
+        return b.wins - a.wins;
+      });
 
       const aPairs = byTier("A");
       const bPairsAll = byTier("B");
@@ -1100,9 +1228,11 @@ export function useGameState() {
   const completedMatches = state.matches.filter((m) => m.status === "completed");
   const court1Match = playingMatches.find((m) => m.court === 1) || null;
   const court2Match = playingMatches.find((m) => m.court === 2) || null;
+  const court3Match = playingMatches.find((m) => m.court === 3) || null;
 
-  const upNextMatches = pendingMatches.slice(0, 2);
-  const onDeckMatches = pendingMatches.slice(2, 4);
+  const courtCount = state.sessionConfig.courtCount || 2;
+  const upNextMatches = pendingMatches.slice(0, courtCount);
+  const onDeckMatches = pendingMatches.slice(courtCount, courtCount * 2);
 
   const playingPlayerIds = playingMatches.flatMap((m) => getMatchPlayerIds(m));
   const waitingPlayers = checkedInPlayers.filter((p) => !playingPlayerIds.includes(p.id));
@@ -1112,6 +1242,7 @@ export function useGameState() {
     loading,
     setSessionConfig,
     setFixedPairs,
+    setOddPlayerDecisions,
     addPlayer,
     removePlayer,
     toggleSkillLevel,
@@ -1122,6 +1253,8 @@ export function useGameState() {
     generateFullSchedule,
     addLatePlayersToSchedule,
     swapPlayer,
+    swapPlayersInPairs,
+    replacePlayerInPair,
     skipMatch,
     completeMatch,
     startSession,
@@ -1138,6 +1271,7 @@ export function useGameState() {
     completedMatches,
     court1Match,
     court2Match,
+    court3Match,
     waitingPlayers,
     upNextMatches,
     onDeckMatches,

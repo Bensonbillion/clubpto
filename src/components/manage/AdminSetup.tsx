@@ -160,8 +160,29 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
             />
           </div>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Games are doubles (2v2) played to 7 points (~7 min each). {Math.floor((state.sessionConfig.durationMinutes || 85) / 7)} game slots per court, {Math.floor((state.sessionConfig.durationMinutes || 85) / 7) * 2} total across 2 courts.
+        <div>
+          <label className="text-sm uppercase tracking-widest text-muted-foreground mb-2 block">Courts</label>
+          <div className="flex gap-2">
+            {([2, 3] as const).map((count) => (
+              <button
+                key={count}
+                onClick={() => setSessionConfig({ courtCount: count })}
+                className={`px-5 py-2.5 rounded-lg border-2 font-display text-base min-h-[48px] transition-all ${
+                  (state.sessionConfig.courtCount || 2) === count
+                    ? "border-accent bg-accent/10 text-accent"
+                    : "border-border bg-muted text-muted-foreground hover:border-accent/40"
+                }`}
+              >
+                {count} Courts
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="text-sm text-muted-foreground sm:col-span-2">
+          Games are doubles (2v2) played to 7 points (~7 min each). {Math.floor((state.sessionConfig.durationMinutes || 85) / 7)} game slots per court, {Math.floor((state.sessionConfig.durationMinutes || 85) / 7) * (state.sessionConfig.courtCount || 2)} total across {state.sessionConfig.courtCount || 2} courts.
+          {(state.sessionConfig.courtCount || 2) === 3 && (
+            <span className="block mt-1 text-accent">3-court mode: Court 1 = Tier C only · Courts 2 & 3 = Tiers A & B · B never plays C.</span>
+          )}
         </p>
       </div>
 
