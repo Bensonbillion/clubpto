@@ -1,11 +1,13 @@
 import { useState, useRef, useMemo } from "react";
 import { useGameState } from "@/hooks/useGameState";
 import { Button } from "@/components/ui/button";
-import { Check, Clock, Swords, Lock, Unlock, UserPlus, X, Users, AlertTriangle } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Check, Clock, Swords, Lock, Unlock, UserPlus, X, Users, AlertTriangle, UserCheck, Ban } from "lucide-react";
 import VipPairingDialog, { isVipPlayer } from "./VipPairingDialog";
 import OddPlayerAlert from "./OddPlayerAlert";
 import PairEditor from "./PairEditor";
 import { FixedPair, SkillTier, OddPlayerDecision } from "@/types/courtManager";
+import { toast } from "sonner";
 
 interface CheckInProps {
   gameState: ReturnType<typeof useGameState>;
@@ -14,7 +16,7 @@ interface CheckInProps {
 }
 
 const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckInProps) => {
-  const { state, toggleCheckIn, checkedInPlayers, generateFullSchedule, addLatePlayersToSchedule, lockCheckIn, startSession, setOddPlayerDecisions, swapPlayersInPairs, swapWaitlistPlayer, lockPairs } = gameState;
+  const { state, toggleCheckIn, checkedInPlayers, generateFullSchedule, addLatePlayersToSchedule, handleLateCheckIn, closeCheckIn, lockCheckIn, startSession, setOddPlayerDecisions, swapPlayersInPairs, swapWaitlistPlayer, lockPairs } = gameState;
   const [generated, setGenerated] = useState(false);
   const [vipDialogFor, setVipDialogFor] = useState<string | null>(null);
   const [vipFixedPairs, setVipFixedPairs] = useState<FixedPair[]>([]);
@@ -22,7 +24,11 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
   const [showPasscodeModal, setShowPasscodeModal] = useState(false);
   const [passcodeInput, setPasscodeInput] = useState("");
   const [passcodeError, setPasscodeError] = useState(false);
+  const [lateVipPlayerId, setLateVipPlayerId] = useState<string | null>(null);
   const ADMIN_PASSCODE = "9999";
+
+  const sessionActive = state.matches.length > 0;
+  const checkInClosed = state.sessionConfig.checkInClosed;
 
   const formatTime = (iso: string | null) => {
     if (!iso) return "";
@@ -32,6 +38,12 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
   const handleCheckIn = (playerId: string) => {
     const player = state.roster.find((p) => p.id === playerId);
     if (!player) return;
+
+    // Block if check-in is closed and this is a late check-in
+    if (checkInClosed && !player.checkedIn) {
+      toast.error("Check-in is closed. No more players can be added.");
+      return;
+    }
 
     if (player.checkedIn) {
       toggleCheckIn(playerId);
@@ -44,8 +56,30 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
       return;
     }
 
+    // Check in the player
     toggleCheckIn(playerId);
 
+    // If session is already active, handle late arrival flow
+    if (sessionActive) {
+      if (isVipPlayer(player.name) && !vipsDismissedRef.current.has(player.name.toLowerCase())) {
+        // VIP late arrival — show partner selection dialog
+        setLateVipPlayerId(playerId);
+        setTimeout(() => setVipDialogFor(player.name), 100);
+      } else {
+        // Non-VIP late arrival — auto-pair or waitlist
+        setTimeout(() => {
+          const result = handleLateCheckIn(playerId);
+          if (result.paired) {
+            toast.success(`${player.name} + ${result.partnerName} added to schedule — first game in ~${result.estimatedMinutes || 7} minutes`);
+          } else {
+            toast.info(`${player.name} added to waitlist — waiting for a same-tier partner`);
+          }
+        }, 100);
+      }
+      return;
+    }
+
+    // Pre-session VIP handling
     if (isVipPlayer(player.name) && !vipsDismissedRef.current.has(player.name.toLowerCase())) {
       setTimeout(() => setVipDialogFor(player.name), 100);
     }
@@ -55,16 +89,39 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
     if (vipDialogFor) {
       vipsDismissedRef.current.add(vipDialogFor.toLowerCase());
     }
+    // If this was a late VIP, still handle late check-in without a partner
+    if (lateVipPlayerId && sessionActive) {
+      const player = state.roster.find((p) => p.id === lateVipPlayerId);
+      const result = handleLateCheckIn(lateVipPlayerId);
+      if (result.paired && player) {
+        toast.success(`${player.name} + ${result.partnerName} added to schedule — first game in ~${result.estimatedMinutes || 7} minutes`);
+      } else if (player) {
+        toast.info(`${player.name} added to waitlist — waiting for a same-tier partner`);
+      }
+    }
     setVipDialogFor(null);
+    setLateVipPlayerId(null);
   };
 
   const handleVipConfirm = (teammateName: string | null) => {
     if (vipDialogFor) {
       vipsDismissedRef.current.add(vipDialogFor.toLowerCase());
-      if (teammateName) {
+
+      if (lateVipPlayerId && sessionActive) {
+        // Late VIP — use handleLateCheckIn with fixed partner
+        const player = state.roster.find((p) => p.id === lateVipPlayerId);
+        const result = handleLateCheckIn(lateVipPlayerId, teammateName || undefined);
+        if (result.paired && player) {
+          toast.success(`${player.name} + ${result.partnerName} added to schedule — first game in ~${result.estimatedMinutes || 7} minutes`);
+        } else if (player) {
+          toast.info(`${player.name} added to waitlist — waiting for a same-tier partner`);
+        }
+        setLateVipPlayerId(null);
+      } else if (teammateName) {
+        // Pre-session VIP
         setVipFixedPairs((prev) => [
-          ...prev.filter((fp) => fp.player1Name.toLowerCase() !== vipDialogFor.toLowerCase()),
-          { player1Name: vipDialogFor, player2Name: teammateName },
+          ...prev.filter((fp) => fp.player1Name.toLowerCase() !== vipDialogFor!.toLowerCase()),
+          { player1Name: vipDialogFor!, player2Name: teammateName },
         ]);
       }
     }
@@ -121,7 +178,19 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
   const vipPlayer = vipDialogFor ? state.roster.find((p) => p.name.toLowerCase() === vipDialogFor.toLowerCase()) : null;
   const availableForVip = vipDialogFor && vipPlayer
     ? state.roster
-        .filter((p) => p.name.toLowerCase() !== vipDialogFor.toLowerCase() && p.skillLevel === vipPlayer.skillLevel)
+        .filter((p) => {
+          if (p.name.toLowerCase() === vipDialogFor.toLowerCase()) return false;
+          if (p.skillLevel !== vipPlayer.skillLevel) return false;
+          // If session is active, only show unpaired or waitlisted players
+          if (sessionActive) {
+            const isPaired = state.pairs.some(
+              (pair) => pair.player1.id === p.id || pair.player2.id === p.id
+            );
+            const isWaitlisted = (state.waitlistedPlayers || []).includes(p.id);
+            return !isPaired || isWaitlisted;
+          }
+          return true;
+        })
         .map((p) => p.name)
     : [];
 
@@ -144,6 +213,21 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
     setOddPlayerDecisions(decisions);
   };
 
+  // Pending check-ins by tier (players in roster but not checked in)
+  const pendingByTier = useMemo(() => {
+    const unchecked = state.roster.filter((p) => !p.checkedIn);
+    const a = unchecked.filter((p) => p.skillLevel === "A").length;
+    const b = unchecked.filter((p) => p.skillLevel === "B").length;
+    const c = unchecked.filter((p) => p.skillLevel === "C").length;
+    return { a, b, c, total: a + b + c };
+  }, [state.roster]);
+
+  // Waitlisted players
+  const waitlistedPlayers = useMemo(() => {
+    return (state.waitlistedPlayers || [])
+      .map((id) => state.roster.find((p) => p.id === id))
+      .filter(Boolean);
+  }, [state.waitlistedPlayers, state.roster]);
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -169,9 +253,62 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
         </div>
       </div>
 
+      {/* Pending check-ins indicator (admin only, session active) */}
+      {isAdmin && sessionActive && pendingByTier.total > 0 && (
+        <div className="rounded-lg border border-accent/30 bg-accent/5 p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <UserCheck className="w-5 h-5 text-accent" />
+            <span className="text-base text-foreground font-display">Pending Check-ins</span>
+          </div>
+          <div className="flex items-center gap-3">
+            {pendingByTier.a > 0 && <span className="text-sm bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded">{pendingByTier.a} A</span>}
+            {pendingByTier.b > 0 && <span className="text-sm bg-gray-400/20 text-gray-300 px-2 py-1 rounded">{pendingByTier.b} B</span>}
+            {pendingByTier.c > 0 && <span className="text-sm bg-orange-500/20 text-orange-400 px-2 py-1 rounded">{pendingByTier.c} C</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Waitlisted players indicator */}
+      {sessionActive && waitlistedPlayers.length > 0 && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Clock className="w-5 h-5 text-primary" />
+            <span className="text-base text-foreground font-display">Waitlisted</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {waitlistedPlayers.map((p) => (
+              <span key={p!.id} className="text-sm bg-primary/20 text-primary px-3 py-1 rounded">
+                {p!.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Close check-in toggle (admin, session active) */}
+      {isAdmin && sessionActive && (
+        <div className="rounded-lg border border-border bg-card p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Ban className="w-5 h-5 text-muted-foreground" />
+            <span className="text-base text-foreground">Close Check-in</span>
+            <span className="text-sm text-muted-foreground">— Stop accepting new players</span>
+          </div>
+          <Switch
+            checked={!!checkInClosed}
+            onCheckedChange={(checked) => closeCheckIn(checked)}
+          />
+        </div>
+      )}
+
       {isLocked && !isAdmin && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-center">
           <p className="text-base text-destructive">Check-in is closed.</p>
+        </div>
+      )}
+
+      {checkInClosed && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-center">
+          <p className="text-base text-destructive">Check-in is closed — no more players can be added.</p>
         </div>
       )}
 
@@ -183,10 +320,10 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
             <button
               key={player.id}
               onClick={() => handleCheckIn(player.id)}
-              disabled={isLocked && !isAdmin}
+              disabled={(isLocked && !isAdmin) || (checkInClosed && !player.checkedIn)}
               className={`
                 relative rounded-lg border-2 p-6 text-center transition-all duration-300 min-h-[100px]
-                ${isLocked && !isAdmin ? "cursor-not-allowed" : "active:scale-95"}
+                ${(isLocked && !isAdmin) || (checkInClosed && !player.checkedIn) ? "cursor-not-allowed" : "active:scale-95"}
                 ${
                   player.checkedIn
                     ? "bg-primary/20 border-accent shadow-lg shadow-primary/10"
