@@ -121,7 +121,7 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
   const vipPlayer = vipDialogFor ? state.roster.find((p) => p.name.toLowerCase() === vipDialogFor.toLowerCase()) : null;
   const availableForVip = vipDialogFor && vipPlayer
     ? state.roster
-        .filter((p) => p.name.toLowerCase() !== vipDialogFor.toLowerCase() && p.skillLevel === vipPlayer.skillLevel && p.checkedIn)
+        .filter((p) => p.name.toLowerCase() !== vipDialogFor.toLowerCase() && p.skillLevel === vipPlayer.skillLevel)
         .map((p) => p.name)
     : [];
 
