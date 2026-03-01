@@ -749,7 +749,60 @@ export function useGameState() {
     [updateState]
   );
 
-  // Replace a player in their fixed pair across ALL non-completed matches (mid-session swap)
+  // Swap a waitlisted player into a pair, displacing one player to the waitlist
+  const swapWaitlistPlayer = useCallback(
+    (pairId: string, displacedPlayerId: string, waitlistPlayer: Player) => {
+      updateState((s) => {
+        const pair = s.pairs.find((p) => p.id === pairId);
+        if (!pair) return s;
+        if (pair.skillLevel !== waitlistPlayer.skillLevel) return s;
+
+        // Block if displaced player is currently playing
+        const isPlaying = s.matches.some(
+          (m) => m.status === "playing" && getMatchPlayerIds(m).includes(displacedPlayerId)
+        );
+        if (isPlaying) return s;
+
+        // Update pair: replace displaced player with waitlist player
+        const updatedPlayer: Player = { ...waitlistPlayer, checkedIn: true, checkInTime: new Date().toISOString() };
+        const updatedPairs = s.pairs.map((p) => {
+          if (p.id !== pairId) return p;
+          if (p.player1.id === displacedPlayerId) return { ...p, player1: updatedPlayer };
+          if (p.player2.id === displacedPlayerId) return { ...p, player2: updatedPlayer };
+          return p;
+        });
+
+        // Sync only non-completed matches
+        const updatedMatches = s.matches.map((m) => {
+          if (m.status === "completed") return m;
+          const pairMap = new Map(updatedPairs.map((p) => [p.id, p]));
+          return {
+            ...m,
+            pair1: pairMap.get(m.pair1.id) || m.pair1,
+            pair2: pairMap.get(m.pair2.id) || m.pair2,
+          };
+        });
+
+        // Update waitlist: remove incoming player, add displaced player
+        const currentWaitlist = s.waitlistedPlayers || [];
+        const updatedWaitlist = [
+          ...currentWaitlist.filter((id) => id !== waitlistPlayer.id),
+          displacedPlayerId,
+        ];
+
+        return { ...s, pairs: updatedPairs, matches: updatedMatches, waitlistedPlayers: updatedWaitlist };
+      });
+    },
+    [updateState]
+  );
+
+  // Lock/unlock pairs
+  const lockPairs = useCallback(
+    () => {
+      updateState((s) => ({ ...s, pairsLocked: !s.pairsLocked }));
+    },
+    [updateState]
+  );
   const replacePlayerInPair = useCallback(
     (oldPlayerId: string, newPlayerId: string) => {
       updateState((s) => {
@@ -1452,6 +1505,8 @@ export function useGameState() {
     addLatePlayersToSchedule,
     swapPlayer,
     swapPlayersInPairs,
+    swapWaitlistPlayer,
+    lockPairs,
     replacePlayerInPair,
     skipMatch,
     completeMatch,
