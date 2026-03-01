@@ -29,6 +29,7 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
   const [newName, setNewName] = useState("");
   const [newSkill, setNewSkill] = useState<SkillTier>("C");
   const [confirmReset, setConfirmReset] = useState(false);
+  const [resetKeepRoster, setResetKeepRoster] = useState(false);
   const [bulkNames, setBulkNames] = useState("");
   const [bulkSkill, setBulkSkill] = useState<SkillTier>("C");
   const [showBulk, setShowBulk] = useState(false);
@@ -55,13 +56,16 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
     setBulkNames("");
   };
 
-  const handleReset = () => {
+  const handleReset = (keepRoster = false) => {
     if (confirmReset) {
-      resetSession();
+      resetSession(keepRoster);
       setConfirmReset(false);
+      setResetKeepRoster(false);
+      if (keepRoster) toast.success("Session reset — roster preserved");
     } else {
       setConfirmReset(true);
-      setTimeout(() => setConfirmReset(false), 3000);
+      setResetKeepRoster(keepRoster);
+      setTimeout(() => { setConfirmReset(false); setResetKeepRoster(false); }, 3000);
     }
   };
 
@@ -406,9 +410,20 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
         <Button onClick={startSession} disabled={state.sessionStarted || state.roster.length < 4} className="bg-primary text-primary-foreground hover:bg-primary/80 min-h-[52px] px-8 text-base">
           <Play className="w-5 h-5 mr-2" /> {state.sessionStarted ? "Session Active" : "Start Session"}
         </Button>
-        <Button onClick={handleReset} variant="outline" className={`min-h-[52px] px-8 text-base ${confirmReset ? "border-destructive text-destructive animate-pulse-soft" : "border-muted-foreground text-muted-foreground hover:border-destructive hover:text-destructive"}`}>
-          <RotateCcw className="w-5 h-5 mr-2" /> {confirmReset ? "Confirm Reset?" : "Reset Session"}
-        </Button>
+        {confirmReset ? (
+          <Button onClick={() => handleReset(resetKeepRoster)} variant="outline" className="min-h-[52px] px-8 text-base border-destructive text-destructive animate-pulse-soft">
+            <RotateCcw className="w-5 h-5 mr-2" /> Confirm Reset?
+          </Button>
+        ) : (
+          <>
+            <Button onClick={() => handleReset(true)} variant="outline" className="min-h-[52px] px-8 text-base border-muted-foreground text-muted-foreground hover:border-accent hover:text-accent">
+              <RotateCcw className="w-5 h-5 mr-2" /> Reset (Keep Roster)
+            </Button>
+            <Button onClick={() => handleReset(false)} variant="outline" className="min-h-[52px] px-8 text-base border-muted-foreground text-muted-foreground hover:border-destructive hover:text-destructive">
+              <RotateCcw className="w-5 h-5 mr-2" /> Full Reset
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );

@@ -1526,8 +1526,21 @@ export function useGameState() {
     }));
   }, [updateState]);
 
-  const resetSession = useCallback(() => {
-    updateState(() => ({ ...DEFAULT_STATE, playoffMatches: [], playoffsStarted: false }));
+  const resetSession = useCallback((keepRoster = false) => {
+    updateState((prev) => {
+      if (keepRoster && prev.roster.length > 0) {
+        const freshRoster = prev.roster.map(p => ({
+          ...p,
+          checkedIn: false,
+          checkInTime: null,
+          wins: 0,
+          losses: 0,
+          gamesPlayed: 0,
+        }));
+        return { ...DEFAULT_STATE, roster: freshRoster, playoffMatches: [], playoffsStarted: false };
+      }
+      return { ...DEFAULT_STATE, playoffMatches: [], playoffsStarted: false };
+    });
   }, [updateState]);
 
   const startPlayoffs = useCallback(() => {
