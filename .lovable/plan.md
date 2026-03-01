@@ -1,65 +1,148 @@
 
 
-## Plan: 8-Team Single-Elimination Playoff Bracket with Strict Tier Priority
+# Club PTO Court Manager — 6-Update Implementation Plan
 
-### What's Changing
+## Confirmed Understanding
 
-Currently the system seeds **4 pairs** into a 2-round bracket (Semi-Finals → Final). You want **8 pairs** in a 3-round bracket (Quarter-Finals → Semi-Finals → Final) with strict tier-priority seeding.
+The app is a tablet-first padel league manager with: Admin Setup (PIN-protected), Check-In, Court Display, and Stats & Playoffs (PIN-protected). All state lives in a single JSON blob in the `game_state` table. The core engine is `useGameState.ts` (1145 lines). Tier labels are hidden from players. Fixed pairs persist for the entire session.
 
-### Seeding Rules (Clarified)
+---
 
-The priority order is absolute — tier membership trumps win percentage:
-
-1. **All Tier A pairs** (sorted by Win% among themselves)
-2. **Tier B pairs that beat an A pair** in round-robin — promoted above normal B pairs
-3. **Normal Tier B pairs** (sorted by Win%)
-4. **Tier C pairs that beat a B pair** in round-robin — promoted above normal C pairs
-5. **Normal Tier C pairs** (sorted by Win%)
-
-Override logic works both ways:
-- A **B pair** that beats an **A pair** gets promoted above other B pairs (but still below all A pairs)
-- A **C pair** that beats a **B pair** gets promoted above other C pairs (but still below all B pairs)
-
-Top 8 from this ordered list enter the bracket.
-
-### Bracket Structure (NBA-Style, 8 Teams)
+## Dependency Graph & Build Order
 
 ```text
-Quarter-Finals          Semi-Finals          Final
-  #1 vs #8  ──┐
-               ├── Winner vs Winner ──┐
-  #4 vs #5  ──┘                       ├── Champion
-  #2 vs #7  ──┐                       │
-               ├── Winner vs Winner ──┘
-  #3 vs #6  ──┘
+Update 1 (VIP fix) ──────────────┐
+Update 3 (Waitlist / odd tier) ──┤
+Update 4 (Manual pair editing) ──┼──▶ Update 6 (3-court mode)
+Update 5 (H2H tiebreaker) ───────┘       │
+Update 2 (Mid-session roster) ────────────┘
 ```
 
-### Files to Modify
+**Optimal build order:**
+1. Update 1 — VIP pair selection fix (standalone, small)
+2. Update 5 — Head-to-head tiebreaker (standalone, small)
+3. Update 3 — Waitlist / odd-tier handling (adds admin decision UI)
+4. Update 4 — Manual pair editing (builds on pair creation flow)
+5. Update 2 — Mid-session roster management (depends on pair editing patterns)
+6. Update 6 — 3-court mode (touches scheduling, court display, matchup rules — largest change, depends on stable pair/scheduling logic)
 
-**1. `src/components/manage/StatsPlayoffs.tsx`** (seeding logic)
-- Change `handleGeneratePlayoffSeeds` to:
-  - Add B-beats-A override detection (scan completed cross-tier matches where winner is B and loser is A)
-  - Keep existing C-beats-B override detection
-  - Reorder priority: A → promoted-B (beat A) → normal-B → promoted-C (beat B) → normal-C
-  - Change `.slice(0, 4)` → `.slice(0, 8)` to take top 8 pairs
-- Update the descriptive text from "Top pairs" to reflect 8-team bracket
-- Update `disabled` check from `totalPairs < 2` to `totalPairs < 2` (keep minimum viable, bracket handles fewer gracefully)
+---
 
-**2. `src/hooks/useGameState.ts`** (`generatePlayoffMatches` function)
-- The existing code already handles arbitrary seed counts with NBA-style pairing (`#1 vs #last`, etc.) and auto-generates next rounds when a round completes — so it already supports 8 teams with 3 rounds (QF → SF → Final). **No changes needed here.**
+## Update 1: Fix VIP Pair Selection
 
-**3. `src/components/manage/PlayoffBracket.tsx`** (round labels)
-- Update `getRoundLabel` to handle 3 rounds: Round 1 = "Quarter-Finals", Round 2 = "Semi-Finals", Round 3 = "Final"
+**Problem:** VIP dialog shows ALL players instead of same-tier only. VIP's choice is stored but may not be honored if tier mismatch.
 
-### Technical Detail
+**Files affected:**
+- `src/components/manage/VipPairingDialog.tsx` — Filter `availablePlayers` by tier
+- `src/components/manage/CheckIn.tsx` — Pass the VIP's tier to the dialog; filter `availableForVip` by matching `skillLevel`
 
-The `generatePlayoffMatches` function in `useGameState.ts` already uses a generic loop:
-```
-for (let i = 0; i < numMatches; i++) {
-  seeds[i] vs seeds[seeds.length - 1 - i]
-}
-```
-With 8 seeds this produces 4 QF matches. The `completePlayoffMatch` function already auto-creates the next round when all matches in a round complete, pairing winners sequentially. So the bracket progression (4 QF → 2 SF → 1 Final) works automatically.
+**New code needed:** None (modification only)
 
-The only substantive changes are in the **seeding algorithm** (StatsPlayoffs) and **round labels** (PlayoffBracket).
+**Risks:** If a VIP's tier has only 1 player (the VIP themselves), no same-tier partners are available. Show a message and fall back to randomize.
+
+---
+
+## Update 5: Head-to-Head Tiebreaker in Playoff Seeding
+
+**Problem:** Current seeding sorts by Win% then total wins. No head-to-head check.
+
+**Files affected:**
+- `src/components/manage/StatsPlayoffs.tsx` — `buildAllPairStandings` sort comparator
+- `src/hooks/useGameState.ts` — `startPlayoffs()` sort comparator
+
+**New function needed:** `getHeadToHead(pairAId, pairBId, matches)` → returns `1 | -1 | 0` based on direct matchup results. Add to `useGameState.ts` as a utility.
+
+**Tiebreaker order (per spec):** Tier priority → Win% → Head-to-head → Point differential (not tracked yet, skip) → Total games played.
+
+**Risks:** Two pairs may never have played each other directly, in which case H2H is neutral (fall through to next tiebreaker).
+
+---
+
+## Update 3: Waitlist for Uneven Tier Check-ins
+
+**Problem:** If a tier has an odd number, one player silently gets no pair.
+
+**Files affected:**
+- `src/components/manage/CheckIn.tsx` — Show warning when any tier has odd count; show admin decision UI
+- `src/hooks/useGameState.ts` — `generateFullSchedule` needs to handle the admin's decision for odd players
+
+**New component:** `OddPlayerAlert` (inline in CheckIn or small component) — shows per-tier counts, flags odd tiers, lets admin choose: sit out, cross-pair with adjacent tier, or wait for late arrival.
+
+**New state:** `waitlistedPlayers: string[]` on `GameState` to track players sitting out by admin decision.
+
+**Risks:** Cross-pairing a C with a B changes matchup rules for that pair. Need to decide: does a B+C pair follow B rules or C rules? Recommendation: treat as B pair (plays A and C opponents).
+
+---
+
+## Update 4: Manual Pair Editing
+
+**Problem:** After randomization, admin can't override pairs.
+
+**Files affected:**
+- `src/components/manage/CheckIn.tsx` or new `PairEditor.tsx` — UI to view generated pairs and swap players within same tier
+- `src/hooks/useGameState.ts` — New `editPair(pairId, newPlayer1Id, newPlayer2Id)` function that updates master pairs + syncs all matches
+
+**New component:** `PairEditor` — shows all pairs grouped by tier, allows drag-or-tap to swap two players between pairs (same tier only). Shown after `generateFullSchedule` but before first match starts.
+
+**Risks:** Swapping players between pairs after schedule generation means all pending matches involving those pairs get updated player names. The existing `syncPairsToMatches` handles this. Must enforce same-tier constraint.
+
+---
+
+## Update 2: Mid-Session Roster Management
+
+**Problem:** Cannot swap, add, or remove players after session starts.
+
+**Files affected:**
+- `src/components/manage/CourtDisplay.tsx` — Add "Add Player" and "Swap Player" admin buttons
+- `src/hooks/useGameState.ts` — New `swapPlayerInPair(pairId, oldPlayerId, newPlayerId)` that replaces a player in their fixed pair across all pending/future matches. Enhance `addLatePlayersToSchedule` to handle single players.
+
+**Existing partial implementation:** `removePlayerMidSession` and `swapPlayer` already exist but `swapPlayer` only works on pending matches and requires a match ID. Need a pair-level swap that works globally.
+
+**New function:** `replacePlayerInPair(pairId, oldPlayerId, newPlayerId)` — finds the pair, replaces the player, calls `syncPairsToMatches` on all non-completed matches.
+
+**Risks:** Replacing a player in a pair that's currently playing should be blocked (only pending/future). Completed match history should retain original players. Need to add the replacement player to roster if not already there.
+
+---
+
+## Update 6: 3-Court Session Mode
+
+**Problem:** No support for 3 courts with dedicated tier routing.
+
+**Files affected:**
+- `src/types/courtManager.ts` — Add `courtCount: 2 | 3` to `SessionConfig`
+- `src/components/manage/AdminSetup.tsx` — Add 2-court / 3-court toggle
+- `src/hooks/useGameState.ts` — Major changes to `generateFullSchedule`:
+  - 3-court mode: Court 1 = C vs C only; Courts 2 & 3 = A vs A, B vs A (B never plays C)
+  - Slot = 3 games, 12 unique players per slot
+  - Rest gap still applies
+- `src/components/manage/CourtDisplay.tsx` — Render 3 court cards; derive `court3Match`
+- `src/hooks/useGameState.ts` — `completeMatch` / `skipMatch` / `startPlayoffs` must handle court 3
+
+**New derived state:** `court3Match` in return object.
+
+**Scheduling logic changes:**
+- Separate candidate pools: Court 1 candidates = C vs C only; Court 2+3 candidates = A vs A, B vs A
+- Per-slot: pick 1 C-vs-C for Court 1, then pick 2 non-overlapping A/B matches for Courts 2+3
+- B never plays C in 3-court mode (remove B vs C candidates entirely)
+
+**Risks:**
+- If few C players, Court 1 may run out of matches quickly → need graceful handling (court sits empty)
+- If B has no A opponents, B pairs have no matches → edge case warning
+- VIP delay logic must account for 3 courts
+- Playoff bracket unchanged (still top 8 pairs)
+
+---
+
+## Summary: Files Changed Per Update
+
+| File | U1 | U2 | U3 | U4 | U5 | U6 |
+|------|----|----|----|----|----|----|
+| `courtManager.ts` | | | ✓ | | | ✓ |
+| `useGameState.ts` | | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `CheckIn.tsx` | ✓ | | ✓ | ✓ | | |
+| `VipPairingDialog.tsx` | ✓ | | | | | |
+| `CourtDisplay.tsx` | | ✓ | | | | ✓ |
+| `AdminSetup.tsx` | | | | | | ✓ |
+| `StatsPlayoffs.tsx` | | | | | ✓ | |
+| New: `PairEditor.tsx` | | | | ✓ | | |
 
