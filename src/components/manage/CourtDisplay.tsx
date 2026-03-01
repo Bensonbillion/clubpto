@@ -2,13 +2,15 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useGameState } from "@/hooks/useGameState";
 import { Match, Player } from "@/types/courtManager";
-import { Trophy, Timer, UserCheck, ArrowRightLeft, Maximize, Minimize, SkipForward, Users, BarChart3, Clock, UserMinus, Swords, Share2, Settings2 } from "lucide-react";
+import { Trophy, Timer, UserCheck, ArrowRightLeft, Maximize, Minimize, SkipForward, Users, BarChart3, Clock, UserMinus, Swords, Share2, Settings2, Edit3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import GameHistoryLog from "./GameHistoryLog";
 import PlayoffBracket from "./PlayoffBracket";
 import SessionExport from "./SessionExport";
 import ManageRosterDrawer from "./ManageRosterDrawer";
+import PairEditor from "./PairEditor";
 
 interface CourtDisplayProps {
   gameState: ReturnType<typeof useGameState>;
@@ -227,12 +229,13 @@ const MiniStandings = ({ roster }: { roster: Player[] }) => {
 
 /* ── Main CourtDisplay ────────────────────────────────────────────── */
 const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDisplayProps) => {
-  const { state, court1Match, court2Match, court3Match, pendingMatches, upNextMatches, onDeckMatches, completeMatch, skipMatch, swapPlayer, checkedInPlayers, startPlayoffs, removePlayerMidSession, swapPlayerMidSession, addPlayerMidSession, replacePlayerInPair, startPlayoffMatch, completePlayoffMatch } = gameState;
+  const { state, court1Match, court2Match, court3Match, pendingMatches, upNextMatches, onDeckMatches, completeMatch, skipMatch, swapPlayer, checkedInPlayers, startPlayoffs, removePlayerMidSession, swapPlayerMidSession, addPlayerMidSession, replacePlayerInPair, startPlayoffMatch, completePlayoffMatch, swapPlayersInPairs, swapWaitlistPlayer, lockPairs } = gameState;
   const [showExport, setShowExport] = useState(false);
   const [finishingMatch, setFinishingMatch] = useState<Match | null>(null);
   const [showStandings, setShowStandings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showManageRoster, setShowManageRoster] = useState(false);
+  const [showEditPairs, setShowEditPairs] = useState(false);
   const [searchParams] = useSearchParams();
   const courtFilter = searchParams.get("court");
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -310,6 +313,13 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
             <Button variant="outline" size="default" onClick={() => setShowExport((v) => !v)}
               className={`border-accent/40 text-accent hover:bg-accent/10 min-h-[44px] px-4 text-sm ${showExport ? "bg-accent/10" : ""}`}>
               <Share2 className="w-4 h-4 mr-1.5" /> Export
+            </Button>
+          )}
+          {/* Edit Pairs (admin) */}
+          {isAdmin && roundRobinInProgress && (
+            <Button variant="outline" size="default" onClick={() => setShowEditPairs(true)}
+              className={`border-accent/40 text-accent hover:bg-accent/10 min-h-[44px] px-4 text-sm ${showEditPairs ? "bg-accent/10" : ""}`}>
+              <Edit3 className="w-4 h-4 mr-1.5" /> Edit Pairs
             </Button>
           )}
           {/* Manage Roster (admin) — unified drawer */}
@@ -488,6 +498,32 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
         onAddPlayer={(name, tier) => addPlayerMidSession(name, tier)}
         onRemovePlayer={(id) => removePlayerMidSession(id)}
       />
+
+      {/* Edit Pairs sheet */}
+      <Sheet open={showEditPairs} onOpenChange={setShowEditPairs}>
+        <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto bg-background">
+          <SheetHeader>
+            <SheetTitle className="font-display text-xl text-accent flex items-center gap-2">
+              <Edit3 className="w-5 h-5" /> Edit Pairs
+            </SheetTitle>
+          </SheetHeader>
+          <div className="mt-4">
+            <PairEditor
+              pairs={state.pairs}
+              waitlistedPlayers={state.roster.filter(
+                (p) => p.checkedIn && (state.waitlistedPlayers || []).includes(p.id)
+              )}
+              onSwapPlayers={swapPlayersInPairs}
+              onSwapWaitlistPlayer={swapWaitlistPlayer}
+              isAdmin={true}
+              sessionStarted={state.sessionStarted}
+              hasCompletedGames={state.matches.some((m) => m.status === "completed")}
+              onLockPairs={lockPairs}
+              pairsLocked={state.pairsLocked}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };

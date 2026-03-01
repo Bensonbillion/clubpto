@@ -14,7 +14,7 @@ interface CheckInProps {
 }
 
 const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckInProps) => {
-  const { state, toggleCheckIn, checkedInPlayers, generateFullSchedule, addLatePlayersToSchedule, lockCheckIn, startSession, setOddPlayerDecisions, swapPlayersInPairs } = gameState;
+  const { state, toggleCheckIn, checkedInPlayers, generateFullSchedule, addLatePlayersToSchedule, lockCheckIn, startSession, setOddPlayerDecisions, swapPlayersInPairs, swapWaitlistPlayer, lockPairs } = gameState;
   const [generated, setGenerated] = useState(false);
   const [vipDialogFor, setVipDialogFor] = useState<string | null>(null);
   const [vipFixedPairs, setVipFixedPairs] = useState<FixedPair[]>([]);
@@ -227,11 +227,19 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
       )}
 
       {/* Pair editor — shown after schedule generation, admin only */}
-      {isAdmin && state.pairs.length > 0 && state.matches.every((m) => m.status !== "completed") && (
+      {isAdmin && state.pairs.length > 0 && (
         <PairEditor
           pairs={state.pairs}
+          waitlistedPlayers={state.roster.filter(
+            (p) => p.checkedIn && (state.waitlistedPlayers || []).includes(p.id)
+          )}
           onSwapPlayers={swapPlayersInPairs}
+          onSwapWaitlistPlayer={swapWaitlistPlayer}
           isAdmin={isAdmin}
+          sessionStarted={state.sessionStarted}
+          hasCompletedGames={state.matches.some((m) => m.status === "completed")}
+          onLockPairs={lockPairs}
+          pairsLocked={state.pairsLocked}
         />
       )}
 

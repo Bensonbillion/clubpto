@@ -93,6 +93,7 @@ export interface GameState {
   fixedPairs?: FixedPair[];
   waitlistedPlayers?: string[];
   oddPlayerDecisions?: OddPlayerDecision[];
+  pairsLocked?: boolean;
 }
 
 export const DEFAULT_STATE: GameState = {
@@ -113,4 +114,5 @@ export const DEFAULT_STATE: GameState = {
   fixedPairs: [],
   waitlistedPlayers: [],
   oddPlayerDecisions: [],
+  pairsLocked: false,
 };
