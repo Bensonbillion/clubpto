@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useGameState } from "@/hooks/useGameState";
 import { Match, Player } from "@/types/courtManager";
-import { Trophy, Timer, UserCheck, ArrowRightLeft, Maximize, Minimize, SkipForward, Users, BarChart3, Clock, UserMinus, Swords, Share2, Settings2, Edit3 } from "lucide-react";
+import { Trophy, Timer, UserCheck, ArrowRightLeft, Maximize, Minimize, SkipForward, Users, BarChart3, Clock, UserMinus, Swords, Share2, Settings2, Edit3, RefreshCw, Lock, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -11,6 +11,7 @@ import PlayoffBracket from "./PlayoffBracket";
 import SessionExport from "./SessionExport";
 import ManageRosterDrawer from "./ManageRosterDrawer";
 import PairEditor from "./PairEditor";
+import { toast } from "sonner";
 
 interface CourtDisplayProps {
   gameState: ReturnType<typeof useGameState>;
@@ -229,17 +230,29 @@ const MiniStandings = ({ roster }: { roster: Player[] }) => {
 
 /* ── Main CourtDisplay ────────────────────────────────────────────── */
 const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDisplayProps) => {
-  const { state, court1Match, court2Match, court3Match, pendingMatches, upNextMatches, onDeckMatches, completeMatch, skipMatch, swapPlayer, checkedInPlayers, startPlayoffs, removePlayerMidSession, swapPlayerMidSession, addPlayerMidSession, replacePlayerInPair, startPlayoffMatch, completePlayoffMatch, swapPlayersInPairs, swapWaitlistPlayer, lockPairs } = gameState;
+  const { state, court1Match, court2Match, court3Match, pendingMatches, upNextMatches, onDeckMatches, completeMatch, skipMatch, swapPlayer, checkedInPlayers, startPlayoffs, removePlayerMidSession, swapPlayerMidSession, addPlayerMidSession, replacePlayerInPair, startPlayoffMatch, completePlayoffMatch, swapPlayersInPairs, swapWaitlistPlayer, lockPairs, regenerateRemainingSchedule } = gameState;
   const [showExport, setShowExport] = useState(false);
   const [finishingMatch, setFinishingMatch] = useState<Match | null>(null);
   const [showStandings, setShowStandings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showManageRoster, setShowManageRoster] = useState(false);
   const [showEditPairs, setShowEditPairs] = useState(false);
+  const [showRegenConfirm, setShowRegenConfirm] = useState(false);
   const [searchParams] = useSearchParams();
   const courtFilter = searchParams.get("court");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Track newly added pair IDs for highlight animation
+  const [highlightPairIds, setHighlightPairIds] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const newIds = state.newlyAddedPairIds || [];
+    if (newIds.length > 0) {
+      setHighlightPairIds(new Set(newIds));
+      const timer = setTimeout(() => setHighlightPairIds(new Set()), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [state.newlyAddedPairIds]);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -269,6 +282,7 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
 
   // Use fixed pairs from state instead of deriving from matches
   const allUniquePairs = state.pairs.map((p) => ({
+    id: p.id,
     player1: p.player1.name,
     player2: p.player2.name,
     tier: p.skillLevel,
@@ -279,8 +293,21 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
     return <SwapPlayerButton playerName={name} playerId={playerId} matchId={matchId} availablePlayers={availableForSwap} onSwap={swapPlayer} />;
   };
 
+  /** Check if a match contains a newly added pair */
+  const matchHasNewPair = (m: Match) => highlightPairIds.has(m.pair1.id) || highlightPairIds.has(m.pair2.id);
+
   const hasActiveMatches = state.matches.length > 0;
   const roundRobinInProgress = hasActiveMatches && !state.playoffsStarted;
+
+  // Pending check-in count
+  const pendingCheckInCount = state.roster.filter((p) => !p.checkedIn).length;
+  const waitlistCount = (state.waitlistedPlayers || []).length;
+
+  const handleRegenerate = () => {
+    regenerateRemainingSchedule();
+    setShowRegenConfirm(false);
+    toast.success("Remaining schedule regenerated");
+  };
 
   return (
     <div ref={containerRef} className={`animate-fade-up ${isFullscreen ? "bg-background min-h-screen p-3 md:p-6 flex flex-col justify-start gap-4 md:gap-5 overflow-y-auto" : "space-y-6 md:space-y-8"}`}>
@@ -291,6 +318,18 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
           {/* Session clock */}
           {hasActiveMatches && (
             <SessionClock startedAt={state.sessionConfig.sessionStartedAt} durationMinutes={state.sessionConfig.durationMinutes} />
+          )}
+          {/* Pending check-ins badge (admin) */}
+          {isAdmin && hasActiveMatches && pendingCheckInCount > 0 && (
+            <span className="text-xs bg-accent/20 text-accent px-3 py-1 rounded-full border border-accent/30">
+              {pendingCheckInCount} pending
+            </span>
+          )}
+          {/* Waitlist badge */}
+          {isAdmin && waitlistCount > 0 && (
+            <span className="text-xs bg-primary/20 text-primary px-3 py-1 rounded-full border border-primary/30">
+              {waitlistCount} waitlisted
+            </span>
           )}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -320,6 +359,13 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
             <Button variant="outline" size="default" onClick={() => setShowEditPairs(true)}
               className={`border-accent/40 text-accent hover:bg-accent/10 min-h-[44px] px-4 text-sm ${showEditPairs ? "bg-accent/10" : ""}`}>
               <Edit3 className="w-4 h-4 mr-1.5" /> Edit Pairs
+            </Button>
+          )}
+          {/* Regenerate Schedule (admin) */}
+          {isAdmin && roundRobinInProgress && (
+            <Button variant="outline" size="default" onClick={() => setShowRegenConfirm(true)}
+              className="border-accent/40 text-accent hover:bg-accent/10 min-h-[44px] px-4 text-sm">
+              <RefreshCw className="w-4 h-4 mr-1.5" /> Regen Schedule
             </Button>
           )}
           {/* Manage Roster (admin) — unified drawer */}
@@ -420,12 +466,17 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
             {showCourt3 && <CourtCard courtNum={3} match={court3Match} totalGames={totalGames} onFinish={setFinishingMatch} onSkip={(m) => skipMatch(m.id)} isAdmin={isAdmin} />}
           </div>
 
-          {/* Up Next */}
+          {/* Up Next — Locked */}
           {upNextMatches.length > 0 && (
             <div className="rounded-lg border border-border bg-card p-4 md:p-6 space-y-3">
-              <h3 className="font-display text-xl text-accent">Up Next</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-display text-xl text-accent">Up Next</h3>
+                <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest bg-accent/10 text-accent/70 px-2 py-0.5 rounded border border-accent/20">
+                  <Lock className="w-3 h-3" /> Locked
+                </span>
+              </div>
               {upNextMatches.map((m) => (
-                <div key={m.id} className="flex items-center gap-3 text-base text-foreground/80 border-l-2 border-primary/30 pl-4 py-2">
+                <div key={m.id} className={`flex items-center gap-3 text-base text-foreground/80 border-l-2 border-primary/30 pl-4 py-2 ${matchHasNewPair(m) ? "animate-pulse bg-accent/10 rounded-r" : ""}`}>
                   {m.gameNumber && <span className="text-accent font-display text-lg">#{m.gameNumber}</span>}
                   <span className="flex flex-wrap items-center gap-1.5">
                     {renderPlayerName(m.pair1.player1.name, m.pair1.player1.id, m.id)}
@@ -441,12 +492,17 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
             </div>
           )}
 
-          {/* On Deck */}
+          {/* On Deck — Locked */}
           {onDeckMatches.length > 0 && (
             <div className="rounded-lg border border-accent/20 bg-accent/5 p-4 md:p-6 space-y-3">
-              <h3 className="font-display text-xl text-accent">🏓 On Deck — Get Ready!</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="font-display text-xl text-accent">🏓 On Deck — Get Ready!</h3>
+                <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest bg-accent/10 text-accent/70 px-2 py-0.5 rounded border border-accent/20">
+                  <Lock className="w-3 h-3" /> Locked
+                </span>
+              </div>
               {onDeckMatches.map((m) => (
-                <div key={m.id} className="flex items-center gap-3 text-base text-foreground/80 border-l-2 border-accent/30 pl-4 py-2">
+                <div key={m.id} className={`flex items-center gap-3 text-base text-foreground/80 border-l-2 border-accent/30 pl-4 py-2 ${matchHasNewPair(m) ? "animate-pulse bg-accent/10 rounded-r" : ""}`}>
                   {m.gameNumber && <span className="text-accent font-display text-lg">#{m.gameNumber}</span>}
                   <span>
                     {m.pair1.player1.name} & {m.pair1.player2.name}
@@ -455,6 +511,30 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
                   </span>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Projected (future games beyond On Deck) */}
+          {pendingMatches.length > (state.sessionConfig.courtCount || 2) * 2 && isAdmin && (
+            <div className="rounded-lg border border-border/50 bg-card/50 p-4 md:p-6 space-y-3">
+              <div className="flex items-center gap-2">
+                <h3 className="font-display text-xl text-muted-foreground">Projected</h3>
+                <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest bg-muted/50 text-muted-foreground px-2 py-0.5 rounded border border-border/40">
+                  <Zap className="w-3 h-3" /> May shift
+                </span>
+              </div>
+              <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                {pendingMatches.slice((state.sessionConfig.courtCount || 2) * 2).map((m) => (
+                  <div key={m.id} className={`flex items-center gap-3 text-sm text-foreground/60 pl-4 py-1 ${matchHasNewPair(m) ? "animate-pulse bg-accent/10 rounded text-foreground/90" : ""}`}>
+                    {m.gameNumber && <span className="text-muted-foreground font-display">#{m.gameNumber}</span>}
+                    <span>
+                      {m.pair1.player1.name} & {m.pair1.player2.name}
+                      <span className="text-muted-foreground mx-1.5">vs</span>
+                      {m.pair2.player1.name} & {m.pair2.player2.name}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -467,7 +547,7 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                 {allUniquePairs.map((pair, i) => (
-                  <div key={i} className="rounded-md border border-border/60 bg-muted/30 px-4 py-3 text-center">
+                  <div key={i} className={`rounded-md border border-border/60 bg-muted/30 px-4 py-3 text-center ${highlightPairIds.has(pair.id) ? "animate-pulse border-accent bg-accent/10" : ""}`}>
                     <p className="font-display text-base text-foreground">{pair.player1}</p>
                     <p className="text-xs text-muted-foreground my-0.5">&</p>
                     <p className="font-display text-base text-foreground">{pair.player2}</p>
@@ -486,6 +566,26 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
           onSelect={(pairId) => { completeMatch(finishingMatch.id, pairId); setFinishingMatch(null); }}
           onClose={() => setFinishingMatch(null)}
         />
+      )}
+
+      {/* Regenerate confirmation modal */}
+      {showRegenConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in" onClick={() => setShowRegenConfirm(false)}>
+          <div className="bg-card border border-border rounded-lg p-8 max-w-sm w-full mx-4 space-y-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-display text-2xl text-accent">Regenerate Schedule?</h3>
+            <p className="text-base text-muted-foreground">
+              This will rebuild all future games (after On Deck) to rebalance the schedule. Active games, completed results, and the next queued games will not change.
+            </p>
+            <div className="flex gap-3">
+              <Button onClick={handleRegenerate} className="flex-1 bg-accent text-accent-foreground hover:bg-accent/80 min-h-[48px]">
+                <RefreshCw className="w-4 h-4 mr-2" /> Regenerate
+              </Button>
+              <Button variant="outline" onClick={() => setShowRegenConfirm(false)} className="flex-1 min-h-[48px]">
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Manage Roster drawer */}

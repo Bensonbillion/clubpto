@@ -63,6 +63,7 @@ export interface SessionConfig {
   startTime: string;
   durationMinutes: number;
   checkInLocked: boolean;
+  checkInClosed?: boolean;
   sessionStartedAt?: string;
   courtCount?: 2 | 3;
 }
@@ -94,6 +95,8 @@ export interface GameState {
   waitlistedPlayers?: string[];
   oddPlayerDecisions?: OddPlayerDecision[];
   pairsLocked?: boolean;
+  /** Pair IDs that were just added via late arrival — for UI highlight */
+  newlyAddedPairIds?: string[];
 }
 
 export const DEFAULT_STATE: GameState = {
@@ -101,6 +104,7 @@ export const DEFAULT_STATE: GameState = {
     startTime: "20:00",
     durationMinutes: 85,
     checkInLocked: false,
+    checkInClosed: false,
     courtCount: 2,
   },
   roster: [],
@@ -115,4 +119,5 @@ export const DEFAULT_STATE: GameState = {
   waitlistedPlayers: [],
   oddPlayerDecisions: [],
   pairsLocked: false,
+  newlyAddedPairIds: [],
 };
