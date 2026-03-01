@@ -1,9 +1,11 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useGameState } from "@/hooks/useGameState";
 import { Button } from "@/components/ui/button";
-import { Check, Clock, Swords, Lock, Unlock, UserPlus, X, Users } from "lucide-react";
+import { Check, Clock, Swords, Lock, Unlock, UserPlus, X, Users, AlertTriangle } from "lucide-react";
 import VipPairingDialog, { isVipPlayer } from "./VipPairingDialog";
-import { FixedPair } from "@/types/courtManager";
+import OddPlayerAlert from "./OddPlayerAlert";
+import PairEditor from "./PairEditor";
+import { FixedPair, SkillTier, OddPlayerDecision } from "@/types/courtManager";
 
 interface CheckInProps {
   gameState: ReturnType<typeof useGameState>;
@@ -12,7 +14,7 @@ interface CheckInProps {
 }
 
 const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckInProps) => {
-  const { state, toggleCheckIn, checkedInPlayers, generateFullSchedule, addLatePlayersToSchedule, lockCheckIn, startSession } = gameState;
+  const { state, toggleCheckIn, checkedInPlayers, generateFullSchedule, addLatePlayersToSchedule, lockCheckIn, startSession, setOddPlayerDecisions, swapPlayersInPairs } = gameState;
   const [generated, setGenerated] = useState(false);
   const [vipDialogFor, setVipDialogFor] = useState<string | null>(null);
   const [vipFixedPairs, setVipFixedPairs] = useState<FixedPair[]>([]);
@@ -115,9 +117,33 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
 
   const isLocked = state.sessionConfig.checkInLocked;
 
-  const availableForVip = vipDialogFor
-    ? state.roster.filter((p) => p.name.toLowerCase() !== vipDialogFor.toLowerCase()).map((p) => p.name)
+  // Filter VIP partner selection to same-tier players only
+  const vipPlayer = vipDialogFor ? state.roster.find((p) => p.name.toLowerCase() === vipDialogFor.toLowerCase()) : null;
+  const availableForVip = vipDialogFor && vipPlayer
+    ? state.roster
+        .filter((p) => p.name.toLowerCase() !== vipDialogFor.toLowerCase() && p.skillLevel === vipPlayer.skillLevel)
+        .map((p) => p.name)
     : [];
+
+  // Detect odd player counts per tier
+  const oddTiers = useMemo(() => {
+    const tiers: SkillTier[] = ["A", "B", "C"];
+    const result: { tier: SkillTier; players: typeof checkedInPlayers; oddPlayer: typeof checkedInPlayers[0] }[] = [];
+    for (const tier of tiers) {
+      const tierPlayers = checkedInPlayers.filter((p) => p.skillLevel === tier);
+      if (tierPlayers.length > 0 && tierPlayers.length % 2 !== 0) {
+        // Last player in the shuffled list is the "odd one out"
+        result.push({ tier, players: tierPlayers, oddPlayer: tierPlayers[tierPlayers.length - 1] });
+      }
+    }
+    return result;
+  }, [checkedInPlayers]);
+
+  const adjacentTiers: Record<SkillTier, SkillTier | null> = { A: "B", B: "A", C: "B" };
+
+  const handleOddPlayerDecisions = (decisions: OddPlayerDecision[]) => {
+    setOddPlayerDecisions(decisions);
+  };
 
 
   return (
@@ -189,6 +215,24 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
             </button>
           ))}
         </div>
+      )}
+
+      {/* Odd tier warning */}
+      {isAdmin && oddTiers.length > 0 && state.matches.length === 0 && state.sessionStarted && (
+        <OddPlayerAlert
+          oddTiers={oddTiers}
+          onDecisionsConfirmed={handleOddPlayerDecisions}
+          adjacentTiers={adjacentTiers}
+        />
+      )}
+
+      {/* Pair editor — shown after schedule generation, admin only */}
+      {isAdmin && state.pairs.length > 0 && state.matches.every((m) => m.status !== "completed") && (
+        <PairEditor
+          pairs={state.pairs}
+          onSwapPlayers={swapPlayersInPairs}
+          isAdmin={isAdmin}
+        />
       )}
 
       {state.sessionStarted && checkedInPlayers.length >= 4 && (

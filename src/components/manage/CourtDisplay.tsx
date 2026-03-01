@@ -247,13 +247,63 @@ const RemovePlayerModal = ({
   </div>
 );
 
+/* ── Replace Player modal ─────────────────────────────────────────── */
+const ReplacePlayerModal = ({
+  activePlayers, benchPlayers, onReplace, onClose,
+}: {
+  activePlayers: Player[]; benchPlayers: Player[]; onReplace: (oldId: string, newId: string) => void; onClose: () => void;
+}) => {
+  const [selectedOld, setSelectedOld] = useState<string | null>(null);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in" onClick={onClose}>
+      <div className="bg-card border border-border rounded-lg p-8 max-w-lg w-full mx-4 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <h3 className="font-display text-2xl text-accent">Replace Player</h3>
+        {!selectedOld ? (
+          <>
+            <p className="text-sm text-muted-foreground">Select the player to replace:</p>
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              {activePlayers.map((p) => (
+                <button key={p.id} onClick={() => setSelectedOld(p.id)}
+                  className="w-full text-left px-4 py-3 rounded-md border border-border bg-muted/30 hover:border-accent/40 hover:bg-accent/5 transition-all text-base font-display text-foreground min-h-[44px]">
+                  {p.name}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-muted-foreground">
+              Replace <span className="text-accent font-display">{activePlayers.find((p) => p.id === selectedOld)?.name}</span> with:
+            </p>
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              {benchPlayers.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No available players on the bench.</p>
+              ) : (
+                benchPlayers.map((p) => (
+                  <button key={p.id} onClick={() => { onReplace(selectedOld, p.id); onClose(); }}
+                    className="w-full text-left px-4 py-3 rounded-md border border-border bg-muted/30 hover:border-accent/40 hover:bg-accent/5 transition-all text-base font-display text-foreground min-h-[44px]">
+                    {p.name}
+                  </button>
+                ))
+              )}
+            </div>
+            <button onClick={() => setSelectedOld(null)} className="text-sm text-accent hover:text-accent/80 transition-colors">← Back</button>
+          </>
+        )}
+        <button onClick={onClose} className="w-full text-muted-foreground text-sm hover:text-foreground transition-colors py-2">Cancel</button>
+      </div>
+    </div>
+  );
+};
+
 /* ── Main CourtDisplay ────────────────────────────────────────────── */
 const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDisplayProps) => {
-  const { state, court1Match, court2Match, pendingMatches, upNextMatches, onDeckMatches, completeMatch, skipMatch, swapPlayer, checkedInPlayers, startPlayoffs, removePlayerMidSession, startPlayoffMatch, completePlayoffMatch } = gameState;
+  const { state, court1Match, court2Match, court3Match, pendingMatches, upNextMatches, onDeckMatches, completeMatch, skipMatch, swapPlayer, checkedInPlayers, startPlayoffs, removePlayerMidSession, replacePlayerInPair, startPlayoffMatch, completePlayoffMatch } = gameState;
   const [showExport, setShowExport] = useState(false);
   const [finishingMatch, setFinishingMatch] = useState<Match | null>(null);
   const [showStandings, setShowStandings] = useState(false);
   const [showRemovePlayer, setShowRemovePlayer] = useState(false);
+  const [showReplacePlayer, setShowReplacePlayer] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [searchParams] = useSearchParams();
   const courtFilter = searchParams.get("court");
@@ -276,10 +326,11 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
 
   const showCourt1 = !courtFilter || courtFilter === "1";
   const showCourt2 = !courtFilter || courtFilter === "2";
+  const showCourt3 = (!courtFilter || courtFilter === "3") && (state.sessionConfig.courtCount || 2) === 3;
   const totalGames = state.totalScheduledGames;
 
   const busyPlayerIds = new Set<string>();
-  [court1Match, court2Match, ...upNextMatches].filter(Boolean).forEach((m) => {
+  [court1Match, court2Match, court3Match, ...upNextMatches].filter(Boolean).forEach((m) => {
     if (!m) return;
     [m.pair1.player1.id, m.pair1.player2.id, m.pair2.player1.id, m.pair2.player2.id].forEach((id) => busyPlayerIds.add(id));
   });
@@ -338,6 +389,13 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
             <Button variant="outline" size="default" onClick={() => setShowRemovePlayer(true)}
               className="border-destructive/40 text-destructive hover:bg-destructive/10 min-h-[44px] px-4 text-sm">
               <UserMinus className="w-4 h-4 mr-1.5" /> Remove
+            </Button>
+          )}
+          {/* Replace player (admin) */}
+          {isAdmin && roundRobinInProgress && (
+            <Button variant="outline" size="default" onClick={() => setShowReplacePlayer(true)}
+              className="border-accent/40 text-accent hover:bg-accent/10 min-h-[44px] px-4 text-sm">
+              <ArrowRightLeft className="w-4 h-4 mr-1.5" /> Replace
             </Button>
           )}
           {/* Start Playoffs (admin) */}
@@ -428,6 +486,7 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
           <div className={`flex flex-col ${!courtFilter ? "md:flex-row" : ""} gap-6`}>
             {showCourt1 && <CourtCard courtNum={1} match={court1Match} totalGames={totalGames} onFinish={setFinishingMatch} onSkip={(m) => skipMatch(m.id)} isAdmin={isAdmin} />}
             {showCourt2 && <CourtCard courtNum={2} match={court2Match} totalGames={totalGames} onFinish={setFinishingMatch} onSkip={(m) => skipMatch(m.id)} isAdmin={isAdmin} />}
+            {showCourt3 && <CourtCard courtNum={3} match={court3Match} totalGames={totalGames} onFinish={setFinishingMatch} onSkip={(m) => skipMatch(m.id)} isAdmin={isAdmin} />}
           </div>
 
           {/* Up Next */}
@@ -503,6 +562,15 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
           players={checkedInPlayers}
           onRemove={removePlayerMidSession}
           onClose={() => setShowRemovePlayer(false)}
+        />
+      )}
+
+      {showReplacePlayer && (
+        <ReplacePlayerModal
+          activePlayers={checkedInPlayers.filter((p) => state.pairs.some((pair) => pair.player1.id === p.id || pair.player2.id === p.id))}
+          benchPlayers={state.roster.filter((p) => !p.checkedIn || !state.pairs.some((pair) => pair.player1.id === p.id || pair.player2.id === p.id))}
+          onReplace={replacePlayerInPair}
+          onClose={() => setShowReplacePlayer(false)}
         />
       )}
     </div>

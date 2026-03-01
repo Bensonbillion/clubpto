@@ -1,4 +1,5 @@
 import { useGameState } from "@/hooks/useGameState";
+import { getHeadToHead } from "@/hooks/useGameState";
 import { Player, Pair, PlayoffMatch, SkillTier } from "@/types/courtManager";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -113,6 +114,9 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
 
     return Array.from(pairMap.values()).sort((a, b) => {
       if (b.winPct !== a.winPct) return b.winPct - a.winPct;
+      const h2h = getHeadToHead(a.pair.id, b.pair.id, state.matches);
+      if (h2h !== 0) return -h2h;
+      if (b.gamesPlayed !== a.gamesPlayed) return b.gamesPlayed - a.gamesPlayed;
       return b.wins - a.wins;
     });
   };
@@ -149,6 +153,9 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
 
     return Array.from(pairMap.values()).sort((a, b) => {
       if (b.winPct !== a.winPct) return b.winPct - a.winPct;
+      const h2h = getHeadToHead(a.pair.id, b.pair.id, state.matches);
+      if (h2h !== 0) return -h2h;
+      if (b.gamesPlayed !== a.gamesPlayed) return b.gamesPlayed - a.gamesPlayed;
       return b.wins - a.wins;
     });
   };

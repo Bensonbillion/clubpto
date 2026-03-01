@@ -64,11 +64,20 @@ export interface SessionConfig {
   durationMinutes: number;
   checkInLocked: boolean;
   sessionStartedAt?: string;
+  courtCount?: 2 | 3;
 }
 
 export interface FixedPair {
   player1Name: string;
   player2Name: string;
+}
+
+export interface OddPlayerDecision {
+  playerId: string;
+  playerName: string;
+  tier: SkillTier;
+  decision: "sit_out" | "cross_pair" | "waiting";
+  crossPairTier?: SkillTier;
 }
 
 export interface GameState {
@@ -82,6 +91,8 @@ export interface GameState {
   totalScheduledGames: number;
   playoffMatches: PlayoffMatch[];
   fixedPairs?: FixedPair[];
+  waitlistedPlayers?: string[];
+  oddPlayerDecisions?: OddPlayerDecision[];
 }
 
 export const DEFAULT_STATE: GameState = {
@@ -89,6 +100,7 @@ export const DEFAULT_STATE: GameState = {
     startTime: "20:00",
     durationMinutes: 85,
     checkInLocked: false,
+    courtCount: 2,
   },
   roster: [],
   pairs: [],
@@ -99,4 +111,6 @@ export const DEFAULT_STATE: GameState = {
   totalScheduledGames: 0,
   playoffMatches: [],
   fixedPairs: [],
+  waitlistedPlayers: [],
+  oddPlayerDecisions: [],
 };
