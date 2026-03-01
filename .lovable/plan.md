@@ -1,148 +1,112 @@
 
 
-# Club PTO Court Manager — 6-Update Implementation Plan
+# Codebase Audit Report — 10-Point Validation
 
-## Confirmed Understanding
+## 1. VIP partner selection (same-tier only)
+**Status: PASS with caveat**
 
-The app is a tablet-first padel league manager with: Admin Setup (PIN-protected), Check-In, Court Display, and Stats & Playoffs (PIN-protected). All state lives in a single JSON blob in the `game_state` table. The core engine is `useGameState.ts` (1145 lines). Tier labels are hidden from players. Fixed pairs persist for the entire session.
-
----
-
-## Dependency Graph & Build Order
-
-```text
-Update 1 (VIP fix) ──────────────┐
-Update 3 (Waitlist / odd tier) ──┤
-Update 4 (Manual pair editing) ──┼──▶ Update 6 (3-court mode)
-Update 5 (H2H tiebreaker) ───────┘       │
-Update 2 (Mid-session roster) ────────────┘
+CheckIn.tsx lines 121-126 correctly filter `availableForVip` to only players matching the VIP's `skillLevel`. However, it does **not** filter to only *checked-in* players. The filter is:
 ```
+p.name.toLowerCase() !== vipDialogFor.toLowerCase() && p.skillLevel === vipPlayer.skillLevel
+```
+It should also include `&& p.checkedIn`. A VIP could see unchecked-in players as selectable partners.
 
-**Optimal build order:**
-1. Update 1 — VIP pair selection fix (standalone, small)
-2. Update 5 — Head-to-head tiebreaker (standalone, small)
-3. Update 3 — Waitlist / odd-tier handling (adds admin decision UI)
-4. Update 4 — Manual pair editing (builds on pair creation flow)
-5. Update 2 — Mid-session roster management (depends on pair editing patterns)
-6. Update 6 — 3-court mode (touches scheduling, court display, matchup rules — largest change, depends on stable pair/scheduling logic)
+**Issue flagged: VIP dialog shows unchecked-in same-tier players as selectable partners.**
 
 ---
 
-## Update 1: Fix VIP Pair Selection
+## 2. Admin swap/add/remove after session starts
+**Status: PASS**
 
-**Problem:** VIP dialog shows ALL players instead of same-tier only. VIP's choice is stored but may not be honored if tier mismatch.
-
-**Files affected:**
-- `src/components/manage/VipPairingDialog.tsx` — Filter `availablePlayers` by tier
-- `src/components/manage/CheckIn.tsx` — Pass the VIP's tier to the dialog; filter `availableForVip` by matching `skillLevel`
-
-**New code needed:** None (modification only)
-
-**Risks:** If a VIP's tier has only 1 player (the VIP themselves), no same-tier partners are available. Show a message and fall back to randomize.
+All three operations exist (`swapPlayerMidSession`, `addPlayerMidSession`, `removePlayerMidSession`) and are wired through ManageRosterDrawer in CourtDisplay. Each blocks actions on players currently "playing". Future matches update; completed results preserved.
 
 ---
 
-## Update 5: Head-to-Head Tiebreaker in Playoff Seeding
+## 3. Odd tier check-in → waitlist
+**Status: PASS with caveat**
 
-**Problem:** Current seeding sorts by Win% then total wins. No head-to-head check.
+OddPlayerAlert correctly detects odd counts per tier and offers sit-out/cross-pair/wait options. The `oddTiers` memo picks the last player in the array as the "odd one out" — but this is from an unsorted `checkedInPlayers` list, not randomized per se. The admin has no choice of *which* player sits out — it's always the last one in the filtered array.
 
-**Files affected:**
-- `src/components/manage/StatsPlayoffs.tsx` — `buildAllPairStandings` sort comparator
-- `src/hooks/useGameState.ts` — `startPlayoffs()` sort comparator
-
-**New function needed:** `getHeadToHead(pairAId, pairBId, matches)` → returns `1 | -1 | 0` based on direct matchup results. Add to `useGameState.ts` as a utility.
-
-**Tiebreaker order (per spec):** Tier priority → Win% → Head-to-head → Point differential (not tracked yet, skip) → Total games played.
-
-**Risks:** Two pairs may never have played each other directly, in which case H2H is neutral (fall through to next tiebreaker).
+**Issue flagged: Admin cannot choose which player in an odd tier sits out. It's always the last player in the array. Should let admin pick.**
 
 ---
 
-## Update 3: Waitlist for Uneven Tier Check-ins
+## 4. Manual pair editing within same tier
+**Status: PASS**
 
-**Problem:** If a tier has an odd number, one player silently gets no pair.
-
-**Files affected:**
-- `src/components/manage/CheckIn.tsx` — Show warning when any tier has odd count; show admin decision UI
-- `src/hooks/useGameState.ts` — `generateFullSchedule` needs to handle the admin's decision for odd players
-
-**New component:** `OddPlayerAlert` (inline in CheckIn or small component) — shows per-tier counts, flags odd tiers, lets admin choose: sit out, cross-pair with adjacent tier, or wait for late arrival.
-
-**New state:** `waitlistedPlayers: string[]` on `GameState` to track players sitting out by admin decision.
-
-**Risks:** Cross-pairing a C with a B changes matchup rules for that pair. Need to decide: does a B+C pair follow B rules or C rules? Recommendation: treat as B pair (plays A and C opponents).
+PairEditor correctly enforces same-tier swaps (lines 85-86, 96-101 in PairEditor.tsx). Cross-tier attempts show a toast error. Waitlist-to-pair swaps also enforce tier matching. Lock confirmation works when `pairsLocked && hasCompletedGames`.
 
 ---
 
-## Update 4: Manual Pair Editing
+## 5. H2H tiebreaker in playoff seeding
+**Status: PASS**
 
-**Problem:** After randomization, admin can't override pairs.
-
-**Files affected:**
-- `src/components/manage/CheckIn.tsx` or new `PairEditor.tsx` — UI to view generated pairs and swap players within same tier
-- `src/hooks/useGameState.ts` — New `editPair(pairId, newPlayer1Id, newPlayer2Id)` function that updates master pairs + syncs all matches
-
-**New component:** `PairEditor` — shows all pairs grouped by tier, allows drag-or-tap to swap two players between pairs (same tier only). Shown after `generateFullSchedule` but before first match starts.
-
-**Risks:** Swapping players between pairs after schedule generation means all pending matches involving those pairs get updated player names. The existing `syncPairsToMatches` handles this. Must enforce same-tier constraint.
+Both `startPlayoffs` (useGameState.ts line 1032) and `buildPairStandingsByTier`/`buildAllPairStandings` (StatsPlayoffs.tsx lines 180-183, 218-222) sort by: Win% → H2H → Games Played → Total Wins. The `getHeadToHead` function correctly checks completed matches between two specific pair IDs. Tiebreaker annotations display via tooltip.
 
 ---
 
-## Update 2: Mid-Session Roster Management
+## 6. 3-court mode: C isolated to Court 1, B never faces C
+**Status: PASS**
 
-**Problem:** Cannot swap, add, or remove players after session starts.
+Schedule generation (lines 524-532) uses `courtPool` filtering: Court 1 picks from `"C"` pool only, Courts 2-3 pick from `"AB"` pool. B vs C candidates are only generated when `courtCount === 2` (line 436-442). In 3-court mode, B only faces A.
 
-**Files affected:**
-- `src/components/manage/CourtDisplay.tsx` — Add "Add Player" and "Swap Player" admin buttons
-- `src/hooks/useGameState.ts` — New `swapPlayerInPair(pairId, oldPlayerId, newPlayerId)` that replaces a player in their fixed pair across all pending/future matches. Enhance `addLatePlayersToSchedule` to handle single players.
+However, the **auto-advance logic in `completeMatch`** (line 933) does NOT enforce court pool routing. It picks `updatedMatches.find(m => m.status === "pending" && ...)` — the first available pending match regardless of court pool. This means a C vs C match could be auto-assigned to Court 2 or 3 after completion, or a B vs A match could land on Court 1.
 
-**Existing partial implementation:** `removePlayerMidSession` and `swapPlayer` already exist but `swapPlayer` only works on pending matches and requires a match ID. Need a pair-level swap that works globally.
-
-**New function:** `replacePlayerInPair(pairId, oldPlayerId, newPlayerId)` — finds the pair, replaces the player, calls `syncPairsToMatches` on all non-completed matches.
-
-**Risks:** Replacing a player in a pair that's currently playing should be blocked (only pending/future). Completed match history should retain original players. Need to add the replacement player to roster if not already there.
+**Issue flagged: Auto-advance after match completion does not enforce 3-court routing rules. A C-tier match could be assigned to Court 2/3 or an A/B match to Court 1.**
 
 ---
 
-## Update 6: 3-Court Session Mode
+## 7. Tier labels hidden from player-facing views
+**Status: PASS with caveat**
 
-**Problem:** No support for 3 courts with dedicated tier routing.
+CheckIn.tsx shows no tier labels. CourtDisplay shows no tier labels on court cards, Up Next, On Deck, or All Pairs sections. The All Pairs grid (lines 468-477) uses neutral styling with no tier indicators.
 
-**Files affected:**
-- `src/types/courtManager.ts` — Add `courtCount: 2 | 3` to `SessionConfig`
-- `src/components/manage/AdminSetup.tsx` — Add 2-court / 3-court toggle
-- `src/hooks/useGameState.ts` — Major changes to `generateFullSchedule`:
-  - 3-court mode: Court 1 = C vs C only; Courts 2 & 3 = A vs A, B vs A (B never plays C)
-  - Slot = 3 games, 12 unique players per slot
-  - Rest gap still applies
-- `src/components/manage/CourtDisplay.tsx` — Render 3 court cards; derive `court3Match`
-- `src/hooks/useGameState.ts` — `completeMatch` / `skipMatch` / `startPlayoffs` must handle court 3
+However, the **StatsPlayoffs** component (line 328) displays `Tier {pair.skillLevel}` on each pair card and the leaderboard headers say "Standings — Tier A (Advanced)" etc. This is acceptable since StatsPlayoffs is behind the PIN-protected admin view.
 
-**New derived state:** `court3Match` in return object.
-
-**Scheduling logic changes:**
-- Separate candidate pools: Court 1 candidates = C vs C only; Court 2+3 candidates = A vs A, B vs A
-- Per-slot: pick 1 C-vs-C for Court 1, then pick 2 non-overlapping A/B matches for Courts 2+3
-- B never plays C in 3-court mode (remove B vs C candidates entirely)
-
-**Risks:**
-- If few C players, Court 1 may run out of matches quickly → need graceful handling (court sits empty)
-- If B has no A opponents, B pairs have no matches → edge case warning
-- VIP delay logic must account for 3 courts
-- Playoff bracket unchanged (still top 8 pairs)
+**No issue.**
 
 ---
 
-## Summary: Files Changed Per Update
+## 8. Double-booking (player on two courts same slot)
+**Status: PASS at generation, PARTIAL at runtime**
 
-| File | U1 | U2 | U3 | U4 | U5 | U6 |
-|------|----|----|----|----|----|----|
-| `courtManager.ts` | | | ✓ | | | ✓ |
-| `useGameState.ts` | | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `CheckIn.tsx` | ✓ | | ✓ | ✓ | | |
-| `VipPairingDialog.tsx` | ✓ | | | | | |
-| `CourtDisplay.tsx` | | ✓ | | | | ✓ |
-| `AdminSetup.tsx` | | | | | | ✓ |
-| `StatsPlayoffs.tsx` | | | | | ✓ | |
-| New: `PairEditor.tsx` | | | | ✓ | | |
+The schedule generator validates no double-booking (lines 546-559). At match completion, `completeMatch` checks `busyPlayerIdsSet` before assigning next match (lines 926-937). The `skipMatch` function does the same (lines 692-709).
+
+However, neither `completeMatch` nor `skipMatch` verifies rest gap constraints when auto-advancing. They only check that no player is *currently playing* on another court, not that the player had a rest slot since their last game.
+
+**Issue flagged: Auto-advance does not enforce the 2-slot rest gap. A player could finish a game and immediately be assigned the next one on the freed court (back-to-back).**
+
+---
+
+## 9. Back-to-back without rest slot
+**Status: ISSUE — same as #8**
+
+The initial schedule generation enforces a `REST_GAP = 2` (line 461, used at line 517). But the runtime auto-advance logic in `completeMatch` and `skipMatch` only checks for current court conflicts — it does **not** check whether a player just finished playing on another court.
+
+**Issue flagged: Runtime auto-advance can schedule a player back-to-back. The rest gap is only enforced during initial schedule generation, not during auto-assignment after match completion.**
+
+---
+
+## 10. Schedule regeneration after roster change
+**Status: PARTIAL**
+
+- **Swap** (`swapPlayerMidSession`): Updates pair composition and syncs to non-completed matches. Does NOT regenerate or revalidate the schedule — it just swaps names in existing matches. No constraint revalidation.
+- **Add** (`addPlayerMidSession`): Appends new matches to the end of the schedule. Does NOT check for rest gaps or court conflicts with existing pending matches.
+- **Remove** (`removePlayerMidSession`): Filters out pending matches involving removed pair. Does NOT regenerate replacement matches for the now-idle opponents. Opponents lose scheduled games.
+
+**Issue flagged: None of the three roster change operations perform full schedule revalidation (rest gaps, double-booking, duplicate matchups). They do inline updates but skip the constraint checks the initial generator enforces. The "Schedule regenerated" message is misleading — the schedule is modified, not regenerated.**
+
+---
+
+## Summary of Issues Found
+
+| # | Severity | Issue |
+|---|----------|-------|
+| 1 | Minor | VIP dialog shows unchecked-in players as selectable partners |
+| 3 | Minor | Admin cannot choose which odd-tier player sits out |
+| 6 | **Major** | Auto-advance ignores 3-court routing (C→Court 1, AB→Courts 2-3) |
+| 8/9 | **Major** | Auto-advance does not enforce rest gap — players can play back-to-back |
+| 10 | **Medium** | Roster changes don't revalidate schedule constraints; removed players' opponents lose games |
+
+Issues 6, 8, and 9 are the most critical as they can produce constraint violations during live sessions.
 
