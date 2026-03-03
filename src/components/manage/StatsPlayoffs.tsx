@@ -229,37 +229,27 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
   const allPairStandings = buildAllPairStandings();
 
   const handleGeneratePlayoffSeeds = () => {
-    // B-beats-A override: find B pairs that beat A pairs in cross-tier
-    const bBeatAPairIds = new Set<string>();
-    // C-beats-B override: find C pairs that beat B pairs in cross-tier
-    const cBeatBPairIds = new Set<string>();
-    for (const match of state.matches) {
-      if (match.status !== "completed" || match.skillLevel !== "cross" || !match.winner || !match.loser) continue;
-      if (match.winner.skillLevel === "B" && match.loser.skillLevel === "A") {
-        const winKey = [match.winner.player1.id, match.winner.player2.id].sort().join("|||");
-        bBeatAPairIds.add(winKey);
-      }
-      if (match.winner.skillLevel === "C" && match.loser.skillLevel === "B") {
-        const winKey = [match.winner.player1.id, match.winner.player2.id].sort().join("|||");
-        cBeatBPairIds.add(winKey);
-      }
-    }
+    // Filter out pairs with 0 games played
+    const eligiblePairs = allPairStandings.filter((p) => p.gamesPlayed > 0);
 
-    // Separate standings by tier
-    const aPairs = allPairStandings.filter((p) => p.skillLevel === "A");
-    const bPairs = allPairStandings.filter((p) => p.skillLevel === "B");
-    const cPairs = allPairStandings.filter((p) => p.skillLevel === "C");
-
-    const promotedB = bPairs.filter((p) => bBeatAPairIds.has(p.id));
-    const normalB = bPairs.filter((p) => !bBeatAPairIds.has(p.id));
-    const promotedC = cPairs.filter((p) => cBeatBPairIds.has(p.id));
-    const normalC = cPairs.filter((p) => !cBeatBPairIds.has(p.id));
-
-    // Strict priority: A → promoted B (beat A) → normal B → promoted C (beat B) → normal C
-    const ordered: PairStanding[] = [...aPairs, ...promotedB, ...normalB, ...promotedC, ...normalC];
+    // Merit-based seeding: sort by total wins, then win%, then tier, then head-to-head
+    const tierPriority: Record<string, number> = { A: 0, B: 1, C: 2 };
+    const sorted = [...eligiblePairs].sort((a, b) => {
+      // 1. Total wins (descending)
+      if (b.wins !== a.wins) return b.wins - a.wins;
+      // 2. Win percentage (descending)
+      if (Math.abs(b.winPct - a.winPct) > 0.001) return b.winPct - a.winPct;
+      // 3. Tier priority as tiebreaker (A > B > C)
+      const tierDiff = (tierPriority[a.skillLevel] || 2) - (tierPriority[b.skillLevel] || 2);
+      if (tierDiff !== 0) return tierDiff;
+      // 4. Head-to-head as final tiebreaker
+      const h2h = getHeadToHead(a.pair.id, b.pair.id, state.matches);
+      if (h2h !== 0) return -h2h;
+      return 0;
+    });
 
     // Take top 8 pairs for playoff bracket, annotate tiebreakers
-    const top = ordered.slice(0, 8);
+    const top = sorted.slice(0, 8);
     const annotatedTop = annotateTiebreakers(top, state.matches);
     const seeds: PlayoffPairSeed[] = annotatedTop.map((ps, i) => ({
       seed: i + 1,
@@ -347,7 +337,7 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
         {(state.playoffMatches || []).length === 0 ? (
           <>
             <p className="text-sm text-muted-foreground">
-              Top 8 pairs seeded by strict tier priority (A → B → C) then Win%. B-beats-A and C-beats-B overrides active. 8-team single-elimination bracket.
+              Top 8 pairs seeded by merit: total wins, then Win%, tier tiebreaker, then head-to-head. Pairs with 0 games excluded. 8-team single-elimination bracket.
             </p>
             {roundRobinComplete && (
               <div className="rounded-md border border-accent/30 bg-accent/5 p-3 text-sm text-accent">
@@ -371,7 +361,7 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
                     <div key={s.pair.id} className="flex items-center gap-3 rounded-md border border-border bg-muted p-3">
                       <span className="font-display text-2xl text-accent w-8 text-center">{s.seed}</span>
                       <div className="flex-1">
-                        <p className="font-display text-foreground">{s.pair.player1.name} & {s.pair.player2.name}</p>
+                        <p className="font-display text-foreground">({s.pair.skillLevel}) {s.pair.player1.name} & {s.pair.player2.name}</p>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <span className="font-mono">{(s.winPct * 100).toFixed(0)}%</span>
                           <span>•</span>

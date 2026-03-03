@@ -64,13 +64,18 @@ function syncPairsToMatches(pairs: Pair[], matches: Match[]): Match[] {
 /** Find the next pending match eligible for a freed court, enforcing:
  *  - No player currently on another court
  *  - Rest gap: no player who just completed a match (recentPlayerIds)
- *  - 3-court routing: Court 1 = C-pool only, Courts 2-3 = AB-pool only */
+ *  - 3-court routing: Court 1 = C-pool only, Courts 2-3 = AB-pool only
+ *  - Equity-based scoring: pairs with fewer games get priority
+ *  - Hard equity gate: no pair plays more than minGames+1 ahead */
 function findNextPendingForCourt(
   matches: Match[],
   freedCourt: number,
   courtCount: number,
   recentPlayerIds: Set<string>,
+  allPairs: Pair[],
+  allMatches: Match[],
 ): Match | undefined {
+  // 1. Collect all currently playing player IDs (excluding the freed court)
   const busyPlayerIds = new Set<string>();
   matches.filter((m) => m.status === "playing" && m.court !== freedCourt).forEach((m) => {
     getMatchPlayerIds(m).forEach((id) => busyPlayerIds.add(id));
@@ -81,18 +86,57 @@ function findNextPendingForCourt(
     ? (freedCourt === 1 ? "C" : "AB")
     : null;
 
-  return matches.find((m) => {
-    if (m.status !== "pending") return false;
+  // 2. Filter pending matches to those valid for this court
+  const validCandidates: Match[] = [];
+  for (const m of matches) {
+    if (m.status !== "pending") continue;
     const playerIds = getMatchPlayerIds(m);
-    if (playerIds.some((id) => busyPlayerIds.has(id))) return false;
-    if (playerIds.some((id) => recentPlayerIds.has(id))) return false;
-    // Court pool routing
+    if (playerIds.some((id) => busyPlayerIds.has(id))) continue;
+    if (playerIds.some((id) => recentPlayerIds.has(id))) continue;
     if (poolFilter) {
       const matchPool = m.skillLevel === "C" ? "C" : "AB";
-      if (poolFilter !== matchPool) return false;
+      if (poolFilter !== matchPool) continue;
     }
-    return true;
-  });
+    validCandidates.push(m);
+  }
+
+  if (validCandidates.length === 0) return undefined;
+
+  // 3. Compute completed game counts for each pair
+  const pairCompletedGames = new Map<string, number>();
+  for (const p of allPairs) {
+    pairCompletedGames.set(p.id, 0);
+  }
+  for (const m of allMatches) {
+    if (m.status !== "completed") continue;
+    pairCompletedGames.set(m.pair1.id, (pairCompletedGames.get(m.pair1.id) || 0) + 1);
+    pairCompletedGames.set(m.pair2.id, (pairCompletedGames.get(m.pair2.id) || 0) + 1);
+  }
+
+  // 4. HARD EQUITY GATE: compute minGamesAcrossAllPairs
+  const allCounts = allPairs.map((p) => pairCompletedGames.get(p.id) || 0);
+  const minGamesAcrossAllPairs = Math.min(...allCounts);
+
+  // 5. Score remaining candidates
+  let bestMatch: Match | undefined;
+  let bestScore = Infinity;
+
+  for (let i = 0; i < validCandidates.length; i++) {
+    const candidate = validCandidates[i];
+    const pair1Games = pairCompletedGames.get(candidate.pair1.id) || 0;
+    const pair2Games = pairCompletedGames.get(candidate.pair2.id) || 0;
+
+    // Reject if either pair is more than 1 game ahead of the least-scheduled pair
+    if (pair1Games > minGamesAcrossAllPairs + 1 || pair2Games > minGamesAcrossAllPairs + 1) continue;
+
+    const finalScore = Math.max(pair1Games, pair2Games) * 1000 + (candidate.gameNumber || i);
+    if (finalScore < bestScore) {
+      bestScore = finalScore;
+      bestMatch = candidate;
+    }
+  }
+
+  return bestMatch;
 }
 
 export function useGameState() {
@@ -432,7 +476,7 @@ export function useGameState() {
     const totalSlots = Math.floor(durationMin / minutesPerGame);
     const courtCount = state.sessionConfig.courtCount || 2;
     const maxGames = totalSlots * courtCount;
-    const TARGET_GAMES_PER_PAIR = 4;
+    const TARGET_GAMES_PER_PAIR = courtCount === 3 ? 3 : 4;
 
     // Helper: get all player IDs from a match
     const matchPlayerIds = (m: { pair1: Pair; pair2: Pair }) => [
@@ -458,6 +502,12 @@ export function useGameState() {
     for (let i = 0; i < cPairs.length; i++) {
       for (let j = i + 1; j < cPairs.length; j++) {
         allCandidates.push({ pair1: cPairs[i], pair2: cPairs[j], skillLevel: "C", matchupLabel: "C vs C", courtPool: "C" });
+      }
+    }
+    // B vs B
+    for (let i = 0; i < bPairs.length; i++) {
+      for (let j = i + 1; j < bPairs.length; j++) {
+        allCandidates.push({ pair1: bPairs[i], pair2: bPairs[j], skillLevel: "B", matchupLabel: "B vs B", courtPool: "AB" });
       }
     }
     // B vs A (cross)
@@ -519,11 +569,17 @@ export function useGameState() {
         const g2 = pairGameCount.get(c.pair2.id) || 0;
         if (g1 >= TARGET_GAMES_PER_PAIR || g2 >= TARGET_GAMES_PER_PAIR) continue;
 
+        // Equity gate: no pair schedules more than 1 game ahead of the least-scheduled pair
+        const minCount = Math.min(...Array.from(pairGameCount.values()));
+        if (g1 > minCount + 1 || g2 > minCount + 1) continue;
+
         const playerIds = matchPlayerIds(c);
         if (playerIds.some((id) => slotPlayerIds.has(id))) continue;
         if (playerIds.some((id) => blockedPlayerIds.has(id))) continue;
 
-        const score = g1 + g2;
+        let score = g1 + g2;
+        // Penalize cross-tier B vs A so same-tier matches are preferred
+        if (c.matchupLabel === "B vs A") score += 50;
         if (score < bestScore) {
           bestScore = score;
           bestIdx = i;
@@ -670,6 +726,40 @@ export function useGameState() {
       schedule[c].status = "playing";
       schedule[c].court = c + 1;
       schedule[c].startedAt = now;
+    }
+
+    // ── Schedule validation logging ──────────────────────────────
+    const pairSummary = allPairs.map(p => {
+      const count = pairGameCount.get(p.id) || 0;
+      return p.player1.name + " & " + p.player2.name + " (" + p.skillLevel + "): " + count + " games";
+    }).join(", ");
+
+    const counts = Array.from(pairGameCount.values());
+    const minG = Math.min(...counts);
+    const maxG = Math.max(...counts);
+    const aCount = aPairs.length;
+    const bCount = bPairs.length;
+    const cCount = cPairs.length;
+
+    const matchupBreakdown = { AvA: 0, BvB: 0, BvA: 0, CvC: 0, BvC: 0 };
+    schedule.forEach(m => {
+      if (m.matchupLabel === "A vs A") matchupBreakdown.AvA++;
+      else if (m.matchupLabel === "B vs B") matchupBreakdown.BvB++;
+      else if (m.matchupLabel === "B vs A") matchupBreakdown.BvA++;
+      else if (m.matchupLabel === "C vs C") matchupBreakdown.CvC++;
+      else if (m.matchupLabel === "B vs C") matchupBreakdown.BvC++;
+    });
+
+    console.log("[PTO Schedule] A=" + aCount + " B=" + bCount + " C=" + cCount + " | " + schedule.length + " games | Target=" + TARGET_GAMES_PER_PAIR + " | AvA=" + matchupBreakdown.AvA + " BvB=" + matchupBreakdown.BvB + " BvA=" + matchupBreakdown.BvA + " CvC=" + matchupBreakdown.CvC + " | Min=" + minG + " Max=" + maxG);
+    console.log("[PTO Schedule] Per pair:", pairSummary);
+
+    if (maxG - minG > 1) {
+      console.warn("[PTO Schedule] WARNING: Equity gap of " + (maxG - minG) + " between pairs");
+    }
+
+    const zeroPairs = allPairs.filter(p => (pairGameCount.get(p.id) || 0) === 0);
+    if (zeroPairs.length > 0) {
+      console.error("[PTO Schedule] ERROR: " + zeroPairs.length + " pairs have 0 games: " + zeroPairs.map(p => p.player1.name + " & " + p.player2.name).join(", "));
     }
 
     // Save pairs to history
@@ -1020,6 +1110,13 @@ export function useGameState() {
           if (!usedMatchups.has(mKey)) allCandidates.push({ pair1: cPairs[i], pair2: cPairs[j], skillLevel: "C", matchupLabel: "C vs C", courtPool: "C" });
         }
       }
+      // B vs B
+      for (let i = 0; i < bPairs.length; i++) {
+        for (let j = i + 1; j < bPairs.length; j++) {
+          const mKey = [bPairs[i].id, bPairs[j].id].sort().join("|||");
+          if (!usedMatchups.has(mKey)) allCandidates.push({ pair1: bPairs[i], pair2: bPairs[j], skillLevel: "B", matchupLabel: "B vs B", courtPool: "AB" });
+        }
+      }
       for (const bp of bPairs) {
         for (const ap of aPairs) {
           const mKey = [bp.id, ap.id].sort().join("|||");
@@ -1036,7 +1133,7 @@ export function useGameState() {
       }
 
       // Schedule remaining using pickBestCandidate pattern
-      const TARGET_GAMES_PER_PAIR = 4;
+      const TARGET_GAMES_PER_PAIR = courtCount === 3 ? 3 : 4;
       const durationMin = s.sessionConfig.durationMinutes || 85;
       const minutesPerGame = 7;
       const totalSlots = Math.floor(durationMin / minutesPerGame);
@@ -1080,10 +1177,15 @@ export function useGameState() {
           const g1 = pairGameCount.get(c.pair1.id) || 0;
           const g2 = pairGameCount.get(c.pair2.id) || 0;
           if (g1 >= TARGET_GAMES_PER_PAIR || g2 >= TARGET_GAMES_PER_PAIR) continue;
+          // Equity gate: no pair schedules more than 1 game ahead of the least-scheduled pair
+          const minCount = Math.min(...Array.from(pairGameCount.values()));
+          if (g1 > minCount + 1 || g2 > minCount + 1) continue;
           const playerIds = matchPlayerIds(c);
           if (playerIds.some((id) => slotPlayerIds.has(id))) continue;
           if (playerIds.some((id) => blockedPlayerIds.has(id))) continue;
-          const score = g1 + g2;
+          let score = g1 + g2;
+          // Penalize cross-tier B vs A so same-tier matches are preferred
+          if (c.matchupLabel === "B vs A") score += 50;
           if (score < bestScore) { bestScore = score; bestIdx = i; }
         }
         return bestIdx;
@@ -1245,11 +1347,19 @@ export function useGameState() {
 
         // Find next pending match respecting rest gap and court routing
         if (freedCourt) {
-          // Players from the skipped match need rest
-          const recentPlayerIds = new Set(getMatchPlayerIds(skipped));
+          // Global rest tracking: scan ALL matches completed within last 3 minutes
+          const recentPlayerIds = new Set<string>();
+          const now = Date.now();
+          for (const m of updatedMatches) {
+            if (m.status === "completed" && m.completedAt && (now - Date.parse(m.completedAt)) < 180000) {
+              getMatchPlayerIds(m).forEach((id) => recentPlayerIds.add(id));
+            }
+          }
+          // Also add skipped match players as recent
+          getMatchPlayerIds(skipped).forEach((id) => recentPlayerIds.add(id));
           const courtCount = s.sessionConfig.courtCount || 2;
 
-          const nextPending = findNextPendingForCourt(updatedMatches, freedCourt, courtCount, recentPlayerIds);
+          const nextPending = findNextPendingForCourt(updatedMatches, freedCourt, courtCount, recentPlayerIds, s.pairs, updatedMatches);
           if (nextPending) {
             nextPending.status = "playing";
             nextPending.court = freedCourt;
@@ -1470,11 +1580,17 @@ export function useGameState() {
 
         // Find next pending match respecting rest gap and court routing
         if (freedCourt) {
-          // Players from the just-completed match need rest
-          const recentPlayerIds = new Set([...winnerIds, ...loserIds]);
+          // Global rest tracking: scan ALL matches completed within last 3 minutes
+          const recentPlayerIds = new Set<string>();
+          const now = Date.now();
+          for (const m of updatedMatches) {
+            if (m.status === "completed" && m.completedAt && (now - Date.parse(m.completedAt)) < 180000) {
+              getMatchPlayerIds(m).forEach((id) => recentPlayerIds.add(id));
+            }
+          }
           const courtCount = s.sessionConfig.courtCount || 2;
 
-          const nextPending = findNextPendingForCourt(updatedMatches, freedCourt, courtCount, recentPlayerIds);
+          const nextPending = findNextPendingForCourt(updatedMatches, freedCourt, courtCount, recentPlayerIds, updatedPairs, updatedMatches);
           if (nextPending) {
             nextPending.status = "playing";
             nextPending.court = freedCourt;
