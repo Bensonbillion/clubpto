@@ -15,9 +15,16 @@ export default {
     extend: {
       fontFamily: {
         display: ['Playfair Display', 'Georgia', 'serif'],
-        body: ['Inter', 'system-ui', 'sans-serif'],
+        body: ['DM Sans', 'Inter', 'system-ui', 'sans-serif'],
       },
       colors: {
+        dark: {
+          DEFAULT: '#1A1A1A',
+          surface: '#2D2D2D',
+          elevated: '#3A3A3A',
+        },
+        cream: '#F5F0EB',
+        gold: '#C9A84C',
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

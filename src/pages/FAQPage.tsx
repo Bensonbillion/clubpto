@@ -1,4 +1,3 @@
-import Layout from "@/components/Layout";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
@@ -38,7 +37,7 @@ const faqs = [
 
 const FAQPage = () => {
   return (
-    <Layout>
+    <>
       <div className="container mx-auto px-4 py-8 md:py-16">
         {/* Page Header */}
         <div className="text-center mb-8 md:mb-12">
@@ -86,7 +85,7 @@ const FAQPage = () => {
           </div>
         </div>
       </div>
-    </Layout>
+    </>
   );
 };
 

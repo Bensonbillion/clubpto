@@ -1,4 +1,3 @@
-import Layout from "@/components/Layout";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -88,7 +87,7 @@ const Book = () => {
   };
 
   return (
-    <Layout>
+    <>
       <div className="container mx-auto px-4 py-8 md:py-16 relative">
         {/* Background glow */}
         <div className="absolute top-20 right-0 w-[400px] h-[400px] bg-primary/5 rounded-full blur-3xl pointer-events-none" />
@@ -279,7 +278,7 @@ const Book = () => {
           </>
         )}
       </div>
-    </Layout>
+    </>
   );
 };
 
