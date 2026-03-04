@@ -150,7 +150,30 @@ export function aggregateAndRank(rawData: any[]): LeaderboardEntry[] {
     }));
 }
 
-// ── Function 3: Get Player Profile with Stats ─────────────
+// ── Function 3: Get All-Time Leaderboard ──────────────────
+
+export async function getAllTimeLeaderboard(): Promise<{ data?: LeaderboardEntry[]; error?: string }> {
+  const { data, error } = await supabase
+    .from("players")
+    .select("id, first_name, last_name, preferred_name, total_points, total_wins")
+    .gt("total_points", 0)
+    .order("total_points", { ascending: false });
+
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) return { data: [] };
+
+  return {
+    data: data.map((p: any, i: number) => ({
+      playerId: p.id,
+      playerName: p.preferred_name || p.first_name,
+      points: p.total_points,
+      wins: p.total_wins,
+      rank: i + 1,
+    })),
+  };
+}
+
+// ── Function 4: Get Player Profile with Stats ─────────────
 
 export async function getPlayerProfile(
   playerId: string,

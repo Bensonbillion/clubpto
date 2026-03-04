@@ -56,7 +56,7 @@ const PlayerManager = ({ onProfilesChanged }: PlayerManagerProps = {}) => {
       p.first_name.toLowerCase().includes(q) ||
       p.last_name.toLowerCase().includes(q) ||
       (p.preferred_name && p.preferred_name.toLowerCase().includes(q)) ||
-      p.email.toLowerCase().includes(q)
+      (p.email && p.email.toLowerCase().includes(q))
     );
   });
 
@@ -84,18 +84,20 @@ const PlayerManager = ({ onProfilesChanged }: PlayerManagerProps = {}) => {
   };
 
   const handleSave = async () => {
-    if (!form.first_name.trim() || !form.last_name.trim() || !form.email.trim()) {
-      toast.error("First name, last name, and email are required");
+    if (!form.first_name.trim() || !form.last_name.trim()) {
+      toast.error("First name and last name are required");
       return;
     }
     setSaving(true);
 
-    const payload = {
+    const payload: Record<string, any> = {
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
       preferred_name: form.preferred_name.trim() || null,
-      email: form.email.trim().toLowerCase(),
     };
+    if (form.email.trim()) {
+      payload.email = form.email.trim().toLowerCase();
+    }
 
     if (editingId) {
       const { error } = await supabase.from("players").update(payload).eq("id", editingId);
@@ -186,7 +188,7 @@ const PlayerManager = ({ onProfilesChanged }: PlayerManagerProps = {}) => {
                       ({player.first_name} {player.last_name})
                     </span>
                   )}
-                  <p className="text-xs text-muted-foreground mt-0.5">{player.email}</p>
+                  {player.email && <p className="text-xs text-muted-foreground mt-0.5">{player.email}</p>}
                 </div>
                 <div className="text-right text-sm shrink-0 ml-4">
                   <span className="font-semibold text-accent">{player.total_points} pts</span>
@@ -206,7 +208,7 @@ const PlayerManager = ({ onProfilesChanged }: PlayerManagerProps = {}) => {
               <h3 className="font-display text-xl text-foreground">
                 {selected.preferred_name || selected.first_name} {selected.last_name}
               </h3>
-              <p className="text-sm text-muted-foreground">{selected.email}</p>
+              {selected.email && <p className="text-sm text-muted-foreground">{selected.email}</p>}
             </div>
             <button
               onClick={() => openEdit(selected)}
@@ -281,7 +283,7 @@ const PlayerManager = ({ onProfilesChanged }: PlayerManagerProps = {}) => {
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Email *
+                  Email
                 </label>
                 <input
                   type="email"
