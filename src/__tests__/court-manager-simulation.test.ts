@@ -361,7 +361,7 @@ function partA() {
   const { schedule: s2, slotBoundaries: sb2 } = generateSchedule(p2.allPairs, p2.aR.pairs, p2.bR.pairs, p2.cR.pairs, 2);
   console.log(`  [Info] ${s2.length} games, ${p2.allPairs.length} pairs, ${getSlotCount(s2, 2, sb2)} slots`);
   const breakdown2 = { AvA: 0, BvB: 0, BvA: 0, CvC: 0, BvC: 0 };
-  s2.forEach(m => { const k = (m.matchupLabel || "").replace(/ /g, "") as keyof typeof breakdown2; if (k === "AvsA") breakdown2.AvA++; else if (k === "BvsB") breakdown2.BvB++; else if (k === "BvsA") breakdown2.BvA++; else if (k === "CvsC") breakdown2.CvC++; else if (k === "BvsC") breakdown2.BvC++; });
+  s2.forEach(m => { const k = (m.matchupLabel || "").replace(/ /g, ""); if (k === "AvA") breakdown2.AvA++; else if (k === "BvB") breakdown2.BvB++; else if (k === "BvA") breakdown2.BvA++; else if (k === "CvC") breakdown2.CvC++; else if (k === "BvC") breakdown2.BvC++; });
   console.log(`  [Info] AvA=${breakdown2.AvA} BvB=${breakdown2.BvB} BvA=${breakdown2.BvA} CvC=${breakdown2.CvC} BvC=${breakdown2.BvC}`);
   printSchedule(s2, 2, sb2);
   validateConstraints(s2, 2, "2C-2", tA2, tB2, tC2, sb2);

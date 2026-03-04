@@ -5,16 +5,19 @@ import { Plus, Pencil, X, Search } from "lucide-react";
 
 interface Player {
   id: string;
-  first_name: string;
-  last_name: string;
+  name: string;
+  first_name: string | null;
+  last_name: string | null;
   preferred_name: string | null;
-  email: string;
+  email: string | null;
+  tier: string;
+  is_vip: boolean;
   total_points: number;
   total_wins: number;
   created_at: string;
 }
 
-const emptyForm = { first_name: "", last_name: "", preferred_name: "", email: "" };
+const emptyForm = { name: "", first_name: "", last_name: "", preferred_name: "", email: "", tier: "C", is_vip: false };
 
 interface PlayerManagerProps {
   onProfilesChanged?: () => void;
@@ -34,11 +37,11 @@ const PlayerManager = ({ onProfilesChanged }: PlayerManagerProps = {}) => {
     const { data, error } = await supabase
       .from("players")
       .select("*")
-      .order("first_name", { ascending: true });
+      .order("name", { ascending: true });
     if (error) {
       console.error("Failed to load players:", error);
     } else {
-      setPlayers(data || []);
+      setPlayers((data || []) as Player[]);
     }
     setLoading(false);
   }, []);
@@ -49,12 +52,13 @@ const PlayerManager = ({ onProfilesChanged }: PlayerManagerProps = {}) => {
 
   const selected = players.find((p) => p.id === selectedId) || null;
 
+  const getDisplayName = (p: Player) => p.preferred_name || p.name;
+
   const filtered = players.filter((p) => {
     if (!search) return true;
     const q = search.toLowerCase();
     return (
-      p.first_name.toLowerCase().includes(q) ||
-      p.last_name.toLowerCase().includes(q) ||
+      p.name.toLowerCase().includes(q) ||
       (p.preferred_name && p.preferred_name.toLowerCase().includes(q)) ||
       (p.email && p.email.toLowerCase().includes(q))
     );
@@ -68,10 +72,13 @@ const PlayerManager = ({ onProfilesChanged }: PlayerManagerProps = {}) => {
 
   const openEdit = (player: Player) => {
     setForm({
-      first_name: player.first_name,
-      last_name: player.last_name,
+      name: player.name,
+      first_name: player.first_name || "",
+      last_name: player.last_name || "",
       preferred_name: player.preferred_name || "",
-      email: player.email,
+      email: player.email || "",
+      tier: player.tier,
+      is_vip: player.is_vip,
     });
     setEditingId(player.id);
     setShowForm(true);
@@ -84,19 +91,24 @@ const PlayerManager = ({ onProfilesChanged }: PlayerManagerProps = {}) => {
   };
 
   const handleSave = async () => {
-    if (!form.first_name.trim() || !form.last_name.trim()) {
-      toast.error("First name and last name are required");
+    if (!form.name.trim()) {
+      toast.error("Name is required");
       return;
     }
     setSaving(true);
 
     const payload: Record<string, any> = {
-      first_name: form.first_name.trim(),
-      last_name: form.last_name.trim(),
+      name: form.name.trim(),
+      first_name: form.first_name.trim() || null,
+      last_name: form.last_name.trim() || null,
       preferred_name: form.preferred_name.trim() || null,
+      tier: form.tier,
+      is_vip: form.is_vip,
     };
     if (form.email.trim()) {
       payload.email = form.email.trim().toLowerCase();
+    } else {
+      payload.email = null;
     }
 
     if (editingId) {
@@ -110,10 +122,10 @@ const PlayerManager = ({ onProfilesChanged }: PlayerManagerProps = {}) => {
         onProfilesChanged?.();
       }
     } else {
-      const { error } = await supabase.from("players").insert(payload);
+      const { error } = await supabase.from("players").insert(payload as any);
       if (error) {
         if (error.message.includes("duplicate")) {
-          toast.error("A player with that email already exists");
+          toast.error("A player with that name or email already exists");
         } else {
           toast.error("Failed to create: " + error.message);
         }
@@ -152,7 +164,7 @@ const PlayerManager = ({ onProfilesChanged }: PlayerManagerProps = {}) => {
         </button>
       </div>
 
-      {/* Search + Dropdown */}
+      {/* Search */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <input
@@ -181,13 +193,8 @@ const PlayerManager = ({ onProfilesChanged }: PlayerManagerProps = {}) => {
               >
                 <div>
                   <span className="font-medium text-foreground">
-                    {player.preferred_name || player.first_name} {player.last_name}
+                    {getDisplayName(player)}
                   </span>
-                  {player.preferred_name && (
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      ({player.first_name} {player.last_name})
-                    </span>
-                  )}
                   {player.email && <p className="text-xs text-muted-foreground mt-0.5">{player.email}</p>}
                 </div>
                 <div className="text-right text-sm shrink-0 ml-4">
@@ -206,7 +213,7 @@ const PlayerManager = ({ onProfilesChanged }: PlayerManagerProps = {}) => {
           <div className="flex items-start justify-between">
             <div>
               <h3 className="font-display text-xl text-foreground">
-                {selected.preferred_name || selected.first_name} {selected.last_name}
+                {getDisplayName(selected)}
               </h3>
               {selected.email && <p className="text-sm text-muted-foreground">{selected.email}</p>}
             </div>
@@ -248,42 +255,19 @@ const PlayerManager = ({ onProfilesChanged }: PlayerManagerProps = {}) => {
             </div>
 
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    First Name *
-                  </label>
-                  <input
-                    value={form.first_name}
-                    onChange={(e) => setForm((f) => ({ ...f, first_name: e.target.value }))}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-base text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Last Name *
-                  </label>
-                  <input
-                    value={form.last_name}
-                    onChange={(e) => setForm((f) => ({ ...f, last_name: e.target.value }))}
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-base text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30"
-                  />
-                </div>
-              </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Preferred Name
+                  Name *
                 </label>
                 <input
-                  value={form.preferred_name}
-                  onChange={(e) => setForm((f) => ({ ...f, preferred_name: e.target.value }))}
-                  placeholder="Display name (optional)"
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent/30"
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-base text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30"
                 />
               </div>
               <div>
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Email
+                  Email (optional)
                 </label>
                 <input
                   type="email"
