@@ -4,10 +4,14 @@ import { query } from "@/lib/turso";
 import { GameState, DEFAULT_STATE, Player, Pair, Match, GameHistory, PlayoffMatch, FixedPair, SkillTier, OddPlayerDecision } from "@/types/courtManager";
 import { awardPoints, type PointsReason } from "@/lib/leaderboard";
 
-const VIP_NAMES = ["david", "benson", "albright"];
-function isVip(name: string) { return VIP_NAMES.includes(name.toLowerCase()); }
+const VIP_PROFILE_IDS = new Set([
+  "08813d60dccf0067907caf3727077d20", // David
+  "040263dd01d6128b0df59406d4f9d9e0", // Benson
+  "79acebd959da20272f79bfd96f8af281", // Albright
+]);
+function isVip(name: string, profileId?: string) { return profileId ? VIP_PROFILE_IDS.has(profileId) : false; }
 function matchHasVip(m: Match): boolean {
-  return [m.pair1.player1, m.pair1.player2, m.pair2.player1, m.pair2.player2].some(p => isVip(p.name));
+  return [m.pair1.player1, m.pair1.player2, m.pair2.player1, m.pair2.player2].some(p => isVip(p.name, p.profileId));
 }
 
 const ROW_ID = "current";

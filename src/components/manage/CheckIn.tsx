@@ -47,7 +47,7 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
 
     if (player.checkedIn) {
       toggleCheckIn(playerId);
-      if (isVipPlayer(player.name)) {
+      if (isVipPlayer(player.name, player.profileId)) {
         vipsDismissedRef.current.delete(player.name.toLowerCase());
         setVipFixedPairs((prev) =>
           prev.filter((fp) => fp.player1Name.toLowerCase() !== player.name.toLowerCase())
@@ -74,7 +74,7 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
 
     // If session is already active, handle late arrival flow
     if (sessionActive) {
-      if (isVipPlayer(player.name) && !vipsDismissedRef.current.has(player.name.toLowerCase())) {
+      if (isVipPlayer(player.name, player.profileId) && !vipsDismissedRef.current.has(player.name.toLowerCase())) {
         // VIP late arrival — show partner selection dialog
         setLateVipPlayerId(playerId);
         setTimeout(() => setVipDialogFor(player.name), 100);
@@ -93,7 +93,7 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
     }
 
     // Pre-session VIP handling
-    if (isVipPlayer(player.name) && !vipsDismissedRef.current.has(player.name.toLowerCase())) {
+    if (isVipPlayer(player.name, player.profileId) && !vipsDismissedRef.current.has(player.name.toLowerCase())) {
       setTimeout(() => setVipDialogFor(player.name), 100);
     }
   };

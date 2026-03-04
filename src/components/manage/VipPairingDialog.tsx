@@ -4,11 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Users, Shuffle } from "lucide-react";
 import { FixedPair } from "@/types/courtManager";
 
-/** The 3 VIP names (case-insensitive matching) */
-const VIP_NAMES = ["david", "benson", "albright"];
+/** VIP profile IDs from Turso player database */
+const VIP_PROFILE_IDS = new Set([
+  "08813d60dccf0067907caf3727077d20", // David
+  "040263dd01d6128b0df59406d4f9d9e0", // Benson
+  "79acebd959da20272f79bfd96f8af281", // Albright
+]);
 
-export function isVipPlayer(name: string): boolean {
-  return VIP_NAMES.includes(name.toLowerCase());
+export function isVipPlayer(name: string, profileId?: string): boolean {
+  if (profileId) return VIP_PROFILE_IDS.has(profileId);
+  return false;
 }
 
 interface VipPairingDialogProps {
