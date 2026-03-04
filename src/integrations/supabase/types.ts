@@ -97,80 +97,6 @@ export type Database = {
         }
         Relationships: []
       }
-      players: {
-        Row: {
-          id: string
-          first_name: string
-          last_name: string
-          preferred_name: string | null
-          email: string
-          total_points: number
-          total_wins: number
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          first_name: string
-          last_name: string
-          preferred_name?: string | null
-          email: string
-          total_points?: number
-          total_wins?: number
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          first_name?: string
-          last_name?: string
-          preferred_name?: string | null
-          email?: string
-          total_points?: number
-          total_wins?: number
-          created_at?: string
-        }
-        Relationships: []
-      }
-      points_ledger: {
-        Row: {
-          id: string
-          player_id: string
-          points: number
-          reason: Database["public"]["Enums"]["points_reason"]
-          match_id: string | null
-          week_start_date: string
-          earned_at: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          player_id: string
-          points: number
-          reason: Database["public"]["Enums"]["points_reason"]
-          match_id?: string | null
-          week_start_date: string
-          earned_at?: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          player_id?: string
-          points?: number
-          reason?: Database["public"]["Enums"]["points_reason"]
-          match_id?: string | null
-          week_start_date?: string
-          earned_at?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "points_ledger_player_id_fkey"
-            columns: ["player_id"]
-            isOneToOne: false
-            referencedRelation: "players"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       sessions: {
         Row: {
           created_at: string
@@ -209,44 +135,13 @@ export type Database = {
       }
     }
     Views: {
-      weekly_leaderboard: {
-        Row: {
-          week_start_date: string
-          player_id: string
-          player_name: string
-          points: number
-          wins: number
-          rank: number
-        }
-        Relationships: [
-          {
-            foreignKeyName: "points_ledger_player_id_fkey"
-            columns: ["player_id"]
-            isOneToOne: false
-            referencedRelation: "players"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
+      [_ in never]: never
     }
     Functions: {
-      award_points: {
-        Args: {
-          p_player_id: string
-          p_points: number
-          p_reason: Database["public"]["Enums"]["points_reason"]
-          p_match_id: string | null
-          p_week_start_date: string
-        }
-        Returns: string
-      }
-      refresh_weekly_leaderboard: {
-        Args: Record<string, never>
-        Returns: undefined
-      }
+      [_ in never]: never
     }
     Enums: {
-      points_reason: "regular_win" | "playoff_win" | "tournament_win"
+      [_ in never]: never
     }
     CompositeTypes: {
       [_ in never]: never
@@ -373,8 +268,6 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {
-      points_reason: ["regular_win", "playoff_win", "tournament_win"] as const,
-    },
+    Enums: {},
   },
 } as const
