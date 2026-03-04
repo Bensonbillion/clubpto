@@ -85,7 +85,7 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
           if (result.paired) {
             toast.success(`${player.name} + ${result.partnerName} added to schedule — first game in ~${result.estimatedMinutes || 7} minutes`);
           } else {
-            toast.info(`${player.name} added to waitlist — waiting for a same-tier partner`);
+            toast.info(`${player.name} added as late player — waiting for a same-tier partner`);
           }
         }, 100);
       }
@@ -109,7 +109,7 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
       if (result.paired && player) {
         toast.success(`${player.name} + ${result.partnerName} added to schedule — first game in ~${result.estimatedMinutes || 7} minutes`);
       } else if (player) {
-        toast.info(`${player.name} added to waitlist — waiting for a same-tier partner`);
+        toast.info(`${player.name} added as late player — waiting for a same-tier partner`);
       }
     }
     setVipDialogFor(null);
@@ -127,7 +127,7 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
         if (result.paired && player) {
           toast.success(`${player.name} + ${result.partnerName} added to schedule — first game in ~${result.estimatedMinutes || 7} minutes`);
         } else if (player) {
-          toast.info(`${player.name} added to waitlist — waiting for a same-tier partner`);
+          toast.info(`${player.name} added as late player — waiting for a same-tier partner`);
         }
         setLateVipPlayerId(null);
       } else if (teammateName) {

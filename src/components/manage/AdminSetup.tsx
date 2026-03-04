@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Trash2, Plus, Play, RotateCcw, Sparkles, ChevronDown, ChevronUp, Loader2, Zap, Search, Users } from "lucide-react";
+import { Trash2, Plus, Play, RotateCcw, Sparkles, ChevronDown, ChevronUp, Loader2, Zap, Search, Users, ClipboardPaste } from "lucide-react";
 import { toast } from "sonner";
 import { SkillTier } from "@/types/courtManager";
 import PlayerManager from "./PlayerManager";
@@ -50,6 +50,11 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
 
   // Player manager state
   const [showPlayerManager, setShowPlayerManager] = useState(false);
+
+  // Bulk paste state
+  const [showBulk, setShowBulk] = useState(false);
+  const [bulkNames, setBulkNames] = useState("");
+  const [bulkSkill, setBulkSkill] = useState<SkillTier>("C");
 
   // AI assistant state
   const [showAi, setShowAi] = useState(false);
@@ -97,6 +102,16 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
       (p.email && p.email.toLowerCase().includes(q))
     );
   });
+
+  const handleBulkAdd = () => {
+    const names = bulkNames
+      .split(/[\n,]+/)
+      .map((n) => n.replace(/^[\s\-\*•]+\[.*?\]\s*/g, "").replace(/^[\s\-\*•]+/, "").trim())
+      .filter((n) => n.length > 0 && n !== "[ ]" && n !== "[x]");
+    names.forEach((name) => addPlayer(name, bulkSkill));
+    setBulkNames("");
+    toast.success(`Added ${names.length} player${names.length !== 1 ? "s" : ""}`);
+  };
 
   const handleSelectProfile = (profile: PlayerProfile) => {
     const displayName = getDisplayName(profile);
@@ -208,53 +223,90 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
       <div className="rounded-lg border border-border bg-card p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-2xl text-accent">Roster</h2>
-          <Button size="sm" onClick={() => setShowPlayerManager(true)}>
-            <Users className="w-4 h-4 mr-2" />
-            Manage Players
-          </Button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowBulk(!showBulk)}
+              className="text-sm text-muted-foreground hover:text-accent transition-colors flex items-center gap-1.5 min-h-[36px] px-3"
+            >
+              <ClipboardPaste className="w-4 h-4" />
+              {showBulk ? "Search" : "Paste list"}
+            </button>
+            <Button size="sm" onClick={() => setShowPlayerManager(true)}>
+              <Users className="w-4 h-4 mr-2" />
+              Manage Players
+            </Button>
+          </div>
         </div>
 
         {/* Add Player */}
-        <div className="flex items-center gap-3">
-          <div className="relative w-full">
-            <Input
-              placeholder="Search player name or email..."
-              value={profileSearch}
-              onChange={(e) => {
-                setProfileSearch(e.target.value);
-                setShowDropdown(true);
-              }}
-              onFocus={() => setShowDropdown(true)}
+        {showBulk ? (
+          <div className="space-y-4">
+            <textarea
+              placeholder={"Paste names here — one per line or comma-separated\n\nExample:\nAlex\nBen\nClara, Dana"}
+              value={bulkNames}
+              onChange={(e) => setBulkNames(e.target.value)}
+              rows={6}
+              className="w-full rounded-md border border-border bg-muted px-4 py-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none font-body"
             />
-            {showDropdown && (
-              <div ref={dropdownRef} className="absolute top-full left-0 mt-1 w-full rounded-md border border-border bg-popover shadow-md z-10">
-                {filteredProfiles.length === 0 ? (
-                  <div className="px-4 py-2 text-sm text-muted-foreground">No profiles found</div>
-                ) : (
-                  filteredProfiles.map((profile) => (
-                    <button
-                      key={profile.id}
-                      className="block w-full px-4 py-2 text-left text-sm text-foreground hover:bg-accent/10 transition-colors"
-                      onClick={() => handleSelectProfile(profile)}
-                    >
-                      {getDisplayName(profile)}
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
+            <div className="flex gap-4">
+              <Select value={bulkSkill} onValueChange={(v) => setBulkSkill(v as SkillTier)}>
+                <SelectTrigger className="w-44 min-h-[48px] text-base">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="A">Tier A</SelectItem>
+                  <SelectItem value="B">Tier B</SelectItem>
+                  <SelectItem value="C">Tier C</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button onClick={handleBulkAdd} disabled={!bulkNames.trim()} className="min-h-[48px] px-6 text-base">
+                <Plus className="w-5 h-5 mr-1.5" /> Add All
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground">Tip: Copy a list from your group chat and paste it directly.</p>
           </div>
-          <Select value={newSkill} onValueChange={(value) => setNewSkill(value as SkillTier)}>
-            <SelectTrigger className="w-[120px] text-sm">
-              <SelectValue placeholder="Skill Tier" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="A">Tier A</SelectItem>
-              <SelectItem value="B">Tier B</SelectItem>
-              <SelectItem value="C">Tier C</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="relative w-full">
+              <Input
+                placeholder="Search player name or email..."
+                value={profileSearch}
+                onChange={(e) => {
+                  setProfileSearch(e.target.value);
+                  setShowDropdown(true);
+                }}
+                onFocus={() => setShowDropdown(true)}
+              />
+              {showDropdown && (
+                <div ref={dropdownRef} className="absolute top-full left-0 mt-1 w-full rounded-md border border-border bg-popover shadow-md z-10 max-h-60 overflow-y-auto">
+                  {filteredProfiles.length === 0 ? (
+                    <div className="px-4 py-2 text-sm text-muted-foreground">No profiles found</div>
+                  ) : (
+                    filteredProfiles.map((profile) => (
+                      <button
+                        key={profile.id}
+                        className="block w-full px-4 py-2 text-left text-sm text-foreground hover:bg-accent/10 transition-colors"
+                        onClick={() => handleSelectProfile(profile)}
+                      >
+                        {getDisplayName(profile)}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+            <Select value={newSkill} onValueChange={(value) => setNewSkill(value as SkillTier)}>
+              <SelectTrigger className="w-[120px] text-sm">
+                <SelectValue placeholder="Skill Tier" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="A">Tier A</SelectItem>
+                <SelectItem value="B">Tier B</SelectItem>
+                <SelectItem value="C">Tier C</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {/* Current Roster */}
         <div className="divide-y divide-border rounded-md border border-border overflow-hidden">

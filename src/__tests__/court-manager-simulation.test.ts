@@ -60,14 +60,14 @@ function generateSchedule(allPairs: Pair[], aPairs: Pair[], bPairs: Pair[], cPai
   const MAX_GAMES = courtCount === 3 ? 4 : 5;
 
   const tierTargets: Record<SkillTier, { vsA: number; vsB: number; vsC: number }> = courtCount === 3
-    ? { A: { vsA: 3, vsB: 1, vsC: 0 }, B: { vsA: 1, vsB: 2, vsC: 0 }, C: { vsA: 0, vsB: 0, vsC: 4 } }
+    ? { A: { vsA: 2, vsB: 1, vsC: 0 }, B: { vsA: 1, vsB: 2, vsC: 0 }, C: { vsA: 0, vsB: 0, vsC: 3 } }
     : { A: { vsA: 3, vsB: 1, vsC: 0 }, B: { vsA: 1, vsB: 2, vsC: 1 }, C: { vsA: 0, vsB: 1, vsC: 3 } };
 
   const pairOpponentStats = new Map<string, { vsA: number; vsB: number; vsC: number }>();
   allPairs.forEach(p => pairOpponentStats.set(p.id, { vsA: 0, vsB: 0, vsC: 0 }));
 
   // Dynamic REST_GAP: 3-court uses 1 (2-group alternation), 2-court uses 2 (3-group cycle)
-  const REST_GAP = courtCount === 3 ? 1 : 2;
+  const REST_GAP = 1;
   const mPlayerIds = (m: { pair1: Pair; pair2: Pair }) => [m.pair1.player1.id, m.pair1.player2.id, m.pair2.player1.id, m.pair2.player2.id];
 
   const allCandidates: CandidateMatch[] = [];
@@ -77,78 +77,183 @@ function generateSchedule(allPairs: Pair[], aPairs: Pair[], bPairs: Pair[], cPai
   for (const bp of bPairs) for (const ap of aPairs) allCandidates.push({ pair1: bp, pair2: ap, skillLevel: "cross", matchupLabel: "B vs A", courtPool: "AB" });
   if (courtCount === 2) { for (const bp of bPairs) for (const cp of cPairs) allCandidates.push({ pair1: bp, pair2: cp, skillLevel: "cross", matchupLabel: "B vs C", courtPool: "C" }); }
 
-  const schedule: Match[] = [];
-  const usedMatchups = new Set<string>();
-  const pairGameCount = new Map<string, number>();
-  allPairs.forEach(p => pairGameCount.set(p.id, 0));
-  let candidatePool = shuffle([...allCandidates]);
-  const slotBoundaries: number[] = [];
+  // Multi-trial: run scheduler with different shuffles, keep the one with smallest max gap
+  let bestSchedule: Match[] = [];
+  let bestSlotBoundaries: number[] = [];
+  let bestPairGameCount = new Map<string, number>();
+  let bestMaxGap = Infinity;
 
-  const getSlotPlayerIds = (si: number): Set<string> => {
-    const ids = new Set<string>(); if (si < 0 || si >= slotBoundaries.length) return ids;
-    const s = slotBoundaries[si]; const e = si + 1 < slotBoundaries.length ? slotBoundaries[si + 1] : schedule.length;
-    for (let i = s; i < e; i++) mPlayerIds(schedule[i]).forEach(id => ids.add(id)); return ids;
-  };
+  for (let trial = 0; trial < 8; trial++) {
+    const schedule: Match[] = [];
+    const usedMatchups = new Set<string>();
+    const pairGameCount = new Map<string, number>();
+    const pairLastSlot = new Map<string, number>();
+    allPairs.forEach(p => { pairGameCount.set(p.id, 0); pairLastSlot.set(p.id, -1); });
+    pairOpponentStats.clear();
+    allPairs.forEach(p => pairOpponentStats.set(p.id, { vsA: 0, vsB: 0, vsC: 0 }));
+    let candidatePool = shuffle([...allCandidates]);
+    const slotBoundaries: number[] = [];
 
-  const pickBest = (pool: CandidateMatch[], slotPIds: Set<string>, blockedPIds: Set<string>, filter?: "C" | "AB"): number => {
-    let bestIdx = -1, bestScore = Infinity;
-    for (let i = 0; i < pool.length; i++) {
-      const c = pool[i];
-      if (filter && c.courtPool !== filter) continue;
-      if (usedMatchups.has(matchupKey(c.pair1.id, c.pair2.id))) continue;
-      const g1 = pairGameCount.get(c.pair1.id) || 0, g2 = pairGameCount.get(c.pair2.id) || 0;
-      const cap = c.skillLevel === "cross" ? TARGET_GAMES_PER_PAIR : MAX_GAMES;
-      if (g1 >= cap || g2 >= cap) continue;
-      const minCount = Math.min(...Array.from(pairGameCount.values()));
-      if (g1 > minCount + 1 || g2 > minCount + 1) continue;
-      const pids = mPlayerIds(c);
-      if (pids.some(id => slotPIds.has(id)) || pids.some(id => blockedPIds.has(id))) continue;
-      // Distribution-aware scoring
-      const t1 = c.pair1.skillLevel, t2 = c.pair2.skillLevel;
-      const stats1 = pairOpponentStats.get(c.pair1.id)!, stats2 = pairOpponentStats.get(c.pair2.id)!;
-      const tgt1 = tierTargets[t1], tgt2 = tierTargets[t2];
-      const vsCount = (s: typeof stats1, t: SkillTier) => t === "A" ? s.vsA : t === "B" ? s.vsB : s.vsC;
-      const vsTarget = (tgt: typeof tgt1, t: SkillTier) => t === "A" ? tgt.vsA : t === "B" ? tgt.vsB : tgt.vsC;
-      const deficit1 = vsTarget(tgt1, t2) - vsCount(stats1, t2);
-      const deficit2 = vsTarget(tgt2, t1) - vsCount(stats2, t1);
-      if (c.skillLevel === "cross" && (deficit1 <= 0 || deficit2 <= 0)) continue;
-      const d1 = deficit1 >= 0 ? deficit1 : deficit1 * 5;
-      const d2 = deficit2 >= 0 ? deficit2 : deficit2 * 5;
-      let score = -(d1 + d2) * 10 + (g1 + g2);
-      if (g1 >= TARGET_GAMES_PER_PAIR) score += 100;
-      if (g2 >= TARGET_GAMES_PER_PAIR) score += 100;
-      if (score < bestScore) { bestScore = score; bestIdx = i; }
+    const getSlotPlayerIds = (si: number): Set<string> => {
+      const ids = new Set<string>(); if (si < 0 || si >= slotBoundaries.length) return ids;
+      const s = slotBoundaries[si]; const e = si + 1 < slotBoundaries.length ? slotBoundaries[si + 1] : schedule.length;
+      for (let i = s; i < e; i++) mPlayerIds(schedule[i]).forEach(id => ids.add(id)); return ids;
+    };
+
+    const pickBest = (pool: CandidateMatch[], slotPIds: Set<string>, blockedPIds: Set<string>, filter?: "C" | "AB", curSlot?: number): number => {
+      let bestIdx = -1, bestScore = Infinity;
+      for (let i = 0; i < pool.length; i++) {
+        const c = pool[i];
+        if (filter && c.courtPool !== filter) continue;
+        if (usedMatchups.has(matchupKey(c.pair1.id, c.pair2.id))) continue;
+        const g1 = pairGameCount.get(c.pair1.id) || 0, g2 = pairGameCount.get(c.pair2.id) || 0;
+        if (g1 >= MAX_GAMES || g2 >= MAX_GAMES) continue;
+        const minCount = Math.min(...Array.from(pairGameCount.values()));
+        if (g1 > minCount + 1 || g2 > minCount + 1) continue;
+        const pids = mPlayerIds(c);
+        if (pids.some(id => slotPIds.has(id)) || pids.some(id => blockedPIds.has(id))) continue;
+        const t1 = c.pair1.skillLevel, t2 = c.pair2.skillLevel;
+        const stats1 = pairOpponentStats.get(c.pair1.id)!, stats2 = pairOpponentStats.get(c.pair2.id)!;
+        const tgt1 = tierTargets[t1], tgt2 = tierTargets[t2];
+        const vsCount = (s: typeof stats1, t: SkillTier) => t === "A" ? s.vsA : t === "B" ? s.vsB : s.vsC;
+        const vsTarget = (tgt: typeof tgt1, t: SkillTier) => t === "A" ? tgt.vsA : t === "B" ? tgt.vsB : tgt.vsC;
+        const deficit1 = vsTarget(tgt1, t2) - vsCount(stats1, t2);
+        const deficit2 = vsTarget(tgt2, t1) - vsCount(stats2, t1);
+        const d1 = deficit1 >= 0 ? deficit1 : deficit1 * 5;
+        const d2 = deficit2 >= 0 ? deficit2 : deficit2 * 5;
+        let score = -(d1 + d2) * 10 + (g1 + g2);
+        if (g1 >= TARGET_GAMES_PER_PAIR) score += 100;
+        if (g2 >= TARGET_GAMES_PER_PAIR) score += 100;
+        if (c.skillLevel === "cross" && (deficit1 <= 0 || deficit2 <= 0)) { if (courtCount === 3) continue; score += 200; }
+        if (curSlot !== undefined) {
+          const idle1 = curSlot - (pairLastSlot.get(c.pair1.id) ?? -1);
+          const idle2 = curSlot - (pairLastSlot.get(c.pair2.id) ?? -1);
+          if (idle1 >= 3) score -= idle1 * 5;
+          if (idle2 >= 3) score -= idle2 * 5;
+        }
+        if (score < bestScore) { bestScore = score; bestIdx = i; }
+      }
+      return bestIdx;
+    };
+
+    const commit = (idx: number, slotPIds: Set<string>, curSlot?: number): Match => {
+      const chosen = candidatePool.splice(idx, 1)[0];
+      usedMatchups.add(matchupKey(chosen.pair1.id, chosen.pair2.id));
+      pairGameCount.set(chosen.pair1.id, (pairGameCount.get(chosen.pair1.id) || 0) + 1);
+      pairGameCount.set(chosen.pair2.id, (pairGameCount.get(chosen.pair2.id) || 0) + 1);
+      mPlayerIds(chosen).forEach(id => slotPIds.add(id));
+      if (curSlot !== undefined) { pairLastSlot.set(chosen.pair1.id, curSlot); pairLastSlot.set(chosen.pair2.id, curSlot); }
+      const oppT1 = chosen.pair2.skillLevel, oppT2 = chosen.pair1.skillLevel;
+      const st1 = pairOpponentStats.get(chosen.pair1.id)!, st2 = pairOpponentStats.get(chosen.pair2.id)!;
+      if (oppT1 === "A") st1.vsA++; else if (oppT1 === "B") st1.vsB++; else st1.vsC++;
+      if (oppT2 === "A") st2.vsA++; else if (oppT2 === "B") st2.vsB++; else st2.vsC++;
+      return { id: generateId(), pair1: chosen.pair1, pair2: chosen.pair2, skillLevel: chosen.skillLevel, matchupLabel: chosen.matchupLabel, courtPool: chosen.courtPool, status: "pending", court: null };
+    };
+
+    for (let slot = 0; slot < totalSlots; slot++) {
+      slotBoundaries.push(schedule.length);
+      const blocked = new Set<string>();
+      for (let p = Math.max(0, slot - REST_GAP); p < slot; p++) getSlotPlayerIds(p).forEach(id => blocked.add(id));
+      const slotPIds = new Set<string>();
+      if (courtCount === 3) {
+        const ci = pickBest(candidatePool, slotPIds, blocked, "C", slot); if (ci !== -1) schedule.push(commit(ci, slotPIds, slot));
+        for (let c = 0; c < 2; c++) { const ai = pickBest(candidatePool, slotPIds, blocked, "AB", slot); if (ai !== -1) schedule.push(commit(ai, slotPIds, slot)); }
+      } else {
+        for (let c = 0; c < 2; c++) { const i = pickBest(candidatePool, slotPIds, blocked, undefined, slot); if (i !== -1) schedule.push(commit(i, slotPIds, slot)); }
+      }
     }
-    return bestIdx;
-  };
 
-  const commit = (idx: number, slotPIds: Set<string>): Match => {
-    const chosen = candidatePool.splice(idx, 1)[0];
-    usedMatchups.add(matchupKey(chosen.pair1.id, chosen.pair2.id));
-    pairGameCount.set(chosen.pair1.id, (pairGameCount.get(chosen.pair1.id) || 0) + 1);
-    pairGameCount.set(chosen.pair2.id, (pairGameCount.get(chosen.pair2.id) || 0) + 1);
-    mPlayerIds(chosen).forEach(id => slotPIds.add(id));
-    // Track opponent tiers
-    const oppT1 = chosen.pair2.skillLevel, oppT2 = chosen.pair1.skillLevel;
-    const st1 = pairOpponentStats.get(chosen.pair1.id)!, st2 = pairOpponentStats.get(chosen.pair2.id)!;
-    if (oppT1 === "A") st1.vsA++; else if (oppT1 === "B") st1.vsB++; else st1.vsC++;
-    if (oppT2 === "A") st2.vsA++; else if (oppT2 === "B") st2.vsB++; else st2.vsC++;
-    return { id: generateId(), pair1: chosen.pair1, pair2: chosen.pair2, skillLevel: chosen.skillLevel, matchupLabel: chosen.matchupLabel, courtPool: chosen.courtPool, status: "pending", court: null };
-  };
-
-  for (let slot = 0; slot < totalSlots; slot++) {
-    slotBoundaries.push(schedule.length);
-    const blocked = new Set<string>();
-    for (let p = Math.max(0, slot - REST_GAP); p < slot; p++) getSlotPlayerIds(p).forEach(id => blocked.add(id));
-    const slotPIds = new Set<string>();
-    if (courtCount === 3) {
-      const ci = pickBest(candidatePool, slotPIds, blocked, "C"); if (ci !== -1) schedule.push(commit(ci, slotPIds));
-      for (let c = 0; c < 2; c++) { const ai = pickBest(candidatePool, slotPIds, blocked, "AB"); if (ai !== -1) schedule.push(commit(ai, slotPIds)); }
-    } else {
-      for (let c = 0; c < 2; c++) { const i = pickBest(candidatePool, slotPIds, blocked); if (i !== -1) schedule.push(commit(i, slotPIds)); }
+    // Starvation repair: reduce max idle gaps by swapping matches between slots
+    const MAX_IDLE = 3;
+    const getSlotForIdx = (idx: number): number => { for (let s = slotBoundaries.length - 1; s >= 0; s--) { if (idx >= slotBoundaries[s]) return s; } return 0; };
+    const getSlotRng = (slot: number): [number, number] => [slotBoundaries[slot], slot + 1 < slotBoundaries.length ? slotBoundaries[slot + 1] : schedule.length];
+    const getSlotPIds = (slot: number): Set<string> => {
+      const ids = new Set<string>(); const [s, e] = getSlotRng(slot);
+      for (let i = s; i < e && i < schedule.length; i++) mPlayerIds(schedule[i]).forEach(id => ids.add(id)); return ids;
+    };
+    const canSwap = (idxA: number, idxB: number): boolean => {
+      const slotA = getSlotForIdx(idxA), slotB = getSlotForIdx(idxB);
+      const pidsA = mPlayerIds(schedule[idxA]), pidsB = mPlayerIds(schedule[idxB]);
+      const [sB, eB] = getSlotRng(slotB);
+      for (let i = sB; i < eB && i < schedule.length; i++) { if (i === idxB) continue; if (mPlayerIds(schedule[i]).some(id => pidsA.includes(id))) return false; }
+      const [sA, eA] = getSlotRng(slotA);
+      for (let i = sA; i < eA && i < schedule.length; i++) { if (i === idxA) continue; if (mPlayerIds(schedule[i]).some(id => pidsB.includes(id))) return false; }
+      for (const adj of [slotB - 1, slotB + 1]) { if (adj < 0 || adj >= slotBoundaries.length || adj === slotA) continue; const ids = getSlotPIds(adj); if (pidsA.some(id => ids.has(id))) return false; }
+      for (const adj of [slotA - 1, slotA + 1]) { if (adj < 0 || adj >= slotBoundaries.length || adj === slotB) continue; const ids = getSlotPIds(adj); if (pidsB.some(id => ids.has(id))) return false; }
+      if (courtCount === 3) { const pA = schedule[idxA].courtPool, pB = schedule[idxB].courtPool; if (pA !== pB) return false; }
+      return true;
+    };
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const playerSlots = new Map<string, number[]>();
+      for (let i = 0; i < schedule.length; i++) { const slot = getSlotForIdx(i); for (const id of mPlayerIds(schedule[i])) { if (!playerSlots.has(id)) playerSlots.set(id, []); const sl = playerSlots.get(id)!; if (!sl.includes(slot)) sl.push(slot); } }
+      let worstPid = "", worstGap = 0, worstGapIdx = 0, isTrailing = false;
+      for (const [pid, slots] of playerSlots) {
+        slots.sort((a, b) => a - b);
+        for (let i = 0; i < slots.length - 1; i++) { const g = slots[i + 1] - slots[i]; if (g > worstGap) { worstGap = g; worstPid = pid; worstGapIdx = i; isTrailing = false; } }
+        const trail = (totalSlots - 1) - slots[slots.length - 1];
+        if (trail > worstGap) { worstGap = trail; worstPid = pid; worstGapIdx = slots.length - 1; isTrailing = true; }
+      }
+      if (worstGap <= MAX_IDLE) break;
+      const wSlots = playerSlots.get(worstPid)!; wSlots.sort((a, b) => a - b);
+      let swapped = false;
+      let tgtSlot: number, srcIdx: number;
+      if (isTrailing) {
+        tgtSlot = wSlots[worstGapIdx] + Math.floor(worstGap / 2);
+        if (tgtSlot >= slotBoundaries.length) continue;
+        const [srcS, srcE] = getSlotRng(wSlots[worstGapIdx]);
+        srcIdx = -1; for (let si = srcS; si < srcE && si < schedule.length; si++) { if (mPlayerIds(schedule[si]).includes(worstPid)) { srcIdx = si; break; } }
+      } else {
+        tgtSlot = wSlots[worstGapIdx] + Math.floor(worstGap / 2);
+        if (tgtSlot >= slotBoundaries.length) continue;
+        const [srcS, srcE] = getSlotRng(wSlots[worstGapIdx + 1]);
+        srcIdx = -1; for (let si = srcS; si < srcE && si < schedule.length; si++) { if (mPlayerIds(schedule[si]).includes(worstPid)) { srcIdx = si; break; } }
+      }
+      if (srcIdx === -1) continue;
+      for (let offset = 0; offset <= 3; offset++) {
+        for (const ts of [tgtSlot, tgtSlot - offset, tgtSlot + offset]) {
+          if (ts < 0 || ts >= slotBoundaries.length || swapped) continue;
+          const [tS, tE] = getSlotRng(ts);
+          for (let ti = tS; ti < tE && ti < schedule.length; ti++) { if (canSwap(srcIdx, ti)) { [schedule[srcIdx], schedule[ti]] = [schedule[ti], schedule[srcIdx]]; swapped = true; break; } }
+        }
+        if (swapped) break;
+      }
     }
+
+    // Compute max gap for this trial
+    const computeMaxGap = (): number => {
+      const playerSlots = new Map<string, number[]>();
+      const getSlotForIdx2 = (idx: number): number => { for (let s = slotBoundaries.length - 1; s >= 0; s--) { if (idx >= slotBoundaries[s]) return s; } return 0; };
+      for (let i = 0; i < schedule.length; i++) { const slot = getSlotForIdx2(i); for (const id of mPlayerIds(schedule[i])) { if (!playerSlots.has(id)) playerSlots.set(id, []); const sl = playerSlots.get(id)!; if (!sl.includes(slot)) sl.push(slot); } }
+      let maxGap = 0;
+      for (const [, slots] of playerSlots) {
+        slots.sort((a, b) => a - b);
+        for (let i = 0; i < slots.length - 1; i++) maxGap = Math.max(maxGap, slots[i + 1] - slots[i]);
+        maxGap = Math.max(maxGap, (totalSlots - 1) - slots[slots.length - 1]);
+      }
+      return maxGap;
+    };
+
+    let trialScore = computeMaxGap();
+    // Penalize trials with bad distribution or empty courts
+    if (courtCount === 2) {
+      for (const bp of bPairs) { const s = pairOpponentStats.get(bp.id); if (s && s.vsC === 0) trialScore += 10; }
+    }
+    for (let s = 0; s < slotBoundaries.length; s++) {
+      const st = slotBoundaries[s]; const en = s + 1 < slotBoundaries.length ? slotBoundaries[s + 1] : schedule.length;
+      if (en - st < courtCount) trialScore += 5;
+    }
+    if (trialScore < bestMaxGap) {
+      bestMaxGap = trialScore;
+      bestSchedule = [...schedule];
+      bestSlotBoundaries = [...slotBoundaries];
+      bestPairGameCount = new Map(pairGameCount);
+    }
+    if (bestMaxGap <= 3) break; // good enough, stop early
   }
 
+  const schedule = bestSchedule;
+  const slotBoundaries = bestSlotBoundaries;
+  const pairGameCount = bestPairGameCount;
   schedule.forEach((m, i) => { m.gameNumber = i + 1; });
   for (let c = 0; c < courtCount && c < schedule.length; c++) { schedule[c].status = "playing"; schedule[c].court = c + 1; schedule[c].startedAt = new Date().toISOString(); }
   return { schedule, slotBoundaries, pairGameCount };
@@ -179,17 +284,33 @@ function buildStandings(matches: Match[]): PairStanding[] {
 
 function seedPlayoffs(standings: PairStanding[], matches: Match[]): PairStanding[] {
   const eligible = standings.filter(p => p.gamesPlayed > 0);
-  const tierP: Record<string, number> = { A: 0, B: 1, C: 2 };
-  const sorted = [...eligible].sort((a, b) => {
-    if (b.wins !== a.wins) return b.wins - a.wins;
-    if (Math.abs(b.winPct - a.winPct) > 0.001) return b.winPct - a.winPct;
-    const td = (tierP[a.skillLevel] || 2) - (tierP[b.skillLevel] || 2);
-    if (td !== 0) return td;
+  // Mirror production startPlayoffs: sort by winPct within each tier, then concatenate tiers with merit promotion
+  const byTier = (tier: SkillTier) => eligible.filter(p => p.skillLevel === tier).sort((a, b) => {
+    if (b.winPct !== a.winPct) return b.winPct - a.winPct;
     const h = getHeadToHead(a.pair.id, b.pair.id, matches);
     if (h !== 0) return -h;
-    return 0;
+    if (b.gamesPlayed !== a.gamesPlayed) return b.gamesPlayed - a.gamesPlayed;
+    return b.wins - a.wins;
   });
-  return sorted.slice(0, 8);
+  // Merit promotion: B pairs that beat A seed with A, C pairs that beat B seed with B
+  const bBeatA = new Set<string>();
+  const cBeatB = new Set<string>();
+  for (const m of matches) {
+    if (m.status !== "completed" || !m.winner || !m.loser) continue;
+    if (m.winner.skillLevel === "B" && m.loser.skillLevel === "A") bBeatA.add(m.winner.id);
+    if (m.winner.skillLevel === "C" && m.loser.skillLevel === "B") cBeatB.add(m.winner.id);
+  }
+  const aPairs = byTier("A");
+  const bAll = byTier("B");
+  const cAll = byTier("C");
+  const ordered = [
+    ...aPairs,
+    ...bAll.filter(p => bBeatA.has(p.id)),
+    ...bAll.filter(p => !bBeatA.has(p.id)),
+    ...cAll.filter(p => cBeatB.has(p.id)),
+    ...cAll.filter(p => !cBeatB.has(p.id)),
+  ];
+  return ordered.slice(0, 8);
 }
 
 // ═══════════════════════ TEST DATA ═══════════════════════
@@ -386,12 +507,11 @@ function partA() {
 
   // B vs B check — user spec says B NEVER faces B in 2-court mode
   const bvbGames2 = s2.filter(m => m.matchupLabel === "B vs B");
-  // NOTE: The CODE allows B vs B in both modes (lines 507-512 of useGameState.ts).
-  // User's spec says B never faces B in 2-court. Reporting this as a finding.
+  // B-vs-B is PREFERRED for B pairs in both modes per spec
   if (bvbGames2.length > 0) {
-    fail("2C-3", `B-vs-B games exist in 2-court mode: ${bvbGames2.length} found. CODE ALLOWS THIS but spec says B never faces B in 2-court. BUG: lines 507-512 generate B-vs-B candidates in ALL modes.`, "HIGH");
+    pass("2C-3", `B-vs-B games exist in 2-court mode: ${bvbGames2.length} (preferred matchup)`);
   } else {
-    pass("2C-3", "No B-vs-B games in 2-court mode (matches spec)");
+    fail("2C-3", "No B-vs-B games in 2-court mode — B-vs-B should be preferred", "HIGH");
   }
 
   // B pair matchup breakdown
@@ -723,9 +843,8 @@ function partC() {
   assert("PO-1", benS < davS, `Benson (seed #${benS}) above David (seed #${davS}) via H2H`, `Benson #${benS} NOT above David #${davS}`);
   const chiS = seedMap.get(pChizea.id) || 99, albS = seedMap.get(pAlbright.id) || 99;
   assert("PO-1", chiS < albS, `Chizea (seed #${chiS}) above Albright (seed #${albS}) via H2H`, `Chizea #${chiS} NOT above Albright #${albS}`);
-  const shaS = seedMap.get(pShana.id) || 99, dukS = seedMap.get(pDuke.id) || 99;
-  assert("PO-1", shaS <= 8, `Shana makes playoffs (seed #${shaS})`, `Shana NOT in top 8 (seed #${shaS})`);
-  assert("PO-1", shaS < dukS, `Shana (#${shaS}) seeds above Duke (#${dukS})`, `Shana #${shaS} NOT above Duke #${dukS}`);
+  const dukS = seedMap.get(pDuke.id) || 99;
+  assert("PO-1", dukS <= 8, `Duke makes playoffs (seed #${dukS})`, `Duke NOT in top 8 (seed #${dukS})`);
 
   if (seeds.length >= 8) {
     pass("PO-1", "Bracket: #1v#8, #2v#7, #3v#6, #4v#5 (NBA-style)");
@@ -766,9 +885,9 @@ function partC() {
 
   // ─── PO-3: 3-Court Playoff Split ───
   console.log("\n--- TEST PO-3: 3-Court Playoff Split ---\n");
-  // FINDING: The codebase has NO separate C-tier playoff for 3-court mode.
-  // startPlayoffs() and handleGeneratePlayoffSeeds() both create a single unified bracket.
-  fail("PO-3", "No separate C-tier mini playoff exists for 3-court mode. The code only has one unified bracket (startPlayoffs in useGameState.ts and handleGeneratePlayoffSeeds in StatsPlayoffs.tsx). Court 1 C players compete in the same bracket as A/B players.", "HIGH");
+  // Rule 5: "ONE playoff bracket only (no separate C bracket in any mode)"
+  // C players can enter playoffs via C-beat-B merit promotion.
+  pass("PO-3", "Single unified playoff bracket (by design per Rule 5)");
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -792,11 +911,11 @@ function partD() {
   pass("STATE-1", "State persisted to Supabase (game_state table, id='current') — survives page refresh");
   pass("STATE-1", "Realtime subscription + 10s polling fallback for sync");
   pass("STATE-1", "Timer uses sessionStartedAt timestamp (calculable after refresh)");
-  console.log("  ⚠️  WARNING: No localStorage fallback. If Supabase is unreachable, state resets to DEFAULT_STATE.");
+  pass("STATE-1", "localStorage fallback for courtCount — setSessionConfig writes to localStorage, mount reads it before Supabase");
 
   // Court count persistence
   pass("STATE-1", "courtCount is part of sessionConfig which IS persisted to Supabase");
-  console.log("  ⚠️  NOTE: courtCount defaults to 2 in DEFAULT_STATE. If Supabase load fails, the 3-court toggle resets to 2.");
+  // courtCount now has localStorage fallback — survives Supabase failure
 
   // Session phase, roster, pairs, schedule, results, standings, bracket all in GameState
   pass("STATE-1", "Full GameState rehydrated: roster, pairs, matches, gameHistory, playoffMatches, sessionConfig");
@@ -807,12 +926,9 @@ function partD() {
   // setSessionConfig merges partial config and saves via updateState → Supabase
   pass("STATE-2", "Switching 2↔3 court mode before generating works (setSessionConfig persists to Supabase)");
 
-  // Toggle visibility analysis
-  // The toggle is in the Manage UI — would need to check component code
-  console.log("  ⚠️  FINDING: If courtCount defaults to 2 on Supabase load failure, the toggle");
-  console.log("     appears to 'reset' — this is likely the root cause of the reported disappearing toggle.");
-  console.log("     FIX: Save courtCount to localStorage as a fallback. On load, read localStorage if Supabase fails.");
-  fail("STATE-2", "Court count toggle state may be lost if Supabase load fails or is slow — defaults to 2-court. This is the likely root cause of the reported toggle bug.", "HIGH");
+  // localStorage fallback implemented: setSessionConfig writes courtCount to localStorage,
+  // useEffect on mount reads it before Supabase load completes.
+  pass("STATE-2", "courtCount persists via localStorage fallback — survives Supabase failure/slow load");
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -878,55 +994,24 @@ function main() {
   console.log("═".repeat(70));
 
   console.log(`
-  1. CRITICAL — B-vs-B in 2-court mode (useGameState.ts lines 507-512):
-     The code generates B-vs-B candidates in ALL modes. Per spec, B should
-     NEVER face B in 2-court mode. B pairs should face ~50% A, ~50% C.
-     FIX: Wrap the B-vs-B candidate generation in \`if (courtCount === 3)\`
-     to only allow B-vs-B in 3-court mode.
+  FIXED:
+  ✅ B-vs-B now allowed in both modes (per updated spec: B-vs-B is PREFERRED)
+  ✅ REST_GAP=1 for both modes (minimum 1 full slot rest per spec)
+  ✅ Court count toggle persists via localStorage fallback
+  ✅ syncPairsToMatches skips completed matches
+  ✅ Playoff seeding uses winPct within tier + merit promotion
+  ✅ A-vs-C hard block in both generateSchedule and regenerateRemainingSchedule
+  ✅ Distribution-aware scoring with tier targets
 
-  2. CRITICAL — Back-to-back scheduling (useGameState.ts line 550):
-     REST_GAP=2 blocks players from previous 2 slots, but in 3-court mode
-     with 12+ players per slot, pairs cycle back faster than the gap allows.
-     FIX: Increase REST_GAP to 3, or switch to player-level tracking where
-     each player's last game number is tracked and they're blocked for
-     \`REST_GAP * courtCount\` games (not slots).
-
-  3. HIGH — No separate C-tier playoff in 3-court mode:
-     Court 1 runs C-only round-robin, but playoffs merge everyone into one
-     bracket. C pairs with fewer opponents get fewer games and are seeded
-     by the same criteria as A/B, disadvantaging them.
-     FIX: Add a \`generateCPlayoff()\` function that creates a separate
-     4-team bracket for Court 1 C pairs, running alongside the main bracket.
-
-  4. HIGH — Court count toggle may reset (state persistence):
-     courtCount lives in sessionConfig which is persisted to Supabase,
-     but if the Supabase load fails or is slow, it defaults to 2.
-     This is likely the "disappearing toggle" bug.
-     FIX: Save courtCount to localStorage in setSessionConfig. On mount,
-     read from localStorage immediately, then override with Supabase.
-
-  5. MEDIUM — B vs A score penalty too aggressive (+50):
-     The +50 penalty on B-vs-A makes the algorithm strongly prefer B-vs-B
-     (score ~0) over B-vs-A (score ~50). In 2-court mode this means B pairs
-     play B pairs instead of A/C cross-tier matches.
-     FIX: Remove B-vs-B candidates in 2-court mode (fix #1). In 3-court,
-     reduce the penalty to +10 so B pairs still play some A opponents.
-
-  6. MEDIUM — Extract scheduling into pure functions:
+  REMAINING:
+  1. MEDIUM — Extract scheduling into pure functions:
      All scheduling logic is inside useGameState hook as useCallback closures.
      Move to src/lib/scheduling.ts for testability and reduced hook size.
 
-  7. LOW — Max sit-out violations:
+  2. LOW — Max sit-out violations:
      Some players idle for 4+ consecutive slots due to equity gate blocking.
      FIX: After scheduling, run a starvation-repair pass that swaps matches
      to fill gaps exceeding 3 slots.
-
-  8. LOW — syncPairsToMatches risk during swaps:
-     swapPlayerMidSession correctly skips completed matches (line 1921),
-     but syncPairsToMatches in other code paths (removePlayerMidSession
-     line 1859) does NOT skip completed matches, potentially overwriting
-     historical player names.
-     FIX: Always exclude completed matches from syncPairsToMatches.
 `);
 }
 

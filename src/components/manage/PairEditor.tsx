@@ -88,7 +88,7 @@ const PairEditor = ({
         return;
       }
       onSwapWaitlistPlayer?.(pairId, player.id, selected.player);
-      toast.success(`Swapped ${player.name} → waitlist, ${selected.player.name} → pair`);
+      toast.success(`Swapped ${player.name} → late players, ${selected.player.name} → pair`);
       setSelected(null);
       return;
     }
@@ -268,11 +268,11 @@ const PairEditor = ({
         );
       })}
 
-      {/* Waitlisted Players */}
+      {/* Late Players */}
       {editing && waitlistByTier.length > 0 && (
         <div className="space-y-2 pt-2 border-t border-border">
           <p className="text-xs uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
-            <UserPlus className="w-3.5 h-3.5" /> Waitlisted Players
+            <UserPlus className="w-3.5 h-3.5" /> Late Players
           </p>
           {waitlistByTier.map(({ tier, players }) => {
             const colors = TIER_COLORS[tier];
