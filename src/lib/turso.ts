@@ -7,9 +7,11 @@ try {
   const authToken = import.meta.env.VITE_TURSO_AUTH_TOKEN;
   if (url && authToken) {
     turso = createClient({ url, authToken });
+  } else {
+    console.warn("[Turso] Missing env vars:", { url: !!url, authToken: !!authToken });
   }
-} catch {
-  // Turso not configured — queries will fail gracefully
+} catch (e) {
+  console.error("[Turso] Failed to initialize:", e);
 }
 
 export { turso };
