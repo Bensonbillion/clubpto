@@ -9,6 +9,8 @@ export interface Player {
   wins: number;
   losses: number;
   gamesPlayed: number;
+  /** Supabase players table ID — links roster player to their DB profile */
+  profileId?: string;
 }
 
 export interface Pair {

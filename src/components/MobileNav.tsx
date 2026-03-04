@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, Instagram, Trophy } from "lucide-react";
+import { Menu, X, Instagram } from "lucide-react";
 import logo from "@/assets/logo.jpg";
 
 const MobileNav = () => {
@@ -10,7 +10,6 @@ const MobileNav = () => {
   const navLinks = [
     { href: "/", label: "Home" },
     { href: "/book", label: "Book" },
-    { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
     { href: "/about", label: "About" },
     { href: "/faq", label: "FAQ" },
     { href: "/manage", label: "Court Manager" },

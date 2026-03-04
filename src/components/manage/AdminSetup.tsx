@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useGameState } from "@/hooks/useGameState";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Trash2, Plus, Play, RotateCcw, ClipboardPaste, Sparkles, ChevronDown, ChevronUp, Loader2, Zap } from "lucide-react";
+import { Trash2, Plus, Play, RotateCcw, Sparkles, ChevronDown, ChevronUp, Loader2, Zap, Search, Users } from "lucide-react";
 import { toast } from "sonner";
 import { SkillTier } from "@/types/courtManager";
+import PlayerManager from "./PlayerManager";
 
 interface AdminSetupProps {
   gameState: ReturnType<typeof useGameState>;
@@ -19,6 +21,14 @@ interface AiResult {
   explanation: string;
 }
 
+interface PlayerProfile {
+  id: string;
+  first_name: string;
+  last_name: string;
+  preferred_name: string | null;
+  email: string;
+}
+
 const TIER_STYLES: Record<SkillTier, { border: string; bg: string; text: string; label: string }> = {
   A: { border: "border-yellow-500/60", bg: "bg-yellow-500/15", text: "text-yellow-400", label: "Tier A" },
   B: { border: "border-gray-300/60", bg: "bg-gray-300/15", text: "text-gray-300", label: "Tier B" },
@@ -27,13 +37,18 @@ const TIER_STYLES: Record<SkillTier, { border: string; bg: string; text: string;
 
 const AdminSetup = ({ gameState }: AdminSetupProps) => {
   const { state, setSessionConfig, addPlayer, removePlayer, setPlayerSkillLevel, setAllSkillLevels, setFixedPairs, startSession, resetSession } = gameState;
-  const [newName, setNewName] = useState("");
   const [newSkill, setNewSkill] = useState<SkillTier>("C");
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetKeepRoster, setResetKeepRoster] = useState(false);
-  const [bulkNames, setBulkNames] = useState("");
-  const [bulkSkill, setBulkSkill] = useState<SkillTier>("C");
-  const [showBulk, setShowBulk] = useState(false);
+
+  // Profile search state
+  const [profiles, setProfiles] = useState<PlayerProfile[]>([]);
+  const [profileSearch, setProfileSearch] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Player manager state
+  const [showPlayerManager, setShowPlayerManager] = useState(false);
 
   // AI assistant state
   const [showAi, setShowAi] = useState(false);
@@ -41,20 +56,53 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<AiResult | null>(null);
 
-  const handleAddPlayer = () => {
-    if (!newName.trim()) return;
-    const added = addPlayer(newName.trim(), newSkill);
-    if (!added) return;
-    setNewName("");
-  };
+  const fetchProfiles = useCallback(async () => {
+    const { data } = await supabase
+      .from("players")
+      .select("id, first_name, last_name, preferred_name, email")
+      .order("first_name", { ascending: true });
+    setProfiles(data || []);
+  }, []);
 
-  const handleBulkAdd = () => {
-    const names = bulkNames
-      .split(/[\n,]+/)
-      .map((n) => n.replace(/^[\s\-\*•]+\[.*?\]\s*/g, "").replace(/^[\s\-\*•]+/, "").trim())
-      .filter((n) => n.length > 0 && n !== "[ ]" && n !== "[x]");
-    names.forEach((name) => addPlayer(name, bulkSkill));
-    setBulkNames("");
+  useEffect(() => {
+    fetchProfiles();
+  }, [fetchProfiles]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const getDisplayName = (p: PlayerProfile) =>
+    p.preferred_name || `${p.first_name} ${p.last_name}`;
+
+  const rosterProfileIds = new Set(
+    state.roster.map((r) => r.profileId).filter(Boolean)
+  );
+
+  const filteredProfiles = profiles.filter((p) => {
+    if (rosterProfileIds.has(p.id)) return false;
+    if (!profileSearch) return true;
+    const q = profileSearch.toLowerCase();
+    return (
+      p.first_name.toLowerCase().includes(q) ||
+      p.last_name.toLowerCase().includes(q) ||
+      (p.preferred_name && p.preferred_name.toLowerCase().includes(q)) ||
+      p.email.toLowerCase().includes(q)
+    );
+  });
+
+  const handleSelectProfile = (profile: PlayerProfile) => {
+    const displayName = getDisplayName(profile);
+    addPlayer(displayName, newSkill, profile.id);
+    setProfileSearch("");
+    setShowDropdown(false);
   };
 
   const handleReset = (keepRoster = false) => {
@@ -101,14 +149,12 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
 
   const applyAiResult = () => {
     if (!aiResult) return;
-    // Apply skill overrides
     aiResult.skillOverrides.forEach(({ playerName, newSkill }) => {
       const player = state.roster.find((p) => p.name.toLowerCase() === playerName.toLowerCase());
       if (player && player.skillLevel !== newSkill) {
         setPlayerSkillLevel(player.id, newSkill);
       }
     });
-    // Persist fixed pairs
     setFixedPairs(aiResult.fixedPairs);
     const pairCount = aiResult.fixedPairs.length;
     const overrideCount = aiResult.skillOverrides.length;
@@ -229,51 +275,57 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
         </div>
       )}
 
-      {/* Add Player */}
+      {/* Player Roster — search from profiles */}
       <div className="rounded-lg border border-border bg-card p-8 space-y-5">
-        <div className="flex items-center justify-between">
-          <h3 className="font-display text-2xl text-accent">Player Roster</h3>
-          <button
-            onClick={() => setShowBulk(!showBulk)}
-            className="text-sm text-muted-foreground hover:text-accent transition-colors flex items-center gap-1.5 min-h-[44px] px-3"
-          >
-            <ClipboardPaste className="w-4 h-4" />
-            {showBulk ? "Single add" : "Paste list"}
-          </button>
-        </div>
+        <h3 className="font-display text-2xl text-accent">Player Roster</h3>
+        <p className="text-sm text-muted-foreground -mt-2">Search and add players from registered profiles.</p>
 
-        {showBulk ? (
-          <div className="space-y-4">
-            <textarea
-              placeholder={"Paste names here — one per line or comma-separated\n\nExample:\nAlex\nBen\nClara, Dana"}
-              value={bulkNames}
-              onChange={(e) => setBulkNames(e.target.value)}
-              rows={6}
-              className="w-full rounded-md border border-border bg-muted px-4 py-3 text-base text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none font-body"
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1" ref={dropdownRef}>
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <input
+              value={profileSearch}
+              onChange={(e) => {
+                setProfileSearch(e.target.value);
+                setShowDropdown(true);
+              }}
+              onFocus={() => setShowDropdown(true)}
+              placeholder="Search player profiles..."
+              className="w-full rounded-lg border border-border bg-muted pl-10 pr-4 py-3 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 min-h-[48px]"
             />
-            <div className="flex gap-4">
-              {tierSelect(bulkSkill, setBulkSkill, "w-44")}
-              <Button onClick={handleBulkAdd} disabled={!bulkNames.trim()} className="bg-primary text-primary-foreground hover:bg-primary/80 min-h-[48px] px-6 text-base">
-                <Plus className="w-5 h-5 mr-1.5" /> Add All
-              </Button>
-            </div>
-            <p className="text-sm text-muted-foreground">Tip: Copy a list from your group chat and paste it directly.</p>
+            {showDropdown && (
+              <div className="absolute z-20 mt-1 w-full rounded-lg border border-border bg-card shadow-xl max-h-[240px] overflow-y-auto">
+                {filteredProfiles.length === 0 ? (
+                  <div className="px-4 py-3 text-sm text-muted-foreground">
+                    {profiles.length === 0 ? "No profiles yet — create one below" : "No matching profiles"}
+                  </div>
+                ) : (
+                  filteredProfiles.map((profile) => (
+                    <button
+                      key={profile.id}
+                      onClick={() => handleSelectProfile(profile)}
+                      className="w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors flex items-center justify-between border-b border-border/30 last:border-b-0"
+                    >
+                      <div>
+                        <span className="font-medium text-foreground">
+                          {getDisplayName(profile)}
+                        </span>
+                        {profile.preferred_name && (
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            ({profile.first_name} {profile.last_name})
+                          </span>
+                        )}
+                        <p className="text-xs text-muted-foreground">{profile.email}</p>
+                      </div>
+                      <Plus className="w-4 h-4 text-muted-foreground shrink-0" />
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="flex flex-col sm:flex-row gap-4">
-            <Input
-              placeholder="Player name"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAddPlayer()}
-              className="bg-muted border-border flex-1 min-h-[48px] text-base"
-            />
-            {tierSelect(newSkill, setNewSkill)}
-            <Button onClick={handleAddPlayer} className="bg-primary text-primary-foreground hover:bg-primary/80 min-h-[48px] px-6 text-base">
-              <Plus className="w-5 h-5 mr-1.5" /> Add
-            </Button>
-          </div>
-        )}
+          {tierSelect(newSkill, setNewSkill)}
+        </div>
 
         {/* Roster Grid */}
         {state.roster.length > 0 ? (
@@ -323,7 +375,30 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
             </div>
           </>
         ) : (
-          <p className="text-muted-foreground text-base text-center py-8">No players added yet.</p>
+          <p className="text-muted-foreground text-base text-center py-8">No players added yet — search profiles above to add to roster.</p>
+        )}
+      </div>
+
+      {/* Manage Player Profiles */}
+      <div className="rounded-lg border border-border bg-card overflow-hidden">
+        <button
+          onClick={() => {
+            setShowPlayerManager(!showPlayerManager);
+            if (!showPlayerManager) fetchProfiles(); // Refresh profiles when opening
+          }}
+          className="w-full flex items-center justify-between px-8 py-5 text-left hover:bg-muted/50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <Users className="w-5 h-5 text-accent" />
+            <span className="font-display text-xl text-accent">Manage Player Profiles</span>
+          </div>
+          {showPlayerManager ? <ChevronUp className="w-5 h-5 text-muted-foreground" /> : <ChevronDown className="w-5 h-5 text-muted-foreground" />}
+        </button>
+
+        {showPlayerManager && (
+          <div className="px-8 pb-8 border-t border-border pt-6">
+            <PlayerManager onProfilesChanged={fetchProfiles} />
+          </div>
         )}
       </div>
 

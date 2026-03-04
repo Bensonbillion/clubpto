@@ -4,7 +4,8 @@ import AdminSetup from "@/components/manage/AdminSetup";
 import CheckIn from "@/components/manage/CheckIn";
 import CourtDisplay from "@/components/manage/CourtDisplay";
 import StatsPlayoffs from "@/components/manage/StatsPlayoffs";
-import { Settings, UserCheck, Monitor, BarChart3, Lock } from "lucide-react";
+import LeaderboardTab from "@/components/manage/LeaderboardTab";
+import { Settings, UserCheck, Monitor, BarChart3, Trophy, Lock } from "lucide-react";
 
 const ADMIN_PASSCODE = "9999";
 
@@ -13,6 +14,7 @@ const tabs = [
   { id: "checkin", label: "Check-In", icon: UserCheck },
   { id: "courts", label: "Court Display", icon: Monitor },
   { id: "stats", label: "Stats & Playoffs", icon: BarChart3 },
+  { id: "leaderboard", label: "Leaderboard", icon: Trophy },
 ] as const;
 
 type Tab = (typeof tabs)[number]["id"];
@@ -146,6 +148,7 @@ const Manage = () => {
             {activeTab === "stats" && (
               statsUnlocked ? <StatsPlayoffs gameState={gameState} /> : <PasscodeGate onUnlock={() => setStatsUnlocked(true)} />
             )}
+            {activeTab === "leaderboard" && <LeaderboardTab />}
           </>
         )}
       </main>

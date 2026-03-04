@@ -51,17 +51,22 @@ async function awardMatchPoints(
   reason: PointsReason,
   matchId: string,
 ): Promise<void> {
-  const names = [winnerPair.player1.name, winnerPair.player2.name];
-  for (const name of names) {
-    const { data: dbPlayer } = await supabase
-      .from("players")
-      .select("id")
-      .or(`preferred_name.ilike.${name},first_name.ilike.${name}`)
-      .limit(1)
-      .maybeSingle();
-    if (dbPlayer) {
-      await awardPoints(dbPlayer.id, points, reason, matchId).catch((err) =>
-        console.error(`Failed to award points to ${name}:`, err),
+  const players = [winnerPair.player1, winnerPair.player2];
+  for (const player of players) {
+    let playerId = player.profileId;
+    if (!playerId) {
+      // Fallback: look up by name if no profileId linked
+      const { data: dbPlayer } = await supabase
+        .from("players")
+        .select("id")
+        .or(`preferred_name.ilike.${player.name},first_name.ilike.${player.name}`)
+        .limit(1)
+        .maybeSingle();
+      playerId = dbPlayer?.id;
+    }
+    if (playerId) {
+      await awardPoints(playerId, points, reason, matchId).catch((err) =>
+        console.error(`Failed to award points to ${player.name}:`, err),
       );
     }
   }
@@ -371,7 +376,7 @@ export function useGameState() {
 
   // Roster
   const addPlayer = useCallback(
-    (name: string, skillLevel: SkillTier): boolean => {
+    (name: string, skillLevel: SkillTier, profileId?: string): boolean => {
       let added = false;
       updateState((s) => {
         if (s.roster.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
@@ -387,6 +392,7 @@ export function useGameState() {
           wins: 0,
           losses: 0,
           gamesPlayed: 0,
+          profileId,
         };
         return { ...s, roster: [...s.roster, player] };
       });
