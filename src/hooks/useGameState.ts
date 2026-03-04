@@ -609,7 +609,7 @@ export function useGameState() {
     const MAX_GAMES = courtCount === 3 ? 4 : 5;
 
     const tierTargets: Record<SkillTier, { vsA: number; vsB: number; vsC: number }> = courtCount === 3
-      ? { A: { vsA: 2, vsB: 1, vsC: 0 }, B: { vsA: 1, vsB: 2, vsC: 0 }, C: { vsA: 0, vsB: 0, vsC: 3 } }
+      ? { A: { vsA: 3, vsB: 1, vsC: 0 }, B: { vsA: 1, vsB: 2, vsC: 0 }, C: { vsA: 0, vsB: 0, vsC: 4 } }
       : { A: { vsA: 3, vsB: 1, vsC: 0 }, B: { vsA: 1, vsB: 2, vsC: 1 }, C: { vsA: 0, vsB: 1, vsC: 3 } };
 
     const pairOpponentStats = new Map<string, { vsA: number; vsB: number; vsC: number }>();
@@ -708,7 +708,8 @@ export function useGameState() {
 
         const g1 = pairGameCount.get(c.pair1.id) || 0;
         const g2 = pairGameCount.get(c.pair2.id) || 0;
-        if (g1 >= MAX_GAMES || g2 >= MAX_GAMES) continue;
+        const cap = c.skillLevel === "cross" ? TARGET_GAMES_PER_PAIR : MAX_GAMES;
+        if (g1 >= cap || g2 >= cap) continue;
 
         // Equity gate: no pair schedules more than 1 game ahead of the least-scheduled pair
         const minCount = Math.min(...Array.from(pairGameCount.values()));
@@ -729,7 +730,11 @@ export function useGameState() {
         const vsTarget = (tgt: typeof tgt1, t: SkillTier) => t === "A" ? tgt.vsA : t === "B" ? tgt.vsB : tgt.vsC;
         const deficit1 = vsTarget(tgt1, t2) - vsCount(stats1, t2);
         const deficit2 = vsTarget(tgt2, t1) - vsCount(stats2, t1);
-        let score = -(deficit1 + deficit2) * 10 + (g1 + g2);
+        // Hard-block cross-tier once either pair has met their target for that opponent tier
+        if (c.skillLevel === "cross" && (deficit1 <= 0 || deficit2 <= 0)) continue;
+        const d1 = deficit1 >= 0 ? deficit1 : deficit1 * 5;
+        const d2 = deficit2 >= 0 ? deficit2 : deficit2 * 5;
+        let score = -(d1 + d2) * 10 + (g1 + g2);
         if (g1 >= TARGET_GAMES_PER_PAIR) score += 100;
         if (g2 >= TARGET_GAMES_PER_PAIR) score += 100;
         if (score < bestScore) {
@@ -1414,7 +1419,7 @@ export function useGameState() {
       const MAX_GAMES = courtCount === 3 ? 4 : 5;
 
       const tierTargets: Record<SkillTier, { vsA: number; vsB: number; vsC: number }> = courtCount === 3
-        ? { A: { vsA: 2, vsB: 1, vsC: 0 }, B: { vsA: 1, vsB: 2, vsC: 0 }, C: { vsA: 0, vsB: 0, vsC: 3 } }
+        ? { A: { vsA: 3, vsB: 1, vsC: 0 }, B: { vsA: 1, vsB: 2, vsC: 0 }, C: { vsA: 0, vsB: 0, vsC: 4 } }
         : { A: { vsA: 3, vsB: 1, vsC: 0 }, B: { vsA: 1, vsB: 2, vsC: 1 }, C: { vsA: 0, vsB: 1, vsC: 3 } };
 
       const pairOpponentStats = new Map<string, { vsA: number; vsB: number; vsC: number }>();
@@ -1468,7 +1473,8 @@ export function useGameState() {
           if (usedMatchups.has(mKey)) continue;
           const g1 = pairGameCount.get(c.pair1.id) || 0;
           const g2 = pairGameCount.get(c.pair2.id) || 0;
-          if (g1 >= MAX_GAMES || g2 >= MAX_GAMES) continue;
+          const cap = c.skillLevel === "cross" ? TARGET_GAMES_PER_PAIR : MAX_GAMES;
+          if (g1 >= cap || g2 >= cap) continue;
           // Equity gate: no pair schedules more than 1 game ahead of the least-scheduled pair
           const minCount = Math.min(...Array.from(pairGameCount.values()));
           if (g1 > minCount + 1 || g2 > minCount + 1) continue;
@@ -1486,7 +1492,10 @@ export function useGameState() {
           const vsTarget = (tgt: typeof tgt1, t: SkillTier) => t === "A" ? tgt.vsA : t === "B" ? tgt.vsB : tgt.vsC;
           const deficit1 = vsTarget(tgt1, t2) - vsCount(stats1, t2);
           const deficit2 = vsTarget(tgt2, t1) - vsCount(stats2, t1);
-          let score = -(deficit1 + deficit2) * 10 + (g1 + g2);
+          if (c.skillLevel === "cross" && (deficit1 <= 0 || deficit2 <= 0)) continue;
+          const d1 = deficit1 >= 0 ? deficit1 : deficit1 * 5;
+          const d2 = deficit2 >= 0 ? deficit2 : deficit2 * 5;
+          let score = -(d1 + d2) * 10 + (g1 + g2);
           if (g1 >= TARGET_GAMES_PER_PAIR) score += 100;
           if (g2 >= TARGET_GAMES_PER_PAIR) score += 100;
           if (score < bestScore) { bestScore = score; bestIdx = i; }
