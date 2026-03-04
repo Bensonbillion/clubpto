@@ -83,7 +83,7 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
   }, []);
 
   const getDisplayName = (p: PlayerProfile) =>
-    p.preferred_name || `${p.first_name} ${p.last_name}`;
+    p.preferred_name || p.first_name;
 
   const rosterProfileIds = new Set(
     state.roster.map((r) => r.profileId).filter(Boolean)
@@ -313,11 +313,6 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
                         <span className="font-medium text-foreground">
                           {getDisplayName(profile)}
                         </span>
-                        {profile.preferred_name && (
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            ({profile.first_name} {profile.last_name})
-                          </span>
-                        )}
                         {profile.email && <p className="text-xs text-muted-foreground">{profile.email}</p>}
                       </div>
                       <Plus className="w-4 h-4 text-muted-foreground shrink-0" />

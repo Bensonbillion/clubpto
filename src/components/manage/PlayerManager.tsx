@@ -82,7 +82,7 @@ const PlayerManager = ({ onProfilesChanged }: PlayerManagerProps = {}) => {
   });
 
   const getDisplayName = (p: Player) =>
-    p.preferred_name || `${p.first_name} ${p.last_name}`;
+    p.preferred_name || p.first_name;
 
   const openCreate = () => {
     setForm(emptyForm);
@@ -283,13 +283,8 @@ const PlayerManager = ({ onProfilesChanged }: PlayerManagerProps = {}) => {
               >
                 <div>
                   <span className="font-medium text-foreground">
-                    {player.preferred_name || player.first_name} {player.last_name}
+                    {player.preferred_name || player.first_name}
                   </span>
-                  {player.preferred_name && (
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      ({player.first_name} {player.last_name})
-                    </span>
-                  )}
                   {player.email && <p className="text-xs text-muted-foreground mt-0.5">{player.email}</p>}
                   {viewMode === "deleted" && player.deleted_at && (
                     <p className="text-xs text-destructive/70 mt-0.5">
@@ -336,7 +331,7 @@ const PlayerManager = ({ onProfilesChanged }: PlayerManagerProps = {}) => {
           <div className="flex items-start justify-between">
             <div>
               <h3 className="font-display text-xl text-foreground">
-                {selected.preferred_name || selected.first_name} {selected.last_name}
+                {selected.preferred_name || selected.first_name}
               </h3>
               {selected.email && <p className="text-sm text-muted-foreground">{selected.email}</p>}
               {selected.phone && <p className="text-sm text-muted-foreground">{selected.phone}</p>}
