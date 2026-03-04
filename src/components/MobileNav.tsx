@@ -41,7 +41,6 @@ const MobileNav = () => {
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {link.icon && <link.icon className="w-4 h-4" />}
                 {link.label}
               </Link>
             ))}
@@ -81,7 +80,6 @@ const MobileNav = () => {
                   }`}
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
-                  {link.icon && <link.icon className="w-5 h-5" />}
                   {link.label}
                 </Link>
               ))}

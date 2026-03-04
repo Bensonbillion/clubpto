@@ -97,6 +97,51 @@ export type Database = {
         }
         Relationships: []
       }
+      players: {
+        Row: {
+          created_at: string
+          email: string | null
+          first_name: string | null
+          id: string
+          is_vip: boolean
+          last_name: string | null
+          name: string
+          preferred_name: string | null
+          tier: string
+          total_points: number
+          total_wins: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          is_vip?: boolean
+          last_name?: string | null
+          name: string
+          preferred_name?: string | null
+          tier?: string
+          total_points?: number
+          total_wins?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          is_vip?: boolean
+          last_name?: string | null
+          name?: string
+          preferred_name?: string | null
+          tier?: string
+          total_points?: number
+          total_wins?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       sessions: {
         Row: {
           created_at: string
