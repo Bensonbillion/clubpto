@@ -1159,7 +1159,28 @@ export function useGameState() {
       pairGameCount.set(m.pair2.id, (pairGameCount.get(m.pair2.id) || 0) + 1);
     });
 
-    const violations = validateSchedule(schedule);
+    // Re-declare validateSchedule in this scope (originally inside trial loop)
+    const validateScheduleFinal = (sched: Match[]): string[] => {
+      const violations: string[] = [];
+      for (let slot = 0; slot < slotBoundaries.length; slot++) {
+        const start = slotBoundaries[slot];
+        const end = slot + 1 < slotBoundaries.length ? slotBoundaries[slot + 1] : sched.length;
+        if (start >= sched.length) break;
+        const slotMatches = sched.slice(start, end);
+        const allIds = new Set<string>();
+        for (const m of slotMatches) {
+          for (const id of matchPlayerIds(m)) {
+            if (allIds.has(id)) {
+              const player = roster.find((p) => p.id === id);
+              violations.push(`Slot ${slot + 1}: ${player?.name || id} on multiple courts`);
+            }
+            allIds.add(id);
+          }
+        }
+      }
+      return violations;
+    };
+    const violations = validateScheduleFinal(schedule);
     if (violations.length > 0) {
       console.error("Schedule conflicts detected, attempting repair:", violations);
       // Repair: for each conflicting slot, remove the later match and try to fill it with a non-conflicting one
@@ -1180,7 +1201,7 @@ export function useGameState() {
         }
       }
       // Re-validate
-      const remaining = validateSchedule(schedule);
+      const remaining = validateScheduleFinal(schedule);
       if (remaining.length > 0) {
         console.error("Could not fully resolve conflicts:", remaining);
       }
