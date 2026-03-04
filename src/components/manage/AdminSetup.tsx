@@ -303,7 +303,7 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
                     {profiles.length === 0 ? "No profiles yet — create one below" : "No matching profiles"}
                   </div>
                 ) : (
-                  filteredProfiles.map((profile) => (
+                  filteredProfiles.slice(0, profileSearch ? 20 : 5).map((profile) => (
                     <button
                       key={profile.id}
                       onClick={() => handleSelectProfile(profile)}
