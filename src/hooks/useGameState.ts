@@ -477,6 +477,14 @@ export function useGameState() {
     const courtCount = state.sessionConfig.courtCount || 2;
     const maxGames = totalSlots * courtCount;
     const TARGET_GAMES_PER_PAIR = courtCount === 3 ? 3 : 4;
+    const MAX_GAMES = courtCount === 3 ? 4 : 5;
+
+    const tierTargets: Record<SkillTier, { vsA: number; vsB: number; vsC: number }> = courtCount === 3
+      ? { A: { vsA: 2, vsB: 1, vsC: 0 }, B: { vsA: 1, vsB: 2, vsC: 0 }, C: { vsA: 0, vsB: 0, vsC: 3 } }
+      : { A: { vsA: 3, vsB: 1, vsC: 0 }, B: { vsA: 1, vsB: 2, vsC: 1 }, C: { vsA: 0, vsB: 1, vsC: 3 } };
+
+    const pairOpponentStats = new Map<string, { vsA: number; vsB: number; vsC: number }>();
+    allPairs.forEach((p) => pairOpponentStats.set(p.id, { vsA: 0, vsB: 0, vsC: 0 }));
 
     // Helper: get all player IDs from a match
     const matchPlayerIds = (m: { pair1: Pair; pair2: Pair }) => [
@@ -547,7 +555,11 @@ export function useGameState() {
       return ids;
     };
 
-    const REST_GAP = 2;
+    // REST_GAP controls how many previous slots' players are blocked.
+    // 2-court (12 pairs, 4/slot): REST_GAP=2 → 3 groups cycle cleanly.
+    // 3-court (12 pairs, 6/slot): REST_GAP=1 → 2 groups alternate, guaranteeing
+    //   minimum 1 slot rest without empty-slot gaps that cause back-to-back.
+    const REST_GAP = courtCount === 3 ? 1 : 2;
 
     const pickBestCandidate = (
       pool: CandidateMatch[],
@@ -567,7 +579,7 @@ export function useGameState() {
 
         const g1 = pairGameCount.get(c.pair1.id) || 0;
         const g2 = pairGameCount.get(c.pair2.id) || 0;
-        if (g1 >= TARGET_GAMES_PER_PAIR || g2 >= TARGET_GAMES_PER_PAIR) continue;
+        if (g1 >= MAX_GAMES || g2 >= MAX_GAMES) continue;
 
         // Equity gate: no pair schedules more than 1 game ahead of the least-scheduled pair
         const minCount = Math.min(...Array.from(pairGameCount.values()));
@@ -577,9 +589,20 @@ export function useGameState() {
         if (playerIds.some((id) => slotPlayerIds.has(id))) continue;
         if (playerIds.some((id) => blockedPlayerIds.has(id))) continue;
 
-        let score = g1 + g2;
-        // Penalize cross-tier B vs A so same-tier matches are preferred
-        if (c.matchupLabel === "B vs A") score += 50;
+        // Distribution-aware scoring
+        const t1 = c.pair1.skillLevel;
+        const t2 = c.pair2.skillLevel;
+        const stats1 = pairOpponentStats.get(c.pair1.id)!;
+        const stats2 = pairOpponentStats.get(c.pair2.id)!;
+        const tgt1 = tierTargets[t1];
+        const tgt2 = tierTargets[t2];
+        const vsCount = (s: typeof stats1, t: SkillTier) => t === "A" ? s.vsA : t === "B" ? s.vsB : s.vsC;
+        const vsTarget = (tgt: typeof tgt1, t: SkillTier) => t === "A" ? tgt.vsA : t === "B" ? tgt.vsB : tgt.vsC;
+        const deficit1 = vsTarget(tgt1, t2) - vsCount(stats1, t2);
+        const deficit2 = vsTarget(tgt2, t1) - vsCount(stats2, t1);
+        let score = -(deficit1 + deficit2) * 10 + (g1 + g2);
+        if (g1 >= TARGET_GAMES_PER_PAIR) score += 100;
+        if (g2 >= TARGET_GAMES_PER_PAIR) score += 100;
         if (score < bestScore) {
           bestScore = score;
           bestIdx = i;
@@ -595,6 +618,14 @@ export function useGameState() {
       pairGameCount.set(chosen.pair1.id, (pairGameCount.get(chosen.pair1.id) || 0) + 1);
       pairGameCount.set(chosen.pair2.id, (pairGameCount.get(chosen.pair2.id) || 0) + 1);
       matchPlayerIds(chosen).forEach((id) => slotPlayerIds.add(id));
+
+      // Track opponent tiers for distribution-aware scheduling
+      const oppT1 = chosen.pair2.skillLevel;
+      const oppT2 = chosen.pair1.skillLevel;
+      const st1 = pairOpponentStats.get(chosen.pair1.id)!;
+      const st2 = pairOpponentStats.get(chosen.pair2.id)!;
+      if (oppT1 === "A") st1.vsA++; else if (oppT1 === "B") st1.vsB++; else st1.vsC++;
+      if (oppT2 === "A") st2.vsA++; else if (oppT2 === "B") st2.vsB++; else st2.vsC++;
 
       return {
         id: generateId(),
@@ -662,20 +693,42 @@ export function useGameState() {
           const candidateForSwap = schedule[i];
           if (matchPlayerIds(candidateForSwap).some((id) => slotSwapPlayerIds.has(id))) continue;
 
-          // Safe to swap
+          // Rest-gap check: tentatively swap, verify no back-to-back, undo if violated
           [schedule[i], schedule[swapIdx]] = [schedule[swapIdx], schedule[i]];
+          const slotTotal = Math.ceil(schedule.length / courtCount);
+          let hasBackToBack = false;
+          for (const checkIdx of [i, swapIdx]) {
+            const checkSlot = Math.floor(checkIdx / courtCount);
+            for (let adj = Math.max(0, checkSlot - REST_GAP); adj <= Math.min(slotTotal - 1, checkSlot + REST_GAP); adj++) {
+              if (adj === checkSlot) continue;
+              for (let mi = adj * courtCount; mi < (adj + 1) * courtCount && mi < schedule.length; mi++) {
+                if (matchPlayerIds(schedule[checkIdx]).some((pid) => matchPlayerIds(schedule[mi]).includes(pid))) {
+                  hasBackToBack = true;
+                }
+              }
+              if (hasBackToBack) break;
+            }
+            if (hasBackToBack) break;
+          }
+          if (hasBackToBack) {
+            // Undo swap — this swap would introduce a back-to-back
+            [schedule[i], schedule[swapIdx]] = [schedule[swapIdx], schedule[i]];
+            continue;
+          }
           break;
         }
       }
     }
 
     // ── Post-generation validation pass ─────────────────────────
+    // Uses slotBoundaries for accurate slot detection (slots can have variable sizes)
     const validateSchedule = (sched: Match[]): string[] => {
       const violations: string[] = [];
-      const slotCount = Math.ceil(sched.length / courtCount);
-      for (let slot = 0; slot < slotCount; slot++) {
-        const base = slot * courtCount;
-        const slotMatches = sched.slice(base, base + courtCount).filter(Boolean);
+      for (let slot = 0; slot < slotBoundaries.length; slot++) {
+        const start = slotBoundaries[slot];
+        const end = slot + 1 < slotBoundaries.length ? slotBoundaries[slot + 1] : sched.length;
+        if (start >= sched.length) break; // empty trailing slots
+        const slotMatches = sched.slice(start, end);
         const allIds = new Set<string>();
         for (const m of slotMatches) {
           for (const id of matchPlayerIds(m)) {
@@ -684,6 +737,23 @@ export function useGameState() {
               violations.push(`Slot ${slot + 1}: ${player?.name || id} on multiple courts`);
             }
             allIds.add(id);
+          }
+        }
+
+        // Back-to-back check: compare this slot's players with the next non-empty slot
+        if (slot + 1 < slotBoundaries.length) {
+          const nextStart = slotBoundaries[slot + 1];
+          const nextEnd = slot + 2 < slotBoundaries.length ? slotBoundaries[slot + 2] : sched.length;
+          if (nextStart < sched.length) {
+            const nextMatches = sched.slice(nextStart, nextEnd);
+            for (const nm of nextMatches) {
+              for (const id of matchPlayerIds(nm)) {
+                if (allIds.has(id)) {
+                  const player = roster.find((p) => p.id === id);
+                  violations.push(`Slots ${slot + 1}-${slot + 2}: ${player?.name || id} back-to-back`);
+                }
+              }
+            }
           }
         }
       }
@@ -1134,6 +1204,21 @@ export function useGameState() {
 
       // Schedule remaining using pickBestCandidate pattern
       const TARGET_GAMES_PER_PAIR = courtCount === 3 ? 3 : 4;
+      const MAX_GAMES = courtCount === 3 ? 4 : 5;
+
+      const tierTargets: Record<SkillTier, { vsA: number; vsB: number; vsC: number }> = courtCount === 3
+        ? { A: { vsA: 2, vsB: 1, vsC: 0 }, B: { vsA: 1, vsB: 2, vsC: 0 }, C: { vsA: 0, vsB: 0, vsC: 3 } }
+        : { A: { vsA: 3, vsB: 1, vsC: 0 }, B: { vsA: 1, vsB: 2, vsC: 1 }, C: { vsA: 0, vsB: 1, vsC: 3 } };
+
+      const pairOpponentStats = new Map<string, { vsA: number; vsB: number; vsC: number }>();
+      s.pairs.forEach((p) => pairOpponentStats.set(p.id, { vsA: 0, vsB: 0, vsC: 0 }));
+      frozen.forEach((m) => {
+        const s1 = pairOpponentStats.get(m.pair1.id);
+        const s2 = pairOpponentStats.get(m.pair2.id);
+        if (s1) { if (m.pair2.skillLevel === "A") s1.vsA++; else if (m.pair2.skillLevel === "B") s1.vsB++; else s1.vsC++; }
+        if (s2) { if (m.pair1.skillLevel === "A") s2.vsA++; else if (m.pair1.skillLevel === "B") s2.vsB++; else s2.vsC++; }
+      });
+
       const durationMin = s.sessionConfig.durationMinutes || 85;
       const minutesPerGame = 7;
       const totalSlots = Math.floor(durationMin / minutesPerGame);
@@ -1148,7 +1233,7 @@ export function useGameState() {
 
       const regenerated: Match[] = [];
       const regenSlotBoundaries: number[] = [];
-      const REST_GAP = 2;
+      const REST_GAP = courtCount === 3 ? 1 : 2;
 
       const getSlotPlayerIds = (slotIndex: number): Set<string> => {
         const ids = new Set<string>();
@@ -1176,16 +1261,27 @@ export function useGameState() {
           if (usedMatchups.has(mKey)) continue;
           const g1 = pairGameCount.get(c.pair1.id) || 0;
           const g2 = pairGameCount.get(c.pair2.id) || 0;
-          if (g1 >= TARGET_GAMES_PER_PAIR || g2 >= TARGET_GAMES_PER_PAIR) continue;
+          if (g1 >= MAX_GAMES || g2 >= MAX_GAMES) continue;
           // Equity gate: no pair schedules more than 1 game ahead of the least-scheduled pair
           const minCount = Math.min(...Array.from(pairGameCount.values()));
           if (g1 > minCount + 1 || g2 > minCount + 1) continue;
           const playerIds = matchPlayerIds(c);
           if (playerIds.some((id) => slotPlayerIds.has(id))) continue;
           if (playerIds.some((id) => blockedPlayerIds.has(id))) continue;
-          let score = g1 + g2;
-          // Penalize cross-tier B vs A so same-tier matches are preferred
-          if (c.matchupLabel === "B vs A") score += 50;
+          // Distribution-aware scoring
+          const t1 = c.pair1.skillLevel;
+          const t2 = c.pair2.skillLevel;
+          const stats1 = pairOpponentStats.get(c.pair1.id)!;
+          const stats2 = pairOpponentStats.get(c.pair2.id)!;
+          const tgt1 = tierTargets[t1];
+          const tgt2 = tierTargets[t2];
+          const vsCount = (st: typeof stats1, t: SkillTier) => t === "A" ? st.vsA : t === "B" ? st.vsB : st.vsC;
+          const vsTarget = (tgt: typeof tgt1, t: SkillTier) => t === "A" ? tgt.vsA : t === "B" ? tgt.vsB : tgt.vsC;
+          const deficit1 = vsTarget(tgt1, t2) - vsCount(stats1, t2);
+          const deficit2 = vsTarget(tgt2, t1) - vsCount(stats2, t1);
+          let score = -(deficit1 + deficit2) * 10 + (g1 + g2);
+          if (g1 >= TARGET_GAMES_PER_PAIR) score += 100;
+          if (g2 >= TARGET_GAMES_PER_PAIR) score += 100;
           if (score < bestScore) { bestScore = score; bestIdx = i; }
         }
         return bestIdx;
@@ -1198,6 +1294,15 @@ export function useGameState() {
         pairGameCount.set(chosen.pair1.id, (pairGameCount.get(chosen.pair1.id) || 0) + 1);
         pairGameCount.set(chosen.pair2.id, (pairGameCount.get(chosen.pair2.id) || 0) + 1);
         matchPlayerIds(chosen).forEach((id) => slotPlayerIds.add(id));
+
+        // Track opponent tiers for distribution-aware scheduling
+        const oppT1 = chosen.pair2.skillLevel;
+        const oppT2 = chosen.pair1.skillLevel;
+        const st1 = pairOpponentStats.get(chosen.pair1.id)!;
+        const st2 = pairOpponentStats.get(chosen.pair2.id)!;
+        if (oppT1 === "A") st1.vsA++; else if (oppT1 === "B") st1.vsB++; else st1.vsC++;
+        if (oppT2 === "A") st2.vsA++; else if (oppT2 === "B") st2.vsB++; else st2.vsC++;
+
         return {
           id: generateId(), pair1: chosen.pair1, pair2: chosen.pair2,
           skillLevel: chosen.skillLevel, matchupLabel: chosen.matchupLabel,
