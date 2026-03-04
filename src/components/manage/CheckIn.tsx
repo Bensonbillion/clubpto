@@ -59,6 +59,19 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
     // Check in the player
     toggleCheckIn(playerId);
 
+    // Dynamic mode: auto-trigger schedule when 4+ players checked in
+    if (state.sessionConfig.dynamicMode && !sessionActive && state.sessionStarted) {
+      const afterCheckInCount = checkedInPlayers.length + 1;
+      if (afterCheckInCount >= 4) {
+        setTimeout(async () => {
+          await generateFullSchedule(vipFixedPairs);
+          setGenerated(true);
+          onSwitchToCourtDisplay?.();
+        }, 300);
+        return;
+      }
+    }
+
     // If session is already active, handle late arrival flow
     if (sessionActive) {
       if (isVipPlayer(player.name) && !vipsDismissedRef.current.has(player.name.toLowerCase())) {
@@ -354,7 +367,7 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
       )}
 
       {/* Odd tier warning */}
-      {isAdmin && oddTiers.length > 0 && state.matches.length === 0 && state.sessionStarted && (
+      {isAdmin && oddTiers.length > 0 && state.matches.length === 0 && state.sessionStarted && !state.sessionConfig.dynamicMode && (
         <OddPlayerAlert
           oddTiers={oddTiers}
           onDecisionsConfirmed={handleOddPlayerDecisions}
@@ -379,10 +392,23 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
         />
       )}
 
+      {state.sessionStarted && state.sessionConfig.dynamicMode && !sessionActive && checkedInPlayers.length < 4 && (
+        <div className="sticky bottom-4 rounded-lg border border-accent/30 bg-card/95 backdrop-blur-sm p-5 flex items-center justify-between gap-4 shadow-lg">
+          <p className="text-accent text-base">
+            ✦ Dynamic mode — {4 - checkedInPlayers.length} more player{4 - checkedInPlayers.length !== 1 ? "s" : ""} needed to auto-start
+          </p>
+          <Button onClick={handleGenerateWithPasscode} disabled={checkedInPlayers.length < 4} className="bg-accent text-accent-foreground hover:bg-accent/80 shrink-0 min-h-[48px] px-6 text-base">
+            {!isAdmin && <Lock className="w-4 h-4 mr-2" />}
+            <Swords className="w-5 h-5 mr-2" /> Force Generate
+          </Button>
+        </div>
+      )}
       {state.sessionStarted && checkedInPlayers.length >= 4 && (
         <div className="sticky bottom-4 rounded-lg border border-accent/30 bg-card/95 backdrop-blur-sm p-5 flex items-center justify-between gap-4 shadow-lg">
           <p className="text-accent text-base">
-            ✦ {checkedInPlayers.length} players ready{state.matches.length > 0 ? " — schedule generated!" : ""}
+            {state.sessionConfig.dynamicMode && state.matches.length > 0
+              ? "✦ Dynamic mode — new players auto-added"
+              : `✦ ${checkedInPlayers.length} players ready${state.matches.length > 0 ? " — schedule generated!" : ""}`}
           </p>
           <div className="flex items-center gap-3">
             {isAdmin && state.matches.length > 0 && (

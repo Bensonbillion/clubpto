@@ -13,6 +13,8 @@ import Events from "./pages/Events";
 import Community from "./pages/Community";
 import Manage from "./pages/Manage";
 import Install from "./pages/Install";
+import Leaderboard from "./pages/Leaderboard";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -38,7 +40,8 @@ const App = () => (
 
           {/* Manage route — completely isolated, no public layout */}
           <Route path="/manage" element={<Manage />} />
-
+          <Route path="/leaderboard" element={<Leaderboard />} />
+          <Route path="/profile/:playerId" element={<Profile />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

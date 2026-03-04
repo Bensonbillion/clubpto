@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, Instagram } from "lucide-react";
+import { Menu, X, Instagram, Trophy } from "lucide-react";
 import logo from "@/assets/logo.jpg";
 
 const MobileNav = () => {
@@ -10,6 +10,7 @@ const MobileNav = () => {
   const navLinks = [
     { href: "/", label: "Home" },
     { href: "/book", label: "Book" },
+    { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
     { href: "/about", label: "About" },
     { href: "/faq", label: "FAQ" },
     { href: "/manage", label: "Court Manager" },
@@ -35,12 +36,13 @@ const MobileNav = () => {
               <Link
                 key={link.href}
                 to={link.href}
-                className={`font-body text-sm tracking-wide transition-colors link-underline ${
-                  isActive(link.href) 
-                    ? "text-primary" 
+                className={`font-body text-sm tracking-wide transition-colors link-underline flex items-center gap-1.5 ${
+                  isActive(link.href)
+                    ? "text-primary"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
+                {link.icon && <link.icon className="w-4 h-4" />}
                 {link.label}
               </Link>
             ))}
@@ -73,13 +75,14 @@ const MobileNav = () => {
                   key={link.href}
                   to={link.href}
                   onClick={() => setIsOpen(false)}
-                  className={`px-4 py-4 font-body text-lg transition-all ${
-                    isActive(link.href) 
-                      ? "text-primary bg-primary/10 border-l-2 border-primary" 
+                  className={`px-4 py-4 font-body text-lg transition-all flex items-center gap-2.5 ${
+                    isActive(link.href)
+                      ? "text-primary bg-primary/10 border-l-2 border-primary"
                       : "text-foreground hover:bg-muted/30 hover:pl-6"
                   }`}
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
+                  {link.icon && <link.icon className="w-5 h-5" />}
                   {link.label}
                 </Link>
               ))}

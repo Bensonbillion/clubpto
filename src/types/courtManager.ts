@@ -57,6 +57,7 @@ export interface PlayoffMatch {
   pair2: Pair | null;
   winner?: Pair;
   status: "pending" | "playing" | "completed";
+  court?: number;
 }
 
 export interface SessionConfig {
@@ -66,6 +67,7 @@ export interface SessionConfig {
   checkInClosed?: boolean;
   sessionStartedAt?: string;
   courtCount?: 2 | 3;
+  dynamicMode?: boolean;
 }
 
 export interface FixedPair {
@@ -97,6 +99,7 @@ export interface GameState {
   pairsLocked?: boolean;
   /** Pair IDs that were just added via late arrival — for UI highlight */
   newlyAddedPairIds?: string[];
+  pairGamesWatched?: Record<string, number>;
 }
 
 export const DEFAULT_STATE: GameState = {
@@ -120,4 +123,5 @@ export const DEFAULT_STATE: GameState = {
   oddPlayerDecisions: [],
   pairsLocked: false,
   newlyAddedPairIds: [],
+  pairGamesWatched: {},
 };

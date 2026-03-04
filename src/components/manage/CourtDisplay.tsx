@@ -426,7 +426,7 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
             return (
               <div className="flex flex-col md:flex-row gap-6">
                 {playingPlayoff.map((pm) => {
-                  const court = (pm as any).court as number | undefined;
+                  const court = pm.court;
                   return (
                     <div key={pm.id} className="rounded-lg border border-border bg-card p-4 md:p-6 space-y-4 flex-1 min-w-0">
                       <div className="flex items-center justify-between">

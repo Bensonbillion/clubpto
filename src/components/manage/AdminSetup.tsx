@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trash2, Plus, Play, RotateCcw, ClipboardPaste, Sparkles, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Trash2, Plus, Play, RotateCcw, ClipboardPaste, Sparkles, ChevronDown, ChevronUp, Loader2, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { SkillTier } from "@/types/courtManager";
 
@@ -181,6 +182,19 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
               </button>
             ))}
           </div>
+        </div>
+        <div className="flex items-center justify-between rounded-md border border-border bg-muted p-4">
+          <div className="flex items-center gap-3">
+            <Zap className="w-5 h-5 text-accent" />
+            <div>
+              <span className="text-base text-foreground font-display">Dynamic Start</span>
+              <p className="text-sm text-muted-foreground">Auto-generate games when 4+ players check in</p>
+            </div>
+          </div>
+          <Switch
+            checked={!!state.sessionConfig.dynamicMode}
+            onCheckedChange={(v) => setSessionConfig({ dynamicMode: v })}
+          />
         </div>
         <p className="text-sm text-muted-foreground sm:col-span-2">
           Games are doubles (2v2) played to 7 points (~7 min each). {Math.floor((state.sessionConfig.durationMinutes || 85) / 7)} game slots per court, {Math.floor((state.sessionConfig.durationMinutes || 85) / 7) * (state.sessionConfig.courtCount || 2)} total across {state.sessionConfig.courtCount || 2} courts.
