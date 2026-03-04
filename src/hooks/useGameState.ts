@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { query } from "@/lib/turso";
 import { GameState, DEFAULT_STATE, Player, Pair, Match, GameHistory, PlayoffMatch, FixedPair, SkillTier, OddPlayerDecision } from "@/types/courtManager";
 import { awardPoints, type PointsReason } from "@/lib/leaderboard";
 
@@ -56,13 +57,15 @@ async function awardMatchPoints(
     let playerId = player.profileId;
     if (!playerId) {
       // Fallback: look up by name if no profileId linked
-      const { data: dbPlayer } = await supabase
-        .from("players")
-        .select("id")
-        .or(`preferred_name.ilike.${player.name},first_name.ilike.${player.name}`)
-        .limit(1)
-        .maybeSingle();
-      playerId = dbPlayer?.id;
+      try {
+        const result = await query(
+          'SELECT id FROM players WHERE (preferred_name = ? OR first_name = ?) AND is_deleted = 0 LIMIT 1',
+          [player.name, player.name]
+        );
+        playerId = result.rows.length > 0 ? (result.rows[0] as any).id : undefined;
+      } catch (err) {
+        console.error(`Failed to look up player ${player.name}:`, err);
+      }
     }
     if (playerId) {
       await awardPoints(playerId, points, reason, matchId).catch((err) =>
@@ -495,10 +498,11 @@ export function useGameState() {
     // Fetch pair history BEFORE entering updateState (only async part)
     const twoWeeksAgo = new Date();
     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
-    const { data: history } = await supabase
-      .from("pair_history")
-      .select("player1_name, player2_name")
-      .gte("session_date", twoWeeksAgo.toISOString().split("T")[0]);
+    const historyResult = await query(
+      'SELECT player1_name, player2_name FROM pair_history WHERE session_date >= ?',
+      [twoWeeksAgo.toISOString().split("T")[0]]
+    ).catch(() => ({ rows: [] }));
+    const history = historyResult.rows as any[];
 
     // All state reads happen inside updateState to avoid stale closures
     updateState((s) => {
@@ -1233,7 +1237,9 @@ export function useGameState() {
       player2_name: p.player2.name,
     }));
     if (historyRows.length > 0) {
-      supabase.from("pair_history").insert(historyRows).then(() => {});
+      Promise.all(historyRows.map((r) =>
+        query('INSERT INTO pair_history (player1_name, player2_name) VALUES (?, ?)', [r.player1_name, r.player2_name])
+      )).catch(() => {});
     }
 
     return {
@@ -1528,10 +1534,7 @@ export function useGameState() {
         result = { paired: true, partnerName: partner.name, estimatedMinutes };
 
         // Save pair history
-        supabase.from("pair_history").insert([{
-          player1_name: player.name,
-          player2_name: partner.name,
-        }]).then(() => {});
+        query('INSERT INTO pair_history (player1_name, player2_name) VALUES (?, ?)', [player.name, partner.name]).catch(() => {});
 
         return {
           ...s,

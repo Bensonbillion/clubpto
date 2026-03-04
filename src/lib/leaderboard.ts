@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { query } from "@/lib/turso";
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -41,25 +41,71 @@ export function getWeekStartDate(date: Date): string {
   return d.toISOString().split("T")[0];
 }
 
-// ── Function 1: Award Points (stub — points_ledger table not yet created) ──
+// ── Function 1: Award Points ──────────────────────────────
 
 export async function awardPoints(
-  _playerId: string,
-  _points: 3 | 5 | 10,
-  _reason: PointsReason,
-  _matchId?: string,
+  playerId: string,
+  points: 3 | 5 | 10,
+  reason: PointsReason,
+  matchId?: string,
 ): Promise<{ success: boolean; ledgerId?: string; error?: string }> {
-  // TODO: implement when points_ledger table & award_points RPC are created
-  return { success: false, error: "Points system not yet configured" };
+  const weekStart = getWeekStartDate(new Date());
+
+  try {
+    // Insert into points_ledger
+    await query(
+      'INSERT INTO points_ledger (player_id, points, reason, match_id, week_start_date) VALUES (?, ?, ?, ?, ?)',
+      [playerId, points, reason, matchId ?? null, weekStart]
+    );
+
+    // Update player totals
+    await query(
+      'UPDATE players SET total_points = total_points + ?, total_wins = total_wins + 1 WHERE id = ?',
+      [points, playerId]
+    );
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("Failed to award points:", err);
+    return { success: false, error: err.message };
+  }
 }
 
-// ── Function 2: Get Weekly Leaderboard (stub) ─────────────
+// ── Function 2: Get Weekly Leaderboard ────────────────────
 
 export async function getWeeklyLeaderboard(
-  _weekStartDate?: Date,
+  weekStartDate?: Date,
 ): Promise<{ data?: LeaderboardEntry[]; error?: string }> {
-  // TODO: implement when weekly_leaderboard view is created
-  return { data: [] };
+  const weekStart = weekStartDate
+    ? getWeekStartDate(weekStartDate)
+    : getWeekStartDate(new Date());
+
+  try {
+    const result = await query(`
+      SELECT
+        p.id as player_id,
+        COALESCE(p.preferred_name, p.first_name) as player_name,
+        SUM(pl.points) as points,
+        COUNT(*) as wins
+      FROM players p
+      JOIN points_ledger pl ON p.id = pl.player_id
+      WHERE pl.week_start_date = ?
+      GROUP BY p.id
+      ORDER BY points DESC
+    `, [weekStart]);
+
+    const data: LeaderboardEntry[] = result.rows.map((row: any, i: number) => ({
+      playerId: row.player_id,
+      playerName: row.player_name,
+      points: Number(row.points),
+      wins: Number(row.wins),
+      rank: i + 1,
+    }));
+
+    return { data };
+  } catch (err: any) {
+    return { error: err.message };
+  }
 }
 
 export function aggregateAndRank(rawData: any[]): LeaderboardEntry[] {
@@ -71,7 +117,7 @@ export function aggregateAndRank(rawData: any[]): LeaderboardEntry[] {
   for (const entry of rawData) {
     const playerId = entry.player_id;
     const player = entry.players;
-    const displayName = player?.preferred_name || player?.name || "Unknown";
+    const displayName = player.preferred_name || player.first_name;
 
     if (!playerMap.has(playerId)) {
       playerMap.set(playerId, {
@@ -98,24 +144,23 @@ export function aggregateAndRank(rawData: any[]): LeaderboardEntry[] {
 // ── Function 3: Get All-Time Leaderboard ──────────────────
 
 export async function getAllTimeLeaderboard(): Promise<{ data?: LeaderboardEntry[]; error?: string }> {
-  const { data, error } = await supabase
-    .from("players")
-    .select("id, name, preferred_name, total_points, total_wins")
-    .gt("total_points", 0)
-    .order("total_points", { ascending: false });
+  try {
+    const result = await query(
+      'SELECT id, first_name, preferred_name, total_points, total_wins FROM players WHERE total_points > 0 AND is_deleted = 0 ORDER BY total_points DESC'
+    );
 
-  if (error) return { error: error.message };
-  if (!data || data.length === 0) return { data: [] };
-
-  return {
-    data: data.map((p: any, i: number) => ({
-      playerId: p.id,
-      playerName: p.preferred_name || p.name,
-      points: p.total_points,
-      wins: p.total_wins,
-      rank: i + 1,
-    })),
-  };
+    return {
+      data: result.rows.map((p: any, i: number) => ({
+        playerId: p.id,
+        playerName: p.preferred_name || p.first_name,
+        points: Number(p.total_points),
+        wins: Number(p.total_wins),
+        rank: i + 1,
+      })),
+    };
+  } catch (err: any) {
+    return { error: err.message };
+  }
 }
 
 // ── Function 4: Get Player Profile with Stats ─────────────
@@ -123,30 +168,48 @@ export async function getAllTimeLeaderboard(): Promise<{ data?: LeaderboardEntry
 export async function getPlayerProfile(
   playerId: string,
 ): Promise<{ data?: PlayerProfile; error?: string }> {
-  const { data: player, error: playerError } = await supabase
-    .from("players")
-    .select("*")
-    .eq("id", playerId)
-    .single();
+  try {
+    const playerResult = await query(
+      'SELECT * FROM players WHERE id = ?',
+      [playerId]
+    );
 
-  if (playerError) return { error: playerError.message };
+    if (playerResult.rows.length === 0) return { error: "Player not found" };
+    const player: any = playerResult.rows[0];
 
-  return {
-    data: {
-      id: player.id,
-      firstName: player.first_name || player.name || "",
-      lastName: player.last_name || "",
-      preferredName: player.preferred_name,
-      displayName: player.preferred_name || player.first_name || player.name || "",
-      email: player.email || "",
-      totalPoints: player.total_points,
-      totalWins: player.total_wins,
-      createdAt: player.created_at,
-      thisWeek: {
-        points: 0,
-        wins: 0,
-        rank: null,
+    // Current week stats
+    const weekStart = getWeekStartDate(new Date());
+    const weekResult = await query(
+      'SELECT points, reason FROM points_ledger WHERE player_id = ? AND week_start_date = ?',
+      [playerId, weekStart]
+    );
+
+    const weekPoints = weekResult.rows.reduce((sum: number, entry: any) => sum + Number(entry.points), 0);
+    const weekWins = weekResult.rows.length;
+
+    // Rank from leaderboard
+    const { data: leaderboard } = await getWeeklyLeaderboard();
+    const rank = leaderboard?.find((p) => p.playerId === playerId)?.rank ?? null;
+
+    return {
+      data: {
+        id: player.id,
+        firstName: player.first_name,
+        lastName: player.last_name,
+        preferredName: player.preferred_name,
+        displayName: player.preferred_name || player.first_name,
+        email: player.email || "",
+        totalPoints: Number(player.total_points),
+        totalWins: Number(player.total_wins),
+        createdAt: player.created_at,
+        thisWeek: {
+          points: weekPoints,
+          wins: weekWins,
+          rank,
+        },
       },
-    },
-  };
+    };
+  } catch (err: any) {
+    return { error: err.message };
+  }
 }

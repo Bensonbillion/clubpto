@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { useSessions, Session } from "@/hooks/useSessions";
 import { format, parseISO } from "date-fns";
 import { CalendarDays, Clock, Loader2, ArrowRight, Check, Minus, Plus } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { query } from "@/lib/turso";
 import { useToast } from "@/hooks/use-toast";
 
 const BookingSection = () => {
@@ -42,9 +42,12 @@ const BookingSection = () => {
         payment_status: "pending",
       }));
 
-      const { error } = await supabase.from("bookings").insert(bookings);
-
-      if (error) throw error;
+      for (const booking of bookings) {
+        await query(
+          'INSERT INTO bookings (session_id, customer_name, customer_email, payment_status) VALUES (?, ?, ?, ?)',
+          [booking.session_id, booking.customer_name, booking.customer_email, booking.payment_status]
+        );
+      }
 
       setIsSuccess(true);
       toast({

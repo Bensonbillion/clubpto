@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { query } from "@/lib/turso";
 
 export interface Session {
   id: string;
@@ -16,17 +16,13 @@ export const useSessions = () => {
     queryKey: ["sessions"],
     queryFn: async () => {
       const today = new Date().toISOString().split("T")[0];
-      
-      const { data, error } = await supabase
-        .from("sessions")
-        .select("*")
-        .gte("session_date", today)
-        .eq("is_active", true)
-        .order("session_date", { ascending: true })
-        .limit(4);
 
-      if (error) throw error;
-      return data as Session[];
+      const result = await query(
+        'SELECT * FROM sessions WHERE session_date >= ? AND is_active = 1 ORDER BY session_date ASC LIMIT 4',
+        [today]
+      );
+
+      return result.rows as unknown as Session[];
     },
   });
 };

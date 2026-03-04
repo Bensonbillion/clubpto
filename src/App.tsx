@@ -15,6 +15,8 @@ import Manage from "./pages/Manage";
 import Install from "./pages/Install";
 import Leaderboard from "./pages/Leaderboard";
 import Profile from "./pages/Profile";
+import ImportPlayers from "./pages/admin/ImportPlayers";
+import ManagePlayers from "./pages/admin/ManagePlayers";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,6 +44,8 @@ const App = () => (
           <Route path="/manage" element={<Manage />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/profile/:playerId" element={<Profile />} />
+          <Route path="/admin/players" element={<ManagePlayers />} />
+          <Route path="/admin/import" element={<ImportPlayers />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
