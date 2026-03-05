@@ -24,14 +24,18 @@ const TeamLabel = ({ pair, seed, isWinner }: { pair: Pair | null; seed?: number;
 
 const BracketMatchCard = ({
   match,
+  onStart,
   onComplete,
   isAdmin,
   roundLabel,
+  courtCount = 2,
 }: {
   match: PlayoffMatch;
+  onStart: (id: string, court: number) => void;
   onComplete: (id: string, winnerPairId: string) => void;
   isAdmin: boolean;
   roundLabel: string;
+  courtCount?: number;
 }) => {
   const [selectingWinner, setSelectingWinner] = useState(false);
   const court = (match as any).court as number | undefined;
@@ -79,6 +83,17 @@ const BracketMatchCard = ({
 
       {isAdmin && match.pair1 && match.pair2 && (
         <>
+          {match.status === "pending" && (
+            <div className="flex gap-2">
+              {Array.from({ length: courtCount }, (_, i) => i + 1).map((c) => (
+                <Button key={c} size="sm" variant="outline" className="flex-1 border-accent/40 text-accent hover:bg-accent/10 text-xs"
+                  onClick={() => onStart(match.id, c)}>
+                  Start Court {c}
+                </Button>
+              ))}
+            </div>
+          )}
+
           {match.status === "playing" && !selectingWinner && (
             <Button size="sm" className="w-full bg-accent text-accent-foreground text-xs" onClick={() => setSelectingWinner(true)}>
               <Trophy className="w-3 h-3 mr-1" /> Game Finished
