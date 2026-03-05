@@ -456,7 +456,7 @@ export function useGameState() {
       }
 
       for (const court of toFill) {
-        const nextPending = findNextPendingForCourt(updatedMatches, court, liveCourtCount, recentPlayerIds, s.pairs, updatedMatches);
+        const nextPending = findNextPendingForCourt(updatedMatches, court, liveCourtCount, recentPlayerIds, s.pairs, updatedMatches, true);
         if (!nextPending) continue;
         const idx = updatedMatches.findIndex((m) => m.id === nextPending.id);
         if (idx === -1) continue;
@@ -2062,7 +2062,7 @@ export function useGameState() {
           getMatchPlayerIds(skipped).forEach((id) => recentPlayerIds.add(id));
           const courtCount = s.sessionConfig.courtCount || 2;
 
-          const nextPending = findNextPendingForCourt(updatedMatches, freedCourt, courtCount, recentPlayerIds, s.pairs, updatedMatches);
+          const nextPending = findNextPendingForCourt(updatedMatches, freedCourt, courtCount, recentPlayerIds, s.pairs, updatedMatches, true);
           if (nextPending) {
             const idx = updatedMatches.indexOf(nextPending);
             if (idx !== -1) {
@@ -2318,7 +2318,7 @@ export function useGameState() {
               updatedMatches = [...updatedMatches, { ...nextMatch, status: "playing", court: freedCourt, startedAt: new Date().toISOString(), gameNumber: updatedMatches.length + 1 }];
             }
           } else {
-            const nextPending = findNextPendingForCourt(updatedMatches, freedCourt, courtCount, recentPlayerIds, updatedPairs, updatedMatches);
+            const nextPending = findNextPendingForCourt(updatedMatches, freedCourt, courtCount, recentPlayerIds, updatedPairs, updatedMatches, true);
             if (nextPending) {
               const idx = updatedMatches.indexOf(nextPending);
               if (idx !== -1) {
