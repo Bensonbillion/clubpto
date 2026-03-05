@@ -154,8 +154,10 @@ function findNextPendingForCourt(
     validCandidates.push(m);
   }
 
-  // Fall back to rest-relaxed candidates if strict filtering yields nothing
-  const candidates = validCandidates.length > 0 ? validCandidates : restRelaxedCandidates;
+  // Fall back to rest-relaxed candidates only when explicitly allowed
+  const candidates = validCandidates.length > 0
+    ? validCandidates
+    : (allowRestRelaxation ? restRelaxedCandidates : []);
   if (candidates.length === 0) return undefined;
 
   // 3. Compute completed game counts for each pair
