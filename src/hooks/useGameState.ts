@@ -3028,8 +3028,15 @@ export function useGameState() {
   const court3Match = playingMatches.find((m) => m.court === 3) || null;
 
   const courtCount = state.sessionConfig.courtCount || 2;
-  const upNextMatches = pendingMatches.slice(0, courtCount);
-  const onDeckMatches = pendingMatches.slice(courtCount, courtCount * 2);
+
+  // Filter pending matches to only those whose players aren't currently on court
+  const busyPlayerIdSet = new Set(playingMatches.flatMap((m) => getMatchPlayerIds(m)));
+  const eligiblePending = pendingMatches.filter((m) => {
+    const pids = getMatchPlayerIds(m);
+    return !pids.some((id) => busyPlayerIdSet.has(id));
+  });
+  const upNextMatches = eligiblePending.slice(0, courtCount);
+  const onDeckMatches = eligiblePending.slice(courtCount, courtCount * 2);
 
   const playingPlayerIds = playingMatches.flatMap((m) => getMatchPlayerIds(m));
   const waitingPlayers = checkedInPlayers.filter((p) => !playingPlayerIds.includes(p.id));
