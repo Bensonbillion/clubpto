@@ -124,7 +124,7 @@ const BracketMatchCard = ({
   );
 };
 
-const PlayoffBracket = ({ playoffMatches, onComplete, isAdmin }: PlayoffBracketProps) => {
+const PlayoffBracket = ({ playoffMatches, onStart, onComplete, isAdmin, courtCount = 2 }: PlayoffBracketProps) => {
   if (playoffMatches.length === 0) return null;
 
   const byRound = playoffMatches.reduce((acc, m) => {
