@@ -86,8 +86,10 @@ const PasscodeGate = ({ onUnlock }: { onUnlock: () => void }) => {
 
 const Manage = () => {
   const [activeTab, setActiveTab] = useState<Tab>("checkin");
-  const [adminUnlocked, setAdminUnlocked] = useState(false);
-  const [statsUnlocked, setStatsUnlocked] = useState(false);
+  const [adminUnlocked, setAdminUnlockedRaw] = useState(() => sessionStorage.getItem("pto_admin") === "1");
+  const [statsUnlocked, setStatsUnlockedRaw] = useState(() => sessionStorage.getItem("pto_stats") === "1");
+  const setAdminUnlocked = (v: boolean) => { sessionStorage.setItem("pto_admin", v ? "1" : "0"); setAdminUnlockedRaw(v); };
+  const setStatsUnlocked = (v: boolean) => { sessionStorage.setItem("pto_stats", v ? "1" : "0"); setStatsUnlockedRaw(v); };
   const gameState = useGameState();
 
   return (
