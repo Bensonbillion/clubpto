@@ -401,6 +401,75 @@ export function useGameState() {
     [drainSave]
   );
 
+  // Self-heal: keep all courts occupied during active round-robin play
+  useEffect(() => {
+    if (loading) return;
+    if (!state.sessionStarted || state.playoffsStarted) return;
+
+    const courtCount = state.sessionConfig.courtCount || 2;
+    const playingMatches = state.matches.filter((m) => m.status === "playing");
+    const pendingMatches = state.matches.filter((m) => m.status === "pending");
+    if (pendingMatches.length === 0) return;
+
+    const occupiedCourts = new Set<number>(
+      playingMatches
+        .map((m) => m.court)
+        .filter((c): c is number => typeof c === "number")
+    );
+
+    const idleCourts: number[] = [];
+    for (let c = 1; c <= courtCount; c++) {
+      if (!occupiedCourts.has(c)) idleCourts.push(c);
+    }
+    if (idleCourts.length === 0) return;
+
+    updateState((s) => {
+      const liveCourtCount = s.sessionConfig.courtCount || 2;
+      const playing = s.matches.filter((m) => m.status === "playing");
+      const pending = s.matches.filter((m) => m.status === "pending");
+      if (pending.length === 0) return s;
+
+      const occupied = new Set<number>(
+        playing
+          .map((m) => m.court)
+          .filter((c): c is number => typeof c === "number")
+      );
+
+      const toFill: number[] = [];
+      for (let c = 1; c <= liveCourtCount; c++) {
+        if (!occupied.has(c)) toFill.push(c);
+      }
+      if (toFill.length === 0) return s;
+
+      let updatedMatches = [...s.matches];
+      let changed = false;
+
+      const recentPlayerIds = new Set<string>();
+      const now = Date.now();
+      for (const m of updatedMatches) {
+        if (m.status === "completed" && m.completedAt && (now - Date.parse(m.completedAt)) < 180000) {
+          getMatchPlayerIds(m).forEach((id) => recentPlayerIds.add(id));
+        }
+      }
+
+      for (const court of toFill) {
+        const nextPending = findNextPendingForCourt(updatedMatches, court, liveCourtCount, recentPlayerIds, s.pairs, updatedMatches);
+        if (!nextPending) continue;
+        const idx = updatedMatches.findIndex((m) => m.id === nextPending.id);
+        if (idx === -1) continue;
+        updatedMatches[idx] = {
+          ...nextPending,
+          status: "playing",
+          court,
+          startedAt: new Date().toISOString(),
+        };
+        changed = true;
+      }
+
+      return changed ? { ...s, matches: updatedMatches } : s;
+    });
+  }, [loading, state.matches, state.playoffsStarted, state.sessionConfig.courtCount, state.sessionStarted, updateState]);
+
   // Session config
   const setSessionConfig = useCallback(
     (config: Partial<GameState["sessionConfig"]>) => {
