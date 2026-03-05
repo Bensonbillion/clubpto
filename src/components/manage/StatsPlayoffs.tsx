@@ -3,7 +3,7 @@ import { getHeadToHead } from "@/hooks/useGameState";
 import { Player, Pair, Match, PlayoffMatch, SkillTier } from "@/types/courtManager";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { Trophy, Medal, Info } from "lucide-react";
+import { Trophy, Medal, Info, ArrowUp, ArrowDown } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import PlayoffBracket from "./PlayoffBracket";
 import SessionExport from "./SessionExport";
@@ -235,20 +235,15 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
     // Merit-based seeding: sort by total wins, then win%, then tier, then head-to-head
     const tierPriority: Record<string, number> = { A: 0, B: 1, C: 2 };
     const sorted = [...eligiblePairs].sort((a, b) => {
-      // 1. Total wins (descending)
       if (b.wins !== a.wins) return b.wins - a.wins;
-      // 2. Win percentage (descending)
       if (Math.abs(b.winPct - a.winPct) > 0.001) return b.winPct - a.winPct;
-      // 3. Tier priority as tiebreaker (A > B > C)
       const tierDiff = (tierPriority[a.skillLevel] || 2) - (tierPriority[b.skillLevel] || 2);
       if (tierDiff !== 0) return tierDiff;
-      // 4. Head-to-head as final tiebreaker
       const h2h = getHeadToHead(a.pair.id, b.pair.id, state.matches);
       if (h2h !== 0) return -h2h;
       return 0;
     });
 
-    // Take top 8 pairs for playoff bracket, annotate tiebreakers
     const top = sorted.slice(0, 8);
     const annotatedTop = annotateTiebreakers(top, state.matches);
     const seeds: PlayoffPairSeed[] = annotatedTop.map((ps, i) => ({
@@ -259,7 +254,22 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
     }));
 
     setPlayoffSeeds(seeds);
-    generatePlayoffMatches(seeds);
+    // Don't auto-generate bracket — let admin reorder first
+  };
+
+  const handleConfirmPlayoffBracket = () => {
+    if (playoffSeeds.length < 2) return;
+    // Re-number seeds based on current order
+    const renumbered = playoffSeeds.map((s, i) => ({ ...s, seed: i + 1 }));
+    generatePlayoffMatches(renumbered);
+  };
+
+  const moveSeed = (index: number, direction: "up" | "down") => {
+    const newSeeds = [...playoffSeeds];
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= newSeeds.length) return;
+    [newSeeds[index], newSeeds[swapIndex]] = [newSeeds[swapIndex], newSeeds[index]];
+    setPlayoffSeeds(newSeeds.map((s, i) => ({ ...s, seed: i + 1 })));
   };
 
   const roundRobinComplete = state.matches.length > 0 && state.matches.every((m) => m.status === "completed");
@@ -353,33 +363,61 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
             </Button>
 
             {playoffSeeds.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
-                {playoffSeeds.map((s) => {
-                  const tierColor = s.pair.skillLevel === "A" ? "text-yellow-400" :
-                                   s.pair.skillLevel === "B" ? "text-gray-300" : "text-amber-600";
-                  return (
-                    <div key={s.pair.id} className="flex items-center gap-3 rounded-md border border-border bg-muted p-3">
-                      <span className="font-display text-2xl text-accent w-8 text-center">{s.seed}</span>
-                      <div className="flex-1">
-                        <p className="font-display text-foreground">({s.pair.skillLevel}) {s.pair.player1.name} & {s.pair.player2.name}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span className="font-mono">{(s.winPct * 100).toFixed(0)}%</span>
-                          <span>•</span>
-                          <span className={tierColor}>Tier {s.pair.skillLevel}</span>
-                          {s.tiebreakerReason && (
-                            <>
-                              <span>•</span>
-                              <span className="italic text-muted-foreground/70">{s.tiebreakerReason}</span>
-                            </>
-                          )}
+              <div className="space-y-3 mt-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">Reorder seeds, then confirm:</p>
+                  <Button
+                    onClick={handleConfirmPlayoffBracket}
+                    className="bg-accent text-accent-foreground hover:bg-accent/80"
+                    size="sm"
+                  >
+                    <Trophy className="w-4 h-4 mr-1" /> Confirm & Start Playoffs
+                  </Button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {playoffSeeds.map((s, idx) => {
+                    const tierColor = s.pair.skillLevel === "A" ? "text-yellow-400" :
+                                     s.pair.skillLevel === "B" ? "text-gray-300" : "text-amber-600";
+                    return (
+                      <div key={s.pair.id} className="flex items-center gap-3 rounded-md border border-border bg-muted p-3">
+                        <div className="flex flex-col gap-0.5">
+                          <button
+                            onClick={() => moveSeed(idx, "up")}
+                            disabled={idx === 0}
+                            className="p-0.5 rounded hover:bg-accent/20 disabled:opacity-20 transition-colors"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5 text-accent" />
+                          </button>
+                          <button
+                            onClick={() => moveSeed(idx, "down")}
+                            disabled={idx === playoffSeeds.length - 1}
+                            className="p-0.5 rounded hover:bg-accent/20 disabled:opacity-20 transition-colors"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5 text-accent" />
+                          </button>
                         </div>
+                        <span className="font-display text-2xl text-accent w-8 text-center">{s.seed}</span>
+                        <div className="flex-1">
+                          <p className="font-display text-foreground">({s.pair.skillLevel}) {s.pair.player1.name} & {s.pair.player2.name}</p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span className="font-mono">{(s.winPct * 100).toFixed(0)}%</span>
+                            <span>•</span>
+                            <span className={tierColor}>Tier {s.pair.skillLevel}</span>
+                            {s.tiebreakerReason && (
+                              <>
+                                <span>•</span>
+                                <span className="italic text-muted-foreground/70">{s.tiebreakerReason}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        {s.seed <= 3 && (
+                          <Medal className={`w-5 h-5 ${s.seed === 1 ? "text-yellow-400" : s.seed === 2 ? "text-gray-300" : "text-amber-600"}`} />
+                        )}
                       </div>
-                      {s.seed <= 3 && (
-                        <Medal className={`w-5 h-5 ${s.seed === 1 ? "text-yellow-400" : s.seed === 2 ? "text-gray-300" : "text-amber-600"}`} />
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             )}
           </>
