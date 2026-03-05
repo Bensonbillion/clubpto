@@ -3,7 +3,7 @@ import { getHeadToHead } from "@/hooks/useGameState";
 import { Player, Pair, Match, PlayoffMatch, SkillTier } from "@/types/courtManager";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { Trophy, Medal, Info } from "lucide-react";
+import { Trophy, Medal, Info, ArrowUp, ArrowDown } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import PlayoffBracket from "./PlayoffBracket";
 import SessionExport from "./SessionExport";
