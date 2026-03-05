@@ -427,6 +427,7 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
             onStart={startPlayoffMatch}
             onComplete={completePlayoffMatch}
             isAdmin={true}
+            courtCount={state.sessionConfig.courtCount || 2}
           />
         )}
       </div>
