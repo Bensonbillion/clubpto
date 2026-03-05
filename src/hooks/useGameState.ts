@@ -2048,9 +2048,8 @@ export function useGameState() {
         const [skipped] = updatedMatches.splice(matchIdx, 1);
         updatedMatches.push(skipped);
 
-        // Find next pending match respecting rest gap and court routing
+        // Find next pending match for the freed court
         if (freedCourt) {
-          // Global rest tracking: scan ALL matches completed within last 3 minutes
           const recentPlayerIds = new Set<string>();
           const now = Date.now();
           for (const m of updatedMatches) {
@@ -2058,13 +2057,12 @@ export function useGameState() {
               getMatchPlayerIds(m).forEach((id) => recentPlayerIds.add(id));
             }
           }
-          // Also add skipped match players as recent
-          getMatchPlayerIds(skipped).forEach((id) => recentPlayerIds.add(id));
+          // NOTE: skipped players are NOT added to recentPlayerIds — they didn't play
           const courtCount = s.sessionConfig.courtCount || 2;
 
           const nextPending = findNextPendingForCourt(updatedMatches, freedCourt, courtCount, recentPlayerIds, s.pairs, updatedMatches, true);
           if (nextPending) {
-            const idx = updatedMatches.indexOf(nextPending);
+            const idx = updatedMatches.findIndex((m) => m.id === nextPending.id);
             if (idx !== -1) {
               updatedMatches[idx] = { ...nextPending, status: "playing", court: freedCourt, startedAt: new Date().toISOString() };
             }
