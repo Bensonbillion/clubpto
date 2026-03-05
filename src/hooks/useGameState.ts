@@ -176,8 +176,8 @@ function findNextPendingForCourt(
   let bestMatch: Match | undefined;
   let bestScore = Infinity;
 
-  for (let i = 0; i < validCandidates.length; i++) {
-    const candidate = validCandidates[i];
+  for (let i = 0; i < candidates.length; i++) {
+    const candidate = candidates[i];
     const pair1Games = pairCompletedGames.get(candidate.pair1.id) || 0;
     const pair2Games = pairCompletedGames.get(candidate.pair2.id) || 0;
 
@@ -189,6 +189,21 @@ function findNextPendingForCourt(
     if (finalScore < bestScore) {
       bestScore = finalScore;
       bestMatch = candidate;
+    }
+  }
+
+  // If equity gate blocked everything, relax it and try again
+  if (!bestMatch) {
+    for (let i = 0; i < candidates.length; i++) {
+      const candidate = candidates[i];
+      const pair1Games = pairCompletedGames.get(candidate.pair1.id) || 0;
+      const pair2Games = pairCompletedGames.get(candidate.pair2.id) || 0;
+      const crossPenalty = isCrossCohort(candidate.matchupLabel) ? 100000000 : 0;
+      const finalScore = crossPenalty + Math.max(pair1Games, pair2Games) * 1000 + (candidate.gameNumber || i);
+      if (finalScore < bestScore) {
+        bestScore = finalScore;
+        bestMatch = candidate;
+      }
     }
   }
 
