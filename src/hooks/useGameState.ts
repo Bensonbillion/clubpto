@@ -135,11 +135,16 @@ function findNextPendingForCourt(
     ? (freedCourt === 1 ? "C" : "AB")
     : null;
 
+  // Build set of active pair IDs for ghost-player validation
+  const activePairIds = new Set(allPairs.map((p) => p.id));
+
   // 2. Filter pending matches to those valid for this court
   const validCandidates: Match[] = [];
   const restRelaxedCandidates: Match[] = []; // fallback: skip rest-gap filter
   for (const m of matches) {
     if (m.status !== "pending") continue;
+    // Ghost-player guard: skip matches referencing removed pairs
+    if (!activePairIds.has(m.pair1.id) || !activePairIds.has(m.pair2.id)) continue;
     const playerIds = getMatchPlayerIds(m);
     if (playerIds.some((id) => busyPlayerIds.has(id))) continue;
     if (poolFilter) {
@@ -171,9 +176,15 @@ function findNextPendingForCourt(
     pairCompletedGames.set(m.pair2.id, (pairCompletedGames.get(m.pair2.id) || 0) + 1);
   }
 
-  // 4. HARD EQUITY GATE: compute minGamesAcrossAllPairs
-  const allCounts = allPairs.map((p) => pairCompletedGames.get(p.id) || 0);
-  const minGamesAcrossAllPairs = Math.min(...allCounts);
+  // 4. HARD EQUITY GATE: compute minGames only across pairs whose players
+  //    are actually available (not currently on court), so busy pairs don't
+  //    artificially hold back the minimum and deadlock all generation.
+  const availablePairCounts = allPairs
+    .filter((p) => !getPairPlayerIds(p).some((id) => busyPlayerIds.has(id)))
+    .map((p) => pairCompletedGames.get(p.id) || 0);
+  const minGamesAcrossAllPairs = availablePairCounts.length > 0
+    ? Math.min(...availablePairCounts)
+    : Math.min(...allPairs.map((p) => pairCompletedGames.get(p.id) || 0));
 
   // 5. Score remaining candidates
   let bestMatch: Match | undefined;
@@ -523,7 +534,54 @@ export function useGameState() {
 
   const removePlayer = useCallback(
     (id: string) => {
-      updateState((s) => ({ ...s, roster: s.roster.filter((p) => p.id !== id) }));
+      updateState((s) => {
+        // If session has matches, clean up matches + pairs (not just roster)
+        if (s.matches.length > 0) {
+          // Block removal if player is currently on court
+          const isPlaying = s.matches.some(
+            (m) => m.status === "playing" && getMatchPlayerIds(m).includes(id)
+          );
+          if (isPlaying) return s;
+
+          // Find and remove pairs containing this player
+          const playerPairIds = new Set<string>();
+          s.pairs.forEach((pair) => {
+            if (pair.player1.id === id || pair.player2.id === id) {
+              playerPairIds.add(pair.id);
+            }
+          });
+
+          const updatedPairs = s.pairs.filter((p) => !playerPairIds.has(p.id));
+
+          // Remove pending matches involving this player's pair(s)
+          let updatedMatches = s.matches.filter((m) => {
+            if (m.status !== "pending") return true;
+            return !playerPairIds.has(m.pair1.id) && !playerPairIds.has(m.pair2.id);
+          });
+
+          // Defensive: remove any non-completed match still referencing a removed pair
+          const activePairIds = new Set(updatedPairs.map((p) => p.id));
+          updatedMatches = updatedMatches.filter((m) => {
+            if (m.status === "completed") return true;
+            return activePairIds.has(m.pair1.id) && activePairIds.has(m.pair2.id);
+          });
+
+          updatedMatches = updatedMatches.map((m, i) =>
+            m.gameNumber !== i + 1 ? { ...m, gameNumber: i + 1 } : m
+          );
+
+          return {
+            ...s,
+            roster: s.roster.filter((p) => p.id !== id),
+            pairs: updatedPairs,
+            matches: updatedMatches,
+            totalScheduledGames: updatedMatches.length,
+          };
+        }
+
+        // Pre-session: just remove from roster
+        return { ...s, roster: s.roster.filter((p) => p.id !== id) };
+      });
     },
     [updateState]
   );
@@ -1498,43 +1556,60 @@ export function useGameState() {
       m.pair1.player1.id, m.pair1.player2.id, m.pair2.player1.id, m.pair2.player2.id,
     ];
 
+    // Helper: collect all player IDs in a given slot of the full schedule
+    const getSlotPlayerIds = (allMatches: Match[], slotNum: number): Set<string> => {
+      const ids = new Set<string>();
+      const start = slotNum * courtCount;
+      const end = start + courtCount;
+      for (let i = start; i < end && i < allMatches.length; i++) {
+        getMatchPlayerIds(allMatches[i]).forEach((id) => ids.add(id));
+      }
+      return ids;
+    };
+
     for (const nm of newMatches) {
       const nmPlayerIds = getMatchPlayerIds(nm);
       let inserted = false;
 
-      // Try to insert early, checking each slot for player conflicts
+      // Try to insert, checking each slot for same-slot conflicts AND rest-gap
       for (let insertPos = 0; insertPos <= combined.length; insertPos++) {
-        // Determine which slot this position belongs to (relative to frozen)
+        // Build a temporary full schedule to check slot assignments
+        const tentative = [...frozen, ...combined.slice(0, insertPos), nm, ...combined.slice(insertPos)];
         const absoluteIdx = frozen.length + insertPos;
         const slot = Math.floor(absoluteIdx / courtCount);
-        const slotBase = slot * courtCount;
 
-        // Collect player IDs already in this slot
-        const slotPlayerIds = new Set<string>();
-        for (let si = slotBase; si < slotBase + courtCount; si++) {
-          if (si === absoluteIdx) continue; // Skip the position we're inserting at
-          const existingIdx = si - frozen.length;
-          let match: Match | undefined;
-          if (si < frozen.length) {
-            match = frozen[si];
-          } else if (existingIdx >= 0 && existingIdx < combined.length) {
-            match = combined[existingIdx];
+        // Check same-slot conflict (no player on two courts simultaneously)
+        const slotIds = getSlotPlayerIds(tentative, slot);
+        // Remove own players to re-add them (they're already counted)
+        nmPlayerIds.forEach((id) => slotIds.delete(id));
+        // Re-check: does any player in this match appear elsewhere in the slot?
+        const sameSlotConflict = nmPlayerIds.some((id) => {
+          // Count how many times this id appears in the slot
+          const start = slot * courtCount;
+          const end = Math.min(start + courtCount, tentative.length);
+          let count = 0;
+          for (let i = start; i < end; i++) {
+            if (getMatchPlayerIds(tentative[i]).includes(id)) count++;
           }
-          if (match) {
-            getMatchPlayerIds(match).forEach((id) => slotPlayerIds.add(id));
+          return count > 1;
+        });
+        if (sameSlotConflict) continue;
+
+        // Check rest-gap: no player should appear in adjacent slot
+        let restGapViolation = false;
+        for (const adjSlot of [slot - 1, slot + 1]) {
+          if (adjSlot < 0) continue;
+          const adjIds = getSlotPlayerIds(tentative, adjSlot);
+          if (nmPlayerIds.some((id) => adjIds.has(id))) {
+            restGapViolation = true;
+            break;
           }
         }
+        if (restGapViolation) continue;
 
-        // Also check frozen matches in this slot
-        for (let si = slotBase; si < slotBase + courtCount && si < frozen.length; si++) {
-          getMatchPlayerIds(frozen[si]).forEach((id) => slotPlayerIds.add(id));
-        }
-
-        if (!nmPlayerIds.some((id) => slotPlayerIds.has(id))) {
-          combined.splice(insertPos, 0, nm);
-          inserted = true;
-          break;
-        }
+        combined.splice(insertPos, 0, nm);
+        inserted = true;
+        break;
       }
 
       // Fallback: append at end
@@ -1544,8 +1619,7 @@ export function useGameState() {
     }
 
     const result = [...frozen, ...combined];
-    result.forEach((m, i) => { m.gameNumber = i + 1; });
-    return result;
+    return result.map((m, i) => m.gameNumber !== i + 1 ? { ...m, gameNumber: i + 1 } : m);
   }, []);
 
   /**
@@ -1942,8 +2016,9 @@ export function useGameState() {
         }
       }
 
-      const finalMatches = [...frozen, ...regenerated];
-      finalMatches.forEach((m, i) => { m.gameNumber = i + 1; });
+      const finalMatches = [...frozen, ...regenerated].map((m, i) =>
+        m.gameNumber !== i + 1 ? { ...m, gameNumber: i + 1 } : m
+      );
 
       return {
         ...s,
@@ -2311,7 +2386,12 @@ export function useGameState() {
           if (s.sessionConfig.dynamicMode) {
             const TARGET = courtCount === 3 ? 3 : 4;
             const available = getAvailableTeams(updatedPairs, updatedMatches, updatedPairGamesWatched, TARGET);
-            const nextMatch = generateNextMatch(available, freedCourt, courtCount, recentPlayerIds, updatedMatches);
+            let nextMatch = generateNextMatch(available, freedCourt, courtCount, recentPlayerIds, updatedMatches);
+            // Fallback: if rest-gap blocks everyone, retry without rest-gap restriction
+            if (!nextMatch && available.length >= 2) {
+              console.warn("[PTO] Rest-gap blocked all pairs for court " + freedCourt + ", relaxing rest constraint");
+              nextMatch = generateNextMatch(available, freedCourt, courtCount, new Set(), updatedMatches);
+            }
             if (nextMatch) {
               updatedMatches = [...updatedMatches, { ...nextMatch, status: "playing", court: freedCourt, startedAt: new Date().toISOString(), gameNumber: updatedMatches.length + 1 }];
             }
@@ -2617,9 +2697,18 @@ export function useGameState() {
 
         updatedMatches = [...updatedMatches, ...replacementMatches];
 
-        // Sync remaining pairs
+        // Sync remaining pairs (only updates non-completed matches)
         updatedMatches = syncPairsToMatches(updatedPairs, updatedMatches);
-        updatedMatches.forEach((m, i) => { m.gameNumber = i + 1; });
+
+        // Defensive: remove any non-completed match that still references a removed pair
+        const activePairIds = new Set(updatedPairs.map((p) => p.id));
+        updatedMatches = updatedMatches.filter((m) => {
+          if (m.status === "completed") return true;
+          return activePairIds.has(m.pair1.id) && activePairIds.has(m.pair2.id);
+        });
+
+        // Renumber without mutating — create new objects
+        updatedMatches = updatedMatches.map((m, i) => m.gameNumber !== i + 1 ? { ...m, gameNumber: i + 1 } : m);
 
         result = { success: true, affected };
 
@@ -3008,11 +3097,13 @@ export function useGameState() {
           });
 
           if (nextPending) {
-            nextPending.status = "playing";
-            nextPending.court = freedCourt;
+            const nIdx = updated.indexOf(nextPending);
+            if (nIdx !== -1) {
+              updated[nIdx] = { ...nextPending, status: "playing", court: freedCourt };
+            }
           }
         }
-        
+
         return { ...s, playoffMatches: updated };
       });
     },
@@ -3100,4 +3191,5 @@ export const _testExports = {
   getPairPlayerIds,
   getMatchPlayerIds,
   generateId,
+  syncPairsToMatches,
 };
