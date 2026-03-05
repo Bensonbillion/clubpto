@@ -136,19 +136,26 @@ function findNextPendingForCourt(
 
   // 2. Filter pending matches to those valid for this court
   const validCandidates: Match[] = [];
+  const restRelaxedCandidates: Match[] = []; // fallback: skip rest-gap filter
   for (const m of matches) {
     if (m.status !== "pending") continue;
     const playerIds = getMatchPlayerIds(m);
     if (playerIds.some((id) => busyPlayerIds.has(id))) continue;
-    if (playerIds.some((id) => recentPlayerIds.has(id))) continue;
     if (poolFilter) {
       const matchPool = (m.skillLevel === "C" || m.matchupLabel === "B vs C") ? "C" : "AB";
       if (poolFilter !== matchPool) continue;
     }
+    // Rest-gap is preferred but not mandatory
+    if (playerIds.some((id) => recentPlayerIds.has(id))) {
+      restRelaxedCandidates.push(m);
+      continue;
+    }
     validCandidates.push(m);
   }
 
-  if (validCandidates.length === 0) return undefined;
+  // Fall back to rest-relaxed candidates if strict filtering yields nothing
+  const candidates = validCandidates.length > 0 ? validCandidates : restRelaxedCandidates;
+  if (candidates.length === 0) return undefined;
 
   // 3. Compute completed game counts for each pair
   const pairCompletedGames = new Map<string, number>();
@@ -169,8 +176,8 @@ function findNextPendingForCourt(
   let bestMatch: Match | undefined;
   let bestScore = Infinity;
 
-  for (let i = 0; i < validCandidates.length; i++) {
-    const candidate = validCandidates[i];
+  for (let i = 0; i < candidates.length; i++) {
+    const candidate = candidates[i];
     const pair1Games = pairCompletedGames.get(candidate.pair1.id) || 0;
     const pair2Games = pairCompletedGames.get(candidate.pair2.id) || 0;
 
@@ -182,6 +189,21 @@ function findNextPendingForCourt(
     if (finalScore < bestScore) {
       bestScore = finalScore;
       bestMatch = candidate;
+    }
+  }
+
+  // If equity gate blocked everything, relax it and try again
+  if (!bestMatch) {
+    for (let i = 0; i < candidates.length; i++) {
+      const candidate = candidates[i];
+      const pair1Games = pairCompletedGames.get(candidate.pair1.id) || 0;
+      const pair2Games = pairCompletedGames.get(candidate.pair2.id) || 0;
+      const crossPenalty = isCrossCohort(candidate.matchupLabel) ? 100000000 : 0;
+      const finalScore = crossPenalty + Math.max(pair1Games, pair2Games) * 1000 + (candidate.gameNumber || i);
+      if (finalScore < bestScore) {
+        bestScore = finalScore;
+        bestMatch = candidate;
+      }
     }
   }
 
