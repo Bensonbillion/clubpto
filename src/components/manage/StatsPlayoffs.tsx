@@ -235,20 +235,15 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
     // Merit-based seeding: sort by total wins, then win%, then tier, then head-to-head
     const tierPriority: Record<string, number> = { A: 0, B: 1, C: 2 };
     const sorted = [...eligiblePairs].sort((a, b) => {
-      // 1. Total wins (descending)
       if (b.wins !== a.wins) return b.wins - a.wins;
-      // 2. Win percentage (descending)
       if (Math.abs(b.winPct - a.winPct) > 0.001) return b.winPct - a.winPct;
-      // 3. Tier priority as tiebreaker (A > B > C)
       const tierDiff = (tierPriority[a.skillLevel] || 2) - (tierPriority[b.skillLevel] || 2);
       if (tierDiff !== 0) return tierDiff;
-      // 4. Head-to-head as final tiebreaker
       const h2h = getHeadToHead(a.pair.id, b.pair.id, state.matches);
       if (h2h !== 0) return -h2h;
       return 0;
     });
 
-    // Take top 8 pairs for playoff bracket, annotate tiebreakers
     const top = sorted.slice(0, 8);
     const annotatedTop = annotateTiebreakers(top, state.matches);
     const seeds: PlayoffPairSeed[] = annotatedTop.map((ps, i) => ({
@@ -259,7 +254,22 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
     }));
 
     setPlayoffSeeds(seeds);
-    generatePlayoffMatches(seeds);
+    // Don't auto-generate bracket — let admin reorder first
+  };
+
+  const handleConfirmPlayoffBracket = () => {
+    if (playoffSeeds.length < 2) return;
+    // Re-number seeds based on current order
+    const renumbered = playoffSeeds.map((s, i) => ({ ...s, seed: i + 1 }));
+    generatePlayoffMatches(renumbered);
+  };
+
+  const moveSeed = (index: number, direction: "up" | "down") => {
+    const newSeeds = [...playoffSeeds];
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= newSeeds.length) return;
+    [newSeeds[index], newSeeds[swapIndex]] = [newSeeds[swapIndex], newSeeds[index]];
+    setPlayoffSeeds(newSeeds.map((s, i) => ({ ...s, seed: i + 1 })));
   };
 
   const roundRobinComplete = state.matches.length > 0 && state.matches.every((m) => m.status === "completed");
