@@ -455,8 +455,10 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
 
           <PlayoffBracket
             playoffMatches={state.playoffMatches}
+            onStart={startPlayoffMatch}
             onComplete={completePlayoffMatch}
             isAdmin={isAdmin}
+            courtCount={state.sessionConfig.courtCount || 2}
           />
         </div>
       )}

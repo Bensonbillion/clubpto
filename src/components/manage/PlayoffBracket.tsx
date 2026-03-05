@@ -168,9 +168,11 @@ const PlayoffBracket = ({ playoffMatches, onStart, onComplete, isAdmin, courtCou
                 <BracketMatchCard
                   key={m.id}
                   match={m}
+                  onStart={onStart}
                   onComplete={onComplete}
                   isAdmin={isAdmin}
                   roundLabel={getRoundLabel(round)}
+                  courtCount={courtCount}
                 />
               ))}
             </div>
