@@ -5,9 +5,10 @@ import { useState } from "react";
 
 interface PlayoffBracketProps {
   playoffMatches: PlayoffMatch[];
-  onStart?: (matchId: string, court: number) => void;
+  onStart: (matchId: string, court: number) => void;
   onComplete: (matchId: string, winnerPairId: string) => void;
   isAdmin: boolean;
+  courtCount?: number;
 }
 
 const TeamLabel = ({ pair, seed, isWinner }: { pair: Pair | null; seed?: number; isWinner: boolean }) => {

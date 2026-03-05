@@ -2932,10 +2932,13 @@ export function useGameState() {
         // Don't start if a round-robin match is still playing on this court
         const courtBusy = s.matches.some((m) => m.court === court && m.status === "playing");
         if (courtBusy) return s;
+        // Also check if another playoff match is already on this court
+        const playoffCourtBusy = s.playoffMatches.some((m) => m.court === court && m.status === "playing");
+        if (playoffCourtBusy) return s;
         return {
           ...s,
           playoffMatches: s.playoffMatches.map((m) =>
-            m.id === matchId ? { ...m, status: "playing" as const } : m
+            m.id === matchId ? { ...m, status: "playing" as const, court } : m
           ),
         };
       });
