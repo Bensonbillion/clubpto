@@ -122,6 +122,7 @@ function findNextPendingForCourt(
   recentPlayerIds: Set<string>,
   allPairs: Pair[],
   allMatches: Match[],
+  allowRestRelaxation = false,
 ): Match | undefined {
   // 1. Collect all currently playing player IDs (excluding the freed court)
   const busyPlayerIds = new Set<string>();
