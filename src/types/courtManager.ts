@@ -38,8 +38,8 @@ export interface Match {
   startedAt?: string;
   /** 1-indexed game number in the full schedule */
   gameNumber?: number;
-  /** Which court pool this match belongs to in 3-court mode */
-  courtPool?: "AB" | "C";
+  /** Court pool routing for 3-court mode: "C" = Court 1, "AB" = Courts 2-3 */
+  courtPool?: "C" | "AB";
 }
 
 export interface GameHistory {

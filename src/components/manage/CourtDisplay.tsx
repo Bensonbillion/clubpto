@@ -93,11 +93,11 @@ const WinnerModal = ({
     <div className="bg-card border border-border rounded-lg p-10 max-w-lg w-full mx-4 space-y-8" onClick={(e) => e.stopPropagation()}>
       <h3 className="font-display text-3xl text-accent text-center">Which team won?</h3>
       <div className="space-y-4">
-        <button onClick={() => onSelect(match.pair1.id)} className="w-full rounded-lg border-2 border-border bg-muted p-6 text-center hover:border-accent hover:bg-accent/10 transition-all active:scale-[0.98] min-h-[80px]">
+        <button onClick={() => onSelect(match.pair1.id)} className="w-full rounded-lg border-2 border-border bg-muted p-6 text-center hover:border-accent hover:bg-accent/10 active:border-accent active:bg-accent/20 active:scale-[0.97] transition-all min-h-[88px] touch-manipulation">
           <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Team A</p>
           <p className="font-display text-xl text-foreground">{match.pair1.player1.name} & {match.pair1.player2.name}</p>
         </button>
-        <button onClick={() => onSelect(match.pair2.id)} className="w-full rounded-lg border-2 border-border bg-muted p-6 text-center hover:border-accent hover:bg-accent/10 transition-all active:scale-[0.98] min-h-[80px]">
+        <button onClick={() => onSelect(match.pair2.id)} className="w-full rounded-lg border-2 border-border bg-muted p-6 text-center hover:border-accent hover:bg-accent/10 active:border-accent active:bg-accent/20 active:scale-[0.97] transition-all min-h-[88px] touch-manipulation">
           <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Team B</p>
           <p className="font-display text-xl text-foreground">{match.pair2.player1.name} & {match.pair2.player2.name}</p>
         </button>
@@ -113,46 +113,46 @@ const CourtCard = ({
 }: {
   courtNum: number; match: Match | null; totalGames: number; onFinish: (match: Match) => void; onSkip: (match: Match) => void; isAdmin: boolean;
 }) => (
-  <div className="rounded-lg border border-border bg-card p-4 md:p-6 space-y-4 md:space-y-5 flex-1 min-w-0">
-    <div className="flex items-center justify-between">
-      <div className="space-y-1">
-        <h3 className="font-display text-3xl text-accent">Court {courtNum}</h3>
+  <div className="rounded-lg border border-border bg-card p-4 md:p-5 space-y-3 md:space-y-4 flex-1 min-w-[280px]">
+    <div className="flex items-center justify-between gap-2">
+      <div className="space-y-0.5">
+        <h3 className="font-display text-2xl md:text-3xl text-accent">Court {courtNum}</h3>
         {match?.gameNumber && totalGames > 0 && (
-          <p className="text-sm text-muted-foreground">Game {match.gameNumber} of {totalGames}</p>
+          <p className="text-xs text-muted-foreground">Game {match.gameNumber}/{totalGames}</p>
         )}
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 flex-shrink-0">
         {match && <GameTimer startedAt={match.startedAt} />}
         {match ? (
-          <span className="text-xs uppercase tracking-widest bg-accent/20 text-accent px-4 py-1.5 rounded-full border border-accent/30">Playing</span>
+          <span className="text-[10px] uppercase tracking-widest bg-accent/20 text-accent px-2.5 py-1 rounded-full border border-accent/30">Playing</span>
         ) : (
-          <span className="text-xs uppercase tracking-widest bg-primary/20 text-primary px-4 py-1.5 rounded-full border border-primary/30">Waiting</span>
+          <span className="text-[10px] uppercase tracking-widest bg-primary/20 text-primary px-2.5 py-1 rounded-full border border-primary/30">Waiting</span>
         )}
       </div>
     </div>
 
     {match ? (
-      <div className="space-y-5">
-        <div className="flex items-center gap-4">
-          <div className="flex-1 text-center space-y-1 rounded-md bg-muted/50 p-3 md:p-4">
+      <div className="space-y-3 md:space-y-4">
+        <div className="flex items-center gap-2 md:gap-4">
+          <div className="flex-1 text-center space-y-0.5 rounded-md bg-muted/50 p-2 md:p-3">
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Team A</p>
-            <p className="font-display text-lg md:text-xl text-foreground">{match.pair1.player1.name}</p>
-            <p className="font-display text-lg md:text-xl text-foreground">{match.pair1.player2.name}</p>
+            <p className="font-display text-base md:text-lg text-foreground leading-tight">{match.pair1.player1.name}</p>
+            <p className="font-display text-base md:text-lg text-foreground leading-tight">{match.pair1.player2.name}</p>
           </div>
-          <div className="font-display text-2xl md:text-3xl text-accent">VS</div>
-          <div className="flex-1 text-center space-y-1 rounded-md bg-muted/50 p-3 md:p-4">
+          <div className="font-display text-xl md:text-2xl text-accent flex-shrink-0">VS</div>
+          <div className="flex-1 text-center space-y-0.5 rounded-md bg-muted/50 p-2 md:p-3">
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Team B</p>
-            <p className="font-display text-lg md:text-xl text-foreground">{match.pair2.player1.name}</p>
-            <p className="font-display text-lg md:text-xl text-foreground">{match.pair2.player2.name}</p>
+            <p className="font-display text-base md:text-lg text-foreground leading-tight">{match.pair2.player1.name}</p>
+            <p className="font-display text-base md:text-lg text-foreground leading-tight">{match.pair2.player2.name}</p>
           </div>
         </div>
-        <div className="flex gap-3">
-          <Button onClick={() => onFinish(match)} className="flex-1 bg-accent text-accent-foreground hover:bg-accent/80 min-h-[52px] text-base">
-            <Trophy className="w-5 h-5 mr-2" /> Game Finished
+        <div className="flex gap-2 flex-wrap">
+          <Button onClick={() => onFinish(match)} className="flex-1 bg-accent text-accent-foreground hover:bg-accent/80 active:scale-[0.97] min-h-[52px] text-base">
+            <Trophy className="w-5 h-5 mr-1.5" /> Finished
           </Button>
           {isAdmin && (
-            <Button variant="outline" onClick={() => onSkip(match)} className="border-border text-muted-foreground hover:text-accent hover:border-accent/40 min-h-[52px] text-base">
-              <SkipForward className="w-5 h-5 mr-1.5" /> Skip
+            <Button variant="outline" onClick={() => onSkip(match)} className="flex-shrink-0 border-border text-muted-foreground hover:text-accent hover:border-accent/40 active:scale-[0.97] min-h-[52px] min-w-[52px] px-3 text-base">
+              <SkipForward className="w-5 h-5" /> <span className="hidden sm:inline ml-1.5">Skip</span>
             </Button>
           )}
         </div>
@@ -175,7 +175,7 @@ const SwapPlayerButton = ({
       <PopoverTrigger asChild>
         <button className="group inline-flex items-center gap-1.5 hover:text-accent transition-colors min-h-[36px]">
           <span>{playerName}</span>
-          <ArrowRightLeft className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+          <ArrowRightLeft className="w-3.5 h-3.5 opacity-40 group-hover:opacity-100 transition-opacity" />
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-52 p-2 max-h-60 overflow-y-auto" align="start">
@@ -349,7 +349,7 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap overflow-x-auto scrollbar-hide">
           {/* Mini standings toggle — admin only */}
           {isAdmin && hasActiveMatches && (
             <Button variant="outline" size="default" onClick={() => setShowStandings((v) => !v)}
@@ -479,7 +479,7 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
       {/* Courts — hide during playoffs */}
       {!state.playoffsStarted && (
         <>
-          <div className={`flex flex-col ${!courtFilter ? "md:flex-row" : ""} gap-6`}>
+          <div className={`flex flex-col ${!courtFilter ? (showCourt3 ? "lg:flex-row" : "md:flex-row") : ""} gap-4 md:gap-5 flex-wrap`}>
             {showCourt1 && <CourtCard courtNum={1} match={court1Match} totalGames={totalGames} onFinish={setFinishingMatch} onSkip={(m) => skipMatch(m.id)} isAdmin={isAdmin} />}
             {showCourt2 && <CourtCard courtNum={2} match={court2Match} totalGames={totalGames} onFinish={setFinishingMatch} onSkip={(m) => skipMatch(m.id)} isAdmin={isAdmin} />}
             {showCourt3 && <CourtCard courtNum={3} match={court3Match} totalGames={totalGames} onFinish={setFinishingMatch} onSkip={(m) => skipMatch(m.id)} isAdmin={isAdmin} />}

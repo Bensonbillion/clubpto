@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import MobileNav from "./MobileNav";
 import StickyBookCTA from "./StickyBookCTA";
-import Footer from "./Footer";
+import Footer from "./layout/Footer";
 
 interface LayoutProps {
   children: ReactNode;
