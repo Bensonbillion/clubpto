@@ -33,9 +33,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Basic allowlist: only SELECT, INSERT, UPDATE, DELETE
+    // Basic allowlist: DML + DDL for schema management
     const command = sql.trim().split(/\s+/)[0].toUpperCase();
-    if (!["SELECT", "INSERT", "UPDATE", "DELETE", "WITH"].includes(command)) {
+    if (!["SELECT", "INSERT", "UPDATE", "DELETE", "WITH", "CREATE", "ALTER", "DROP"].includes(command)) {
       return new Response(
         JSON.stringify({ error: `Disallowed SQL command: ${command}` }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }

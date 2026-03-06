@@ -131,27 +131,51 @@ const SeasonReset = () => {
         earnedAt: r.earned_at,
       }));
 
-      // 3. Archive to Supabase
-      addLog("Saving session archive...");
-      const { error: archiveErr } = await supabase.from("session_archives").insert({
-        session_date: gameState.sessionConfig.sessionStartedAt
-          ? new Date(gameState.sessionConfig.sessionStartedAt).toISOString().split("T")[0]
-          : new Date().toISOString().split("T")[0],
-        session_label: sessionLabel || null,
-        roster: gameState.roster,
-        pairs: gameState.pairs,
-        matches: gameState.matches,
-        standings: allStandings,
-        playoff_bracket: gameState.playoffMatches || [],
-        game_history: gameState.gameHistory || [],
-        court_count: gameState.sessionConfig.courtCount || 2,
-        duration_minutes: gameState.sessionConfig.durationMinutes || 85,
-        dynamic_mode: gameState.sessionConfig.dynamicMode || false,
-        points_awarded: pointsSnapshot,
-        archived_by: "admin",
-      });
+      // 3. Ensure session_archives table exists in Turso
+      addLog("Ensuring archive table exists...");
+      await query(`CREATE TABLE IF NOT EXISTS session_archives (
+        id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+        session_date TEXT NOT NULL,
+        session_label TEXT,
+        roster TEXT NOT NULL DEFAULT '[]',
+        pairs TEXT NOT NULL DEFAULT '[]',
+        matches TEXT NOT NULL DEFAULT '[]',
+        standings TEXT NOT NULL DEFAULT '[]',
+        playoff_bracket TEXT NOT NULL DEFAULT '[]',
+        game_history TEXT NOT NULL DEFAULT '[]',
+        court_count INTEGER NOT NULL DEFAULT 2,
+        duration_minutes INTEGER NOT NULL DEFAULT 85,
+        dynamic_mode INTEGER NOT NULL DEFAULT 0,
+        points_awarded TEXT NOT NULL DEFAULT '[]',
+        archived_at TEXT NOT NULL DEFAULT (datetime('now')),
+        archived_by TEXT
+      )`);
 
-      if (archiveErr) throw new Error("Archive save failed: " + archiveErr.message);
+      // 4. Archive to Turso
+      addLog("Saving session archive...");
+      const sessionDate = gameState.sessionConfig.sessionStartedAt
+        ? new Date(gameState.sessionConfig.sessionStartedAt).toISOString().split("T")[0]
+        : new Date().toISOString().split("T")[0];
+
+      await query(
+        `INSERT INTO session_archives (session_date, session_label, roster, pairs, matches, standings, playoff_bracket, game_history, court_count, duration_minutes, dynamic_mode, points_awarded, archived_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          sessionDate,
+          sessionLabel || null,
+          JSON.stringify(gameState.roster),
+          JSON.stringify(gameState.pairs),
+          JSON.stringify(gameState.matches),
+          JSON.stringify(allStandings),
+          JSON.stringify(gameState.playoffMatches || []),
+          JSON.stringify(gameState.gameHistory || []),
+          gameState.sessionConfig.courtCount || 2,
+          gameState.sessionConfig.durationMinutes || 85,
+          gameState.sessionConfig.dynamicMode ? 1 : 0,
+          JSON.stringify(pointsSnapshot),
+          "admin",
+        ]
+      );
       addLog("Session archived successfully.");
 
       // 4. Reset leaderboard
