@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { query } from "@/lib/turso";
 import { GameState, DEFAULT_STATE, Player, Pair, Match, GameHistory, PlayoffMatch, FixedPair, SkillTier, OddPlayerDecision } from "@/types/courtManager";
 import { awardPoints, type PointsReason } from "@/lib/leaderboard";
+import { isSimulationMode, setSimulationMode } from "@/lib/simulationMode";
 
 const VIP_PROFILE_IDS = new Set([
   "08813d60dccf0067907caf3727077d20", // David
@@ -56,6 +57,7 @@ async function awardMatchPoints(
   reason: PointsReason,
   matchId: string,
 ): Promise<void> {
+  if (isSimulationMode()) return;
   const players = [winnerPair.player1, winnerPair.player2];
   for (const player of players) {
     let playerId = player.profileId;
@@ -305,15 +307,25 @@ function generateNextMatch(
   return { id: generateId(), pair1: best.pair1, pair2: best.pair2, skillLevel: best.skillLevel, matchupLabel: best.matchupLabel, status: "pending", court: null };
 }
 
-export function useGameState() {
+export function useGameState(options?: { simulate?: boolean }) {
+  const simulate = options?.simulate ?? false;
   const [state, setState] = useState<GameState>(DEFAULT_STATE);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!simulate);
   const savingRef = useRef(false);
   const pendingRef = useRef<GameState | null>(null);
   const localMutationRef = useRef(false); // blocks sync overwrite after local changes
 
-  // Load initial state from DB
+  // Set/clear the global simulation flag on mount/unmount
   useEffect(() => {
+    if (simulate) {
+      setSimulationMode(true);
+      return () => { setSimulationMode(false); };
+    }
+  }, [simulate]);
+
+  // Load initial state from DB (skip in simulation)
+  useEffect(() => {
+    if (simulate) return;
     const load = async () => {
       const { data } = await supabase
         .from("game_state")
@@ -332,10 +344,11 @@ export function useGameState() {
       setLoading(false);
     };
     load();
-  }, []);
+  }, [simulate]);
 
-  // Subscribe to realtime changes — skip if a save is in progress or pending
+  // Subscribe to realtime changes — skip if a save is in progress or pending (or simulation)
   useEffect(() => {
+    if (simulate) return;
     const channel = supabase
       .channel("game_state_sync")
       .on(
@@ -353,10 +366,11 @@ export function useGameState() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [simulate]);
 
-  // Polling fallback every 10s — skip if a save is in progress or pending
+  // Polling fallback every 10s — skip if a save is in progress or pending (or simulation)
   useEffect(() => {
+    if (simulate) return;
     const interval = setInterval(async () => {
       if (savingRef.current || pendingRef.current || localMutationRef.current) return;
       const { data } = await supabase
@@ -369,9 +383,10 @@ export function useGameState() {
       }
     }, 10_000);
     return () => clearInterval(interval);
-  }, []);
+  }, [simulate]);
 
   const drainSave = useCallback(async () => {
+    if (isSimulationMode()) { pendingRef.current = null; return; }
     if (savingRef.current) return;
     savingRef.current = true;
 
@@ -1409,14 +1424,16 @@ export function useGameState() {
     }
 
     // Save pairs to history (fire-and-forget, outside state update)
-    const historyRows = allPairs.map((p) => ({
-      player1_name: p.player1.name,
-      player2_name: p.player2.name,
-    }));
-    if (historyRows.length > 0) {
-      Promise.all(historyRows.map((r) =>
-        query('INSERT INTO pair_history (player1_name, player2_name) VALUES (?, ?)', [r.player1_name, r.player2_name])
-      )).catch(() => {});
+    if (!isSimulationMode()) {
+      const historyRows = allPairs.map((p) => ({
+        player1_name: p.player1.name,
+        player2_name: p.player2.name,
+      }));
+      if (historyRows.length > 0) {
+        Promise.all(historyRows.map((r) =>
+          query('INSERT INTO pair_history (player1_name, player2_name) VALUES (?, ?)', [r.player1_name, r.player2_name])
+        )).catch(() => {});
+      }
     }
 
     return {
@@ -1727,7 +1744,9 @@ export function useGameState() {
         result = { paired: true, partnerName: partner.name, estimatedMinutes };
 
         // Save pair history
-        query('INSERT INTO pair_history (player1_name, player2_name) VALUES (?, ?)', [player.name, partner.name]).catch(() => {});
+        if (!isSimulationMode()) {
+          query('INSERT INTO pair_history (player1_name, player2_name) VALUES (?, ?)', [player.name, partner.name]).catch(() => {});
+        }
 
         return {
           ...s,

@@ -497,6 +497,13 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
         <Button onClick={startSession} disabled={state.sessionStarted || state.roster.length < 4} className="bg-primary text-primary-foreground hover:bg-primary/80 min-h-[52px] px-8 text-base">
           <Play className="w-5 h-5 mr-2" /> {state.sessionStarted ? "Session Active" : "Start Session"}
         </Button>
+        <Button
+          variant="outline"
+          className="min-h-[52px] px-8 text-base border-amber-600 text-amber-500 hover:bg-amber-600/10 hover:text-amber-400"
+          onClick={() => window.open("/manage/simulate", "_blank")}
+        >
+          <Play className="w-5 h-5 mr-2" /> Launch Simulation
+        </Button>
         {confirmReset ? (
           <Button onClick={() => handleReset(resetKeepRoster)} variant="outline" className="min-h-[52px] px-8 text-base border-destructive text-destructive animate-pulse-soft">
             <RotateCcw className="w-5 h-5 mr-2" /> Confirm Reset?
