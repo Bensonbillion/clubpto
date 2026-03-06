@@ -223,7 +223,7 @@ const SeasonReset = () => {
       // 6. Refresh materialized view
       addLog("Refreshing leaderboard view...");
       try {
-        await supabase.rpc("refresh_weekly_leaderboard");
+        await (supabase.rpc as any)("refresh_weekly_leaderboard");
         addLog("Leaderboard view refreshed.");
       } catch {
         addLog("Note: Materialized view refresh skipped (may need manual refresh).");
