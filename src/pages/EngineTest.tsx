@@ -211,7 +211,7 @@ const EngineTest = () => {
       if (lola && !lola.checkedIn) gs.toggleCheckIn(lola.id);
 
       setTimeout(() => {
-        const result = gs.addPlayerMidSession("Zara", "Lola", "C");
+        const result = gs.addPlayerMidSession("Zara", "C");
         assert("walkin", result.success, `Walk-in added: ${result.affected} games`, "Walk-in failed");
 
         setTimeout(() => {
