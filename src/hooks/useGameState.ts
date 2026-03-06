@@ -2201,6 +2201,7 @@ export function useGameState(options?: { simulate?: boolean }) {
         updatedMatches.push(skipped);
 
         // Find next pending match for the freed court
+        // Both teams from the skipped match should rest — add them to recentPlayerIds
         if (freedCourt) {
           // Global rest tracking: scan ALL matches completed within last 7 minutes
           const recentPlayerIds = new Set<string>();
@@ -2210,7 +2211,8 @@ export function useGameState(options?: { simulate?: boolean }) {
               getMatchPlayerIds(m).forEach((id) => recentPlayerIds.add(id));
             }
           }
-          // NOTE: skipped players are NOT added to recentPlayerIds — they didn't play
+          // Add skipped match players so neither team is immediately reassigned
+          getMatchPlayerIds(skipped).forEach((id) => recentPlayerIds.add(id));
           const courtCount = s.sessionConfig.courtCount || 2;
 
           const nextPending = findNextPendingForCourt(updatedMatches, freedCourt, courtCount, recentPlayerIds, s.pairs, updatedMatches, true);

@@ -457,6 +457,71 @@ describe("findNextPendingForCourt", () => {
     // p3 has fewer games so pendingLow should be preferred
     expect(result!.id).toBe(pendingLow.id);
   });
+
+  it("skips both teams when their players are in recentPlayerIds (skip-match scenario)", () => {
+    const p1 = makePair("A", "B");
+    const p2 = makePair("C", "D");
+    const p3 = makePair("E", "F");
+    const p4 = makePair("G", "H");
+
+    // Pending match between p1 vs p2 — but both teams' players are "recent" (skipped)
+    const pendingSkipped = makeMatch(p1, p2, { status: "pending", gameNumber: 1 });
+    // Another pending match with fresh teams
+    const pendingFresh = makeMatch(p3, p4, { status: "pending", gameNumber: 2 });
+
+    // Mark all players from the skipped match as recent
+    const recentIds = new Set([
+      ...getPairPlayerIds(p1),
+      ...getPairPlayerIds(p2),
+    ]);
+
+    const allMatches = [pendingSkipped, pendingFresh];
+    const allPairs = [p1, p2, p3, p4];
+
+    const result = findNextPendingForCourt(
+      allMatches,
+      1,
+      2,
+      recentIds,
+      allPairs,
+      allMatches,
+    );
+    expect(result).toBeDefined();
+    // Should pick the fresh match, not the one with recently-skipped players
+    expect(result!.id).toBe(pendingFresh.id);
+  });
+
+  it("does not pick a match involving one skipped team when both teams are marked recent", () => {
+    const p1 = makePair("A", "B");
+    const p2 = makePair("C", "D");
+    const p3 = makePair("E", "F");
+
+    // p1 vs p3 is pending, but p1 was just skipped
+    const pending1 = makeMatch(p1, p3, { status: "pending", gameNumber: 1 });
+    // p2 vs p3 is also pending, p3 is unrelated to skip
+    const pending2 = makeMatch(p2, p3, { status: "pending", gameNumber: 2 });
+
+    // Only p1 and p2 were in the skipped match
+    const recentIds = new Set([
+      ...getPairPlayerIds(p1),
+      ...getPairPlayerIds(p2),
+    ]);
+
+    const allMatches = [pending1, pending2];
+    const allPairs = [p1, p2, p3];
+
+    const result = findNextPendingForCourt(
+      allMatches,
+      1,
+      2,
+      recentIds,
+      allPairs,
+      allMatches,
+      false, // strict — no rest relaxation
+    );
+    // Both pending matches involve a recent player (p1 or p2), so none should be picked
+    expect(result).toBeUndefined();
+  });
 });
 
 // ─── Integration: full dynamic flow ────────────────────────
