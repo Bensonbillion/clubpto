@@ -18,6 +18,7 @@ import Profile from "./pages/Profile";
 import ImportPlayers from "./pages/admin/ImportPlayers";
 import ManagePlayers from "./pages/admin/ManagePlayers";
 import ManualPlayoffs from "./pages/ManualPlayoffs";
+import SeasonReset from "./pages/admin/SeasonReset";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,6 +49,7 @@ const App = () => (
           <Route path="/admin/players" element={<ManagePlayers />} />
           <Route path="/admin/import" element={<ImportPlayers />} />
           <Route path="/admin/playoffs" element={<ManualPlayoffs />} />
+          <Route path="/admin/reset" element={<SeasonReset />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

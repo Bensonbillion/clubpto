@@ -178,6 +178,58 @@ export type Database = {
         }
         Relationships: []
       }
+      session_archives: {
+        Row: {
+          id: string
+          session_date: string
+          session_label: string | null
+          roster: Json
+          pairs: Json
+          matches: Json
+          standings: Json
+          playoff_bracket: Json
+          game_history: Json
+          court_count: number
+          duration_minutes: number
+          dynamic_mode: boolean
+          points_awarded: Json
+          archived_at: string
+          archived_by: string | null
+        }
+        Insert: {
+          id?: string
+          session_date: string
+          session_label?: string | null
+          roster?: Json
+          pairs?: Json
+          matches?: Json
+          standings?: Json
+          playoff_bracket?: Json
+          game_history?: Json
+          court_count?: number
+          duration_minutes?: number
+          dynamic_mode?: boolean
+          points_awarded?: Json
+          archived_at?: string
+          archived_by?: string | null
+        }
+        Update: {
+          session_date?: string
+          session_label?: string | null
+          roster?: Json
+          pairs?: Json
+          matches?: Json
+          standings?: Json
+          playoff_bracket?: Json
+          game_history?: Json
+          court_count?: number
+          duration_minutes?: number
+          dynamic_mode?: boolean
+          points_awarded?: Json
+          archived_by?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
