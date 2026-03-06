@@ -49,6 +49,23 @@ function isForbiddenMatchup(tier1: SkillTier, tier2: SkillTier): boolean {
   return sorted === "AC";
 }
 
+/** Court pool for a match based on tiers.
+ *  3-court mode: each tier has its own court (A=Court3, B=Court2, C=Court1).
+ *  2-court mode: routes by lower tier (C-pool if any C, else B-pool). */
+function courtPoolForTiers(tier1: SkillTier, tier2: SkillTier): "A" | "B" | "C" {
+  if (tier1 === tier2) return tier1;
+  // Cross-tier (only possible in 2-court mode): route by lower tier
+  if (tier1 === "C" || tier2 === "C") return "C";
+  return "B";
+}
+
+/** Court number → pool filter for 3-court mode. Court 1=C, Court 2=B, Court 3=A */
+function courtToPool(court: number): "A" | "B" | "C" {
+  if (court === 1) return "C";
+  if (court === 2) return "B";
+  return "A";
+}
+
 /** Award leaderboard points to both players on the winning pair.
  *  Looks up players by name in the `players` table. Fire-and-forget. */
 async function awardMatchPoints(
@@ -114,7 +131,7 @@ function syncPairsToMatches(pairs: Pair[], matches: Match[]): Match[] {
 /** Find the next pending match eligible for a freed court, enforcing:
  *  - No player currently on another court
  *  - Rest gap: no player who just completed a match (recentPlayerIds)
- *  - 3-court routing: Court 1 = C-pool only, Courts 2-3 = AB-pool only
+ *  - 3-court routing: Court 1 = C, Court 2 = B, Court 3 = A (tier-isolated)
  *  - Equity-based scoring: pairs with fewer games get priority
  *  - Hard equity gate: no pair plays more than minGames+1 ahead */
 function findNextPendingForCourt(
@@ -132,9 +149,9 @@ function findNextPendingForCourt(
     getMatchPlayerIds(m).forEach((id) => busyPlayerIds.add(id));
   });
 
-  // Court pool filter for 3-court mode
-  const poolFilter: "C" | "AB" | null = courtCount === 3
-    ? (freedCourt === 1 ? "C" : "AB")
+  // Court pool filter for 3-court mode: Court 1=C, Court 2=B, Court 3=A
+  const poolFilter: "A" | "B" | "C" | null = courtCount === 3
+    ? courtToPool(freedCourt)
     : null;
 
   // Build set of active pair IDs for ghost-player validation
@@ -150,7 +167,7 @@ function findNextPendingForCourt(
     const playerIds = getMatchPlayerIds(m);
     if (playerIds.some((id) => busyPlayerIds.has(id))) continue;
     if (poolFilter) {
-      const matchPool = m.courtPool || ((m.skillLevel === "C" || m.matchupLabel === "B vs C" || m.matchupLabel === "C vs B") ? "C" : "AB");
+      const matchPool = m.courtPool || courtPoolForTiers(m.pair1.skillLevel, m.pair2.skillLevel);
       if (poolFilter !== matchPool) continue;
     }
     // Rest-gap is preferred but not mandatory
@@ -196,8 +213,9 @@ function findNextPendingForCourt(
     const pair1Games = pairCompletedGames.get(candidate.pair1.id) || 0;
     const pair2Games = pairCompletedGames.get(candidate.pair2.id) || 0;
 
-    // Reject only if BOTH pairs are far ahead — allow catch-up matches for underserved pairs
-    if (Math.min(pair1Games, pair2Games) > minGamesAcrossAllPairs + 1) continue;
+    // Reject only if BOTH pairs are far ahead — allow catch-up matches for underserved pairs.
+    // Skip equity gate entirely when no other courts are busy (drain mode) — just finish remaining games.
+    if (busyPlayerIds.size > 0 && Math.min(pair1Games, pair2Games) > minGamesAcrossAllPairs + 1) continue;
 
     const crossPenalty = isCrossCohort(candidate.matchupLabel) ? 100000000 : 0;
     const finalScore = crossPenalty + Math.max(pair1Games, pair2Games) * 1000 + (candidate.gameNumber || i);
@@ -268,8 +286,8 @@ function generateNextMatch(
 ): Match | undefined {
   if (availableTeams.length < 2) return undefined;
 
-  const poolFilter: "C" | "AB" | null = courtCount === 3
-    ? (freedCourt === 1 ? "C" : "AB") : null;
+  const poolFilter: "A" | "B" | "C" | null = courtCount === 3
+    ? courtToPool(freedCourt) : null;
 
   const playedMatchups = new Map<string, number>();
   for (const m of allMatches) {
@@ -285,9 +303,9 @@ function generateNextMatch(
     for (let j = i + 1; j < availableTeams.length; j++) {
       const p1 = availableTeams[i], p2 = availableTeams[j];
       if (isForbiddenMatchup(p1.skillLevel, p2.skillLevel)) continue;
-      const tiers = [p1.skillLevel, p2.skillLevel].sort().join("");
-      if (tiers === "BC" && courtCount === 3) continue;
-      const matchPool: "C" | "AB" = (p1.skillLevel === "C" || p2.skillLevel === "C") ? "C" : "AB";
+      // 3-court: only same-tier matchups allowed
+      if (courtCount === 3 && p1.skillLevel !== p2.skillLevel) continue;
+      const matchPool = courtPoolForTiers(p1.skillLevel, p2.skillLevel);
       if (poolFilter && poolFilter !== matchPool) continue;
       const allPlayerIds = [...getPairPlayerIds(p1), ...getPairPlayerIds(p2)];
       if (allPlayerIds.some((id) => recentPlayerIds.has(id))) continue;
@@ -303,7 +321,7 @@ function generateNextMatch(
   }
 
   if (!best) return undefined;
-  const pool: "C" | "AB" = (best.pair1.skillLevel === "C" || best.pair2.skillLevel === "C") ? "C" : "AB";
+  const pool = courtPoolForTiers(best.pair1.skillLevel, best.pair2.skillLevel);
   return { id: generateId(), pair1: best.pair1, pair2: best.pair2, skillLevel: best.skillLevel, matchupLabel: best.matchupLabel, status: "pending", court: null, courtPool: pool };
 }
 
@@ -663,7 +681,7 @@ export function useGameState(options?: { simulate?: boolean }) {
    *    - A vs C is strictly forbidden
    *    - B vs C is only allowed in 2-court mode
    * 3. Prevent court conflicts: no pair plays back-to-back in the schedule.
-   *    In 3-court mode: Court 1 = C-pool, Courts 2-3 = AB-pool.
+   *    In 3-court mode: Court 1 = C, Court 2 = B, Court 3 = A (tier-isolated).
    */
   const generateFullSchedule = useCallback(async (fixedPairs: FixedPair[] = []) => {
     // Fetch pair history BEFORE entering updateState (only async part)
@@ -799,7 +817,7 @@ export function useGameState(options?: { simulate?: boolean }) {
     const MAX_GAMES = courtCount === 3 ? 4 : 5;
 
     const tierTargets: Record<SkillTier, { vsA: number; vsB: number; vsC: number }> = courtCount === 3
-      ? { A: { vsA: 2, vsB: 1, vsC: 0 }, B: { vsA: 1, vsB: 2, vsC: 0 }, C: { vsA: 0, vsB: 0, vsC: 3 } }
+      ? { A: { vsA: 3, vsB: 0, vsC: 0 }, B: { vsA: 0, vsB: 3, vsC: 0 }, C: { vsA: 0, vsB: 0, vsC: 3 } }
       : { A: { vsA: 3, vsB: 1, vsC: 0 }, B: { vsA: 1, vsB: 2, vsC: 1 }, C: { vsA: 0, vsB: 1, vsC: 3 } };
 
     const pairOpponentStats = new Map<string, { vsA: number; vsB: number; vsC: number }>();
@@ -816,13 +834,13 @@ export function useGameState(options?: { simulate?: boolean }) {
       [p1Id, p2Id].sort().join("|||");
 
     // Generate all unique pair-vs-pair matchups for allowed tier rules
-    type CandidateMatch = { pair1: Pair; pair2: Pair; skillLevel: SkillTier | "cross"; matchupLabel: string; courtPool?: "C" | "AB" };
+    type CandidateMatch = { pair1: Pair; pair2: Pair; skillLevel: SkillTier | "cross"; matchupLabel: string; courtPool?: "A" | "B" | "C" };
     const allCandidates: CandidateMatch[] = [];
 
     // A vs A
     for (let i = 0; i < aPairs.length; i++) {
       for (let j = i + 1; j < aPairs.length; j++) {
-        allCandidates.push({ pair1: aPairs[i], pair2: aPairs[j], skillLevel: "A", matchupLabel: "A vs A", courtPool: "AB" });
+        allCandidates.push({ pair1: aPairs[i], pair2: aPairs[j], skillLevel: "A", matchupLabel: "A vs A", courtPool: "A" });
       }
     }
     // C vs C
@@ -834,13 +852,15 @@ export function useGameState(options?: { simulate?: boolean }) {
     // B vs B
     for (let i = 0; i < bPairs.length; i++) {
       for (let j = i + 1; j < bPairs.length; j++) {
-        allCandidates.push({ pair1: bPairs[i], pair2: bPairs[j], skillLevel: "B", matchupLabel: "B vs B", courtPool: "AB" });
+        allCandidates.push({ pair1: bPairs[i], pair2: bPairs[j], skillLevel: "B", matchupLabel: "B vs B", courtPool: "B" });
       }
     }
-    // B vs A (cross)
-    for (const bp of bPairs) {
-      for (const ap of aPairs) {
-        allCandidates.push({ pair1: bp, pair2: ap, skillLevel: "cross", matchupLabel: "B vs A", courtPool: "AB" });
+    // B vs A (cross) — only in 2-court mode
+    if (courtCount === 2) {
+      for (const bp of bPairs) {
+        for (const ap of aPairs) {
+          allCandidates.push({ pair1: bp, pair2: ap, skillLevel: "cross", matchupLabel: "B vs A", courtPool: "B" });
+        }
       }
     }
     // B vs C (cross) — only in 2-court mode
@@ -883,7 +903,7 @@ export function useGameState(options?: { simulate?: boolean }) {
       pool: CandidateMatch[],
       slotPlayerIds: Set<string>,
       blockedPlayerIds: Set<string>,
-      courtPoolFilter?: "C" | "AB",
+      courtPoolFilter?: "A" | "B" | "C",
       currentSlot?: number
     ): number => {
       let bestIdx = -1;
@@ -1006,14 +1026,15 @@ export function useGameState(options?: { simulate?: boolean }) {
       const slotPlayerIds = new Set<string>();
 
       if (courtCount === 3) {
-        // 3-court mode: Court 1 = C only, Courts 2 & 3 = A/B only
+        // 3-court mode: Court 1 = C, Court 2 = B, Court 3 = A (each tier isolated)
         const cIdx = pickBestCandidate(candidatePool, slotPlayerIds, blockedPlayerIds, "C", slot);
         if (cIdx !== -1) slotGames.push(commitCandidate(cIdx, slotPlayerIds, slot));
 
-        for (let courtIdx = 0; courtIdx < 2; courtIdx++) {
-          const abIdx = pickBestCandidate(candidatePool, slotPlayerIds, blockedPlayerIds, "AB", slot);
-          if (abIdx !== -1) slotGames.push(commitCandidate(abIdx, slotPlayerIds, slot));
-        }
+        const bIdx = pickBestCandidate(candidatePool, slotPlayerIds, blockedPlayerIds, "B", slot);
+        if (bIdx !== -1) slotGames.push(commitCandidate(bIdx, slotPlayerIds, slot));
+
+        const aIdx = pickBestCandidate(candidatePool, slotPlayerIds, blockedPlayerIds, "A", slot);
+        if (aIdx !== -1) slotGames.push(commitCandidate(aIdx, slotPlayerIds, slot));
       } else {
         // 2-court mode: any matchup on any court
         for (let courtIdx = 0; courtIdx < 2; courtIdx++) {
@@ -1032,15 +1053,12 @@ export function useGameState(options?: { simulate?: boolean }) {
       for (const sp of shortPairs) {
         const needed = TARGET_GAMES_PER_PAIR - (pairGameCount.get(sp.id) || 0);
         // Any unplayed opponent, never A vs C, same-cohort first
-        // In 3-court mode, also block B vs C (they can't share a court pool)
+        // In 3-court mode, only same-tier opponents allowed
         const sameCohort = shuffle(allPairs.filter(p => p.skillLevel === sp.skillLevel && p.id !== sp.id));
-        const crossCohort = shuffle(allPairs.filter(p => {
+        const crossCohort = courtCount === 3 ? [] : shuffle(allPairs.filter(p => {
           if (p.id === sp.id) return false;
           if (p.skillLevel === sp.skillLevel) return false;
           if (isForbiddenMatchup(sp.skillLevel, p.skillLevel)) return false;
-          // Block B vs C in 3-court mode
-          const tiers = [sp.skillLevel, p.skillLevel].sort().join("");
-          if (tiers === "BC" && courtCount === 3) return false;
           return true;
         }));
         const fallbackOpponents = [...sameCohort, ...crossCohort];
@@ -1050,7 +1068,7 @@ export function useGameState(options?: { simulate?: boolean }) {
           const mKey = matchupKey(sp.id, opp.id);
           if (usedMatchups.has(mKey)) continue;
           const isCross = opp.skillLevel !== sp.skillLevel;
-          const pool: "C" | "AB" = (sp.skillLevel === "C" || opp.skillLevel === "C") ? "C" : "AB";
+          const fbPool = courtPoolForTiers(sp.skillLevel, opp.skillLevel);
           schedule.push({
             id: generateId(),
             pair1: sp,
@@ -1059,7 +1077,7 @@ export function useGameState(options?: { simulate?: boolean }) {
             matchupLabel: isCross ? `${sp.skillLevel} vs ${opp.skillLevel}` : `${sp.skillLevel} vs ${sp.skillLevel}`,
             status: "pending",
             court: null,
-            courtPool: pool,
+            courtPool: fbPool,
           });
           usedMatchups.add(mKey);
           pairGameCount.set(sp.id, (pairGameCount.get(sp.id) || 0) + 1);
@@ -1098,8 +1116,8 @@ export function useGameState(options?: { simulate?: boolean }) {
 
           // Court pool check: in 3-court mode, don't swap across pools
           if (courtCount === 3) {
-            const pI = schedule[i].courtPool || ((schedule[i].pair1.skillLevel === "C" || schedule[i].pair2.skillLevel === "C") ? "C" : "AB");
-            const pS = schedule[swapIdx].courtPool || ((schedule[swapIdx].pair1.skillLevel === "C" || schedule[swapIdx].pair2.skillLevel === "C") ? "C" : "AB");
+            const pI = schedule[i].courtPool || courtPoolForTiers(schedule[i].pair1.skillLevel, schedule[i].pair2.skillLevel);
+            const pS = schedule[swapIdx].courtPool || courtPoolForTiers(schedule[swapIdx].pair1.skillLevel, schedule[swapIdx].pair2.skillLevel);
             if (pI !== pS) continue;
           }
 
@@ -1237,8 +1255,8 @@ export function useGameState(options?: { simulate?: boolean }) {
       }
       // Check 3-court pool routing
       if (courtCount === 3) {
-        const poolA = matchA.courtPool || ((matchA.pair1.skillLevel === "C" || matchA.pair2.skillLevel === "C") ? "C" : "AB");
-        const poolB = matchB.courtPool || ((matchB.pair1.skillLevel === "C" || matchB.pair2.skillLevel === "C") ? "C" : "AB");
+        const poolA = matchA.courtPool || courtPoolForTiers(matchA.pair1.skillLevel, matchA.pair2.skillLevel);
+        const poolB = matchB.courtPool || courtPoolForTiers(matchB.pair1.skillLevel, matchB.pair2.skillLevel);
         if (poolA !== poolB) return false; // don't swap across court pools
       }
       return true;
@@ -1408,18 +1426,15 @@ export function useGameState(options?: { simulate?: boolean }) {
     schedule.forEach((m, idx) => { m.gameNumber = idx + 1; });
 
     // Auto-assign first matches to courts
-    // In 3-court mode: Court 1 = C-pool, Courts 2-3 = AB-pool
+    // In 3-court mode: Court 1 = C, Court 2 = B, Court 3 = A (each tier isolated)
     const now = new Date().toISOString();
     if (courtCount === 3) {
       const cMatch = schedule.find((m) => m.status === "pending" && m.courtPool === "C");
-      const abMatches = schedule.filter((m) => m.status === "pending" && m.courtPool !== "C");
+      const bMatch = schedule.find((m) => m.status === "pending" && m.courtPool === "B");
+      const aMatch = schedule.find((m) => m.status === "pending" && m.courtPool === "A");
       if (cMatch) { cMatch.status = "playing"; cMatch.court = 1; cMatch.startedAt = now; }
-      let abCourt = 2;
-      for (const m of abMatches) {
-        if (abCourt > 3) break;
-        m.status = "playing"; m.court = abCourt; m.startedAt = now;
-        abCourt++;
-      }
+      if (bMatch) { bMatch.status = "playing"; bMatch.court = 2; bMatch.startedAt = now; }
+      if (aMatch) { aMatch.status = "playing"; aMatch.court = 3; aMatch.startedAt = now; }
     } else {
       for (let c = 0; c < courtCount && c < schedule.length; c++) {
         schedule[c].status = "playing";
@@ -1514,20 +1529,18 @@ export function useGameState(options?: { simulate?: boolean }) {
     startGameNum: number,
   ): Match[] => {
     const tier = newPair.skillLevel;
-    // Same-cohort opponents first, then cross-cohort as filler
+    // Same-cohort opponents first, then cross-cohort as filler (2-court only)
     const sameCohortOpponents = existingPairs.filter((p) => p.skillLevel === tier && p.id !== newPair.id);
     let crossCohortOpponents: Pair[];
-    if (tier === "B") {
-      crossCohortOpponents = courtCount === 3
-        ? existingPairs.filter((p) => p.skillLevel === "A")
-        : existingPairs.filter((p) => p.skillLevel === "A" || p.skillLevel === "C");
+    if (courtCount === 3) {
+      // 3-court: strictly same-tier only
+      crossCohortOpponents = [];
+    } else if (tier === "B") {
+      crossCohortOpponents = existingPairs.filter((p) => p.skillLevel === "A" || p.skillLevel === "C");
     } else if (tier === "A") {
       crossCohortOpponents = existingPairs.filter((p) => p.skillLevel === "B");
     } else {
-      // tier C: cross with B only, and only in 2-court mode
-      crossCohortOpponents = courtCount === 3
-        ? []
-        : existingPairs.filter((p) => p.skillLevel === "B");
+      crossCohortOpponents = existingPairs.filter((p) => p.skillLevel === "B");
     }
     const opponents = [...shuffle(sameCohortOpponents), ...shuffle(crossCohortOpponents)];
 
@@ -1541,7 +1554,7 @@ export function useGameState(options?: { simulate?: boolean }) {
       const isCross = opp.skillLevel !== tier;
       const matchSkill = isCross ? "cross" as const : tier;
       const label = isCross ? `${tier} vs ${opp.skillLevel}` : `${tier} vs ${tier}`;
-      const courtPool: "C" | "AB" = (tier === "C" || opp.skillLevel === "C") ? "C" : "AB";
+      const cpPool = courtPoolForTiers(tier, opp.skillLevel);
       newMatches.push({
         id: generateId(),
         pair1: newPair,
@@ -1551,15 +1564,20 @@ export function useGameState(options?: { simulate?: boolean }) {
         status: "pending" as const,
         court: null,
         gameNumber: startGameNum + newMatches.length + 1,
-        courtPool,
+        courtPool: cpPool,
       });
       existingMatchups.add(mKey);
     }
 
-    // Fallback: if still short, try any unplayed valid opponent (never A vs C)
+    // Fallback: if still short, try any unplayed valid opponent
     if (newMatches.length < targetGames) {
       console.warn("[PTO NewPair] Fallback: " + newPair.player1.name + " & " + newPair.player2.name + " only got " + newMatches.length + " unique games, finding unplayed matchups");
-      const allValid = shuffle(existingPairs.filter(p => p.id !== newPair.id && !isForbiddenMatchup(tier, p.skillLevel)));
+      const allValid = shuffle(existingPairs.filter(p => {
+        if (p.id === newPair.id) return false;
+        if (isForbiddenMatchup(tier, p.skillLevel)) return false;
+        if (courtCount === 3 && p.skillLevel !== tier) return false;
+        return true;
+      }));
       for (const opp of allValid) {
         if (newMatches.length >= targetGames) break;
         const mKey = [newPair.id, opp.id].sort().join("|||");
@@ -1574,7 +1592,7 @@ export function useGameState(options?: { simulate?: boolean }) {
           status: "pending" as const,
           court: null,
           gameNumber: startGameNum + newMatches.length + 1,
-          courtPool: (tier === "C" || opp.skillLevel === "C") ? "C" as const : "AB" as const,
+          courtPool: courtPoolForTiers(tier, opp.skillLevel),
         });
         existingMatchups.add(mKey);
       }
@@ -1847,7 +1865,7 @@ export function useGameState(options?: { simulate?: boolean }) {
       });
 
       // Generate all candidate matchups
-      type CandidateMatch = { pair1: Pair; pair2: Pair; skillLevel: SkillTier | "cross"; matchupLabel: string; courtPool: "C" | "AB" };
+      type CandidateMatch = { pair1: Pair; pair2: Pair; skillLevel: SkillTier | "cross"; matchupLabel: string; courtPool: "A" | "B" | "C" };
       const allCandidates: CandidateMatch[] = [];
       const aPairs = s.pairs.filter((p) => p.skillLevel === "A");
       const bPairs = s.pairs.filter((p) => p.skillLevel === "B");
@@ -1856,7 +1874,7 @@ export function useGameState(options?: { simulate?: boolean }) {
       for (let i = 0; i < aPairs.length; i++) {
         for (let j = i + 1; j < aPairs.length; j++) {
           const mKey = [aPairs[i].id, aPairs[j].id].sort().join("|||");
-          if (!usedMatchups.has(mKey)) allCandidates.push({ pair1: aPairs[i], pair2: aPairs[j], skillLevel: "A", matchupLabel: "A vs A", courtPool: "AB" });
+          if (!usedMatchups.has(mKey)) allCandidates.push({ pair1: aPairs[i], pair2: aPairs[j], skillLevel: "A", matchupLabel: "A vs A", courtPool: "A" });
         }
       }
       for (let i = 0; i < cPairs.length; i++) {
@@ -1869,15 +1887,19 @@ export function useGameState(options?: { simulate?: boolean }) {
       for (let i = 0; i < bPairs.length; i++) {
         for (let j = i + 1; j < bPairs.length; j++) {
           const mKey = [bPairs[i].id, bPairs[j].id].sort().join("|||");
-          if (!usedMatchups.has(mKey)) allCandidates.push({ pair1: bPairs[i], pair2: bPairs[j], skillLevel: "B", matchupLabel: "B vs B", courtPool: "AB" });
+          if (!usedMatchups.has(mKey)) allCandidates.push({ pair1: bPairs[i], pair2: bPairs[j], skillLevel: "B", matchupLabel: "B vs B", courtPool: "B" });
         }
       }
-      for (const bp of bPairs) {
-        for (const ap of aPairs) {
-          const mKey = [bp.id, ap.id].sort().join("|||");
-          if (!usedMatchups.has(mKey)) allCandidates.push({ pair1: bp, pair2: ap, skillLevel: "cross", matchupLabel: "B vs A", courtPool: "AB" });
+      // B vs A (cross) — only in 2-court mode
+      if (courtCount === 2) {
+        for (const bp of bPairs) {
+          for (const ap of aPairs) {
+            const mKey = [bp.id, ap.id].sort().join("|||");
+            if (!usedMatchups.has(mKey)) allCandidates.push({ pair1: bp, pair2: ap, skillLevel: "cross", matchupLabel: "B vs A", courtPool: "B" });
+          }
         }
       }
+      // B vs C (cross) — only in 2-court mode
       if (courtCount === 2) {
         for (const bp of bPairs) {
           for (const cp of cPairs) {
@@ -1892,7 +1914,7 @@ export function useGameState(options?: { simulate?: boolean }) {
       const MAX_GAMES = courtCount === 3 ? 4 : 5;
 
       const tierTargets: Record<SkillTier, { vsA: number; vsB: number; vsC: number }> = courtCount === 3
-        ? { A: { vsA: 2, vsB: 1, vsC: 0 }, B: { vsA: 1, vsB: 2, vsC: 0 }, C: { vsA: 0, vsB: 0, vsC: 3 } }
+        ? { A: { vsA: 3, vsB: 0, vsC: 0 }, B: { vsA: 0, vsB: 3, vsC: 0 }, C: { vsA: 0, vsB: 0, vsC: 3 } }
         : { A: { vsA: 3, vsB: 1, vsC: 0 }, B: { vsA: 1, vsB: 2, vsC: 1 }, C: { vsA: 0, vsB: 1, vsC: 3 } };
 
       const pairOpponentStats = new Map<string, { vsA: number; vsB: number; vsC: number }>();
@@ -1935,7 +1957,7 @@ export function useGameState(options?: { simulate?: boolean }) {
         pool: CandidateMatch[],
         slotPlayerIds: Set<string>,
         blockedPlayerIds: Set<string>,
-        courtPoolFilter?: "C" | "AB"
+        courtPoolFilter?: "A" | "B" | "C"
       ): number => {
         let bestIdx = -1;
         let bestScore = Infinity;
@@ -2028,10 +2050,10 @@ export function useGameState(options?: { simulate?: boolean }) {
         if (courtCount === 3) {
           const cIdx = pickBest(candidatePool, slotPlayerIds, blockedPlayerIds, "C");
           if (cIdx !== -1) regenerated.push(commitCandidate(cIdx, slotPlayerIds));
-          for (let ci = 0; ci < 2; ci++) {
-            const abIdx = pickBest(candidatePool, slotPlayerIds, blockedPlayerIds, "AB");
-            if (abIdx !== -1) regenerated.push(commitCandidate(abIdx, slotPlayerIds));
-          }
+          const bIdx = pickBest(candidatePool, slotPlayerIds, blockedPlayerIds, "B");
+          if (bIdx !== -1) regenerated.push(commitCandidate(bIdx, slotPlayerIds));
+          const aIdx = pickBest(candidatePool, slotPlayerIds, blockedPlayerIds, "A");
+          if (aIdx !== -1) regenerated.push(commitCandidate(aIdx, slotPlayerIds));
         } else {
           for (let ci = 0; ci < 2; ci++) {
             const idx = pickBest(candidatePool, slotPlayerIds, blockedPlayerIds);
@@ -2047,12 +2069,10 @@ export function useGameState(options?: { simulate?: boolean }) {
         for (const sp of shortPairs) {
           const needed = TARGET_GAMES_PER_PAIR - (pairGameCount.get(sp.id) || 0);
           const sameCohort = shuffle(s.pairs.filter(p => p.skillLevel === sp.skillLevel && p.id !== sp.id));
-          const crossCohort = shuffle(s.pairs.filter(p => {
+          const crossCohort = courtCount === 3 ? [] : shuffle(s.pairs.filter(p => {
             if (p.id === sp.id) return false;
             if (p.skillLevel === sp.skillLevel) return false;
             if (isForbiddenMatchup(sp.skillLevel, p.skillLevel)) return false;
-            const tiers = [sp.skillLevel, p.skillLevel].sort().join("");
-            if (tiers === "BC" && courtCount === 3) return false;
             return true;
           }));
           const fallbackOpponents = [...sameCohort, ...crossCohort];
@@ -2062,7 +2082,7 @@ export function useGameState(options?: { simulate?: boolean }) {
             const mKey = matchupKey(sp.id, opp.id);
             if (usedMatchups.has(mKey)) continue;
             const isCross = opp.skillLevel !== sp.skillLevel;
-            const regenPool: "C" | "AB" = (sp.skillLevel === "C" || opp.skillLevel === "C") ? "C" : "AB";
+            const regenPool = courtPoolForTiers(sp.skillLevel, opp.skillLevel);
             regenerated.push({
               id: generateId(), pair1: sp, pair2: opp,
               skillLevel: isCross ? "cross" as const : sp.skillLevel,
@@ -2570,19 +2590,6 @@ export function useGameState(options?: { simulate?: boolean }) {
         }
       }
 
-      // B-beats-A and C-beats-B overrides
-      const bBeatAPairIds = new Set<string>();
-      const cBeatBPairIds = new Set<string>();
-      for (const match of s.matches) {
-        if (match.status !== "completed" || match.skillLevel !== "cross" || !match.winner || !match.loser) continue;
-        if (match.winner.skillLevel === "B" && match.loser.skillLevel === "A") {
-          bBeatAPairIds.add([match.winner.player1.id, match.winner.player2.id].sort().join("|||"));
-        }
-        if (match.winner.skillLevel === "C" && match.loser.skillLevel === "B") {
-          cBeatBPairIds.add([match.winner.player1.id, match.winner.player2.id].sort().join("|||"));
-        }
-      }
-
       const allStandings = Array.from(pairMap.entries()).map(([key, v]) => ({ key, ...v }));
       const byTier = (tier: SkillTier) => allStandings.filter((p) => p.pair.skillLevel === tier).sort((a, b) => {
         if (b.winPct !== a.winPct) return b.winPct - a.winPct;
@@ -2593,15 +2600,11 @@ export function useGameState(options?: { simulate?: boolean }) {
         return b.wins - a.wins;
       });
 
-      const aPairs = byTier("A");
-      const bPairsAll = byTier("B");
-      const cPairsAll = byTier("C");
-      const promotedB = bPairsAll.filter((p) => bBeatAPairIds.has(p.key));
-      const normalB = bPairsAll.filter((p) => !bBeatAPairIds.has(p.key));
-      const promotedC = cPairsAll.filter((p) => cBeatBPairIds.has(p.key));
-      const normalC = cPairsAll.filter((p) => !cBeatBPairIds.has(p.key));
-
-      const ordered = [...aPairs, ...promotedB, ...normalB, ...promotedC, ...normalC];
+      // Playoff seeding: all A-tier pairs first (by win%), then top B-tier pairs fill remaining to 8
+      const aPairsRanked = byTier("A");
+      const bPairsRanked = byTier("B");
+      const spotsForB = Math.max(0, 8 - aPairsRanked.length);
+      const ordered = [...aPairsRanked, ...bPairsRanked.slice(0, spotsForB)];
       const top = ordered.slice(0, 8);
 
       if (top.length < 2) return { ...s, playoffsStarted: true };
@@ -2711,21 +2714,19 @@ export function useGameState(options?: { simulate?: boolean }) {
             (m) => m.status === "pending" && (m.pair1.id === orphanId || m.pair2.id === orphanId)
           ).length;
 
-          // Find eligible opponents: same-cohort first, then cross-cohort as filler
+          // Find eligible opponents: same-cohort first, then cross-cohort as filler (2-court only)
           const tier = orphanPair.skillLevel;
           const sameCohort = updatedPairs.filter((p) => p.skillLevel === tier && p.id !== orphanId);
           let crossCohort: Pair[];
-          if (tier === "B") {
-            crossCohort = courtCount === 3
-              ? updatedPairs.filter((p) => p.skillLevel === "A" && p.id !== orphanId)
-              : updatedPairs.filter((p) => (p.skillLevel === "A" || p.skillLevel === "C") && p.id !== orphanId);
+          if (courtCount === 3) {
+            // 3-court: strictly same-tier only
+            crossCohort = [];
+          } else if (tier === "B") {
+            crossCohort = updatedPairs.filter((p) => (p.skillLevel === "A" || p.skillLevel === "C") && p.id !== orphanId);
           } else if (tier === "A") {
             crossCohort = updatedPairs.filter((p) => p.skillLevel === "B" && p.id !== orphanId);
           } else {
-            // tier C: cross with B only, and only in 2-court mode
-            crossCohort = courtCount === 3
-              ? []
-              : updatedPairs.filter((p) => p.skillLevel === "B" && p.id !== orphanId);
+            crossCohort = updatedPairs.filter((p) => p.skillLevel === "B" && p.id !== orphanId);
           }
           const opponents = [...shuffle(sameCohort), ...shuffle(crossCohort)];
 
@@ -2742,7 +2743,6 @@ export function useGameState(options?: { simulate?: boolean }) {
             const matchSkill = isCross ? "cross" as const : tier;
             const label = isCross ? `${tier} vs ${opp.skillLevel}` : `${tier} vs ${tier}`;
             gameNum++;
-            const rPool: "C" | "AB" = (tier === "C" || opp.skillLevel === "C") ? "C" : "AB";
             replacementMatches.push({
               id: generateId(),
               pair1: orphanPair,
@@ -2752,21 +2752,19 @@ export function useGameState(options?: { simulate?: boolean }) {
               status: "pending",
               court: null,
               gameNumber: gameNum,
-              courtPool: rPool,
+              courtPool: courtPoolForTiers(tier, opp.skillLevel),
             });
             existingMatchups.add(mKey);
             added++;
           }
 
-          // Fallback: if still short, try any unplayed valid opponent (never A vs C, never B vs C in 3-court)
+          // Fallback: if still short, try any unplayed valid opponent
           if (added < needed) {
             console.warn("[PTO Remove] Fallback: " + orphanPair.player1.name + " & " + orphanPair.player2.name + " only got " + added + "/" + needed + " unique replacements, finding unplayed matchups");
             const allValid = shuffle(updatedPairs.filter(p => {
               if (p.id === orphanId) return false;
               if (isForbiddenMatchup(tier, p.skillLevel)) return false;
-              // Block B vs C in 3-court mode
-              const tiers = [tier, p.skillLevel].sort().join("");
-              if (tiers === "BC" && courtCount === 3) return false;
+              if (courtCount === 3 && p.skillLevel !== tier) return false;
               return true;
             }));
             for (const opp of allValid) {
@@ -2774,7 +2772,6 @@ export function useGameState(options?: { simulate?: boolean }) {
               const mKey2 = [orphanId, opp.id].sort().join("|||");
               if (existingMatchups.has(mKey2)) continue;
               const isCross2 = opp.skillLevel !== tier;
-              const rPool2: "C" | "AB" = (tier === "C" || opp.skillLevel === "C") ? "C" : "AB";
               gameNum++;
               replacementMatches.push({
                 id: generateId(),
@@ -2785,7 +2782,7 @@ export function useGameState(options?: { simulate?: boolean }) {
                 status: "pending",
                 court: null,
                 gameNumber: gameNum,
-                courtPool: rPool2,
+                courtPool: courtPoolForTiers(tier, opp.skillLevel),
               });
               existingMatchups.add(mKey2);
               added++;
@@ -2951,17 +2948,15 @@ export function useGameState(options?: { simulate?: boolean }) {
         // Find opponent pairs: same-cohort first, then cross-cohort as filler
         const sameCohort = s.pairs.filter((p) => p.skillLevel === tier && p.id !== newPair.id);
         let crossCohort: Pair[];
-        if (tier === "B") {
-          crossCohort = courtCount === 3
-            ? s.pairs.filter((p) => p.skillLevel === "A")
-            : s.pairs.filter((p) => p.skillLevel === "A" || p.skillLevel === "C");
+        if (courtCount === 3) {
+          // 3-court: strictly same-tier only
+          crossCohort = [];
+        } else if (tier === "B") {
+          crossCohort = s.pairs.filter((p) => p.skillLevel === "A" || p.skillLevel === "C");
         } else if (tier === "A") {
           crossCohort = s.pairs.filter((p) => p.skillLevel === "B");
         } else {
-          // tier C: cross with B only, and only in 2-court mode
-          crossCohort = courtCount === 3
-            ? []
-            : s.pairs.filter((p) => p.skillLevel === "B");
+          crossCohort = s.pairs.filter((p) => p.skillLevel === "B");
         }
         const opponents = [...shuffle(sameCohort), ...shuffle(crossCohort)];
 
@@ -2980,7 +2975,6 @@ export function useGameState(options?: { simulate?: boolean }) {
           const isCross = opp.skillLevel !== tier;
           const matchSkill = isCross ? "cross" as const : tier;
           const label = isCross ? `${tier} vs ${opp.skillLevel}` : `${tier} vs ${tier}`;
-          const addPool: "C" | "AB" = (tier === "C" || opp.skillLevel === "C") ? "C" : "AB";
           gameNum++;
           newMatches.push({
             id: generateId(),
@@ -2991,18 +2985,17 @@ export function useGameState(options?: { simulate?: boolean }) {
             status: "pending",
             court: null,
             gameNumber: gameNum,
-            courtPool: addPool,
+            courtPool: courtPoolForTiers(tier, opp.skillLevel),
           });
         }
 
-        // Fallback: if still short, try any unplayed valid opponent (never A vs C, never B vs C in 3-court)
+        // Fallback: if still short, try any unplayed valid opponent
         if (newMatches.length < targetGames) {
           console.warn("[PTO AddMid] Fallback: " + newPair.player1.name + " & " + newPair.player2.name + " only got " + newMatches.length + " unique games, finding unplayed matchups");
           const allValid = shuffle(s.pairs.filter(p => {
             if (p.id === newPair.id) return false;
             if (isForbiddenMatchup(tier, p.skillLevel)) return false;
-            const tiers = [tier, p.skillLevel].sort().join("");
-            if (tiers === "BC" && courtCount === 3) return false;
+            if (courtCount === 3 && p.skillLevel !== tier) return false;
             return true;
           }));
           for (const opp of allValid) {
@@ -3010,7 +3003,6 @@ export function useGameState(options?: { simulate?: boolean }) {
             const mKey2 = [newPair.id, opp.id].sort().join("|||");
             if (existingMatchups.has(mKey2)) continue;
             const isCross2 = opp.skillLevel !== tier;
-            const addPool2: "C" | "AB" = (tier === "C" || opp.skillLevel === "C") ? "C" : "AB";
             gameNum++;
             newMatches.push({
               id: generateId(),
@@ -3021,7 +3013,7 @@ export function useGameState(options?: { simulate?: boolean }) {
               status: "pending",
               court: null,
               gameNumber: gameNum,
-              courtPool: addPool2,
+              courtPool: courtPoolForTiers(tier, opp.skillLevel),
             });
             existingMatchups.add(mKey2);
           }
