@@ -223,7 +223,7 @@ const EngineTest = () => {
     setTimeout(() => {
       // Second call adds Lola and auto-pairs with Zara
       const result = gs.addPlayerMidSession("Lola", "C");
-      assert("walkin", result.success, `Walk-in added: ${result.affected} games`, `Walk-in failed: ${result.message || "unknown"}`);
+      assert("walkin", result.success, `Walk-in added: ${result.affected} games`, `Walk-in failed`);
 
       // Wait for state to propagate, then validate
       const checkWalkin = (retries: number) => {
