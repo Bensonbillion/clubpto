@@ -304,10 +304,9 @@ const EngineTest = () => {
       stallCountRef.current++;
       setPhase(`Phase 8: Waiting for auto-advance (stall tick ${stallCountRef.current}/${maxStallTicks})`);
       if (stallCountRef.current >= maxStallTicks) {
-        const busyCourts = new Set(matches.filter(m => m.status === "playing").map(m => m.court));
-        const freeCourt = [1, 2, 3].find(c => !busyCourts.has(c)) || 1;
-        gs.startMatch(pending[0].id, freeCourt);
+        addResult("games", `Phase 8 stall: ${pending.length} pending games could not auto-start`, false, "Engine stall");
         stallCountRef.current = 0;
+        stepRef.current = 8;
       }
       return;
     }
