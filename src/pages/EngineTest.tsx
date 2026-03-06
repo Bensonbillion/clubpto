@@ -204,14 +204,13 @@ const EngineTest = () => {
     stallCountRef.current++;
     setPhase(`Phase 5: Waiting for auto-advance (stall tick ${stallCountRef.current}/${maxStallTicks})`);
     if (stallCountRef.current >= maxStallTicks) {
-      // Force-start the first pending match on an available court
-      const busyCourts = new Set(matches.filter(m => m.status === "playing").map(m => m.court));
-      const freeCourt = [1, 2, 3].find(c => !busyCourts.has(c)) || 1;
-      const p = pending[0];
-      gs.startMatch(p.id, freeCourt);
+      const completed = matches.filter(m => m.status === "completed").length;
+      assert("games", completed > 0, `${completed} games completed (${pending.length} stalled pending)`, "No games completed");
+      addResult("games", `Stall detected: ${pending.length} pending games could not auto-start`, false, "Engine stall");
       stallCountRef.current = 0;
+      stepRef.current = 5;
     }
-  }, [gs, assert]);
+  }, [gs, assert, addResult]);
 
   // Phase 6: Add walk-in mid-session (use addPlayerMidSession directly — no pre-add)
   const runPhase6 = useCallback(() => {
