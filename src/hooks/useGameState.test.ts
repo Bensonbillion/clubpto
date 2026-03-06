@@ -326,17 +326,23 @@ describe("generateNextMatch", () => {
     expect(court1!.pair2.skillLevel).toBe("C");
   });
 
-  it("3-court routing: courts 2-3 only get AB-pool matches", () => {
-    const pC1 = makePair("C1", "C2", "C");
-    const pC2 = makePair("C3", "C4", "C");
+  it("3-court routing: court 2 = B-pool, court 3 = A-pool", () => {
+    const pB1 = makePair("B1", "B2", "B");
+    const pB2 = makePair("B3", "B4", "B");
     const pA1 = makePair("A1", "A2", "A");
     const pA2 = makePair("A3", "A4", "A");
 
-    // Court 2 → should get AB pool only
-    const court2 = generateNextMatch([pC1, pC2, pA1, pA2], 2, 3, new Set(), []);
+    // Court 2 → should get B pool only
+    const court2 = generateNextMatch([pB1, pB2, pA1, pA2], 2, 3, new Set(), []);
     expect(court2).toBeDefined();
-    expect(court2!.pair1.skillLevel).toBe("A");
-    expect(court2!.pair2.skillLevel).toBe("A");
+    expect(court2!.pair1.skillLevel).toBe("B");
+    expect(court2!.pair2.skillLevel).toBe("B");
+
+    // Court 3 → should get A pool only
+    const court3 = generateNextMatch([pB1, pB2, pA1, pA2], 3, 3, new Set(), []);
+    expect(court3).toBeDefined();
+    expect(court3!.pair1.skillLevel).toBe("A");
+    expect(court3!.pair2.skillLevel).toBe("A");
   });
 
   it("sets matchupLabel correctly for same-cohort", () => {
@@ -574,10 +580,10 @@ describe("dynamic mode flow (getAvailableTeams → generateNextMatch)", () => {
     expect(court1Match!.pair1.skillLevel).toBe("C");
     expect(court1Match!.pair2.skillLevel).toBe("C");
 
-    // Court 2 → AB pool
-    const court2Match = generateNextMatch(available, 2, 3, new Set(), []);
-    expect(court2Match).toBeDefined();
-    expect(court2Match!.pair1.skillLevel).toBe("A");
-    expect(court2Match!.pair2.skillLevel).toBe("A");
+    // Court 3 → A pool
+    const court3Match = generateNextMatch(available, 3, 3, new Set(), []);
+    expect(court3Match).toBeDefined();
+    expect(court3Match!.pair1.skillLevel).toBe("A");
+    expect(court3Match!.pair2.skillLevel).toBe("A");
   });
 });
