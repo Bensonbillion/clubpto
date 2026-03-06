@@ -47,6 +47,8 @@ const EngineTest = () => {
   const [phase, setPhase] = useState("");
   const [done, setDone] = useState(false);
   const stepRef = useRef(0);
+  const stallCountRef = useRef(0);
+  const maxStallTicks = 20;
 
   const addResult = useCallback((section: string, name: string, passed: boolean, detail?: string) => {
     setResults(prev => [...prev, { section, name, passed, detail }]);
@@ -175,50 +177,66 @@ const EngineTest = () => {
     stepRef.current = 4;
   }, [gs]);
 
-  // Phase 5: Complete all games one by one
+  // Phase 5: Complete all games one by one (with stall detection)
   const runPhase5 = useCallback(() => {
-    setPhase("Phase 5: Completing all round-robin games");
     const { matches } = gs.state;
     const playing = matches.filter(m => m.status === "playing");
 
     if (playing.length > 0) {
+      stallCountRef.current = 0;
+      setPhase(`Phase 5: Completing games (${playing.length} playing, ${matches.filter(m => m.status === "pending").length} pending)`);
       const m = playing[0];
       const winnerId = Math.random() < 0.5 ? m.pair1.id : m.pair2.id;
       gs.completeMatch(m.id, winnerId);
-      return; // will be called again
+      return;
     }
 
     const pending = matches.filter(m => m.status === "pending");
     if (pending.length === 0) {
       const completed = matches.filter(m => m.status === "completed").length;
       assert("games", completed > 0, `All games completed: ${completed}`, "No games completed");
+      stallCountRef.current = 0;
+      stepRef.current = 5;
+      return;
+    }
+
+    // Stall detection: pending matches exist but nothing is playing
+    stallCountRef.current++;
+    setPhase(`Phase 5: Waiting for auto-advance (stall tick ${stallCountRef.current}/${maxStallTicks})`);
+    if (stallCountRef.current >= maxStallTicks) {
+      const completed = matches.filter(m => m.status === "completed").length;
+      assert("games", completed > 0, `${completed} games completed (${pending.length} stalled pending)`, "No games completed");
+      addResult("games", `Stall detected: ${pending.length} pending games could not auto-start`, false, "Engine stall");
+      stallCountRef.current = 0;
       stepRef.current = 5;
     }
-    // If pending > 0 but nothing playing, self-heal will kick in via the hook's useEffect
-  }, [gs, assert]);
+  }, [gs, assert, addResult]);
 
-  // Phase 6: Add walk-in mid-session
+  // Phase 6: Add walk-in mid-session (use addPlayerMidSession directly — no pre-add)
   const runPhase6 = useCallback(() => {
     setPhase("Phase 6: Adding walk-in pair (Zara + Lola, C-tier)");
 
-    gs.addPlayer("Zara", "C");
-    gs.addPlayer("Lola", "C");
+    // First call adds Zara as a solo (unpaired) player
+    gs.addPlayerMidSession("Zara", "C");
 
     setTimeout(() => {
-      const zara = gs.state.roster.find(p => p.name === "Zara");
-      const lola = gs.state.roster.find(p => p.name === "Lola");
-      if (zara && !zara.checkedIn) gs.toggleCheckIn(zara.id);
-      if (lola && !lola.checkedIn) gs.toggleCheckIn(lola.id);
+      // Second call adds Lola and auto-pairs with Zara
+      const result = gs.addPlayerMidSession("Lola", "C");
+      assert("walkin", result.success, `Walk-in added: ${result.affected} games`, `Walk-in failed`);
 
-      setTimeout(() => {
-        const result = gs.addPlayerMidSession("Zara", "C");
-        assert("walkin", result.success, `Walk-in added: ${result.affected} games`, "Walk-in failed");
-
+      // Wait for state to propagate, then validate
+      const checkWalkin = (retries: number) => {
         setTimeout(() => {
           const walkInPair = gs.state.pairs.find(p =>
             (p.player1.name === "Zara" || p.player2.name === "Zara") &&
             (p.player1.name === "Lola" || p.player2.name === "Lola")
           );
+
+          if (!walkInPair && retries > 0) {
+            checkWalkin(retries - 1);
+            return;
+          }
+
           assert("walkin", !!walkInPair, "Walk-in pair exists", "Walk-in pair not found");
 
           if (walkInPair) {
@@ -235,9 +253,10 @@ const EngineTest = () => {
           }
 
           stepRef.current = 6;
-        }, 200);
-      }, 200);
-    }, 200);
+        }, 500);
+      };
+      checkWalkin(3);
+    }, 500);
   }, [gs, assert]);
 
   // Phase 7: Remove a player mid-session
@@ -266,13 +285,14 @@ const EngineTest = () => {
     }, 300);
   }, [gs, assert, addResult]);
 
-  // Phase 8: Complete remaining games then start playoffs
+  // Phase 8: Complete remaining games then start playoffs (with stall detection)
   const runPhase8 = useCallback(() => {
     const { matches } = gs.state;
     const playing = matches.filter(m => m.status === "playing");
     const pending = matches.filter(m => m.status === "pending");
 
     if (playing.length > 0) {
+      stallCountRef.current = 0;
       setPhase(`Phase 8: Completing remaining games (${playing.length} playing, ${pending.length} pending)`);
       const m = playing[0];
       gs.completeMatch(m.id, Math.random() < 0.5 ? m.pair1.id : m.pair2.id);
@@ -280,11 +300,18 @@ const EngineTest = () => {
     }
 
     if (pending.length > 0) {
-      // Wait for self-heal to assign
+      stallCountRef.current++;
+      setPhase(`Phase 8: Waiting for auto-advance (stall tick ${stallCountRef.current}/${maxStallTicks})`);
+      if (stallCountRef.current >= maxStallTicks) {
+        addResult("games", `Phase 8 stall: ${pending.length} pending games could not auto-start`, false, "Engine stall");
+        stallCountRef.current = 0;
+        stepRef.current = 8;
+      }
       return;
     }
 
     setPhase("Phase 8: All games done, starting playoffs");
+    stallCountRef.current = 0;
     stepRef.current = 8;
   }, [gs]);
 
