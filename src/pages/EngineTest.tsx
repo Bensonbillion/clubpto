@@ -47,6 +47,8 @@ const EngineTest = () => {
   const [phase, setPhase] = useState("");
   const [done, setDone] = useState(false);
   const stepRef = useRef(0);
+  const stallCountRef = useRef(0);
+  const maxStallTicks = 20;
 
   const addResult = useCallback((section: string, name: string, passed: boolean, detail?: string) => {
     setResults(prev => [...prev, { section, name, passed, detail }]);
