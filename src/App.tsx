@@ -19,6 +19,7 @@ import ImportPlayers from "./pages/admin/ImportPlayers";
 import ManagePlayers from "./pages/admin/ManagePlayers";
 import ManualPlayoffs from "./pages/ManualPlayoffs";
 import Simulate from "./pages/Simulate";
+import EngineTest from "./pages/EngineTest";
 import SeasonReset from "./pages/admin/SeasonReset";
 import NotFound from "./pages/NotFound";
 
@@ -46,6 +47,7 @@ const App = () => (
           {/* Manage route — completely isolated, no public layout */}
           <Route path="/manage" element={<Manage />} />
           <Route path="/manage/simulate" element={<Simulate />} />
+          <Route path="/manage/test" element={<EngineTest />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/profile/:playerId" element={<Profile />} />
           <Route path="/admin/players" element={<ManagePlayers />} />
