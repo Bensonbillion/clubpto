@@ -880,9 +880,59 @@ export function useGameState(options?: { simulate?: boolean }) {
     const TARGET_GAMES_PER_PAIR = courtCount === 3 ? 3 : 4;
     const MAX_GAMES = courtCount === 3 ? 4 : 5;
 
-    const tierTargets: Record<SkillTier, { vsA: number; vsB: number; vsC: number }> = courtCount === 3
+    const baseTierTargets: Record<SkillTier, { vsA: number; vsB: number; vsC: number }> = courtCount === 3
       ? { A: { vsA: 3, vsB: 0, vsC: 0 }, B: { vsA: 0, vsB: 3, vsC: 0 }, C: { vsA: 0, vsB: 0, vsC: 3 } }
       : { A: { vsA: 3, vsB: 1, vsC: 0 }, B: { vsA: 1, vsB: 2, vsC: 1 }, C: { vsA: 0, vsB: 1, vsC: 3 } };
+
+    // Adaptive targets: when a tier has fewer opponents than the base target,
+    // cap same-tier games at available opponents and redistribute surplus to cross-tier.
+    // Priority: maximize same-tier games first, then fill with cross-tier (B only).
+    const tierTargets: Record<SkillTier, { vsA: number; vsB: number; vsC: number }> = (() => {
+      if (courtCount === 3) return baseTierTargets; // 3-court: strict tier isolation, no adaptation
+      const aCount = aPairs.length;
+      const bCount = bPairs.length;
+      const cCount = cPairs.length;
+      const adapt = (tier: SkillTier): { vsA: number; vsB: number; vsC: number } => {
+        const base = { ...baseTierTargets[tier] };
+        const maxOpponents = (oTier: SkillTier) =>
+          Math.max(0, oTier === tier ? (oTier === "A" ? aCount : oTier === "B" ? bCount : cCount) - 1 : (oTier === "A" ? aCount : oTier === "B" ? bCount : cCount));
+        // Cap each target at available opponents
+        const capA = Math.min(base.vsA, maxOpponents("A"));
+        const capB = Math.min(base.vsB, maxOpponents("B"));
+        const capC = Math.min(base.vsC, maxOpponents("C"));
+        let surplus = (base.vsA - capA) + (base.vsB - capB) + (base.vsC - capC);
+        const result = { vsA: capA, vsB: capB, vsC: capC };
+        // Redistribute surplus: same-tier first (if room), then cross-tier via B bridge
+        if (surplus > 0 && tier !== "B") {
+          // A or C tier: overflow goes to vsB (the only allowed cross-tier partner)
+          const bRoom = maxOpponents("B") - result.vsB;
+          const toBAdd = Math.min(surplus, bRoom);
+          result.vsB += toBAdd;
+          surplus -= toBAdd;
+        }
+        if (surplus > 0 && tier === "B") {
+          // B tier: overflow goes to same-tier first, then A, then C
+          const bRoom = maxOpponents("B") - result.vsB;
+          const toBAdd = Math.min(surplus, bRoom);
+          result.vsB += toBAdd;
+          surplus -= toBAdd;
+          if (surplus > 0) {
+            const aRoom = maxOpponents("A") - result.vsA;
+            const toAAdd = Math.min(surplus, aRoom);
+            result.vsA += toAAdd;
+            surplus -= toAAdd;
+          }
+          if (surplus > 0) {
+            const cRoom = maxOpponents("C") - result.vsC;
+            const toCAdd = Math.min(surplus, cRoom);
+            result.vsC += toCAdd;
+            surplus -= toCAdd;
+          }
+        }
+        return result;
+      };
+      return { A: adapt("A"), B: adapt("B"), C: adapt("C") };
+    })();
 
     const pairOpponentStats = new Map<string, { vsA: number; vsB: number; vsC: number }>();
     allPairs.forEach((p) => pairOpponentStats.set(p.id, { vsA: 0, vsB: 0, vsC: 0 }));
@@ -2664,12 +2714,29 @@ export function useGameState(options?: { simulate?: boolean }) {
         return b.wins - a.wins;
       });
 
-      // Playoff seeding: all A-tier pairs first (by win%), then top B-tier pairs fill remaining to 8
+      // Playoff seeding: A-tier pairs first (by win%), then B-tier fills remaining to 8.
+      // Override: if a B pair beat a specific A pair in round-robin AND has >= win%,
+      // the B pair leapfrogs that A pair in seeding.
       const aPairsRanked = byTier("A");
       const bPairsRanked = byTier("B");
       const spotsForB = Math.max(0, 8 - aPairsRanked.length);
-      const ordered = [...aPairsRanked, ...bPairsRanked.slice(0, spotsForB)];
-      const top = ordered.slice(0, 8);
+      const seeding = [...aPairsRanked]; // start with all A pairs
+      const bCandidates = bPairsRanked.slice(0, spotsForB);
+      for (const bEntry of bCandidates) {
+        let insertIdx = seeding.length; // default: after all current entries
+        // Check each A pair from top to bottom — find highest A pair this B can leapfrog
+        for (let i = 0; i < seeding.length; i++) {
+          if (seeding[i].pair.skillLevel !== "A") continue;
+          const h2h = getHeadToHead(bEntry.pair.id, seeding[i].pair.id, s.matches);
+          // h2h > 0 means B won the head-to-head against this A pair
+          if (h2h > 0 && bEntry.winPct >= seeding[i].winPct) {
+            insertIdx = i; // leapfrog above this A pair
+            break; // take the highest earned position
+          }
+        }
+        seeding.splice(insertIdx, 0, bEntry);
+      }
+      const top = seeding.slice(0, 8);
 
       if (top.length < 2) return { ...s, playoffsStarted: true };
 

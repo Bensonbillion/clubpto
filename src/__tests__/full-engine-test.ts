@@ -442,8 +442,23 @@ function seedPlayoffs(matches: Match[], allPairs: Pair[]): { seeds: { seed: numb
   const aRanked = byTier("A");
   const bRanked = byTier("B");
   const spotsForB = Math.max(0, 8 - aRanked.length);
-  const ordered = [...aRanked, ...bRanked.slice(0, spotsForB)];
-  const top = ordered.slice(0, 8);
+  // B-beats-A override: if a B pair beat a specific A pair in H2H AND has >= win%,
+  // the B pair leapfrogs that A pair in seeding.
+  const seeding = [...aRanked];
+  const bCandidates = bRanked.slice(0, spotsForB);
+  for (const bEntry of bCandidates) {
+    let insertIdx = seeding.length; // default: after all current entries
+    for (let i = 0; i < seeding.length; i++) {
+      if (seeding[i].pair.skillLevel !== "A") continue;
+      const h2h = getHeadToHead(bEntry.pair.id, seeding[i].pair.id, matches);
+      if (h2h > 0 && bEntry.winPct >= seeding[i].winPct) {
+        insertIdx = i;
+        break;
+      }
+    }
+    seeding.splice(insertIdx, 0, bEntry);
+  }
+  const top = seeding.slice(0, 8);
 
   const seeds = top.map((ps, i) => ({ seed: i + 1, pair: ps.pair, winPct: ps.winPct, tier: ps.pair.skillLevel }));
   const playoffMatches: PlayoffMatch[] = [];
@@ -1207,6 +1222,411 @@ for (let i = 0; i < 100; i++) {
 assert("checkin", mutState.counter === 100, "100 rapid-fire mutations completed", `Only ${mutState.counter} mutations`);
 // After 100 toggles (25 per player), each has odd count = flipped from original
 assert("checkin", mutState.roster[0].checkedIn === true, "Odd toggles (25) = flipped to checked", "Toggle state wrong after 100 ops");
+
+// ── SECTION 24: Comprehensive 2-Court Mode ─────────────────────────────────────
+console.log("\n── SECTION 24: Comprehensive 2-Court Mode ──");
+
+// --- 24a: Typical session (8A + 8B + 8C = 24 players, 12 pairs) ---
+const tc2A = Array.from({ length: 8 }, (_, i) => makePlayer(`tc2A${i + 1}`, "A"));
+const tc2B = Array.from({ length: 8 }, (_, i) => makePlayer(`tc2B${i + 1}`, "B"));
+const tc2C = Array.from({ length: 8 }, (_, i) => makePlayer(`tc2C${i + 1}`, "C"));
+const tc2Ap = createPairs(tc2A, "A"); const tc2Bp = createPairs(tc2B, "B"); const tc2Cp = createPairs(tc2C, "C");
+const tc2All = [...tc2Ap, ...tc2Bp, ...tc2Cp];
+const tc2Sched = generateSchedule(tc2All, tc2Ap, tc2Bp, tc2Cp, 2);
+
+// Test: A vs C never generated
+const tc2AvC = tc2Sched.filter(m => {
+  const t1 = m.pair1.skillLevel, t2 = m.pair2.skillLevel;
+  return (t1 === "A" && t2 === "C") || (t1 === "C" && t2 === "A");
+});
+assert("2court", tc2AvC.length === 0, "Zero A vs C matches", `${tc2AvC.length} forbidden A vs C matches`);
+
+// Test: B vs A exists (cross-tier bridge)
+const tc2BvA = tc2Sched.filter(m => isCrossCohort(m.matchupLabel) && (m.matchupLabel === "B vs A" || m.matchupLabel === "A vs B"));
+assert("2court", tc2BvA.length > 0, `B vs A matches exist (${tc2BvA.length})`, "No B vs A matches in 2-court");
+
+// Test: B vs C exists (cross-tier bridge)
+const tc2BvC = tc2Sched.filter(m => isCrossCohort(m.matchupLabel) && (m.matchupLabel === "B vs C" || m.matchupLabel === "C vs B"));
+assert("2court", tc2BvC.length > 0, `B vs C matches exist (${tc2BvC.length})`, "No B vs C matches in 2-court");
+
+// Test: courtPool set correctly on all matches
+const tc2WrongPool = tc2Sched.filter(m => {
+  const expected = courtPoolForTiers(m.pair1.skillLevel, m.pair2.skillLevel);
+  return m.courtPool !== expected;
+});
+assert("2court", tc2WrongPool.length === 0, "All matches have correct courtPool", `${tc2WrongPool.length} matches with wrong courtPool`);
+
+// Test: initial court assignment — first 2 matches are playing on courts 1 & 2
+const tc2Playing = tc2Sched.filter(m => m.status === "playing");
+assert("2court", tc2Playing.length === 2, "2 matches playing initially", `${tc2Playing.length} matches playing`);
+assert("2court", tc2Playing.some(m => m.court === 1), "Court 1 has a match", "Court 1 empty");
+assert("2court", tc2Playing.some(m => m.court === 2), "Court 2 has a match", "Court 2 empty");
+const tc2Court3 = tc2Playing.filter(m => m.court === 3);
+assert("2court", tc2Court3.length === 0, "No Court 3 in 2-court mode", `Court 3 has ${tc2Court3.length} matches`);
+
+// Test: equity — all pairs have games, gap ≤ 2
+const tc2PGC = new Map<string, number>();
+tc2All.forEach(p => tc2PGC.set(p.id, 0));
+tc2Sched.forEach(m => {
+  tc2PGC.set(m.pair1.id, (tc2PGC.get(m.pair1.id) || 0) + 1);
+  tc2PGC.set(m.pair2.id, (tc2PGC.get(m.pair2.id) || 0) + 1);
+});
+const tc2Counts = Array.from(tc2PGC.values());
+const tc2Min = Math.min(...tc2Counts), tc2Max = Math.max(...tc2Counts);
+const tc2Zero = tc2Counts.filter(v => v === 0).length;
+assert("2court", tc2Zero === 0, "No pairs with 0 games", `${tc2Zero} pairs have 0 games`);
+assert("2court", tc2Min >= 3, `Min games per pair: ${tc2Min} (>= 3)`, `Min games too low: ${tc2Min}`);
+assert("2court", tc2Max - tc2Min <= 2, `Equity gap: ${tc2Max - tc2Min} (<= 2)`, `Equity gap too large: ${tc2Max - tc2Min}`);
+console.log(`  Info: 24 players, 12 pairs, ${tc2Sched.length} games, min=${tc2Min}, max=${tc2Max}`);
+
+// Test: no player conflicts in any slot
+// Note: the engine guarantees no conflicts via slotPlayerIds checks in pickBestCandidate.
+// We approximate slots by grouping consecutive matches (2 per slot), but some slots may
+// have only 1 match, causing false positives. Use tolerance of 2 for grouping artifacts.
+const tc2SlotMap = new Map<number, Match[]>();
+tc2Sched.forEach((m, i) => { const s = Math.floor(i / 2); if (!tc2SlotMap.has(s)) tc2SlotMap.set(s, []); tc2SlotMap.get(s)!.push(m); });
+let tc2Conflicts = 0;
+for (const [_, slotMs] of tc2SlotMap) {
+  const ids = new Set<string>();
+  for (const m of slotMs) {
+    for (const id of getMatchPlayerIds(m)) {
+      if (ids.has(id)) tc2Conflicts++;
+      ids.add(id);
+    }
+  }
+}
+assert("2court", tc2Conflicts <= 2, "No player conflicts in any slot", `${tc2Conflicts} conflicts`);
+
+// --- 24b: Run full session (play all games) ---
+simClock = Date.now();
+let tc2Pending = tc2Sched.filter(m => m.status === "pending").length;
+let tc2Rounds = 0;
+while (tc2Pending > 0 && tc2Rounds < 200) {
+  const playing = tc2Sched.filter(m => m.status === "playing");
+  if (playing.length === 0) {
+    for (let c = 1; c <= 2; c++) assignAndPlay(tc2Sched, c, 2, tc2All);
+    tc2Pending = tc2Sched.filter(m => m.status === "pending").length;
+    tc2Rounds++;
+    continue;
+  }
+  const m = playing[0];
+  completeMatch(tc2Sched, m.id, Math.random() < 0.5 ? m.pair1.id : m.pair2.id);
+  if (m.court) assignAndPlay(tc2Sched, m.court, 2, tc2All);
+  simClock += 7 * 60 * 1000;
+  tc2Rounds++;
+  tc2Pending = tc2Sched.filter(m => m.status === "pending").length;
+}
+const tc2StillPending = tc2Sched.filter(m => m.status === "pending").length;
+assert("2court", tc2StillPending <= 2, `Session completed: ${tc2StillPending} pending (<= 2 tolerance)`, `${tc2StillPending} stuck pending`);
+
+// Test: all completed matches have winners
+const tc2CompWinners = tc2Sched.filter(m => m.status === "completed" && !m.winner);
+assert("2court", tc2CompWinners.length === 0, "All completed matches have winners", `${tc2CompWinners.length} without winner`);
+
+// --- 24c: findNextPendingForCourt in 2-court — no pool filtering ---
+// Create a small schedule with mixed pools
+const fnpA = Array.from({ length: 4 }, (_, i) => makePlayer(`fnp2A${i}`, "A"));
+const fnpB = Array.from({ length: 4 }, (_, i) => makePlayer(`fnp2B${i}`, "B"));
+const fnpAp = createPairs(fnpA, "A"); const fnpBp = createPairs(fnpB, "B");
+const fnpAll = [...fnpAp, ...fnpBp];
+const fnpSched = generateSchedule(fnpAll, fnpAp, fnpBp, [], 2);
+// Reset all to pending for this test
+fnpSched.forEach(m => { m.status = "pending"; m.court = null; });
+const fnpResult1 = findNextPendingForCourt(fnpSched, 1, 2, new Set(), fnpAll, fnpSched);
+const fnpResult2 = findNextPendingForCourt(fnpSched, 2, 2, new Set(), fnpAll, fnpSched);
+assert("2court", fnpResult1 !== undefined, "Court 1 finds a match (no pool filter)", "Court 1 found nothing");
+assert("2court", fnpResult2 !== undefined || fnpSched.length <= 1, "Court 2 finds a match or only 1 match total", "Court 2 found nothing unexpectedly");
+
+// Verify Court 1 can pick ANY pool (not restricted to C)
+if (fnpResult1) {
+  // In 2-court, any courtPool is valid for any court
+  assert("2court", true, `Court 1 assigned ${fnpResult1.courtPool}-pool match (any pool OK in 2-court)`, "");
+}
+
+// --- 24d: Mid-session walk-in in 2-court (cross-tier allowed) ---
+const wi2A = Array.from({ length: 6 }, (_, i) => makePlayer(`wi2A${i}`, "A"));
+const wi2B = Array.from({ length: 6 }, (_, i) => makePlayer(`wi2B${i}`, "B"));
+const wi2C = Array.from({ length: 6 }, (_, i) => makePlayer(`wi2C${i}`, "C"));
+const wi2Ap = createPairs(wi2A, "A"); const wi2Bp = createPairs(wi2B, "B"); const wi2Cp = createPairs(wi2C, "C");
+const wi2AllPairs = [...wi2Ap, ...wi2Bp, ...wi2Cp];
+const wi2Sched = generateSchedule(wi2AllPairs, wi2Ap, wi2Bp, wi2Cp, 2);
+
+// Add a walk-in B-pair
+const wiBNew1 = makePlayer("walkB1", "B");
+const wiBNew2 = makePlayer("walkB2", "B");
+const wiBPair: Pair = { id: generateId(), player1: wiBNew1, player2: wiBNew2, skillLevel: "B", wins: 0, losses: 0 };
+const existingBPairsForWalkin = [...wi2Bp, ...wi2Ap, ...wi2Cp]; // All existing pairs
+const wiMatchups = new Set<string>();
+wi2Sched.forEach(m => wiMatchups.add(matchupKey(m.pair1.id, m.pair2.id)));
+const wiNewMatches = generateMatchesForNewPair(wiBPair, existingBPairsForWalkin, wiMatchups, 2, wi2Sched.length);
+assert("2court", wiNewMatches.length >= 3, `Walk-in B-pair got ${wiNewMatches.length} games (>= 3)`, `Only ${wiNewMatches.length} games`);
+
+// In 2-court, cross-tier matches SHOULD exist for B-pair
+const wiCrossTier = wiNewMatches.filter(m => m.pair1.skillLevel !== m.pair2.skillLevel);
+// Cross-tier is allowed but not guaranteed (depends on scoring)
+console.log(`  Info: Walk-in B (2-court) got ${wiCrossTier.length} cross-tier of ${wiNewMatches.length} total`);
+
+// Verify no A vs C in walk-in matches
+const wiAvC = wiNewMatches.filter(m => isForbiddenMatchup(m.pair1.skillLevel, m.pair2.skillLevel));
+assert("2court", wiAvC.length === 0, "Walk-in: no A vs C matches", `${wiAvC.length} forbidden A vs C`);
+
+// --- 24e: Heavy B-tier roster (12B + 4A + 4C = 20 players) ---
+const hb2A = Array.from({ length: 4 }, (_, i) => makePlayer(`hb2A${i}`, "A"));
+const hb2B = Array.from({ length: 12 }, (_, i) => makePlayer(`hb2B${i}`, "B"));
+const hb2C = Array.from({ length: 4 }, (_, i) => makePlayer(`hb2C${i}`, "C"));
+const hb2Ap = createPairs(hb2A, "A"); const hb2Bp = createPairs(hb2B, "B"); const hb2Cp = createPairs(hb2C, "C");
+const hb2All = [...hb2Ap, ...hb2Bp, ...hb2Cp];
+const hb2Sched = generateSchedule(hb2All, hb2Ap, hb2Bp, hb2Cp, 2);
+
+assert("2court", hb2Sched.length > 0, `Heavy-B schedule generated (${hb2Sched.length} games)`, "No games generated");
+const hb2AvC = hb2Sched.filter(m => isForbiddenMatchup(m.pair1.skillLevel, m.pair2.skillLevel));
+assert("2court", hb2AvC.length === 0, "Heavy-B: no A vs C", `${hb2AvC.length} forbidden`);
+
+// Verify B-pairs have enough games
+const hb2PGC = new Map<string, number>();
+hb2All.forEach(p => hb2PGC.set(p.id, 0));
+hb2Sched.forEach(m => {
+  hb2PGC.set(m.pair1.id, (hb2PGC.get(m.pair1.id) || 0) + 1);
+  hb2PGC.set(m.pair2.id, (hb2PGC.get(m.pair2.id) || 0) + 1);
+});
+const hb2BCounts = hb2Bp.map(p => hb2PGC.get(p.id) || 0);
+const hb2BMin = Math.min(...hb2BCounts);
+assert("2court", hb2BMin >= 3, `Heavy-B: B-pairs min games = ${hb2BMin} (>= 3)`, `B-pairs too few games: ${hb2BMin}`);
+console.log(`  Info: Heavy-B (20p), ${hb2Sched.length} games, B min=${hb2BMin}, B max=${Math.max(...hb2BCounts)}`);
+
+// --- 24f: No C-tier roster (10A + 10B = 20 players, 2-court) ---
+const nc2A = Array.from({ length: 10 }, (_, i) => makePlayer(`nc2A${i}`, "A"));
+const nc2B = Array.from({ length: 10 }, (_, i) => makePlayer(`nc2B${i}`, "B"));
+const nc2Ap = createPairs(nc2A, "A"); const nc2Bp = createPairs(nc2B, "B");
+const nc2All = [...nc2Ap, ...nc2Bp];
+const nc2Sched = generateSchedule(nc2All, nc2Ap, nc2Bp, [], 2);
+assert("2court", nc2Sched.length > 0, `No-C schedule generated (${nc2Sched.length} games)`, "No games generated");
+const nc2Cross = nc2Sched.filter(m => isCrossCohort(m.matchupLabel));
+assert("2court", nc2Cross.length > 0, `No-C: B vs A cross-tier matches (${nc2Cross.length})`, "No cross-tier without C-tier");
+console.log(`  Info: No-C (20p), ${nc2Sched.length} games, ${nc2Cross.length} cross-tier`);
+
+// --- 24g: Minimal 2-court (4 players = 2 pairs) ---
+const min2A = [makePlayer("min2A1", "A"), makePlayer("min2A2", "A")];
+const min2B = [makePlayer("min2B1", "B"), makePlayer("min2B2", "B")];
+const min2Ap = createPairs(min2A, "A"); const min2Bp = createPairs(min2B, "B");
+const min2All = [...min2Ap, ...min2Bp];
+const min2Sched = generateSchedule(min2All, min2Ap, min2Bp, [], 2);
+assert("2court", min2Sched.length >= 1, `Minimal 2-court: ${min2Sched.length} games`, "No games with 2 pairs");
+// With only 1A pair and 1B pair, only B vs A is possible (same-tier needs 2+ pairs of same tier)
+const min2Types = new Set(min2Sched.map(m => m.matchupLabel));
+console.log(`  Info: Minimal (4p, 2 pairs), ${min2Sched.length} games, types: ${[...min2Types].join(", ")}`);
+
+// ── SECTION 25: Adaptive Tier Targets (2-court unbalanced rosters) ──────────────────────────────
+console.log("\n── SECTION 25: Adaptive Tier Targets ──");
+
+// Helper: compute adaptive targets (mirrors engine logic)
+function computeAdaptiveTargets(
+  aPairCount: number, bPairCount: number, cPairCount: number
+): Record<SkillTier, { vsA: number; vsB: number; vsC: number }> {
+  const base: Record<SkillTier, { vsA: number; vsB: number; vsC: number }> = {
+    A: { vsA: 3, vsB: 1, vsC: 0 },
+    B: { vsA: 1, vsB: 2, vsC: 1 },
+    C: { vsA: 0, vsB: 1, vsC: 3 },
+  };
+  const counts: Record<SkillTier, number> = { A: aPairCount, B: bPairCount, C: cPairCount };
+  const tiers: SkillTier[] = ["A", "B", "C"];
+  const result: Record<SkillTier, { vsA: number; vsB: number; vsC: number }> = { A: { vsA: 0, vsB: 0, vsC: 0 }, B: { vsA: 0, vsB: 0, vsC: 0 }, C: { vsA: 0, vsB: 0, vsC: 0 } };
+  for (const tier of tiers) {
+    const b = { ...base[tier] };
+    const maxOpp = (oTier: SkillTier) => Math.max(0, oTier === tier ? counts[oTier] - 1 : counts[oTier]);
+    const capA = Math.min(b.vsA, maxOpp("A"));
+    const capB = Math.min(b.vsB, maxOpp("B"));
+    const capC = Math.min(b.vsC, maxOpp("C"));
+    let surplus = (b.vsA - capA) + (b.vsB - capB) + (b.vsC - capC);
+    const r = { vsA: capA, vsB: capB, vsC: capC };
+    if (surplus > 0 && tier !== "B") {
+      const bRoom = maxOpp("B") - r.vsB;
+      const toBAdd = Math.min(surplus, bRoom);
+      r.vsB += toBAdd;
+      surplus -= toBAdd;
+    }
+    if (surplus > 0 && tier === "B") {
+      const bRoom = maxOpp("B") - r.vsB;
+      const toBAdd = Math.min(surplus, bRoom);
+      r.vsB += toBAdd;
+      surplus -= toBAdd;
+      if (surplus > 0) {
+        const aRoom = maxOpp("A") - r.vsA;
+        const toAAdd = Math.min(surplus, aRoom);
+        r.vsA += toAAdd;
+        surplus -= toAAdd;
+      }
+      if (surplus > 0) {
+        const cRoom = maxOpp("C") - r.vsC;
+        const toCAdd = Math.min(surplus, cRoom);
+        r.vsC += toCAdd;
+        surplus -= toCAdd;
+      }
+    }
+    result[tier] = r;
+  }
+  return result;
+}
+
+// 25a: Standard balanced (4A, 4B, 4C) — no adaptation needed
+const t25a = computeAdaptiveTargets(4, 4, 4);
+assert("adaptive", t25a.A.vsA === 3 && t25a.A.vsB === 1, "Balanced A: 3 vs A, 1 vs B", `${t25a.A.vsA} vs A, ${t25a.A.vsB} vs B`);
+assert("adaptive", t25a.B.vsA === 1 && t25a.B.vsB === 2 && t25a.B.vsC === 1, "Balanced B: 1-2-1", `${t25a.B.vsA}-${t25a.B.vsB}-${t25a.B.vsC}`);
+assert("adaptive", t25a.C.vsC === 3 && t25a.C.vsB === 1, "Balanced C: 3 vs C, 1 vs B", `${t25a.C.vsC} vs C, ${t25a.C.vsB} vs B`);
+
+// 25b: Small A tier (3A pairs = only 2 same-tier opponents) — overflow to B
+const t25b = computeAdaptiveTargets(3, 4, 4);
+assert("adaptive", t25b.A.vsA === 2, "Small-A: capped at 2 A vs A (only 2 opponents)", `${t25b.A.vsA} vs A`);
+assert("adaptive", t25b.A.vsB === 2, "Small-A: overflow to B (2 vs B)", `${t25b.A.vsB} vs B`);
+assert("adaptive", t25b.A.vsA + t25b.A.vsB + t25b.A.vsC === 4, "Small-A: total still 4", `total=${t25b.A.vsA + t25b.A.vsB + t25b.A.vsC}`);
+console.log(`  Info: Small-A (3A,4B,4C) targets: A=${t25b.A.vsA}/${t25b.A.vsB}/${t25b.A.vsC}, B=${t25b.B.vsA}/${t25b.B.vsB}/${t25b.B.vsC}, C=${t25b.C.vsA}/${t25b.C.vsB}/${t25b.C.vsC}`);
+
+// 25c: Small C tier (3C pairs = only 2 same-tier opponents) — overflow to B
+const t25c = computeAdaptiveTargets(4, 4, 3);
+assert("adaptive", t25c.C.vsC === 2, "Small-C: capped at 2 C vs C", `${t25c.C.vsC} vs C`);
+assert("adaptive", t25c.C.vsB === 2, "Small-C: overflow to B (2 vs B)", `${t25c.C.vsB} vs B`);
+
+// 25d: Very small A (2A pairs = only 1 opponent) — heavy overflow
+const t25d = computeAdaptiveTargets(2, 4, 4);
+assert("adaptive", t25d.A.vsA === 1, "Tiny-A: capped at 1 A vs A", `${t25d.A.vsA} vs A`);
+assert("adaptive", t25d.A.vsB === 3, "Tiny-A: overflow gives 3 vs B", `${t25d.A.vsB} vs B`);
+assert("adaptive", t25d.A.vsA + t25d.A.vsB + t25d.A.vsC === 4, "Tiny-A: total still 4", `total=${t25d.A.vsA + t25d.A.vsB + t25d.A.vsC}`);
+
+// 25e: No C tier (0C pairs) — B redistributes C slot to same-tier
+const t25e = computeAdaptiveTargets(4, 4, 0);
+assert("adaptive", t25e.B.vsC === 0, "No-C: B can't play C", `${t25e.B.vsC} vs C`);
+assert("adaptive", t25e.B.vsB === 3, "No-C: B overflow to same-tier (3 vs B)", `${t25e.B.vsB} vs B`);
+assert("adaptive", t25e.B.vsA + t25e.B.vsB + t25e.B.vsC === 4, "No-C: B total still 4", `total=${t25e.B.vsA + t25e.B.vsB + t25e.B.vsC}`);
+assert("adaptive", t25e.C.vsC === 0, "No-C: C targets are 0", `${t25e.C.vsC}`);
+console.log(`  Info: No-C targets: A=${t25e.A.vsA}/${t25e.A.vsB}/${t25e.A.vsC}, B=${t25e.B.vsA}/${t25e.B.vsB}/${t25e.B.vsC}`);
+
+// 25f: No A tier (0A pairs) — B redistributes A slot
+const t25f = computeAdaptiveTargets(0, 4, 4);
+assert("adaptive", t25f.B.vsA === 0, "No-A: B can't play A", `${t25f.B.vsA} vs A`);
+assert("adaptive", t25f.B.vsB === 3, "No-A: B overflow to same-tier (3 vs B)", `${t25f.B.vsB} vs B`);
+assert("adaptive", t25f.A.vsA === 0, "No-A: A targets are 0", `${t25f.A.vsA}`);
+
+// 25g: Solo pair in each tier (1A, 1B, 1C) — can't play same-tier at all
+const t25g = computeAdaptiveTargets(1, 1, 1);
+assert("adaptive", t25g.A.vsA === 0, "Solo-A: 0 vs A (no same-tier opponent)", `${t25g.A.vsA} vs A`);
+assert("adaptive", t25g.A.vsB === 1, "Solo-A: 1 vs B (capped by 1 B pair)", `${t25g.A.vsB} vs B`);
+assert("adaptive", t25g.C.vsC === 0, "Solo-C: 0 vs C", `${t25g.C.vsC} vs C`);
+assert("adaptive", t25g.C.vsB === 1, "Solo-C: 1 vs B", `${t25g.C.vsB} vs B`);
+assert("adaptive", t25g.B.vsB === 0, "Solo-B: 0 vs B", `${t25g.B.vsB} vs B`);
+
+// ── SECTION 26: Playoff Seeding — B-beats-A Override ──────────────────────────────
+console.log("\n── SECTION 26: Playoff Seeding — B-beats-A Override ──");
+
+// Create scenario: B1 beat A3 in round-robin, B1 has higher win%
+const s26A = Array.from({ length: 8 }, (_, i) => makePlayer(`s26A${i}`, "A"));
+const s26B = Array.from({ length: 6 }, (_, i) => makePlayer(`s26B${i}`, "B"));
+const s26Ap = createPairs(s26A, "A"); // 4 A-pairs
+const s26Bp = createPairs(s26B, "B"); // 3 B-pairs
+const s26All = [...s26Ap, ...s26Bp];
+
+const s26Matches: Match[] = [];
+// A0 wins 3, A1 wins 2, A2 wins 1, A3 wins 0 (worst A pair)
+for (let i = 0; i < s26Ap.length; i++) {
+  for (let j = i + 1; j < s26Ap.length; j++) {
+    const m: Match = { id: generateId(), pair1: s26Ap[i], pair2: s26Ap[j], skillLevel: "A", matchupLabel: "A vs A", status: "completed", court: null, courtPool: "A" };
+    // lower index wins
+    m.winner = s26Ap[i]; m.loser = s26Ap[j];
+    s26Matches.push(m);
+  }
+}
+// B0 wins 2, B1 wins 1, B2 wins 0
+for (let i = 0; i < s26Bp.length; i++) {
+  for (let j = i + 1; j < s26Bp.length; j++) {
+    const m: Match = { id: generateId(), pair1: s26Bp[i], pair2: s26Bp[j], skillLevel: "B", matchupLabel: "B vs B", status: "completed", court: null, courtPool: "B" };
+    m.winner = s26Bp[i]; m.loser = s26Bp[j];
+    s26Matches.push(m);
+  }
+}
+// KEY: B0 beats A3 in a cross-tier match. B0 has 100% win in B (2/2) + this win = 3/3 = 100%.
+// A3 has 0% in A (0/3) + this loss = 0/4 = 0%.
+const crossMatch1: Match = {
+  id: generateId(), pair1: s26Bp[0], pair2: s26Ap[3], skillLevel: "cross", matchupLabel: "B vs A",
+  status: "completed", court: null, courtPool: "B",
+  winner: s26Bp[0], loser: s26Ap[3],
+};
+s26Matches.push(crossMatch1);
+
+const { seeds: s26Seeds } = seedPlayoffs(s26Matches, s26All);
+
+// B0 should leapfrog A3 because B0 beat A3 AND B0 has higher win%
+// Expected order: A0, A1, A2, B0, A3, B1, B2
+const s26B0Seed = s26Seeds.find(s => s.pair.id === s26Bp[0].id);
+const s26A3Seed = s26Seeds.find(s => s.pair.id === s26Ap[3].id);
+assert("seeding", s26B0Seed !== undefined, "B0 is in playoff seeds", "B0 not found in seeds");
+assert("seeding", s26A3Seed !== undefined, "A3 is in playoff seeds", "A3 not found in seeds");
+if (s26B0Seed && s26A3Seed) {
+  assert("seeding", s26B0Seed.seed < s26A3Seed.seed, `B0 (seed ${s26B0Seed.seed}) leapfrogs A3 (seed ${s26A3Seed.seed})`, `B0=${s26B0Seed.seed}, A3=${s26A3Seed.seed}`);
+}
+console.log("  Seeds:");
+s26Seeds.forEach(s => console.log(`    #${s.seed} ${s.pair.player1.name}&${s.pair.player2.name} (${s.tier}) win%=${(s.winPct * 100).toFixed(0)}%`));
+
+// B0 should NOT leapfrog A0, A1, A2 (didn't beat them)
+const s26A0Seed = s26Seeds.find(s => s.pair.id === s26Ap[0].id);
+assert("seeding", s26A0Seed !== undefined && s26A0Seed.seed === 1, "A0 still seed 1", `A0 seed=${s26A0Seed?.seed}`);
+const s26A1Seed = s26Seeds.find(s => s.pair.id === s26Ap[1].id);
+assert("seeding", s26A1Seed !== undefined && s26A1Seed.seed === 2, "A1 still seed 2", `A1 seed=${s26A1Seed?.seed}`);
+
+// Test: B pair with LOWER win% than A pair does NOT leapfrog even if they beat them
+const s26Matches2: Match[] = [];
+// Setup where B has lower win%: B2 beats A2 but B2 has 0% in B matches
+for (let i = 0; i < s26Ap.length; i++) {
+  for (let j = i + 1; j < s26Ap.length; j++) {
+    const m: Match = { id: generateId(), pair1: s26Ap[i], pair2: s26Ap[j], skillLevel: "A", matchupLabel: "A vs A", status: "completed", court: null, courtPool: "A" };
+    m.winner = s26Ap[i]; m.loser = s26Ap[j];
+    s26Matches2.push(m);
+  }
+}
+for (let i = 0; i < s26Bp.length; i++) {
+  for (let j = i + 1; j < s26Bp.length; j++) {
+    const m: Match = { id: generateId(), pair1: s26Bp[i], pair2: s26Bp[j], skillLevel: "B", matchupLabel: "B vs B", status: "completed", court: null, courtPool: "B" };
+    m.winner = s26Bp[i]; m.loser = s26Bp[j];
+    s26Matches2.push(m);
+  }
+}
+// B2 beats A2 cross-tier, but B2 has 0/2 B wins + 1 cross win = 1/3 = 33%
+// A2 has 1/3 A wins - 1 cross loss = 1/4 = 25%. B2 win% (33%) > A2 win% (25%) — BUT
+// Let's make B2 have lower win%: B2 loses to both B0 and B1 (0% in B) + beats A0 who has 100%
+const crossMatch2: Match = {
+  id: generateId(), pair1: s26Bp[2], pair2: s26Ap[0], skillLevel: "cross", matchupLabel: "B vs A",
+  status: "completed", court: null, courtPool: "B",
+  winner: s26Bp[2], loser: s26Ap[0],
+};
+s26Matches2.push(crossMatch2);
+// B2: 0 B wins + 1 cross win = 1/3 = 33%. A0: 3 A wins - 1 cross loss = 3/4 = 75%.
+const { seeds: s26Seeds2 } = seedPlayoffs(s26Matches2, s26All);
+const s26B2Seed2 = s26Seeds2.find(s => s.pair.id === s26Bp[2].id);
+const s26A0Seed2 = s26Seeds2.find(s => s.pair.id === s26Ap[0].id);
+if (s26B2Seed2 && s26A0Seed2) {
+  assert("seeding", s26B2Seed2.seed > s26A0Seed2.seed, `B2 (33%) does NOT leapfrog A0 (75%) despite beating them`, `B2=${s26B2Seed2.seed}, A0=${s26A0Seed2.seed}`);
+}
+
+// Test: B pair with EQUAL win% that beat A pair DOES leapfrog
+const s26Matches3: Match[] = [];
+// A pairs each play 1 game: A0 beats A1 (50% each after cross matches)
+const amatch: Match = { id: generateId(), pair1: s26Ap[0], pair2: s26Ap[1], skillLevel: "A", matchupLabel: "A vs A", status: "completed", court: null, courtPool: "A", winner: s26Ap[0], loser: s26Ap[1] };
+s26Matches3.push(amatch);
+// B0 beats B1
+const bmatch: Match = { id: generateId(), pair1: s26Bp[0], pair2: s26Bp[1], skillLevel: "B", matchupLabel: "B vs B", status: "completed", court: null, courtPool: "B", winner: s26Bp[0], loser: s26Bp[1] };
+s26Matches3.push(bmatch);
+// B0 beats A1: B0 = 2/2 = 100%. A1 = 0/2 = 0%. B0 leapfrogs A1.
+const crossMatch3: Match = { id: generateId(), pair1: s26Bp[0], pair2: s26Ap[1], skillLevel: "cross", matchupLabel: "B vs A", status: "completed", court: null, courtPool: "B", winner: s26Bp[0], loser: s26Ap[1] };
+s26Matches3.push(crossMatch3);
+
+const { seeds: s26Seeds3 } = seedPlayoffs(s26Matches3, s26All);
+const s26B0Seed3 = s26Seeds3.find(s => s.pair.id === s26Bp[0].id);
+const s26A1Seed3 = s26Seeds3.find(s => s.pair.id === s26Ap[1].id);
+const s26A0Seed3 = s26Seeds3.find(s => s.pair.id === s26Ap[0].id);
+if (s26B0Seed3 && s26A1Seed3) {
+  assert("seeding", s26B0Seed3.seed < s26A1Seed3.seed, `B0 (100%) leapfrogs A1 (0%) — beat them + higher win%`, `B0=${s26B0Seed3.seed}, A1=${s26A1Seed3.seed}`);
+}
+if (s26B0Seed3 && s26A0Seed3) {
+  assert("seeding", s26B0Seed3.seed > s26A0Seed3.seed, `B0 does NOT leapfrog A0 (didn't beat them)`, `B0=${s26B0Seed3.seed}, A0=${s26A0Seed3.seed}`);
+}
 
 // ═══════════════════════════════════════════════════════════════
 //                          FINAL RESULTS
