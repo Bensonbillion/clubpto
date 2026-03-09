@@ -332,6 +332,7 @@ export function useGameState(options?: { simulate?: boolean }) {
   const savingRef = useRef(false);
   const pendingRef = useRef<GameState | null>(null);
   const localMutationRef = useRef(false); // blocks sync overwrite after local changes
+  const mutationCounterRef = useRef(0); // tracks mutation generations to prevent stale timeout clears
 
   // Set/clear the global simulation flag on mount/unmount
   useEffect(() => {
@@ -427,21 +428,27 @@ export function useGameState(options?: { simulate?: boolean }) {
       }
     } finally {
       savingRef.current = false;
+      // Delay clearing localMutationRef to allow DB write propagation.
+      // Use counter to avoid stale timeouts from clearing newer mutations.
+      const countAtSave = mutationCounterRef.current;
+      setTimeout(() => {
+        if (mutationCounterRef.current === countAtSave) {
+          localMutationRef.current = false;
+        }
+      }, 3000);
     }
   }, []);
 
   const updateState = useCallback(
     (updater: (prev: GameState) => GameState) => {
       localMutationRef.current = true;
+      mutationCounterRef.current += 1;
       setState((prev) => {
         const next = updater(prev);
         // Queue the state for saving and kick off the drain loop
         pendingRef.current = next;
         // Use queueMicrotask so the drain starts after setState completes
-        queueMicrotask(() => drainSave().finally(() => {
-          // Allow syncs again after save completes
-          localMutationRef.current = false;
-        }));
+        queueMicrotask(() => drainSave());
         return next;
       });
     },
