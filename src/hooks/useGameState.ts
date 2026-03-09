@@ -333,12 +333,15 @@ export function useGameState(options?: { simulate?: boolean }) {
   const pendingRef = useRef<GameState | null>(null);
   const localMutationRef = useRef(false); // blocks sync overwrite after local changes
   const mutationCounterRef = useRef(0); // tracks mutation generations to prevent stale timeout clears
+  const lastAppliedUpdatedAtRef = useRef<number>(0); // guards against out-of-order remote updates causing UI "reverts"
 
   // Set/clear the global simulation flag on mount/unmount
   useEffect(() => {
     if (simulate) {
       setSimulationMode(true);
-      return () => { setSimulationMode(false); };
+      return () => {
+        setSimulationMode(false);
+      };
     }
   }, [simulate]);
 
@@ -348,22 +351,39 @@ export function useGameState(options?: { simulate?: boolean }) {
     const load = async () => {
       const { data } = await supabase
         .from("game_state")
-        .select("state")
+        .select("state, updated_at")
         .eq("id", ROW_ID)
         .single();
+
       if (data?.state) {
         const loaded = data.state as unknown as GameState;
+
+        const serverUpdatedAt = (data as any).updated_at as string | undefined;
+        if (serverUpdatedAt) {
+          const ts = Date.parse(serverUpdatedAt);
+          if (Number.isFinite(ts)) lastAppliedUpdatedAtRef.current = ts;
+        }
+
         // Restore courtCount from localStorage if Supabase doesn't have it yet
         const savedCourtCount = localStorage.getItem("clubpto_courtCount");
         if (savedCourtCount && loaded.sessionConfig) {
           loaded.sessionConfig = { ...loaded.sessionConfig, courtCount: Number(savedCourtCount) as 2 | 3 };
         }
+
         setState(loaded);
       }
       setLoading(false);
     };
     load();
   }, [simulate]);
+
+  const shouldApplyRemote = useCallback((updatedAt?: string | null) => {
+    const ts = updatedAt ? Date.parse(updatedAt) : Date.now();
+    if (!Number.isFinite(ts)) return false;
+    if (ts <= lastAppliedUpdatedAtRef.current) return false;
+    lastAppliedUpdatedAtRef.current = ts;
+    return true;
+  }, []);
 
   // Subscribe to realtime changes — skip if a save is in progress or pending (or simulation)
   useEffect(() => {
@@ -375,9 +395,11 @@ export function useGameState(options?: { simulate?: boolean }) {
         { event: "UPDATE", schema: "public", table: "game_state", filter: `id=eq.${ROW_ID}` },
         (payload) => {
           if (savingRef.current || pendingRef.current || localMutationRef.current) return;
-          if (payload.new && (payload.new as any).state) {
-            setState((payload.new as any).state as GameState);
-          }
+          const nextState = (payload.new as any)?.state as GameState | undefined;
+          const updatedAt = (payload.new as any)?.updated_at as string | undefined;
+          if (!nextState) return;
+          if (!shouldApplyRemote(updatedAt)) return;
+          setState(nextState);
         }
       )
       .subscribe();
@@ -385,7 +407,7 @@ export function useGameState(options?: { simulate?: boolean }) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [simulate]);
+  }, [shouldApplyRemote, simulate]);
 
   // Polling fallback every 10s — skip if a save is in progress or pending (or simulation)
   useEffect(() => {
@@ -394,18 +416,26 @@ export function useGameState(options?: { simulate?: boolean }) {
       if (savingRef.current || pendingRef.current || localMutationRef.current) return;
       const { data } = await supabase
         .from("game_state")
-        .select("state")
+        .select("state, updated_at")
         .eq("id", ROW_ID)
         .single();
-      if (data?.state && !savingRef.current && !pendingRef.current && !localMutationRef.current) {
-        setState(data.state as unknown as GameState);
+
+      const nextState = data?.state as unknown as GameState | undefined;
+      const updatedAt = (data as any)?.updated_at as string | undefined;
+
+      if (nextState && !savingRef.current && !pendingRef.current && !localMutationRef.current) {
+        if (!shouldApplyRemote(updatedAt)) return;
+        setState(nextState);
       }
     }, 10_000);
     return () => clearInterval(interval);
-  }, [simulate]);
+  }, [shouldApplyRemote, simulate]);
 
   const drainSave = useCallback(async () => {
-    if (isSimulationMode()) { pendingRef.current = null; return; }
+    if (isSimulationMode()) {
+      pendingRef.current = null;
+      return;
+    }
     if (savingRef.current) return;
     savingRef.current = true;
 
@@ -413,17 +443,32 @@ export function useGameState(options?: { simulate?: boolean }) {
       while (pendingRef.current) {
         const toSave = pendingRef.current;
         pendingRef.current = null;
+
+        const updatedAt = new Date().toISOString();
         const { error } = await supabase
           .from("game_state")
-          .upsert({ id: ROW_ID, state: JSON.parse(JSON.stringify(toSave)), updated_at: new Date().toISOString() });
-        if (error) {
-          console.error("Failed to save game state:", error);
-          // Retry once after a short delay
-          await new Promise(r => setTimeout(r, 500));
-          const { error: retryError } = await supabase
-            .from("game_state")
-            .upsert({ id: ROW_ID, state: JSON.parse(JSON.stringify(toSave)), updated_at: new Date().toISOString() });
-          if (retryError) console.error("Retry also failed:", retryError);
+          .upsert({ id: ROW_ID, state: JSON.parse(JSON.stringify(toSave)), updated_at: updatedAt });
+
+        if (!error) {
+          const ts = Date.parse(updatedAt);
+          if (Number.isFinite(ts)) lastAppliedUpdatedAtRef.current = Math.max(lastAppliedUpdatedAtRef.current, ts);
+          continue;
+        }
+
+        console.error("Failed to save game state:", error);
+
+        // Retry once after a short delay
+        await new Promise((r) => setTimeout(r, 500));
+        const retryUpdatedAt = new Date().toISOString();
+        const { error: retryError } = await supabase
+          .from("game_state")
+          .upsert({ id: ROW_ID, state: JSON.parse(JSON.stringify(toSave)), updated_at: retryUpdatedAt });
+
+        if (retryError) {
+          console.error("Retry also failed:", retryError);
+        } else {
+          const ts2 = Date.parse(retryUpdatedAt);
+          if (Number.isFinite(ts2)) lastAppliedUpdatedAtRef.current = Math.max(lastAppliedUpdatedAtRef.current, ts2);
         }
       }
     } finally {
