@@ -372,7 +372,10 @@ export function useGameState(options?: { simulate?: boolean }) {
           loaded.sessionConfig = { ...loaded.sessionConfig, courtCount: Number(savedCourtCount) as 2 | 3 };
         }
 
-        setState(loaded);
+        // Guard: don't overwrite if a local mutation happened during load
+        if (!localMutationRef.current && !pendingRef.current) {
+          setState(loaded);
+        }
       }
       setLoading(false);
     };
@@ -465,6 +468,8 @@ export function useGameState(options?: { simulate?: boolean }) {
 
         if (retryError) {
           console.error("Retry also failed:", retryError);
+          // Re-queue the failed state so next mutation attempt retries it
+          if (!pendingRef.current) pendingRef.current = toSave;
         } else {
           const ts2 = Date.parse(retryUpdatedAt);
           if (Number.isFinite(ts2)) lastAppliedUpdatedAtRef.current = Math.max(lastAppliedUpdatedAtRef.current, ts2);
