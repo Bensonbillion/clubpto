@@ -334,14 +334,16 @@ export function useGameState(options?: { simulate?: boolean }) {
   const localMutationRef = useRef(false); // blocks sync overwrite after local changes
   const mutationCounterRef = useRef(0); // tracks mutation generations to prevent stale timeout clears
   const lastAppliedUpdatedAtRef = useRef<number>(0); // guards against out-of-order remote updates causing UI "reverts"
+  const simulateRef = useRef(simulate); // stable ref for drainSave closure
 
   // Set/clear the global simulation flag on mount/unmount
+  // Also force-clear when simulate=false, in case a prior page left it stuck
   useEffect(() => {
     if (simulate) {
       setSimulationMode(true);
-      return () => {
-        setSimulationMode(false);
-      };
+      return () => { setSimulationMode(false); };
+    } else {
+      setSimulationMode(false);
     }
   }, [simulate]);
 
@@ -432,10 +434,7 @@ export function useGameState(options?: { simulate?: boolean }) {
   }, [shouldApplyRemote, simulate]);
 
   const drainSave = useCallback(async () => {
-    if (isSimulationMode()) {
-      pendingRef.current = null;
-      return;
-    }
+    if (simulateRef.current || isSimulationMode()) { pendingRef.current = null; localMutationRef.current = false; return; }
     if (savingRef.current) return;
     savingRef.current = true;
 
@@ -488,6 +487,7 @@ export function useGameState(options?: { simulate?: boolean }) {
     (updater: (prev: GameState) => GameState) => {
       localMutationRef.current = true;
       mutationCounterRef.current += 1;
+      const counterSnapshot = mutationCounterRef.current;
       setState((prev) => {
         const next = updater(prev);
         // Queue the state for saving and kick off the drain loop
@@ -496,6 +496,13 @@ export function useGameState(options?: { simulate?: boolean }) {
         queueMicrotask(() => drainSave());
         return next;
       });
+      // Safety net: force-clear localMutationRef after 15s to prevent permanent lockout
+      setTimeout(() => {
+        if (mutationCounterRef.current === counterSnapshot && localMutationRef.current) {
+          console.warn("[PTO] Force-clearing localMutationRef after 15s safety timeout");
+          localMutationRef.current = false;
+        }
+      }, 15000);
     },
     [drainSave]
   );

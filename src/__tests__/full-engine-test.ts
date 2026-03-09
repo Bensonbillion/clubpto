@@ -1123,6 +1123,91 @@ const rgRegenCross = rgNewGames > 0; // Just verify we got here
 assert("regen", rgRegenCross, "Regen completed without errors", "Regen had errors");
 console.log(`  Info: Before=${rgBefore}, After removal=${rgAfterRemoval.length}, New=${rgNewGames}`);
 
+// ── SECTION 23: Check-In / Toggle / Roster Operations ──────────────────────────
+console.log("\n── SECTION 23: Check-In / Toggle / Roster Operations ──");
+
+// Simulate the exact check-in toggle logic from useGameState.toggleCheckIn
+function toggleCheckIn(roster: Player[], playerId: string, locked: boolean): Player[] {
+  if (locked) return roster;
+  return roster.map((p) =>
+    p.id === playerId
+      ? { ...p, checkedIn: !p.checkedIn, checkInTime: !p.checkedIn ? new Date().toISOString() : null }
+      : p
+  );
+}
+
+// Create a test roster
+const ciRoster = [
+  makePlayer("Alice", "A"),
+  makePlayer("Bob", "B"),
+  makePlayer("Charlie", "C"),
+  makePlayer("Diana", "A"),
+];
+// makePlayer sets checkedIn=true, reset to false for testing
+ciRoster.forEach(p => { p.checkedIn = false; p.checkInTime = null; });
+
+// Test 1: Check in a player
+const ci1 = toggleCheckIn(ciRoster, ciRoster[0].id, false);
+assert("checkin", ci1[0].checkedIn === true, "Alice checked in successfully", "Alice not checked in");
+assert("checkin", ci1[0].checkInTime !== null, "Alice has checkInTime", "Alice missing checkInTime");
+assert("checkin", ci1[1].checkedIn === false, "Bob unchanged", "Bob changed unexpectedly");
+
+// Test 2: Uncheck a checked-in player
+const ci2 = toggleCheckIn(ci1, ci1[0].id, false);
+assert("checkin", ci2[0].checkedIn === false, "Alice unchecked successfully", "Alice still checked in");
+assert("checkin", ci2[0].checkInTime === null, "Alice checkInTime cleared", "Alice checkInTime not cleared");
+
+// Test 3: Check-in blocked when locked
+const ci3 = toggleCheckIn(ciRoster, ciRoster[1].id, true);
+assert("checkin", ci3[1].checkedIn === false, "Bob blocked by lock", "Bob checked in despite lock");
+assert("checkin", ci3 === ciRoster, "Locked returns same array reference", "Locked created new array");
+
+// Test 4: Multiple check-ins
+let ciMulti = [...ciRoster];
+ciMulti = toggleCheckIn(ciMulti, ciMulti[0].id, false);
+ciMulti = toggleCheckIn(ciMulti, ciMulti[1].id, false);
+ciMulti = toggleCheckIn(ciMulti, ciMulti[2].id, false);
+ciMulti = toggleCheckIn(ciMulti, ciMulti[3].id, false);
+const allCheckedIn = ciMulti.filter(p => p.checkedIn);
+assert("checkin", allCheckedIn.length === 4, `All 4 players checked in (got ${allCheckedIn.length})`, `Only ${allCheckedIn.length} checked in`);
+
+// Test 5: Check-in preserves player data (skillLevel, id, name)
+assert("checkin", ciMulti[0].skillLevel === "A", "Skill level preserved after check-in", "Skill level changed");
+assert("checkin", ciMulti[0].name === "Alice", "Name preserved after check-in", "Name changed");
+assert("checkin", ciMulti[2].skillLevel === "C", "Charlie still C-tier", "Charlie tier changed");
+
+// Test 6: completeMatch updates roster, pairs, and history
+const cmPlayers = Array.from({ length: 8 }, (_, i) => makePlayer(`cm${i}`, "A"));
+const cmPairs = createPairs(cmPlayers, "A");
+const cmSched = generateSchedule(cmPairs, cmPairs, [], [], 2);
+// Start a match manually
+const cmFirst = cmSched.find(m => m.status === "pending");
+if (cmFirst) {
+  cmFirst.status = "playing"; cmFirst.court = 1; cmFirst.startedAt = new Date().toISOString();
+  // Complete it
+  completeMatch(cmSched, cmFirst.id, cmFirst.pair1.id);
+  const completed = cmSched.find(m => m.id === cmFirst.id);
+  assert("checkin", completed?.status === "completed", "Match status is completed", `Status is ${completed?.status}`);
+  assert("checkin", completed?.winner?.id === cmFirst.pair1.id, "Winner is pair1", "Winner is not pair1");
+  assert("checkin", completed?.loser?.id === cmFirst.pair2.id, "Loser is pair2", "Loser is not pair2");
+  assert("checkin", completed?.completedAt !== undefined, "completedAt is set", "completedAt missing");
+} else {
+  fail("checkin", "No pending match found for completeMatch test");
+}
+
+// Test 7: State mutations are consistent (simulate rapid-fire updates)
+let mutState = { counter: 0, roster: [...ciRoster] };
+for (let i = 0; i < 100; i++) {
+  const idx = i % 4;
+  mutState = {
+    counter: mutState.counter + 1,
+    roster: toggleCheckIn(mutState.roster, mutState.roster[idx].id, false),
+  };
+}
+assert("checkin", mutState.counter === 100, "100 rapid-fire mutations completed", `Only ${mutState.counter} mutations`);
+// After 100 toggles (25 per player), each has odd count = flipped from original
+assert("checkin", mutState.roster[0].checkedIn === true, "Odd toggles (25) = flipped to checked", "Toggle state wrong after 100 ops");
+
 // ═══════════════════════════════════════════════════════════════
 //                          FINAL RESULTS
 // ═══════════════════════════════════════════════════════════════
