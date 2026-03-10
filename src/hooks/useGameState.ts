@@ -932,8 +932,24 @@ export function useGameState(options?: { simulate?: boolean }) {
       const pairs: Pair[] = [];
       const used = new Set<string>();
 
-      // First, honor any admin-set fixed pairs
+      // Deduplicate fixedPairs: if two VIPs claimed the same partner, first one wins.
+      // Also remove mutual selections (A→B + B→A) — just keep the first.
+      const deduped: FixedPair[] = [];
+      const claimedNames = new Set<string>();
       for (const fp of fixedPairs) {
+        const p1Low = fp.player1Name.toLowerCase();
+        const p2Low = fp.player2Name.toLowerCase();
+        if (claimedNames.has(p1Low) || claimedNames.has(p2Low)) {
+          console.warn(`[PTO] Fixed pair conflict: ${fp.player1Name} + ${fp.player2Name} — one is already claimed, skipping`);
+          continue;
+        }
+        deduped.push(fp);
+        claimedNames.add(p1Low);
+        claimedNames.add(p2Low);
+      }
+
+      // First, honor any admin-set fixed pairs
+      for (const fp of deduped) {
         const p1 = players.find((p) => p.name.toLowerCase() === fp.player1Name.toLowerCase() && !used.has(p.id));
         const p2 = players.find((p) => p.name.toLowerCase() === fp.player2Name.toLowerCase() && !used.has(p.id));
         if (p1 && p2) {
@@ -942,6 +958,8 @@ export function useGameState(options?: { simulate?: boolean }) {
           });
           used.add(p1.id);
           used.add(p2.id);
+        } else {
+          console.warn(`[PTO] Fixed pair failed: ${fp.player1Name} + ${fp.player2Name} — player not found in ${skill} tier or already used`);
         }
       }
 

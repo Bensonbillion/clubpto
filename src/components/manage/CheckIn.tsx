@@ -187,13 +187,26 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
 
   const isLocked = state.sessionConfig.checkInLocked;
 
-  // Filter VIP partner selection to same-tier players only
+  // Filter VIP partner selection to same-tier players only, excluding already-claimed partners
   const vipPlayer = vipDialogFor ? state.roster.find((p) => p.name.toLowerCase() === vipDialogFor.toLowerCase()) : null;
+  const claimedPartners = new Set(
+    vipFixedPairs
+      .filter((fp) => fp.player1Name.toLowerCase() !== (vipDialogFor || "").toLowerCase())
+      .map((fp) => fp.player2Name.toLowerCase())
+  );
+  // Also exclude other VIPs who already have a partner locked (they shouldn't be selectable)
+  const vipsWithPartners = new Set(
+    vipFixedPairs.map((fp) => fp.player1Name.toLowerCase())
+  );
   const availableForVip = vipDialogFor && vipPlayer
     ? state.roster
         .filter((p) => {
           if (p.name.toLowerCase() === vipDialogFor.toLowerCase()) return false;
           if (p.skillLevel !== vipPlayer.skillLevel) return false;
+          // Don't show players already claimed by another VIP
+          if (claimedPartners.has(p.name.toLowerCase())) return false;
+          // Don't show other VIPs who already have a locked partner
+          if (vipsWithPartners.has(p.name.toLowerCase())) return false;
           // If session is active, only show unpaired or waitlisted players
           if (sessionActive) {
             const isPaired = state.pairs.some(
