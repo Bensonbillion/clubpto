@@ -104,6 +104,8 @@ export interface GameState {
   /** Pair IDs that were just added via late arrival — for UI highlight */
   newlyAddedPairIds?: string[];
   pairGamesWatched?: Record<string, number>;
+  /** Practice mode: syncs across devices, skips leaderboard points */
+  practiceMode?: boolean;
 }
 
 export const DEFAULT_STATE: GameState = {

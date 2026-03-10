@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { query } from "@/lib/turso";
 import { GameState, DEFAULT_STATE, Player, Pair, Match, GameHistory, PlayoffMatch, FixedPair, SkillTier, OddPlayerDecision } from "@/types/courtManager";
 import { awardPoints, type PointsReason } from "@/lib/leaderboard";
-import { isSimulationMode, setSimulationMode, isPracticeMode, setPracticeMode } from "@/lib/simulationMode";
+import { isSimulationMode, setSimulationMode } from "@/lib/simulationMode";
 
 const VIP_PROFILE_IDS = new Set([
   "08813d60dccf0067907caf3727077d20", // David
@@ -89,8 +89,9 @@ async function awardMatchPoints(
   points: 3 | 5 | 10,
   reason: PointsReason,
   matchId: string,
+  practiceMode?: boolean,
 ): Promise<void> {
-  if (isSimulationMode() || isPracticeMode()) return;
+  if (isSimulationMode() || practiceMode) return;
   const players = [winnerPair.player1, winnerPair.player2];
   for (const player of players) {
     let playerId = player.profileId;
@@ -1737,7 +1738,7 @@ export function useGameState(options?: { simulate?: boolean }) {
     }
 
     // Save pairs to history (fire-and-forget, outside state update)
-    if (!isSimulationMode() && !isPracticeMode()) {
+    if (!isSimulationMode() && !state.practiceMode) {
       const historyRows = allPairs.map((p) => ({
         player1_name: p.player1.name,
         player2_name: p.player2.name,
@@ -2062,7 +2063,7 @@ export function useGameState(options?: { simulate?: boolean }) {
         result = { paired: true, partnerName: partner.name, estimatedMinutes };
 
         // Save pair history
-        if (!isSimulationMode() && !isPracticeMode()) {
+        if (!isSimulationMode() && !s.practiceMode) {
           query('INSERT INTO pair_history (player1_name, player2_name) VALUES (?, ?)', [player.name, partner.name]).catch(() => {});
         }
 
@@ -2686,7 +2687,7 @@ export function useGameState(options?: { simulate?: boolean }) {
       const match = state.matches.find((m) => m.id === matchId);
       if (match) {
         const winnerPair = match.pair1.id === winnerPairId ? match.pair1 : match.pair2;
-        awardMatchPoints(winnerPair, 3, "regular_win", matchId);
+        awardMatchPoints(winnerPair, 3, "regular_win", matchId, state.practiceMode);
       }
 
       updateState((s) => {
@@ -3424,7 +3425,7 @@ export function useGameState(options?: { simulate?: boolean }) {
           const isFinal = roundMatches.length === 1;
           const pts: 5 | 10 = isFinal ? 10 : 5;
           const reason: PointsReason = isFinal ? "tournament_win" : "playoff_win";
-          awardMatchPoints(winnerPair, pts, reason, matchId);
+          awardMatchPoints(winnerPair, pts, reason, matchId, state.practiceMode);
         }
       }
 
@@ -3554,8 +3555,8 @@ export function useGameState(options?: { simulate?: boolean }) {
     waitingPlayers,
     upNextMatches,
     onDeckMatches,
-    practiceMode: isPracticeMode(),
-    togglePracticeMode: () => { setPracticeMode(!isPracticeMode()); },
+    practiceMode: !!state.practiceMode,
+    togglePracticeMode: () => { updateState((s) => ({ ...s, practiceMode: !s.practiceMode })); },
   };
 }
 
