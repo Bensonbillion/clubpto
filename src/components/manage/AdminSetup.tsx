@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Trash2, Plus, Play, RotateCcw, Sparkles, ChevronDown, ChevronUp, Loader2, Zap, Search, Users } from "lucide-react";
+import { Trash2, Plus, Play, RotateCcw, Sparkles, ChevronDown, ChevronUp, Loader2, Zap, Search, Users, FlaskConical } from "lucide-react";
 import { toast } from "sonner";
 import { SkillTier } from "@/types/courtManager";
 import PlayerManager from "./PlayerManager";
@@ -503,6 +503,13 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
           onClick={() => window.open("/manage/simulate", "_blank")}
         >
           <Play className="w-5 h-5 mr-2" /> Launch Simulation
+        </Button>
+        <Button
+          variant="outline"
+          className={`min-h-[52px] px-8 text-base ${gameState.practiceMode ? "border-green-500 text-green-400 bg-green-600/10" : "border-cyan-600 text-cyan-500 hover:bg-cyan-600/10 hover:text-cyan-400"}`}
+          onClick={() => { gameState.togglePracticeMode(); toast(gameState.practiceMode ? "Practice mode OFF — points will count" : "Practice mode ON — no points awarded"); }}
+        >
+          <FlaskConical className="w-5 h-5 mr-2" /> {gameState.practiceMode ? "Practice ON" : "Practice Mode"}
         </Button>
         {confirmReset ? (
           <Button onClick={() => handleReset(resetKeepRoster)} variant="outline" className="min-h-[52px] px-8 text-base border-destructive text-destructive animate-pulse-soft">

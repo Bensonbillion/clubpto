@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { query } from "@/lib/turso";
 import { GameState, DEFAULT_STATE, Player, Pair, Match, GameHistory, PlayoffMatch, FixedPair, SkillTier, OddPlayerDecision } from "@/types/courtManager";
 import { awardPoints, type PointsReason } from "@/lib/leaderboard";
-import { isSimulationMode, setSimulationMode } from "@/lib/simulationMode";
+import { isSimulationMode, setSimulationMode, isPracticeMode, setPracticeMode } from "@/lib/simulationMode";
 
 const VIP_PROFILE_IDS = new Set([
   "08813d60dccf0067907caf3727077d20", // David
@@ -90,7 +90,7 @@ async function awardMatchPoints(
   reason: PointsReason,
   matchId: string,
 ): Promise<void> {
-  if (isSimulationMode()) return;
+  if (isSimulationMode() || isPracticeMode()) return;
   const players = [winnerPair.player1, winnerPair.player2];
   for (const player of players) {
     let playerId = player.profileId;
@@ -1719,7 +1719,7 @@ export function useGameState(options?: { simulate?: boolean }) {
     }
 
     // Save pairs to history (fire-and-forget, outside state update)
-    if (!isSimulationMode()) {
+    if (!isSimulationMode() && !isPracticeMode()) {
       const historyRows = allPairs.map((p) => ({
         player1_name: p.player1.name,
         player2_name: p.player2.name,
@@ -2044,7 +2044,7 @@ export function useGameState(options?: { simulate?: boolean }) {
         result = { paired: true, partnerName: partner.name, estimatedMinutes };
 
         // Save pair history
-        if (!isSimulationMode()) {
+        if (!isSimulationMode() && !isPracticeMode()) {
           query('INSERT INTO pair_history (player1_name, player2_name) VALUES (?, ?)', [player.name, partner.name]).catch(() => {});
         }
 
@@ -3536,6 +3536,8 @@ export function useGameState(options?: { simulate?: boolean }) {
     waitingPlayers,
     upNextMatches,
     onDeckMatches,
+    practiceMode: isPracticeMode(),
+    togglePracticeMode: () => { setPracticeMode(!isPracticeMode()); },
   };
 }
 
