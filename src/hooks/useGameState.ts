@@ -523,8 +523,11 @@ export function useGameState(options?: { simulate?: boolean }) {
     if (savingRef.current) return;
     savingRef.current = true;
 
+    let retries = 0;
+    const MAX_RETRIES = 5;
+
     try {
-      while (pendingRef.current) {
+      while (pendingRef.current && retries < MAX_RETRIES) {
         const toSave = pendingRef.current;
         pendingRef.current = null;
 
@@ -553,15 +556,17 @@ export function useGameState(options?: { simulate?: boolean }) {
 
         if (!error && data) {
           versionRef.current = nextVersion;
+          retries = 0; // reset on success
           console.log(`✅ [PTO] Save succeeded — now v${nextVersion}`);
           const ts = Date.parse(updatedAt);
           if (Number.isFinite(ts)) lastAppliedUpdatedAtRef.current = Math.max(lastAppliedUpdatedAtRef.current, ts);
           continue;
         }
 
-        // Version conflict — another device wrote first
+        // Version conflict — another device wrote first. Re-queue with fresh version and retry.
         if (!error && !data) {
-          console.warn(`⚠️ [PTO] Version conflict! Expected v${expectedVersion} but DB has moved on. Fetching latest...`);
+          retries++;
+          console.warn(`⚠️ [PTO] Version conflict (attempt ${retries}/${MAX_RETRIES})! Fetching latest version...`);
           const { data: fresh } = await supabase
             .from("game_state")
             .select("state, updated_at, version")
@@ -572,46 +577,47 @@ export function useGameState(options?: { simulate?: boolean }) {
             versionRef.current = freshVersion;
             const freshTs = Date.parse((fresh as any).updated_at);
             if (Number.isFinite(freshTs)) lastAppliedUpdatedAtRef.current = Math.max(lastAppliedUpdatedAtRef.current, freshTs);
-            // Apply remote state since it's newer
-            if (!pendingRef.current) {
-              setState(fresh.state as unknown as GameState);
-              console.log(`🔄 [PTO] Applied remote v${freshVersion} after conflict`);
-            }
           }
+          // Re-queue our local state so the while loop retries with the fresh version
+          if (!pendingRef.current) pendingRef.current = toSave;
+          await new Promise((r) => setTimeout(r, 200));
           continue;
         }
 
-        console.error("❌ [PTO] Failed to save game state:", error);
-
-        // Retry once after a short delay
+        // Real error (network, etc.) — retry once with fresh version
+        retries++;
+        console.error(`❌ [PTO] Save failed (attempt ${retries}/${MAX_RETRIES}):`, error);
         await new Promise((r) => setTimeout(r, 500));
-        const retryUpdatedAt = new Date().toISOString();
-        const { data: retryData, error: retryError } = await supabase
+        // Re-read version in case it changed
+        const { data: freshForRetry } = await supabase
           .from("game_state")
-          .update({
-            state: JSON.parse(JSON.stringify(toSave)),
-            updated_at: retryUpdatedAt,
-            updated_by: DEVICE_ID,
-            version: nextVersion,
-          })
-          .eq("id", ROW_ID)
-          .eq("version", expectedVersion)
           .select("version")
+          .eq("id", ROW_ID)
           .single();
-
-        if (retryError || !retryData) {
-          console.error("❌ [PTO] Retry also failed:", retryError ?? "version conflict");
-          if (!pendingRef.current) pendingRef.current = toSave;
-        } else {
-          versionRef.current = nextVersion;
-          const ts2 = Date.parse(retryUpdatedAt);
-          if (Number.isFinite(ts2)) lastAppliedUpdatedAtRef.current = Math.max(lastAppliedUpdatedAtRef.current, ts2);
+        if (freshForRetry) {
+          versionRef.current = (freshForRetry as any).version as number;
+        }
+        if (!pendingRef.current) pendingRef.current = toSave;
+      }
+      if (retries >= MAX_RETRIES) {
+        console.error(`❌ [PTO] Gave up after ${MAX_RETRIES} retries. Fetching remote state as hard reset.`);
+        const { data: reset } = await supabase
+          .from("game_state")
+          .select("state, updated_at, version")
+          .eq("id", ROW_ID)
+          .single();
+        if (reset) {
+          versionRef.current = (reset as any).version as number;
+          const resetTs = Date.parse((reset as any).updated_at);
+          if (Number.isFinite(resetTs)) lastAppliedUpdatedAtRef.current = Math.max(lastAppliedUpdatedAtRef.current, resetTs);
+          setState(reset.state as unknown as GameState);
+          pendingRef.current = null;
         }
       }
     } finally {
       savingRef.current = false;
       localMutationRef.current = false;
-      console.log(`🔓 [PTO] Save complete — localMutationRef → false immediately (mutation #${mutationCounterRef.current})`);
+      console.log(`🔓 [PTO] Save complete — localMutationRef → false (mutation #${mutationCounterRef.current})`);
     }
   }, []);
 
@@ -629,13 +635,13 @@ export function useGameState(options?: { simulate?: boolean }) {
         queueMicrotask(() => drainSave());
         return next;
       });
-      // Safety net: force-clear localMutationRef after 15s to prevent permanent lockout
+      // Safety net: force-clear localMutationRef after 30s, but only if save isn't in-flight
       setTimeout(() => {
-        if (mutationCounterRef.current === counterSnapshot && localMutationRef.current) {
-          console.warn(`⏰ [PTO] Force-clearing localMutationRef after 15s safety timeout (mutation #${counterSnapshot})`);
+        if (mutationCounterRef.current === counterSnapshot && localMutationRef.current && !savingRef.current) {
+          console.warn(`⏰ [PTO] Force-clearing localMutationRef after 30s safety timeout (mutation #${counterSnapshot})`);
           localMutationRef.current = false;
         }
-      }, 15000);
+      }, 30000);
     },
     [drainSave]
   );
@@ -683,16 +689,19 @@ export function useGameState(options?: { simulate?: boolean }) {
       let updatedMatches = [...s.matches];
       let changed = false;
 
+      // Use completion-order rest gap: players in the last N completed matches are "resting"
+      // where N = number of courts. This prevents back-to-back regardless of match speed.
+      const completedByTime = updatedMatches
+        .filter((m) => m.status === "completed" && m.completedAt)
+        .sort((a, b) => Date.parse(b.completedAt!) - Date.parse(a.completedAt!));
       const recentPlayerIds = new Set<string>();
-      const now = Date.now();
-      for (const m of updatedMatches) {
-        if (m.status === "completed" && m.completedAt && (now - Date.parse(m.completedAt)) < 180000) {
-          getMatchPlayerIds(m).forEach((id) => recentPlayerIds.add(id));
-        }
+      const restWindow = liveCourtCount; // rest for at least 1 round of court completions
+      for (let i = 0; i < Math.min(restWindow, completedByTime.length); i++) {
+        getMatchPlayerIds(completedByTime[i]).forEach((id) => recentPlayerIds.add(id));
       }
 
       for (const court of toFill) {
-        const nextPending = findNextPendingForCourt(updatedMatches, court, liveCourtCount, recentPlayerIds, s.pairs, updatedMatches, true);
+        const nextPending = findNextPendingForCourt(updatedMatches, court, liveCourtCount, recentPlayerIds, s.pairs, updatedMatches, false);
         if (!nextPending) continue;
         const idx = updatedMatches.findIndex((m) => m.id === nextPending.id);
         if (idx === -1) continue;
@@ -1024,7 +1033,7 @@ export function useGameState(options?: { simulate?: boolean }) {
     const courtCount = s.sessionConfig.courtCount || 2;
     const maxGames = totalSlots * courtCount;
     const TARGET_GAMES_PER_PAIR = courtCount === 3 ? 3 : 4;
-    const MAX_GAMES = courtCount === 3 ? 4 : 5;
+    const MAX_GAMES = 4; // Hard cap: no pair plays more than 4 games before playoffs
 
     const baseTierTargets: Record<SkillTier, { vsA: number; vsB: number; vsC: number }> = courtCount === 3
       ? { A: { vsA: 3, vsB: 0, vsC: 0 }, B: { vsA: 0, vsB: 3, vsC: 0 }, C: { vsA: 0, vsB: 0, vsC: 3 } }
@@ -1325,6 +1334,8 @@ export function useGameState(options?: { simulate?: boolean }) {
         let added = 0;
         for (const opp of fallbackOpponents) {
           if (added >= needed) break;
+          // Don't push opponent past MAX_GAMES
+          if ((pairGameCount.get(opp.id) || 0) >= MAX_GAMES) continue;
           const mKey = matchupKey(sp.id, opp.id);
           if (usedMatchups.has(mKey)) continue;
           const isCross = opp.skillLevel !== sp.skillLevel;
@@ -2171,7 +2182,7 @@ export function useGameState(options?: { simulate?: boolean }) {
 
       // Schedule remaining using pickBestCandidate pattern
       const TARGET_GAMES_PER_PAIR = courtCount === 3 ? 3 : 4;
-      const MAX_GAMES = courtCount === 3 ? 4 : 5;
+      const MAX_GAMES = 4; // Hard cap: no pair plays more than 4 games before playoffs
 
       const tierTargets: Record<SkillTier, { vsA: number; vsB: number; vsC: number }> = courtCount === 3
         ? { A: { vsA: 3, vsB: 0, vsC: 0 }, B: { vsA: 0, vsB: 3, vsC: 0 }, C: { vsA: 0, vsB: 0, vsC: 3 } }
@@ -2735,28 +2746,25 @@ export function useGameState(options?: { simulate?: boolean }) {
 
         if (freedCourt) {
           const courtCount = s.sessionConfig.courtCount || 2;
+          // Completion-order rest gap: players in last N completed matches are resting
+          const completedByTime = updatedMatches
+            .filter((m) => m.status === "completed" && m.completedAt)
+            .sort((a, b) => Date.parse(b.completedAt!) - Date.parse(a.completedAt!));
           const recentPlayerIds = new Set<string>();
-          const now = Date.now();
-          for (const m of updatedMatches) {
-            if (m.status === "completed" && m.completedAt && (now - Date.parse(m.completedAt)) < 420000) {
-              getMatchPlayerIds(m).forEach((id) => recentPlayerIds.add(id));
-            }
+          const restWindow = courtCount; // rest for 1 full round of court completions
+          for (let i = 0; i < Math.min(restWindow, completedByTime.length); i++) {
+            getMatchPlayerIds(completedByTime[i]).forEach((id) => recentPlayerIds.add(id));
           }
 
           if (s.sessionConfig.dynamicMode) {
             const TARGET = courtCount === 3 ? 3 : 4;
             const available = getAvailableTeams(updatedPairs, updatedMatches, updatedPairGamesWatched, TARGET);
-            let nextMatch = generateNextMatch(available, freedCourt, courtCount, recentPlayerIds, updatedMatches);
-            // Fallback: if rest-gap blocks everyone, retry without rest-gap restriction
-            if (!nextMatch && available.length >= 2) {
-              console.warn("[PTO] Rest-gap blocked all pairs for court " + freedCourt + ", relaxing rest constraint");
-              nextMatch = generateNextMatch(available, freedCourt, courtCount, new Set(), updatedMatches);
-            }
+            const nextMatch = generateNextMatch(available, freedCourt, courtCount, recentPlayerIds, updatedMatches);
             if (nextMatch) {
               updatedMatches = [...updatedMatches, { ...nextMatch, status: "playing", court: freedCourt, startedAt: new Date().toISOString(), gameNumber: updatedMatches.length + 1 }];
             }
           } else {
-            const nextPending = findNextPendingForCourt(updatedMatches, freedCourt, courtCount, recentPlayerIds, updatedPairs, updatedMatches, true);
+            const nextPending = findNextPendingForCourt(updatedMatches, freedCourt, courtCount, recentPlayerIds, updatedPairs, updatedMatches, false);
             if (nextPending) {
               const idx = updatedMatches.findIndex((m) => m.id === nextPending.id);
               if (idx !== -1) {
