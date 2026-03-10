@@ -201,23 +201,26 @@ function findNextPendingForCourt(
     : (allowRestRelaxation ? restRelaxedCandidates : []);
   if (candidates.length === 0) return undefined;
 
-  // 3. Compute completed game counts for each pair
-  const pairCompletedGames = new Map<string, number>();
+  // 3. Compute total game counts (completed + playing) for each pair
+  const pairTotalGames = new Map<string, number>();
   for (const p of allPairs) {
-    pairCompletedGames.set(p.id, 0);
+    pairTotalGames.set(p.id, 0);
   }
   for (const m of allMatches) {
-    if (m.status !== "completed") continue;
-    pairCompletedGames.set(m.pair1.id, (pairCompletedGames.get(m.pair1.id) || 0) + 1);
-    pairCompletedGames.set(m.pair2.id, (pairCompletedGames.get(m.pair2.id) || 0) + 1);
+    if (m.status !== "completed" && m.status !== "playing") continue;
+    pairTotalGames.set(m.pair1.id, (pairTotalGames.get(m.pair1.id) || 0) + 1);
+    pairTotalGames.set(m.pair2.id, (pairTotalGames.get(m.pair2.id) || 0) + 1);
   }
+
+  // Hard cap: reject any candidate where either pair is at or above 4 total games
+  const HARD_CAP = 4;
 
   // 4. HARD EQUITY GATE: compute minGames across available pairs.
   //    Filter out busy pairs (on court) AND 0-game pairs (late arrivals)
   //    so neither artificially drags the minimum to 0 and deadlocks scheduling.
   const availablePairCounts = allPairs
     .filter((p) => !getPairPlayerIds(p).some((id) => busyPlayerIds.has(id)))
-    .map((p) => pairCompletedGames.get(p.id) || 0);
+    .map((p) => pairTotalGames.get(p.id) || 0);
   const activeCounts = availablePairCounts.filter((c) => c > 0);
   const minGamesAcrossAllPairs = activeCounts.length > 0 ? Math.min(...activeCounts) : 0;
 
@@ -227,8 +230,11 @@ function findNextPendingForCourt(
 
   for (let i = 0; i < candidates.length; i++) {
     const candidate = candidates[i];
-    const pair1Games = pairCompletedGames.get(candidate.pair1.id) || 0;
-    const pair2Games = pairCompletedGames.get(candidate.pair2.id) || 0;
+    const pair1Games = pairTotalGames.get(candidate.pair1.id) || 0;
+    const pair2Games = pairTotalGames.get(candidate.pair2.id) || 0;
+
+    // Hard cap: never schedule a pair past 4 games
+    if (pair1Games >= HARD_CAP || pair2Games >= HARD_CAP) continue;
 
     // Reject only if BOTH pairs are far ahead — allow catch-up matches for underserved pairs.
     // Skip equity gate entirely when no other courts are busy (drain mode) — just finish remaining games.
@@ -242,12 +248,13 @@ function findNextPendingForCourt(
     }
   }
 
-  // If equity gate blocked everything, relax it and try again
+  // If equity gate blocked everything, relax it and try again (but still respect hard cap)
   if (!bestMatch) {
     for (let i = 0; i < candidates.length; i++) {
       const candidate = candidates[i];
-      const pair1Games = pairCompletedGames.get(candidate.pair1.id) || 0;
-      const pair2Games = pairCompletedGames.get(candidate.pair2.id) || 0;
+      const pair1Games = pairTotalGames.get(candidate.pair1.id) || 0;
+      const pair2Games = pairTotalGames.get(candidate.pair2.id) || 0;
+      if (pair1Games >= HARD_CAP || pair2Games >= HARD_CAP) continue;
       const crossPenalty = isCrossCohort(candidate.matchupLabel) ? 100000000 : 0;
       const finalScore = crossPenalty + Math.max(pair1Games, pair2Games) * 1000 + (candidate.gameNumber || i);
       if (finalScore < bestScore) {
@@ -273,24 +280,25 @@ function getAvailableTeams(
     }
   }
 
-  const pairCompletedGames = new Map<string, number>();
-  for (const p of pairs) pairCompletedGames.set(p.id, 0);
+  // Count completed + playing as total games (prevents exceeding cap)
+  const pairTotalGames = new Map<string, number>();
+  for (const p of pairs) pairTotalGames.set(p.id, 0);
   for (const m of matches) {
-    if (m.status !== "completed") continue;
-    pairCompletedGames.set(m.pair1.id, (pairCompletedGames.get(m.pair1.id) || 0) + 1);
-    pairCompletedGames.set(m.pair2.id, (pairCompletedGames.get(m.pair2.id) || 0) + 1);
+    if (m.status !== "completed" && m.status !== "playing") continue;
+    pairTotalGames.set(m.pair1.id, (pairTotalGames.get(m.pair1.id) || 0) + 1);
+    pairTotalGames.set(m.pair2.id, (pairTotalGames.get(m.pair2.id) || 0) + 1);
   }
 
   return pairs
     .filter((pair) => {
       if (getPairPlayerIds(pair).some((id) => busyPlayerIds.has(id))) return false;
-      if ((pairCompletedGames.get(pair.id) || 0) >= targetGames) return false;
+      if ((pairTotalGames.get(pair.id) || 0) >= targetGames) return false;
       return true;
     })
     .sort((a, b) => {
       const watchDiff = (pairGamesWatched[b.id] || 0) - (pairGamesWatched[a.id] || 0);
       if (watchDiff !== 0) return watchDiff;
-      return (pairCompletedGames.get(a.id) || 0) - (pairCompletedGames.get(b.id) || 0);
+      return (pairTotalGames.get(a.id) || 0) - (pairTotalGames.get(b.id) || 0);
     });
 }
 
