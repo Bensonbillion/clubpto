@@ -12,8 +12,8 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const url = Deno.env.get("VITE_TURSO_DATABASE_URL");
-    const authToken = Deno.env.get("VITE_TURSO_AUTH_TOKEN");
+    const url = Deno.env.get("TURSO_DATABASE_URL");
+    const authToken = Deno.env.get("TURSO_AUTH_TOKEN");
 
     if (!url || !authToken) {
       return new Response(
