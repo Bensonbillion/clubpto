@@ -1,5 +1,6 @@
-import { useGameState } from "@/hooks/useGameState";
+import { useGameState, _testExports } from "@/hooks/useGameState";
 import { getHeadToHead } from "@/hooks/useGameState";
+const { computePlayoffSeedings } = _testExports;
 import { Player, Pair, Match, PlayoffMatch, SkillTier } from "@/types/courtManager";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -229,24 +230,27 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
   const allPairStandings = buildAllPairStandings();
 
   const handleGeneratePlayoffSeeds = () => {
-    // Filter out pairs with 0 games played
-    const eligiblePairs = allPairStandings.filter((p) => p.gamesPlayed > 0);
+    // Use the tested pure function: ALL A-tier first, then B-tier fills remaining to 8
+    const computed = computePlayoffSeedings(state.matches, state.pairs);
 
-    // Merit-based seeding: sort by total wins, then win%, then tier, then head-to-head
-    const tierPriority: Record<string, number> = { A: 0, B: 1, C: 2 };
-    const sorted = [...eligiblePairs].sort((a, b) => {
-      if (b.wins !== a.wins) return b.wins - a.wins;
-      if (Math.abs(b.winPct - a.winPct) > 0.001) return b.winPct - a.winPct;
-      const tierDiff = (tierPriority[a.skillLevel] || 2) - (tierPriority[b.skillLevel] || 2);
-      if (tierDiff !== 0) return tierDiff;
-      const h2h = getHeadToHead(a.pair.id, b.pair.id, state.matches);
-      if (h2h !== 0) return -h2h;
-      return 0;
+    // Build PairStanding-compatible objects for tiebreaker annotation
+    const standingsForAnnotation: PairStanding[] = computed.map((s) => {
+      const standing = allPairStandings.find((ps) => ps.pair.id === s.pair.id);
+      return {
+        id: s.pair.id,
+        pair: s.pair,
+        player1Name: s.pair.player1.name,
+        player2Name: s.pair.player2.name,
+        wins: standing?.wins || 0,
+        losses: standing?.losses || 0,
+        gamesPlayed: standing?.gamesPlayed || 0,
+        winPct: s.winPct,
+        skillLevel: s.pair.skillLevel,
+      };
     });
+    const annotated = annotateTiebreakers(standingsForAnnotation, state.matches);
 
-    const top = sorted.slice(0, 8);
-    const annotatedTop = annotateTiebreakers(top, state.matches);
-    const seeds: PlayoffPairSeed[] = annotatedTop.map((ps, i) => ({
+    const seeds: PlayoffPairSeed[] = annotated.map((ps, i) => ({
       seed: i + 1,
       pair: ps.pair,
       winPct: ps.winPct,
@@ -254,7 +258,6 @@ const StatsPlayoffs = ({ gameState }: StatsPlayoffsProps) => {
     }));
 
     setPlayoffSeeds(seeds);
-    // Don't auto-generate bracket — let admin reorder first
   };
 
   const handleConfirmPlayoffBracket = () => {
