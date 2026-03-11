@@ -2995,28 +2995,12 @@ export function useGameState(options?: { simulate?: boolean }) {
         return b.wins - a.wins;
       });
 
-      // Playoff seeding: A-tier pairs first (by win%), then B-tier fills remaining to 8.
-      // Override: if a B pair beat a specific A pair in round-robin AND has >= win%,
-      // the B pair leapfrogs that A pair in seeding.
+      // Playoff seeding: ALL A-tier pairs first (ranked by win%), then
+      // B-tier pairs fill remaining spots to reach 8 (also ranked by win%).
       const aPairsRanked = byTier("A");
       const bPairsRanked = byTier("B");
       const spotsForB = Math.max(0, 8 - aPairsRanked.length);
-      const seeding = [...aPairsRanked]; // start with all A pairs
-      const bCandidates = bPairsRanked.slice(0, spotsForB);
-      for (const bEntry of bCandidates) {
-        let insertIdx = seeding.length; // default: after all current entries
-        // Check each A pair from top to bottom — find highest A pair this B can leapfrog
-        for (let i = 0; i < seeding.length; i++) {
-          if (seeding[i].pair.skillLevel !== "A") continue;
-          const h2h = getHeadToHead(bEntry.pair.id, seeding[i].pair.id, s.matches);
-          // h2h > 0 means B won the head-to-head against this A pair
-          if (h2h > 0 && bEntry.winPct >= seeding[i].winPct) {
-            insertIdx = i; // leapfrog above this A pair
-            break; // take the highest earned position
-          }
-        }
-        seeding.splice(insertIdx, 0, bEntry);
-      }
+      const seeding = [...aPairsRanked, ...bPairsRanked.slice(0, spotsForB)];
       const top = seeding.slice(0, 8);
 
       if (top.length < 2) return { ...s, playoffsStarted: true };
