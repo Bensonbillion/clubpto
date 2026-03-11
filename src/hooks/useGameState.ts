@@ -245,6 +245,55 @@ function canStartMatch(match: Match, allMatches: Match[]): boolean {
   return true;
 }
 
+/**
+ * Pure function: compute playoff seedings from completed matches.
+ * Returns the top 8 pairs: ALL A-tier first (ranked by win%), then B-tier fills remaining spots.
+ */
+function computePlayoffSeedings(
+  matches: Match[],
+  pairs: Pair[],
+): { seed: number; pair: Pair; winPct: number }[] {
+  // Build pair standings from completed matches — keyed by PAIR ID (not player IDs)
+  const pairStandings = new Map<string, { pair: Pair; wins: number; losses: number; gamesPlayed: number; winPct: number }>();
+
+  // Initialize from master pairs list so every pair is represented
+  for (const p of pairs) {
+    pairStandings.set(p.id, { pair: p, wins: 0, losses: 0, gamesPlayed: 0, winPct: 0 });
+  }
+
+  for (const match of matches) {
+    if (match.status !== "completed" || !match.winner || !match.loser) continue;
+    const winId = match.winner.id;
+    const loseId = match.loser.id;
+    const ws = pairStandings.get(winId);
+    if (ws) { ws.wins++; ws.gamesPlayed++; ws.winPct = ws.wins / ws.gamesPlayed; }
+    const ls = pairStandings.get(loseId);
+    if (ls) { ls.losses++; ls.gamesPlayed++; ls.winPct = ls.wins / ls.gamesPlayed; }
+  }
+
+  const allStandings = Array.from(pairStandings.values());
+
+  const byTier = (tier: SkillTier) =>
+    allStandings
+      .filter((p) => p.pair.skillLevel === tier && p.gamesPlayed > 0)
+      .sort((a, b) => {
+        if (b.winPct !== a.winPct) return b.winPct - a.winPct;
+        const h2h = getHeadToHead(a.pair.id, b.pair.id, matches);
+        if (h2h !== 0) return -h2h;
+        if (b.gamesPlayed !== a.gamesPlayed) return b.gamesPlayed - a.gamesPlayed;
+        return b.wins - a.wins;
+      });
+
+  // ALL A-tier first, then B-tier fills remaining spots to reach 8
+  const aPairsRanked = byTier("A");
+  const bPairsRanked = byTier("B");
+  const spotsForB = Math.max(0, 8 - aPairsRanked.length);
+  const seeding = [...aPairsRanked, ...bPairsRanked.slice(0, spotsForB)];
+  const top = seeding.slice(0, 8);
+
+  return top.map((ps, i) => ({ seed: i + 1, pair: ps.pair, winPct: ps.winPct }));
+}
+
 /** Find the next pending match eligible for a freed court, enforcing:
  *  - No player currently on another court
  *  - Rest gap: no player who just completed a match (recentPlayerIds)
@@ -2965,48 +3014,9 @@ export function useGameState(options?: { simulate?: boolean }) {
 
   const startPlayoffs = useCallback(() => {
     updateState((s) => {
-      // Build pair standings from completed matches
-      const pairMap = new Map<string, { pair: Pair; wins: number; losses: number; gamesPlayed: number; winPct: number }>();
-      for (const match of s.matches.filter((m) => m.status === "completed")) {
-        const processPair = (pair: Pair, won: boolean) => {
-          const key = [pair.player1.id, pair.player2.id].sort().join("|||");
-          if (!pairMap.has(key)) {
-            pairMap.set(key, { pair, wins: 0, losses: 0, gamesPlayed: 0, winPct: 0 });
-          }
-          const st = pairMap.get(key)!;
-          st.gamesPlayed++;
-          if (won) st.wins++;
-          else st.losses++;
-          st.winPct = st.gamesPlayed > 0 ? st.wins / st.gamesPlayed : 0;
-        };
-        if (match.winner && match.loser) {
-          processPair(match.winner, true);
-          processPair(match.loser, false);
-        }
-      }
+      const seeds = computePlayoffSeedings(s.matches, s.pairs);
 
-      const allStandings = Array.from(pairMap.entries()).map(([key, v]) => ({ key, ...v }));
-      const byTier = (tier: SkillTier) => allStandings.filter((p) => p.pair.skillLevel === tier).sort((a, b) => {
-        if (b.winPct !== a.winPct) return b.winPct - a.winPct;
-        // Head-to-head tiebreaker
-        const h2h = getHeadToHead(a.pair.id, b.pair.id, s.matches);
-        if (h2h !== 0) return -h2h; // positive means a wins, so a should rank higher (lower index)
-        if (b.gamesPlayed !== a.gamesPlayed) return b.gamesPlayed - a.gamesPlayed;
-        return b.wins - a.wins;
-      });
-
-      // Playoff seeding: ALL A-tier pairs first (ranked by win%), then
-      // B-tier pairs fill remaining spots to reach 8 (also ranked by win%).
-      const aPairsRanked = byTier("A");
-      const bPairsRanked = byTier("B");
-      const spotsForB = Math.max(0, 8 - aPairsRanked.length);
-      const seeding = [...aPairsRanked, ...bPairsRanked.slice(0, spotsForB)];
-      const top = seeding.slice(0, 8);
-
-      if (top.length < 2) return { ...s, playoffsStarted: true };
-
-      // Generate bracket
-      const seeds = top.map((ps, i) => ({ seed: i + 1, pair: ps.pair, winPct: ps.winPct }));
+      if (seeds.length < 2) return { ...s, playoffsStarted: true };
       const playoffMatches: PlayoffMatch[] = [];
       const numMatches = Math.floor(seeds.length / 2);
       for (let i = 0; i < numMatches; i++) {
@@ -3692,4 +3702,5 @@ export const _testExports = {
   syncPairsToMatches,
   canStartMatch,
   mergeStates,
+  computePlayoffSeedings,
 };

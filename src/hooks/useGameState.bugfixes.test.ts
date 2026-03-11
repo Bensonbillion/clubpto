@@ -12,6 +12,7 @@ const {
   syncPairsToMatches,
   canStartMatch,
   mergeStates,
+  computePlayoffSeedings,
 } = _testExports;
 
 // ─── Helpers ──────────────────────────────────────────────
@@ -988,5 +989,160 @@ describe("Integration: Match generation continuity", () => {
     expect(match).toBeDefined();
     const tiers = [match!.pair1.skillLevel, match!.pair2.skillLevel].sort().join("");
     expect(tiers).not.toBe("AC");
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// TEST SUITE 8: Playoff Seedings — A-tier first, then B fills to 8
+// ═══════════════════════════════════════════════════════════
+
+describe("Playoff Seedings: computePlayoffSeedings", () => {
+  it("seeds all A-tier pairs before any B-tier pairs", () => {
+    // 4 A pairs, 6 B pairs — A should be seeds 1-4, B fills 5-8
+    const aPairs = Array.from({ length: 4 }, (_, i) => makePair(`A${i + 1}a`, `A${i + 1}b`, "A"));
+    const bPairs = Array.from({ length: 6 }, (_, i) => makePair(`B${i + 1}a`, `B${i + 1}b`, "B"));
+    const allPairs = [...aPairs, ...bPairs];
+
+    // Give each pair some completed matches
+    const matches: Match[] = [];
+    // A pairs: varying win rates
+    matches.push(makeMatch(aPairs[0], aPairs[1], { status: "completed", winner: aPairs[0], loser: aPairs[1] }));
+    matches.push(makeMatch(aPairs[0], aPairs[2], { status: "completed", winner: aPairs[0], loser: aPairs[2] }));
+    matches.push(makeMatch(aPairs[1], aPairs[3], { status: "completed", winner: aPairs[1], loser: aPairs[3] }));
+    matches.push(makeMatch(aPairs[2], aPairs[3], { status: "completed", winner: aPairs[2], loser: aPairs[3] }));
+    // B pairs: some with high win rates
+    matches.push(makeMatch(bPairs[0], bPairs[1], { status: "completed", winner: bPairs[0], loser: bPairs[1] }));
+    matches.push(makeMatch(bPairs[0], bPairs[2], { status: "completed", winner: bPairs[0], loser: bPairs[2] }));
+    matches.push(makeMatch(bPairs[0], bPairs[3], { status: "completed", winner: bPairs[0], loser: bPairs[3] }));
+    matches.push(makeMatch(bPairs[1], bPairs[4], { status: "completed", winner: bPairs[1], loser: bPairs[4] }));
+    matches.push(makeMatch(bPairs[2], bPairs[5], { status: "completed", winner: bPairs[2], loser: bPairs[5] }));
+    matches.push(makeMatch(bPairs[3], bPairs[4], { status: "completed", winner: bPairs[3], loser: bPairs[4] }));
+
+    const seeds = computePlayoffSeedings(matches, allPairs);
+
+    expect(seeds.length).toBe(8);
+
+    // First 4 seeds must ALL be A-tier
+    for (let i = 0; i < 4; i++) {
+      expect(seeds[i].pair.skillLevel, `Seed ${i + 1} should be A-tier but got ${seeds[i].pair.skillLevel}`).toBe("A");
+    }
+    // Seeds 5-8 must ALL be B-tier
+    for (let i = 4; i < 8; i++) {
+      expect(seeds[i].pair.skillLevel, `Seed ${i + 1} should be B-tier but got ${seeds[i].pair.skillLevel}`).toBe("B");
+    }
+  });
+
+  it("B pair with 100% win rate does NOT leapfrog any A pair", () => {
+    const aPairs = Array.from({ length: 3 }, (_, i) => makePair(`A${i + 1}a`, `A${i + 1}b`, "A"));
+    const bPairs = Array.from({ length: 6 }, (_, i) => makePair(`B${i + 1}a`, `B${i + 1}b`, "B"));
+    const allPairs = [...aPairs, ...bPairs];
+
+    const matches: Match[] = [];
+    // A pairs all lose (0% win rate)
+    matches.push(makeMatch(aPairs[0], aPairs[1], { status: "completed", winner: aPairs[0], loser: aPairs[1] }));
+    matches.push(makeMatch(aPairs[1], aPairs[2], { status: "completed", winner: aPairs[2], loser: aPairs[1] }));
+    // B pair 0 wins all 3 games (100% win rate)
+    matches.push(makeMatch(bPairs[0], bPairs[1], { status: "completed", winner: bPairs[0], loser: bPairs[1] }));
+    matches.push(makeMatch(bPairs[0], bPairs[2], { status: "completed", winner: bPairs[0], loser: bPairs[2] }));
+    matches.push(makeMatch(bPairs[0], bPairs[3], { status: "completed", winner: bPairs[0], loser: bPairs[3] }));
+    // More B matches
+    matches.push(makeMatch(bPairs[1], bPairs[4], { status: "completed", winner: bPairs[4], loser: bPairs[1] }));
+    matches.push(makeMatch(bPairs[2], bPairs[5], { status: "completed", winner: bPairs[5], loser: bPairs[2] }));
+    matches.push(makeMatch(bPairs[3], bPairs[4], { status: "completed", winner: bPairs[3], loser: bPairs[4] }));
+
+    const seeds = computePlayoffSeedings(matches, allPairs);
+
+    // A pairs must be seeds 1-3, even with worse records
+    for (let i = 0; i < 3; i++) {
+      expect(seeds[i].pair.skillLevel, `Seed ${i + 1} should be A-tier`).toBe("A");
+    }
+    // B pairs fill 4-8
+    for (let i = 3; i < seeds.length; i++) {
+      expect(seeds[i].pair.skillLevel, `Seed ${i + 1} should be B-tier`).toBe("B");
+    }
+  });
+
+  it("C-tier pairs are excluded from playoffs", () => {
+    const aPairs = Array.from({ length: 2 }, (_, i) => makePair(`A${i + 1}a`, `A${i + 1}b`, "A"));
+    const bPairs = Array.from({ length: 4 }, (_, i) => makePair(`B${i + 1}a`, `B${i + 1}b`, "B"));
+    const cPairs = Array.from({ length: 4 }, (_, i) => makePair(`C${i + 1}a`, `C${i + 1}b`, "C"));
+    const allPairs = [...aPairs, ...bPairs, ...cPairs];
+
+    const matches: Match[] = [];
+    matches.push(makeMatch(aPairs[0], aPairs[1], { status: "completed", winner: aPairs[0], loser: aPairs[1] }));
+    for (let i = 0; i < bPairs.length - 1; i++) {
+      matches.push(makeMatch(bPairs[i], bPairs[i + 1], { status: "completed", winner: bPairs[i], loser: bPairs[i + 1] }));
+    }
+    // C pairs with great records — should still be excluded
+    for (let i = 0; i < cPairs.length - 1; i++) {
+      matches.push(makeMatch(cPairs[i], cPairs[i + 1], { status: "completed", winner: cPairs[i], loser: cPairs[i + 1] }));
+    }
+
+    const seeds = computePlayoffSeedings(matches, allPairs);
+
+    for (const s of seeds) {
+      expect(s.pair.skillLevel, `${s.pair.player1.name} is C-tier and should not be in playoffs`).not.toBe("C");
+    }
+  });
+
+  it("A-tier pairs are ranked by win percentage", () => {
+    const a1 = makePair("TopA1", "TopA2", "A");
+    const a2 = makePair("MidA1", "MidA2", "A");
+    const a3 = makePair("BotA1", "BotA2", "A");
+    const bFiller = Array.from({ length: 5 }, (_, i) => makePair(`BF${i + 1}a`, `BF${i + 1}b`, "B"));
+    const allPairs = [a1, a2, a3, ...bFiller];
+
+    const matches: Match[] = [];
+    // a1: 2-0 (100%)
+    matches.push(makeMatch(a1, a2, { status: "completed", winner: a1, loser: a2 }));
+    matches.push(makeMatch(a1, a3, { status: "completed", winner: a1, loser: a3 }));
+    // a2: 1-1 (50%)
+    matches.push(makeMatch(a2, a3, { status: "completed", winner: a2, loser: a3 }));
+    // a3: 0-2 (0%)
+    // B fillers play each other
+    for (let i = 0; i < bFiller.length - 1; i++) {
+      matches.push(makeMatch(bFiller[i], bFiller[i + 1], { status: "completed", winner: bFiller[i], loser: bFiller[i + 1] }));
+    }
+
+    const seeds = computePlayoffSeedings(matches, allPairs);
+
+    expect(seeds[0].pair.id).toBe(a1.id); // 100% win rate
+    expect(seeds[1].pair.id).toBe(a2.id); // 50% win rate
+    expect(seeds[2].pair.id).toBe(a3.id); // 0% win rate
+  });
+
+  it("works with fewer than 8 total pairs", () => {
+    const a1 = makePair("A1a", "A1b", "A");
+    const a2 = makePair("A2a", "A2b", "A");
+    const b1 = makePair("B1a", "B1b", "B");
+    const allPairs = [a1, a2, b1];
+
+    const matches: Match[] = [
+      makeMatch(a1, a2, { status: "completed", winner: a1, loser: a2 }),
+      makeMatch(b1, a1, { status: "completed", winner: b1, loser: a1 }),
+    ];
+
+    const seeds = computePlayoffSeedings(matches, allPairs);
+    expect(seeds.length).toBe(3);
+    expect(seeds[0].pair.skillLevel).toBe("A");
+    expect(seeds[1].pair.skillLevel).toBe("A");
+    expect(seeds[2].pair.skillLevel).toBe("B");
+  });
+
+  it("only includes pairs that played at least 1 game", () => {
+    const a1 = makePair("A1a", "A1b", "A");
+    const a2 = makePair("A2a", "A2b", "A");
+    const aNoGames = makePair("ANoGame1", "ANoGame2", "A"); // never played
+    const b1 = makePair("B1a", "B1b", "B");
+    const allPairs = [a1, a2, aNoGames, b1];
+
+    const matches: Match[] = [
+      makeMatch(a1, a2, { status: "completed", winner: a1, loser: a2 }),
+      makeMatch(b1, a1, { status: "completed", winner: b1, loser: a1 }),
+    ];
+
+    const seeds = computePlayoffSeedings(matches, allPairs);
+    const pairIds = seeds.map(s => s.pair.id);
+    expect(pairIds).not.toContain(aNoGames.id);
   });
 });
