@@ -11,6 +11,7 @@ const {
   getMatchPlayerIds,
   syncPairsToMatches,
   canStartMatch,
+  mergeStates,
 } = _testExports;
 
 // ─── Helpers ──────────────────────────────────────────────
@@ -331,6 +332,136 @@ describe("Bug Fix: canStartMatch universal guard", () => {
     // p1 has 2 completed, 3 pending = 2 counted
     const newMatch = makeMatch(p1, p3);
     expect(canStartMatch(newMatch, matches)).toBe(true);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// TEST SUITE 2.6: mergeStates — Multi-Device Conflict Resolution
+// ═══════════════════════════════════════════════════════════
+
+describe("Bug Fix: mergeStates preserves completed matches on conflict", () => {
+  // Import DEFAULT_STATE for building test GameState objects
+  const baseState = (): any => ({
+    sessionConfig: { startTime: "20:00", durationMinutes: 85, checkInLocked: false, courtCount: 2 },
+    roster: [],
+    pairs: [],
+    matches: [],
+    gameHistory: [],
+    sessionStarted: true,
+    playoffsStarted: false,
+    totalScheduledGames: 0,
+    playoffMatches: [],
+    pairGamesWatched: {},
+  });
+
+  it("preserves completed matches from local state when remote has them as pending", () => {
+    const p1 = makePair("A1", "A2");
+    const p2 = makePair("B1", "B2");
+    const p3 = makePair("C1", "C2");
+
+    const m1 = makeMatch(p1, p2, { status: "completed", completedAt: "2026-01-01T20:07:00Z", winner: p1, loser: p2 });
+    const m2 = makeMatch(p1, p3, { status: "completed", completedAt: "2026-01-01T20:14:00Z", winner: p1, loser: p3 });
+    const m3 = makeMatch(p2, p3, { status: "pending" });
+
+    // Local: m1 and m2 completed
+    const local = { ...baseState(), pairs: [p1, p2, p3], matches: [m1, m2, m3] };
+
+    // Remote: only m1 completed (m2 still pending — stale)
+    const m2Pending = { ...m2, status: "pending" as const, completedAt: undefined, winner: undefined, loser: undefined };
+    const remote = { ...baseState(), pairs: [p1, p2, p3], matches: [m1, m2Pending, m3] };
+
+    const merged = mergeStates(local, remote);
+
+    // m2 should be completed in merged state (local had it completed)
+    const mergedM2 = merged.matches.find((m: any) => m.id === m2.id);
+    expect(mergedM2?.status).toBe("completed");
+    expect(mergedM2?.winner?.id).toBe(p1.id);
+  });
+
+  it("preserves completed matches from remote state when local has them as pending", () => {
+    const p1 = makePair("A1", "A2");
+    const p2 = makePair("B1", "B2");
+
+    const m1Completed = makeMatch(p1, p2, { status: "completed", completedAt: "2026-01-01T20:07:00Z", winner: p1, loser: p2 });
+    const m1Pending = { ...m1Completed, status: "pending" as const, completedAt: undefined, winner: undefined, loser: undefined };
+
+    const local = { ...baseState(), pairs: [p1, p2], matches: [m1Pending] };
+    const remote = { ...baseState(), pairs: [p1, p2], matches: [m1Completed] };
+
+    const merged = mergeStates(local, remote);
+    expect(merged.matches[0].status).toBe("completed");
+  });
+
+  it("includes dynamically generated matches from local that are missing in remote", () => {
+    const p1 = makePair("A1", "A2");
+    const p2 = makePair("B1", "B2");
+    const p3 = makePair("C1", "C2");
+
+    const m1 = makeMatch(p1, p2, { status: "completed" });
+    const mDynamic = makeMatch(p1, p3, { status: "playing", court: 1 });
+
+    const local = { ...baseState(), pairs: [p1, p2, p3], matches: [m1, mDynamic] };
+    const remote = { ...baseState(), pairs: [p1, p2, p3], matches: [m1] }; // doesn't have mDynamic
+
+    const merged = mergeStates(local, remote);
+    expect(merged.matches).toHaveLength(2);
+    const dynamic = merged.matches.find((m: any) => m.id === mDynamic.id);
+    expect(dynamic?.status).toBe("playing");
+  });
+
+  it("merges game history from both states without duplicates", () => {
+    const p1 = makePair("A1", "A2");
+    const p2 = makePair("B1", "B2");
+
+    const h1 = { id: "h1", timestamp: "2026-01-01T20:07:00Z", court: 1, winnerPairId: p1.id, loserPairId: p2.id, winnerNames: "A1 & A2", loserNames: "B1 & B2" };
+    const h2 = { id: "h2", timestamp: "2026-01-01T20:14:00Z", court: 1, winnerPairId: p2.id, loserPairId: p1.id, winnerNames: "B1 & B2", loserNames: "A1 & A2" };
+
+    const local = { ...baseState(), gameHistory: [h1, h2] };
+    const remote = { ...baseState(), gameHistory: [h1] }; // missing h2
+
+    const merged = mergeStates(local, remote);
+    expect(merged.gameHistory).toHaveLength(2);
+  });
+
+  it("prevents game count regression — pair at 4 stays at 4 after merge", () => {
+    const p1 = makePair("A1", "A2");
+    const p2 = makePair("B1", "B2");
+    const p3 = makePair("C1", "C2");
+    const p4 = makePair("D1", "D2");
+    const p5 = makePair("E1", "E2");
+    const allPairs = [p1, p2, p3, p4, p5];
+
+    // Local: p1 completed 4 matches
+    const localMatches = [
+      makeMatch(p1, p2, { status: "completed" }),
+      makeMatch(p1, p3, { status: "completed" }),
+      makeMatch(p1, p4, { status: "completed" }),
+      makeMatch(p1, p5, { status: "completed" }),
+      makeMatch(p2, p3, { status: "pending" }),
+    ];
+
+    // Remote: p1 completed only 3 (stale — missing the p1 vs p5 completion)
+    const m4Pending = { ...localMatches[3], status: "pending" as const, completedAt: undefined, winner: undefined, loser: undefined };
+    const remoteMatches = [
+      localMatches[0], localMatches[1], localMatches[2], m4Pending, localMatches[4],
+    ];
+
+    const local = { ...baseState(), pairs: allPairs, matches: localMatches };
+    const remote = { ...baseState(), pairs: allPairs, matches: remoteMatches };
+
+    const merged = mergeStates(local, remote);
+
+    // Count p1's games in merged state
+    let p1Games = 0;
+    for (const m of merged.matches) {
+      if (m.status !== "completed" && m.status !== "playing") continue;
+      if (m.pair1.id === p1.id || m.pair2.id === p1.id) p1Games++;
+    }
+    expect(p1Games).toBe(4);
+
+    // canStartMatch should block any new match for p1
+    const newMatch = makeMatch(p1, p2);
+    expect(canStartMatch(newMatch, merged.matches)).toBe(false);
   });
 });
 

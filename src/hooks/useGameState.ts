@@ -145,6 +145,89 @@ function syncPairsToMatches(pairs: Pair[], matches: Match[]): Match[] {
   });
 }
 
+/**
+ * Merge local and remote states on version conflict.
+ * Key rule: match completions are IRREVERSIBLE — if a match is "completed"
+ * in either state, it stays completed in the merged result.
+ * Status ordering: completed > playing > pending.
+ * This prevents multi-device sync from "un-completing" matches and allowing
+ * pairs to exceed the game cap.
+ */
+function mergeStates(local: GameState, remote: GameState): GameState {
+  // Build a map of match statuses from both states
+  const localMatchMap = new Map(local.matches.map(m => [m.id, m]));
+  const remoteMatchMap = new Map(remote.matches.map(m => [m.id, m]));
+
+  const statusRank = (s: string) => s === "completed" ? 3 : s === "playing" ? 2 : 1;
+
+  // Start from remote state (authoritative) and merge in local completions
+  const mergedMatches = remote.matches.map(rm => {
+    const lm = localMatchMap.get(rm.id);
+    if (!lm) return rm;
+    // If local match is more advanced, use local data
+    if (statusRank(lm.status) > statusRank(rm.status)) {
+      return lm;
+    }
+    return rm;
+  });
+
+  // Add any matches that exist in local but not in remote (e.g., dynamically generated)
+  for (const [id, lm] of localMatchMap) {
+    if (!remoteMatchMap.has(id)) {
+      mergedMatches.push(lm);
+    }
+  }
+
+  // Merge roster: prefer higher gamesPlayed/wins/losses from either state
+  const remoteRosterMap = new Map(remote.roster.map(p => [p.id, p]));
+  const mergedRoster = remote.roster.map(rp => {
+    const lp = local.roster.find(p => p.id === rp.id);
+    if (!lp) return rp;
+    return {
+      ...rp,
+      wins: Math.max(rp.wins, lp.wins),
+      losses: Math.max(rp.losses, lp.losses),
+      gamesPlayed: Math.max(rp.gamesPlayed, lp.gamesPlayed),
+      checkedIn: rp.checkedIn || lp.checkedIn,
+      checkInTime: rp.checkInTime || lp.checkInTime,
+    };
+  });
+
+  // Merge game history: union of both (deduplicated by id)
+  const historyIds = new Set(remote.gameHistory.map(h => h.id));
+  const mergedHistory = [
+    ...remote.gameHistory,
+    ...local.gameHistory.filter(h => !historyIds.has(h.id)),
+  ];
+
+  // Merge pairs: prefer remote, but add any new pairs from local
+  const remotePairIds = new Set(remote.pairs.map(p => p.id));
+  const mergedPairs = [
+    ...remote.pairs.map(rp => {
+      const lp = local.pairs.find(p => p.id === rp.id);
+      if (!lp) return rp;
+      return { ...rp, wins: Math.max(rp.wins, lp.wins), losses: Math.max(rp.losses, lp.losses) };
+    }),
+    ...local.pairs.filter(p => !remotePairIds.has(p.id)),
+  ];
+
+  // Merge pairGamesWatched: use max from either
+  const mergedWatched: Record<string, number> = { ...(remote.pairGamesWatched || {}) };
+  for (const [k, v] of Object.entries(local.pairGamesWatched || {})) {
+    mergedWatched[k] = Math.max(mergedWatched[k] || 0, v);
+  }
+
+  return {
+    ...remote,
+    roster: mergedRoster,
+    pairs: mergedPairs,
+    matches: mergedMatches,
+    gameHistory: mergedHistory,
+    pairGamesWatched: mergedWatched,
+    totalScheduledGames: mergedMatches.length,
+  };
+}
+
 /** Universal guard: returns true if BOTH pairs in the match are under the 4-game hard cap */
 function canStartMatch(match: Match, allMatches: Match[]): boolean {
   const HARD_CAP = 4;
@@ -602,9 +685,25 @@ export function useGameState(options?: { simulate?: boolean }) {
             versionRef.current = freshVersion;
             const freshTs = Date.parse((fresh as any).updated_at);
             if (Number.isFinite(freshTs)) lastAppliedUpdatedAtRef.current = Math.max(lastAppliedUpdatedAtRef.current, freshTs);
+            // MERGE local and remote states — prevents completed matches from reverting
+            const remoteState = (fresh as any).state as GameState;
+            if (remoteState) {
+              const merged = mergeStates(toSave, remoteState);
+              console.log(`🔀 [PTO] Merged local+remote state on conflict`, {
+                localCompleted: toSave.matches?.filter((m: any) => m.status === "completed").length,
+                remoteCompleted: remoteState.matches?.filter((m: any) => m.status === "completed").length,
+                mergedCompleted: merged.matches?.filter((m: any) => m.status === "completed").length,
+              });
+              if (!pendingRef.current) pendingRef.current = merged;
+              // Also update local React state to reflect the merge
+              setState(merged);
+            } else {
+              if (!pendingRef.current) pendingRef.current = toSave;
+            }
+          } else {
+            // Couldn't fetch fresh state — re-queue local as fallback
+            if (!pendingRef.current) pendingRef.current = toSave;
           }
-          // Re-queue our local state so the while loop retries with the fresh version
-          if (!pendingRef.current) pendingRef.current = toSave;
           await new Promise((r) => setTimeout(r, 200));
           continue;
         }
@@ -3608,4 +3707,5 @@ export const _testExports = {
   generateId,
   syncPairsToMatches,
   canStartMatch,
+  mergeStates,
 };
