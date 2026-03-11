@@ -1,5 +1,11 @@
 # Club PTO — Premium Padel Community Website
 
+## Bug Fix Workflow
+When a bug is reported, do NOT start by trying to fix it. Instead:
+1. Write a test that reproduces the bug (test should fail)
+2. Use subagents to implement the fix
+3. Prove the fix by showing the test now passes
+
 ## Project Overview
 Community-first padel league in Toronto. Rebuilding PUBLIC site only (/, /about, /book, /faq, /membership, /events, /community, /contact). Premium aesthetic inspired by Soho House + Padel Haus NYC. Dark theme, warm tones, editorial feel.
 

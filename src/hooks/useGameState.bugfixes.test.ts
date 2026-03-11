@@ -10,6 +10,7 @@ const {
   getPairPlayerIds,
   getMatchPlayerIds,
   syncPairsToMatches,
+  canStartMatch,
 } = _testExports;
 
 // ─── Helpers ──────────────────────────────────────────────
@@ -260,6 +261,80 @@ describe("Bug Fix: Late arrival back-to-back prevention", () => {
 });
 
 // ═══════════════════════════════════════════════════════════
+// TEST SUITE 2.5: canStartMatch Universal Guard
+// ═══════════════════════════════════════════════════════════
+
+describe("Bug Fix: canStartMatch universal guard", () => {
+  it("blocks a match when pair1 is at 4 completed games", () => {
+    const p1 = makePair("A1", "A2");
+    const p2 = makePair("B1", "B2");
+    const p3 = makePair("C1", "C2");
+    const p4 = makePair("D1", "D2");
+    const p5 = makePair("E1", "E2");
+
+    const matches: Match[] = [
+      makeMatch(p1, p2, { status: "completed" }),
+      makeMatch(p1, p3, { status: "completed" }),
+      makeMatch(p1, p4, { status: "completed" }),
+      makeMatch(p1, p5, { status: "completed" }),
+    ];
+
+    const newMatch = makeMatch(p1, p2);
+    expect(canStartMatch(newMatch, matches)).toBe(false);
+  });
+
+  it("blocks a match when pair2 is at 4 games (3 completed + 1 playing)", () => {
+    const p1 = makePair("A1", "A2");
+    const p2 = makePair("B1", "B2");
+    const p3 = makePair("C1", "C2");
+    const p4 = makePair("D1", "D2");
+    const p5 = makePair("E1", "E2");
+
+    const matches: Match[] = [
+      makeMatch(p2, p3, { status: "completed" }),
+      makeMatch(p2, p4, { status: "completed" }),
+      makeMatch(p2, p5, { status: "completed" }),
+      makeMatch(p2, p1, { status: "playing", court: 1 }),
+    ];
+
+    const newMatch = makeMatch(p3, p2);
+    expect(canStartMatch(newMatch, matches)).toBe(false);
+  });
+
+  it("allows a match when both pairs are under 4 games", () => {
+    const p1 = makePair("A1", "A2");
+    const p2 = makePair("B1", "B2");
+    const p3 = makePair("C1", "C2");
+
+    const matches: Match[] = [
+      makeMatch(p1, p3, { status: "completed" }),
+      makeMatch(p2, p3, { status: "completed" }),
+    ];
+
+    const newMatch = makeMatch(p1, p2);
+    expect(canStartMatch(newMatch, matches)).toBe(true);
+  });
+
+  it("ignores pending matches in the count", () => {
+    const p1 = makePair("A1", "A2");
+    const p2 = makePair("B1", "B2");
+    const p3 = makePair("C1", "C2");
+
+    const matches: Match[] = [
+      makeMatch(p1, p2, { status: "completed" }),
+      makeMatch(p1, p3, { status: "completed" }),
+      makeMatch(p1, p2, { status: "pending" }),
+      makeMatch(p1, p3, { status: "pending" }),
+      makeMatch(p1, p2, { status: "pending" }),
+    ];
+
+    // p1 has 2 completed, 3 pending = 2 counted
+    const newMatch = makeMatch(p1, p3);
+    expect(canStartMatch(newMatch, matches)).toBe(true);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
 // TEST SUITE 3: Ghost Player Removal
 // ═══════════════════════════════════════════════════════════
 
@@ -387,7 +462,316 @@ describe("Bug Fix: Immutable state updates", () => {
 });
 
 // ═══════════════════════════════════════════════════════════
-// TEST SUITE 5: Full Session Simulation — Match Continuity
+// TEST SUITE 5: Hard Cap — No Pair Plays More Than 4 Games
+// ═══════════════════════════════════════════════════════════
+
+describe("Bug Fix: Teams must never play more than 4 games", () => {
+  /**
+   * Helper: simulate a full session in dynamic mode.
+   * Complete matches one at a time, letting getAvailableTeams + generateNextMatch
+   * pick the next match (like completeMatch does in dynamic mode).
+   */
+  function simulateDynamicSession(
+    pairs: Pair[],
+    courtCount: 2 | 3,
+    target: number,
+  ): { pairGameCounts: Map<string, number>; totalMatches: number } {
+    const pairGameCounts = new Map<string, number>();
+    pairs.forEach((p) => pairGameCounts.set(p.id, 0));
+
+    const pairGamesWatched: Record<string, number> = {};
+    pairs.forEach((p) => { pairGamesWatched[p.id] = 0; });
+
+    let allMatches: Match[] = [];
+    let iterations = 0;
+    const MAX_ITERATIONS = 500;
+
+    // Start initial matches on each court
+    for (let court = 1; court <= courtCount; court++) {
+      const available = getAvailableTeams(pairs, allMatches, pairGamesWatched, target);
+      const match = generateNextMatch(available, court, courtCount, new Set(), allMatches);
+      if (match) {
+        allMatches.push({
+          ...match,
+          status: "playing",
+          court,
+          startedAt: new Date().toISOString(),
+        });
+      }
+    }
+
+    // Complete matches round-robin style until no more can be generated
+    while (iterations < MAX_ITERATIONS) {
+      iterations++;
+      const playingMatch = allMatches.find((m) => m.status === "playing");
+      if (!playingMatch) break;
+
+      // Complete the match
+      const completedIdx = allMatches.indexOf(playingMatch);
+      allMatches[completedIdx] = {
+        ...playingMatch,
+        status: "completed",
+        completedAt: new Date().toISOString(),
+        winner: playingMatch.pair1,
+        loser: playingMatch.pair2,
+      };
+
+      // Update game counts
+      pairGameCounts.set(
+        playingMatch.pair1.id,
+        (pairGameCounts.get(playingMatch.pair1.id) || 0) + 1,
+      );
+      pairGameCounts.set(
+        playingMatch.pair2.id,
+        (pairGameCounts.get(playingMatch.pair2.id) || 0) + 1,
+      );
+
+      // Update watch counts
+      const playedIds = new Set([playingMatch.pair1.id, playingMatch.pair2.id]);
+      for (const pair of pairs) {
+        if (playedIds.has(pair.id)) {
+          pairGamesWatched[pair.id] = 0;
+        } else {
+          pairGamesWatched[pair.id] = (pairGamesWatched[pair.id] || 0) + 1;
+        }
+      }
+
+      // Generate next match for the freed court (like completeMatch dynamic mode)
+      const freedCourt = playingMatch.court!;
+      const recentPlayerIds = new Set<string>();
+      // Completion-order rest gap: last N completed matches (N = courtCount)
+      const completedByTime = allMatches
+        .filter((m) => m.status === "completed" && m.completedAt)
+        .sort((a, b) => Date.parse(b.completedAt!) - Date.parse(a.completedAt!));
+      for (let i = 0; i < Math.min(courtCount, completedByTime.length); i++) {
+        getMatchPlayerIds(completedByTime[i]).forEach((id) => recentPlayerIds.add(id));
+      }
+
+      const available = getAvailableTeams(pairs, allMatches, pairGamesWatched, target);
+      const nextMatch = generateNextMatch(available, freedCourt, courtCount, recentPlayerIds, allMatches);
+      if (nextMatch) {
+        allMatches.push({
+          ...nextMatch,
+          status: "playing",
+          court: freedCourt,
+          startedAt: new Date().toISOString(),
+          gameNumber: allMatches.length + 1,
+        });
+      }
+    }
+
+    return { pairGameCounts, totalMatches: allMatches.filter((m) => m.status === "completed").length };
+  }
+
+  /**
+   * Helper: simulate a pre-generated schedule session.
+   * Uses findNextPendingForCourt to pick matches (like non-dynamic mode).
+   */
+  function simulateScheduleSession(
+    pairs: Pair[],
+    schedule: Match[],
+    courtCount: 2 | 3,
+  ): Map<string, number> {
+    const pairGameCounts = new Map<string, number>();
+    pairs.forEach((p) => pairGameCounts.set(p.id, 0));
+
+    let allMatches = [...schedule];
+    let iterations = 0;
+    const MAX_ITERATIONS = 500;
+
+    // Start initial matches
+    for (let court = 1; court <= courtCount; court++) {
+      const next = findNextPendingForCourt(allMatches, court, courtCount, new Set(), pairs, allMatches, true);
+      if (next) {
+        const idx = allMatches.findIndex((m) => m.id === next.id);
+        allMatches[idx] = { ...next, status: "playing", court, startedAt: new Date().toISOString() };
+      }
+    }
+
+    while (iterations < MAX_ITERATIONS) {
+      iterations++;
+      const playingMatch = allMatches.find((m) => m.status === "playing");
+      if (!playingMatch) break;
+
+      // Complete the match
+      const completedIdx = allMatches.indexOf(playingMatch);
+      allMatches[completedIdx] = {
+        ...playingMatch,
+        status: "completed",
+        completedAt: new Date().toISOString(),
+        winner: playingMatch.pair1,
+        loser: playingMatch.pair2,
+      };
+
+      pairGameCounts.set(
+        playingMatch.pair1.id,
+        (pairGameCounts.get(playingMatch.pair1.id) || 0) + 1,
+      );
+      pairGameCounts.set(
+        playingMatch.pair2.id,
+        (pairGameCounts.get(playingMatch.pair2.id) || 0) + 1,
+      );
+
+      // Find next pending for the freed court
+      const freedCourt = playingMatch.court!;
+      const completedByTime = allMatches
+        .filter((m) => m.status === "completed" && m.completedAt)
+        .sort((a, b) => Date.parse(b.completedAt!) - Date.parse(a.completedAt!));
+      const recentPlayerIds = new Set<string>();
+      for (let i = 0; i < Math.min(courtCount, completedByTime.length); i++) {
+        getMatchPlayerIds(completedByTime[i]).forEach((id) => recentPlayerIds.add(id));
+      }
+
+      const next = findNextPendingForCourt(allMatches, freedCourt, courtCount, recentPlayerIds, pairs, allMatches, true);
+      if (next) {
+        const idx = allMatches.findIndex((m) => m.id === next.id);
+        allMatches[idx] = { ...next, status: "playing", court: freedCourt, startedAt: new Date().toISOString() };
+      }
+    }
+
+    return pairGameCounts;
+  }
+
+  it("2-court dynamic mode: no pair exceeds 4 games (6 B-tier pairs)", () => {
+    const pairs = Array.from({ length: 6 }, (_, i) =>
+      makePair(`T${i * 2 + 1}`, `T${i * 2 + 2}`),
+    );
+    const { pairGameCounts } = simulateDynamicSession(pairs, 2, 4);
+    for (const [pairId, count] of pairGameCounts) {
+      expect(count, `Pair ${pairId} played ${count} games, max allowed is 4`).toBeLessThanOrEqual(4);
+    }
+  });
+
+  it("3-court dynamic mode: no pair exceeds 4 games (mixed tiers)", () => {
+    const aPairs = Array.from({ length: 3 }, (_, i) => makePair(`A${i * 2 + 1}`, `A${i * 2 + 2}`, "A"));
+    const bPairs = Array.from({ length: 3 }, (_, i) => makePair(`B${i * 2 + 1}`, `B${i * 2 + 2}`, "B"));
+    const cPairs = Array.from({ length: 3 }, (_, i) => makePair(`C${i * 2 + 1}`, `C${i * 2 + 2}`, "C"));
+    const allPairs = [...aPairs, ...bPairs, ...cPairs];
+    const { pairGameCounts } = simulateDynamicSession(allPairs, 3, 3);
+    for (const [pairId, count] of pairGameCounts) {
+      expect(count, `Pair ${pairId} played ${count} games, max allowed is 4`).toBeLessThanOrEqual(4);
+    }
+  });
+
+  it("2-court dynamic mode: no pair exceeds 4 games (8 pairs, stress test)", () => {
+    const pairs = Array.from({ length: 8 }, (_, i) =>
+      makePair(`S${i * 2 + 1}`, `S${i * 2 + 2}`),
+    );
+    const { pairGameCounts } = simulateDynamicSession(pairs, 2, 4);
+    for (const [pairId, count] of pairGameCounts) {
+      expect(count, `Pair ${pairId} played ${count} games, max allowed is 4`).toBeLessThanOrEqual(4);
+    }
+  });
+
+  it("pre-generated schedule with excess matches: findNextPendingForCourt caps at 4", () => {
+    // Create 4 pairs and a schedule where pair1 has 6 pending matches (bug scenario)
+    const p1 = makePair("P1a", "P1b");
+    const p2 = makePair("P2a", "P2b");
+    const p3 = makePair("P3a", "P3b");
+    const p4 = makePair("P4a", "P4b");
+    const p5 = makePair("P5a", "P5b");
+    const p6 = makePair("P6a", "P6b");
+    const allPairs = [p1, p2, p3, p4, p5, p6];
+
+    // Create 6 pending matches for p1 (intentionally over the cap)
+    const schedule: Match[] = [
+      makeMatch(p1, p2, { status: "pending", gameNumber: 1 }),
+      makeMatch(p3, p4, { status: "pending", gameNumber: 2 }),
+      makeMatch(p1, p3, { status: "pending", gameNumber: 3 }),
+      makeMatch(p2, p5, { status: "pending", gameNumber: 4 }),
+      makeMatch(p1, p4, { status: "pending", gameNumber: 5 }),
+      makeMatch(p5, p6, { status: "pending", gameNumber: 6 }),
+      makeMatch(p1, p5, { status: "pending", gameNumber: 7 }),
+      makeMatch(p2, p6, { status: "pending", gameNumber: 8 }),
+      makeMatch(p1, p6, { status: "pending", gameNumber: 9 }),  // 5th match for p1
+      makeMatch(p3, p6, { status: "pending", gameNumber: 10 }),
+      makeMatch(p1, p2, { status: "pending", gameNumber: 11 }), // 6th match for p1 (rematch)
+      makeMatch(p4, p5, { status: "pending", gameNumber: 12 }),
+    ];
+
+    const pairGameCounts = simulateScheduleSession(allPairs, schedule, 2);
+    const p1Games = pairGameCounts.get(p1.id) || 0;
+    expect(p1Games, `Pair p1 played ${p1Games} games, max allowed is 4`).toBeLessThanOrEqual(4);
+  });
+
+  it("3-court pre-generated schedule with excess matches: caps at 4", () => {
+    // In 3-court mode, create same-tier pairs with too many scheduled matches
+    const pairs = Array.from({ length: 4 }, (_, i) =>
+      makePair(`A${i * 2 + 1}`, `A${i * 2 + 2}`, "A"),
+    );
+    const [p1, p2, p3, p4] = pairs;
+
+    // Schedule 6 matches for p1 (all same-tier)
+    const schedule: Match[] = [
+      makeMatch(p1, p2, { status: "pending", gameNumber: 1, courtPool: "A" }),
+      makeMatch(p3, p4, { status: "pending", gameNumber: 2, courtPool: "A" }),
+      makeMatch(p1, p3, { status: "pending", gameNumber: 3, courtPool: "A" }),
+      makeMatch(p2, p4, { status: "pending", gameNumber: 4, courtPool: "A" }),
+      makeMatch(p1, p4, { status: "pending", gameNumber: 5, courtPool: "A" }),
+      makeMatch(p2, p3, { status: "pending", gameNumber: 6, courtPool: "A" }),
+      makeMatch(p1, p2, { status: "pending", gameNumber: 7, courtPool: "A" }), // 4th for p1
+      makeMatch(p3, p4, { status: "pending", gameNumber: 8, courtPool: "A" }),
+      makeMatch(p1, p3, { status: "pending", gameNumber: 9, courtPool: "A" }), // 5th for p1
+      makeMatch(p1, p4, { status: "pending", gameNumber: 10, courtPool: "A" }), // 6th for p1
+    ];
+
+    // 3-court mode but only testing 1 court pool (A)
+    const pairGameCounts = simulateScheduleSession(pairs, schedule, 3);
+    const p1Games = pairGameCounts.get(p1.id) || 0;
+    expect(p1Games, `Pair p1 played ${p1Games} games in 3-court mode, max allowed is 4`).toBeLessThanOrEqual(4);
+  });
+
+  it("dynamic mode with late arrival: opponents don't exceed 4 games", () => {
+    // 5 existing pairs that have already played 3 games each
+    const pairs = Array.from({ length: 5 }, (_, i) =>
+      makePair(`E${i * 2 + 1}`, `E${i * 2 + 2}`),
+    );
+
+    // Build history: each pair has played 3 completed games
+    const completedMatches: Match[] = [];
+    // Round 1: p0 vs p1, p2 vs p3
+    completedMatches.push(makeMatch(pairs[0], pairs[1], { status: "completed", completedAt: "2026-01-01T20:00:00Z" }));
+    completedMatches.push(makeMatch(pairs[2], pairs[3], { status: "completed", completedAt: "2026-01-01T20:00:00Z" }));
+    // Round 2: p0 vs p2, p1 vs p4
+    completedMatches.push(makeMatch(pairs[0], pairs[2], { status: "completed", completedAt: "2026-01-01T20:07:00Z" }));
+    completedMatches.push(makeMatch(pairs[1], pairs[4], { status: "completed", completedAt: "2026-01-01T20:07:00Z" }));
+    // Round 3: p0 vs p3, p1 vs p2
+    completedMatches.push(makeMatch(pairs[0], pairs[3], { status: "completed", completedAt: "2026-01-01T20:14:00Z" }));
+    completedMatches.push(makeMatch(pairs[1], pairs[2], { status: "completed", completedAt: "2026-01-01T20:14:00Z" }));
+    // Extra games for p3 and p4
+    completedMatches.push(makeMatch(pairs[3], pairs[4], { status: "completed", completedAt: "2026-01-01T20:14:00Z" }));
+    completedMatches.push(makeMatch(pairs[4], pairs[2], { status: "completed", completedAt: "2026-01-01T20:21:00Z" }));
+    completedMatches.push(makeMatch(pairs[3], pairs[1], { status: "completed", completedAt: "2026-01-01T20:21:00Z" }));
+
+    // Late arrival pair joins — generates 4 new pending matches against existing pairs
+    const latePair = makePair("L1", "L2");
+    const allPairs = [...pairs, latePair];
+
+    // Simulate generateMatchesForNewPair: 4 matches for the late pair
+    const lateMatches: Match[] = [
+      makeMatch(latePair, pairs[0], { status: "pending", gameNumber: 10 }),
+      makeMatch(latePair, pairs[1], { status: "pending", gameNumber: 11 }),
+      makeMatch(latePair, pairs[2], { status: "pending", gameNumber: 12 }),
+      makeMatch(latePair, pairs[3], { status: "pending", gameNumber: 13 }),
+    ];
+
+    const allMatches = [...completedMatches, ...lateMatches];
+
+    // Now simulate completing the late matches
+    // p0 has 3 completed, if late match plays that's 4 — should be the max
+    // p1 has 3 completed, same
+    const pairGameCounts = simulateScheduleSession(allPairs, allMatches, 2);
+
+    for (const [pairId, count] of pairGameCounts) {
+      const pair = allPairs.find((p) => p.id === pairId);
+      const name = pair ? `${pair.player1.name}&${pair.player2.name}` : pairId;
+      expect(count, `${name} played ${count} games, max allowed is 4`).toBeLessThanOrEqual(4);
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// TEST SUITE 6: Full Session Simulation — Match Continuity
 // ═══════════════════════════════════════════════════════════
 
 describe("Integration: Match generation continuity", () => {

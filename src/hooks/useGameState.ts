@@ -145,6 +145,23 @@ function syncPairsToMatches(pairs: Pair[], matches: Match[]): Match[] {
   });
 }
 
+/** Universal guard: returns true if BOTH pairs in the match are under the 4-game hard cap */
+function canStartMatch(match: Match, allMatches: Match[]): boolean {
+  const HARD_CAP = 4;
+  let pair1Games = 0;
+  let pair2Games = 0;
+  for (const m of allMatches) {
+    if (m.status !== "completed" && m.status !== "playing") continue;
+    if (m.pair1.id === match.pair1.id || m.pair2.id === match.pair1.id) pair1Games++;
+    if (m.pair1.id === match.pair2.id || m.pair2.id === match.pair2.id) pair2Games++;
+  }
+  if (pair1Games >= HARD_CAP || pair2Games >= HARD_CAP) {
+    console.warn(`[PTO Guard] Blocked match: ${match.pair1.player1.name}&${match.pair1.player2.name} (${pair1Games} games) vs ${match.pair2.player1.name}&${match.pair2.player2.name} (${pair2Games} games) — hard cap ${HARD_CAP}`);
+    return false;
+  }
+  return true;
+}
+
 /** Find the next pending match eligible for a freed court, enforcing:
  *  - No player currently on another court
  *  - Rest gap: no player who just completed a match (recentPlayerIds)
@@ -711,6 +728,7 @@ export function useGameState(options?: { simulate?: boolean }) {
       for (const court of toFill) {
         const nextPending = findNextPendingForCourt(updatedMatches, court, liveCourtCount, recentPlayerIds, s.pairs, updatedMatches, false);
         if (!nextPending) continue;
+        if (!canStartMatch(nextPending, updatedMatches)) continue;
         const idx = updatedMatches.findIndex((m) => m.id === nextPending.id);
         if (idx === -1) continue;
         updatedMatches[idx] = {
@@ -2358,6 +2376,8 @@ export function useGameState(options?: { simulate?: boolean }) {
           let added = 0;
           for (const opp of fallbackOpponents) {
             if (added >= needed) break;
+            // Don't push opponent past MAX_GAMES
+            if ((pairGameCount.get(opp.id) || 0) >= MAX_GAMES) continue;
             const mKey = matchupKey(sp.id, opp.id);
             if (usedMatchups.has(mKey)) continue;
             const isCross = opp.skillLevel !== sp.skillLevel;
@@ -2515,7 +2535,7 @@ export function useGameState(options?: { simulate?: boolean }) {
           const courtCount = s.sessionConfig.courtCount || 2;
 
           const nextPending = findNextPendingForCourt(updatedMatches, freedCourt, courtCount, recentPlayerIds, s.pairs, updatedMatches, true);
-          if (nextPending) {
+          if (nextPending && canStartMatch(nextPending, updatedMatches)) {
             const idx = updatedMatches.findIndex((m) => m.id === nextPending.id);
             if (idx !== -1) {
               updatedMatches[idx] = { ...nextPending, status: "playing", court: freedCourt, startedAt: new Date().toISOString() };
@@ -2768,12 +2788,12 @@ export function useGameState(options?: { simulate?: boolean }) {
             const TARGET = courtCount === 3 ? 3 : 4;
             const available = getAvailableTeams(updatedPairs, updatedMatches, updatedPairGamesWatched, TARGET);
             const nextMatch = generateNextMatch(available, freedCourt, courtCount, recentPlayerIds, updatedMatches);
-            if (nextMatch) {
+            if (nextMatch && canStartMatch(nextMatch, updatedMatches)) {
               updatedMatches = [...updatedMatches, { ...nextMatch, status: "playing", court: freedCourt, startedAt: new Date().toISOString(), gameNumber: updatedMatches.length + 1 }];
             }
           } else {
             const nextPending = findNextPendingForCourt(updatedMatches, freedCourt, courtCount, recentPlayerIds, updatedPairs, updatedMatches, false);
-            if (nextPending) {
+            if (nextPending && canStartMatch(nextPending, updatedMatches)) {
               const idx = updatedMatches.findIndex((m) => m.id === nextPending.id);
               if (idx !== -1) {
                 updatedMatches[idx] = { ...nextPending, status: "playing", court: freedCourt, startedAt: new Date().toISOString() };
@@ -3587,4 +3607,5 @@ export const _testExports = {
   getMatchPlayerIds,
   generateId,
   syncPairsToMatches,
+  canStartMatch,
 };
