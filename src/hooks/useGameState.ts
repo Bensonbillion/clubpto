@@ -1373,6 +1373,18 @@ export function useGameState(options?: { simulate?: boolean }) {
     // Guarantees minimum 1 full slot rest between any player's games.
     const REST_GAP = 1;
 
+    // Cache equity gate min-count: recomputed only when pairGameCount changes (via commitCandidate)
+    let cachedMinCount = 0;
+    let equityDirty = true;
+    const recomputeEquityMin = () => {
+      let min = Infinity;
+      for (const v of pairGameCount.values()) {
+        if (v > 0 && v < min) min = v;
+      }
+      cachedMinCount = min === Infinity ? 0 : min;
+      equityDirty = false;
+    };
+
     const pickBestCandidate = (
       pool: CandidateMatch[],
       slotPlayerIds: Set<string>,
@@ -1382,6 +1394,8 @@ export function useGameState(options?: { simulate?: boolean }) {
     ): number => {
       let bestIdx = -1;
       let bestScore = Infinity;
+
+      if (equityDirty) recomputeEquityMin();
 
       for (let i = 0; i < pool.length; i++) {
         const c = pool[i];
@@ -1395,12 +1409,7 @@ export function useGameState(options?: { simulate?: boolean }) {
         if (g1 >= MAX_GAMES || g2 >= MAX_GAMES) continue;
 
         // Equity gate: no pair schedules more than 1 game ahead of the least-scheduled pair
-        // Exclude 0-game pairs so late additions don't drag the minimum to 0 and deadlock
-        const pgcValues = Array.from(pairGameCount.values());
-        const activeValues = pgcValues.filter((c2) => c2 > 0);
-        const minCount = activeValues.length > 0 ? Math.min(...activeValues) : 0;
-        // Only block if BOTH pairs are ahead — allow catch-up matches
-        if (Math.min(g1, g2) > minCount + 1) continue;
+        if (Math.min(g1, g2) > cachedMinCount + 1) continue;
 
         const playerIds = matchPlayerIds(c);
         if (playerIds.some((id) => slotPlayerIds.has(id))) continue;
@@ -1448,6 +1457,7 @@ export function useGameState(options?: { simulate?: boolean }) {
       usedMatchups.add(mKey);
       pairGameCount.set(chosen.pair1.id, (pairGameCount.get(chosen.pair1.id) || 0) + 1);
       pairGameCount.set(chosen.pair2.id, (pairGameCount.get(chosen.pair2.id) || 0) + 1);
+      equityDirty = true;
       matchPlayerIds(chosen).forEach((id) => slotPlayerIds.add(id));
       if (currentSlot !== undefined) {
         pairLastSlot.set(chosen.pair1.id, currentSlot);
@@ -1486,6 +1496,7 @@ export function useGameState(options?: { simulate?: boolean }) {
       usedMatchups.clear();
       allPairs.forEach((p) => { pairGameCount.set(p.id, 0); pairLastSlot.set(p.id, -1); });
       allPairs.forEach((p) => pairOpponentStats.set(p.id, { vsA: 0, vsB: 0, vsC: 0 }));
+      equityDirty = true;
       candidatePool = shuffle([...allCandidates]);
 
     for (let slot = 0; slot < totalSlots; slot++) {
@@ -1679,10 +1690,13 @@ export function useGameState(options?: { simulate?: boolean }) {
     // ── Starvation repair: reduce max idle gaps by swapping matches between slots ──
     const MAX_IDLE = 3; // max consecutive idle slots before we try to repair
     const getSlotForIndex = (idx: number): number => {
-      for (let s = slotBoundaries.length - 1; s >= 0; s--) {
-        if (idx >= slotBoundaries[s]) return s;
+      let lo = 0, hi = slotBoundaries.length - 1;
+      while (lo <= hi) {
+        const mid = (lo + hi) >>> 1;
+        if (slotBoundaries[mid] <= idx) lo = mid + 1;
+        else hi = mid - 1;
       }
-      return 0;
+      return Math.max(0, lo - 1);
     };
     const getSlotRange = (slot: number): [number, number] => {
       const start = slotBoundaries[slot];
@@ -2428,6 +2442,18 @@ export function useGameState(options?: { simulate?: boolean }) {
         return ids;
       };
 
+      // Cache equity gate for regen pickBest
+      let regenMinCount = 0;
+      let regenEquityDirty = true;
+      const recomputeRegenEquityMin = () => {
+        let min = Infinity;
+        for (const v of pairGameCount.values()) {
+          if (v > 0 && v < min) min = v;
+        }
+        regenMinCount = min === Infinity ? 0 : min;
+        regenEquityDirty = false;
+      };
+
       const pickBest = (
         pool: CandidateMatch[],
         slotPlayerIds: Set<string>,
@@ -2436,6 +2462,7 @@ export function useGameState(options?: { simulate?: boolean }) {
       ): number => {
         let bestIdx = -1;
         let bestScore = Infinity;
+        if (regenEquityDirty) recomputeRegenEquityMin();
         for (let i = 0; i < pool.length; i++) {
           const c = pool[i];
           if (courtPoolFilter && c.courtPool !== courtPoolFilter) continue;
@@ -2445,12 +2472,7 @@ export function useGameState(options?: { simulate?: boolean }) {
           const g2 = pairGameCount.get(c.pair2.id) || 0;
           if (g1 >= MAX_GAMES || g2 >= MAX_GAMES) continue;
           // Equity gate: no pair schedules more than 1 game ahead of the least-scheduled pair
-          // Exclude 0-game pairs so late additions don't drag the minimum to 0 and deadlock
-          const pgcVals = Array.from(pairGameCount.values());
-          const activeVals = pgcVals.filter((c2) => c2 > 0);
-          const minCount = activeVals.length > 0 ? Math.min(...activeVals) : 0;
-          // Only block if BOTH pairs are ahead — allow catch-up matches
-          if (Math.min(g1, g2) > minCount + 1) continue;
+          if (Math.min(g1, g2) > regenMinCount + 1) continue;
           const playerIds = matchPlayerIds(c);
           if (playerIds.some((id) => slotPlayerIds.has(id))) continue;
           if (playerIds.some((id) => blockedPlayerIds.has(id))) continue;
@@ -2485,6 +2507,7 @@ export function useGameState(options?: { simulate?: boolean }) {
         usedMatchups.add(mKey);
         pairGameCount.set(chosen.pair1.id, (pairGameCount.get(chosen.pair1.id) || 0) + 1);
         pairGameCount.set(chosen.pair2.id, (pairGameCount.get(chosen.pair2.id) || 0) + 1);
+        regenEquityDirty = true;
         matchPlayerIds(chosen).forEach((id) => slotPlayerIds.add(id));
 
         // Track opponent tiers for distribution-aware scheduling
