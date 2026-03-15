@@ -110,13 +110,35 @@ function dedup(rows: CsvRow[]): { unique: CsvRow[]; removedCount: number } {
 
 const CsvImport = ({ onImportComplete }: CsvImportProps) => {
   const [rows, setRows] = useState<CsvRow[]>([]);
+  const [existingEmails, setExistingEmails] = useState<Set<string>>(new Set());
   const [rawCount, setRawCount] = useState(0);
   const [dedupCount, setDedupCount] = useState(0);
   const [fileName, setFileName] = useState("");
   const [importing, setImporting] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [results, setResults] = useState<ImportResult[] | null>(null);
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const newRows = rows.filter((r) => !r.email || !existingEmails.has(r.email));
+  const existingRows = rows.filter((r) => r.email && existingEmails.has(r.email));
+
+  const checkExisting = async (unique: CsvRow[]) => {
+    setChecking(true);
+    try {
+      const result = await query(
+        'SELECT email FROM players WHERE is_deleted = 0 AND email IS NOT NULL'
+      );
+      const dbEmails = new Set(
+        (result.rows as any[]).map((r: any) => (r.email as string).toLowerCase())
+      );
+      setExistingEmails(dbEmails);
+    } catch (err) {
+      console.error("Failed to check existing players:", err);
+    } finally {
+      setChecking(false);
+    }
+  };
 
   const processFile = (file: File) => {
     if (!file.name.endsWith(".csv")) {
@@ -125,9 +147,10 @@ const CsvImport = ({ onImportComplete }: CsvImportProps) => {
     }
     setFileName(file.name);
     setResults(null);
+    setExistingEmails(new Set());
 
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       const text = ev.target?.result as string;
       const parsed = parseCsv(text);
       setRawCount(parsed.length);
@@ -136,7 +159,9 @@ const CsvImport = ({ onImportComplete }: CsvImportProps) => {
       setRows(unique);
       if (unique.length === 0) {
         toast.error("No valid rows found. Ensure CSV has first_name and last_name columns.");
+        return;
       }
+      await checkExisting(unique);
     };
     reader.readAsText(file);
   };
@@ -164,12 +189,13 @@ const CsvImport = ({ onImportComplete }: CsvImportProps) => {
   };
 
   const handleImport = async () => {
-    if (rows.length === 0) return;
+    if (newRows.length === 0) return;
     setImporting(true);
     const importResults: ImportResult[] = [];
 
-    for (const row of rows) {
+    for (const row of newRows) {
       try {
+        // Double-check against DB (handles soft-deleted players)
         if (row.email) {
           const existing = await query(
             "SELECT id, is_deleted FROM players WHERE email = ? LIMIT 1",
@@ -212,6 +238,7 @@ const CsvImport = ({ onImportComplete }: CsvImportProps) => {
 
   const reset = () => {
     setRows([]);
+    setExistingEmails(new Set());
     setRawCount(0);
     setDedupCount(0);
     setFileName("");
@@ -275,7 +302,7 @@ const CsvImport = ({ onImportComplete }: CsvImportProps) => {
               <span className="text-sm">
                 {rows.length} unique player{rows.length !== 1 ? "s" : ""}
                 {dedupCount > 0 && (
-                  <span className="text-muted-foreground"> ({dedupCount} duplicate{dedupCount !== 1 ? "s" : ""} removed)</span>
+                  <span className="text-muted-foreground"> ({dedupCount} duplicate{dedupCount !== 1 ? "s" : ""} removed from CSV)</span>
                 )}
               </span>
             </div>
@@ -284,35 +311,61 @@ const CsvImport = ({ onImportComplete }: CsvImportProps) => {
             </button>
           </div>
 
+          {/* Existing vs new summary */}
+          {!checking && existingEmails.size > 0 && (
+            <div className="flex gap-3">
+              <div className="flex-1 rounded-lg border border-green-500/30 bg-green-500/10 p-3 text-center">
+                <p className="text-xl font-bold text-green-500">{newRows.length}</p>
+                <p className="text-xs text-muted-foreground">New players</p>
+              </div>
+              <div className="flex-1 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-3 text-center">
+                <p className="text-xl font-bold text-yellow-500">{existingRows.length}</p>
+                <p className="text-xs text-muted-foreground">Already registered</p>
+              </div>
+            </div>
+          )}
+          {checking && (
+            <p className="text-sm text-muted-foreground">Checking for existing profiles...</p>
+          )}
+
           <div className="rounded-lg border border-border overflow-hidden max-h-[300px] overflow-y-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted sticky top-0">
                 <tr>
                   <th className="text-left px-3 py-2 text-muted-foreground font-medium">Name</th>
                   <th className="text-left px-3 py-2 text-muted-foreground font-medium">Email</th>
-                  <th className="text-left px-3 py-2 text-muted-foreground font-medium">Phone</th>
+                  <th className="text-left px-3 py-2 text-muted-foreground font-medium">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {rows.map((row, i) => (
-                  <tr key={i} className="hover:bg-muted/50">
-                    <td className="px-3 py-2">
-                      {row.preferred_name ? `${row.preferred_name} (${row.first_name})` : row.first_name} {row.last_name}
-                    </td>
-                    <td className="px-3 py-2 text-muted-foreground">{row.email || "—"}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{row.phone || "—"}</td>
-                  </tr>
-                ))}
+                {rows.map((row, i) => {
+                  const isExisting = row.email && existingEmails.has(row.email);
+                  return (
+                    <tr key={i} className={`hover:bg-muted/50 ${isExisting ? "opacity-50" : ""}`}>
+                      <td className="px-3 py-2">
+                        {row.preferred_name ? `${row.preferred_name} (${row.first_name})` : row.first_name} {row.last_name}
+                      </td>
+                      <td className="px-3 py-2 text-muted-foreground">{row.email || "—"}</td>
+                      <td className="px-3 py-2">
+                        {isExisting ? (
+                          <span className="text-yellow-500 text-xs">Already registered</span>
+                        ) : (
+                          <span className="text-green-500 text-xs">New</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
           <button
             onClick={handleImport}
-            disabled={importing}
+            disabled={importing || checking || newRows.length === 0}
             className="w-full rounded-lg bg-accent text-accent-foreground py-3 font-semibold hover:bg-accent/80 transition-colors disabled:opacity-50"
           >
-            {importing ? "Importing..." : `Import ${rows.length} Players`}
+            {importing ? "Importing..." : newRows.length === 0 ? "All players already registered" : `Import ${newRows.length} New Player${newRows.length !== 1 ? "s" : ""}`}
           </button>
         </div>
       )}
