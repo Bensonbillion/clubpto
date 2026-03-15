@@ -13,6 +13,8 @@ const {
   canStartMatch,
   mergeStates,
   computePlayoffSeedings,
+  createSessionPairs,
+  getTargetGames,
 } = _testExports;
 
 // ─── Helpers ──────────────────────────────────────────────
@@ -1144,5 +1146,239 @@ describe("Playoff Seedings: computePlayoffSeedings", () => {
     const seeds = computePlayoffSeedings(matches, allPairs);
     const pairIds = seeds.map(s => s.pair.id);
     expect(pairIds).not.toContain(aNoGames.id);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// createSessionPairs — VIP fixed pairing with cross-pair decisions
+// ═══════════════════════════════════════════════════════════
+
+describe("createSessionPairs — VIP pairing in 3-court mode", () => {
+  it("honors VIP fixed pair even when partner was cross-paired to different tier", () => {
+    // 5 A-tier players: David(VIP), Alice, Bob, Charlie, Eve
+    // Admin cross-pairs Eve from A→B to resolve odd count
+    // David selected Alice as partner BEFORE the cross-pair decision
+    // But what if David selected Eve? The cross-pair should NOT break the VIP pair.
+    const david = makePlayer("David", "A");
+    const eve = makePlayer("Eve", "A");
+    const alice = makePlayer("Alice", "A");
+    const bob = makePlayer("Bob", "A");
+    const charlie = makePlayer("Charlie", "A");
+    const betty = makePlayer("Betty", "B");
+    const bill = makePlayer("Bill", "B");
+
+    const activePlayers = [david, eve, alice, bob, charlie, betty, bill];
+
+    // David (VIP) selected Eve as partner
+    const fixedPairs = [{ player1Name: "David", player2Name: "Eve" }];
+
+    // Admin cross-paired Eve from A to B (to fix odd A-tier count)
+    const crossPairDecisions = [{
+      playerId: eve.id,
+      playerName: "Eve",
+      tier: "A" as SkillTier,
+      decision: "cross_pair" as const,
+      crossPairTier: "B" as SkillTier,
+    }];
+
+    const { allPairs } = createSessionPairs(activePlayers, fixedPairs, crossPairDecisions, new Set());
+
+    // Find David's pair
+    const davidPair = allPairs.find(
+      (p) => p.player1.id === david.id || p.player2.id === david.id
+    );
+    expect(davidPair).toBeDefined();
+
+    // David MUST be paired with Eve (his VIP selection), not someone else
+    const partner = davidPair!.player1.id === david.id ? davidPair!.player2 : davidPair!.player1;
+    expect(partner.id).toBe(eve.id);
+    // The pair should be A-tier (David's tier)
+    expect(davidPair!.skillLevel).toBe("A");
+  });
+
+  it("VIP pair works normally when no cross-pair decisions exist", () => {
+    const david = makePlayer("David", "A");
+    const alice = makePlayer("Alice", "A");
+    const bob = makePlayer("Bob", "A");
+    const charlie = makePlayer("Charlie", "A");
+
+    const activePlayers = [david, alice, bob, charlie];
+    const fixedPairs = [{ player1Name: "David", player2Name: "Alice" }];
+
+    const { allPairs } = createSessionPairs(activePlayers, fixedPairs, [], new Set());
+
+    const davidPair = allPairs.find(
+      (p) => p.player1.id === david.id || p.player2.id === david.id
+    );
+    expect(davidPair).toBeDefined();
+    const partner = davidPair!.player1.id === david.id ? davidPair!.player2 : davidPair!.player1;
+    expect(partner.id).toBe(alice.id);
+  });
+
+  it("remaining players are split by effective tier after VIP pairs are formed", () => {
+    const david = makePlayer("David", "A");
+    const eve = makePlayer("Eve", "A");
+    const alice = makePlayer("Alice", "A");
+    const bob = makePlayer("Bob", "A");
+    const charlie = makePlayer("Charlie", "A");
+    const betty = makePlayer("Betty", "B");
+    const bill = makePlayer("Bill", "B");
+
+    const activePlayers = [david, eve, alice, bob, charlie, betty, bill];
+    const fixedPairs = [{ player1Name: "David", player2Name: "Eve" }];
+
+    // Eve cross-paired to B — but VIP pair overrides this
+    // Remaining A players: Alice, Bob, Charlie (3 = odd → 1 waitlisted)
+    // B players: Betty, Bill (Eve NOT in B pool since she's VIP-paired as A)
+    const crossPairDecisions = [{
+      playerId: eve.id,
+      playerName: "Eve",
+      tier: "A" as SkillTier,
+      decision: "cross_pair" as const,
+      crossPairTier: "B" as SkillTier,
+    }];
+
+    const { allPairs, waitlistedIds } = createSessionPairs(
+      activePlayers, fixedPairs, crossPairDecisions, new Set()
+    );
+
+    // David+Eve pair should exist as A-tier
+    const davidPair = allPairs.find(
+      (p) => p.player1.id === david.id || p.player2.id === david.id
+    );
+    expect(davidPair!.skillLevel).toBe("A");
+
+    // Betty+Bill should be paired as B-tier (Eve is NOT in the B pool)
+    const bettyPair = allPairs.find(
+      (p) => p.player1.id === betty.id || p.player2.id === betty.id
+    );
+    expect(bettyPair).toBeDefined();
+    expect(bettyPair!.skillLevel).toBe("B");
+    const bettyPartner = bettyPair!.player1.id === betty.id ? bettyPair!.player2 : bettyPair!.player1;
+    expect(bettyPartner.id).toBe(bill.id);
+
+    // 1 A-tier player should be waitlisted (Alice, Bob, Charlie = 3 remaining, odd)
+    expect(waitlistedIds.length).toBe(1);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// 3-Court A-Tier Enhancement: 4 Games + Exclusive Playoffs
+// ═══════════════════════════════════════════════════════════
+
+describe("3-Court A-Tier Enhancement", () => {
+  describe("getTargetGames", () => {
+    it("returns 4 for A-tier in 3-court mode", () => {
+      expect(getTargetGames(3, "A")).toBe(4);
+    });
+
+    it("returns 3 for B-tier in 3-court mode", () => {
+      expect(getTargetGames(3, "B")).toBe(3);
+    });
+
+    it("returns 3 for C-tier in 3-court mode", () => {
+      expect(getTargetGames(3, "C")).toBe(3);
+    });
+
+    it("returns 4 for all tiers in 2-court mode", () => {
+      expect(getTargetGames(2, "A")).toBe(4);
+      expect(getTargetGames(2, "B")).toBe(4);
+      expect(getTargetGames(2, "C")).toBe(4);
+    });
+  });
+
+  describe("computePlayoffSeedings in 3-court mode", () => {
+    it("returns only A-tier pairs, max 4", () => {
+      // 5 A-tier pairs and 3 B-tier pairs
+      const aPairs = [
+        makePair("A1a", "A1b", "A", "a1"),
+        makePair("A2a", "A2b", "A", "a2"),
+        makePair("A3a", "A3b", "A", "a3"),
+        makePair("A4a", "A4b", "A", "a4"),
+        makePair("A5a", "A5b", "A", "a5"),
+      ];
+      const bPairs = [
+        makePair("B1a", "B1b", "B", "b1"),
+        makePair("B2a", "B2b", "B", "b2"),
+        makePair("B3a", "B3b", "B", "b3"),
+      ];
+      const allPairs = [...aPairs, ...bPairs];
+
+      // Give each A-tier pair some completed matches
+      const matches: Match[] = [];
+      for (let i = 0; i < aPairs.length; i++) {
+        for (let j = i + 1; j < aPairs.length; j++) {
+          matches.push(makeMatch(aPairs[i], aPairs[j], {
+            status: "completed",
+            winner: aPairs[i],
+            loser: aPairs[j],
+          }));
+        }
+      }
+      // Give B-tier pairs completed matches too
+      matches.push(makeMatch(bPairs[0], bPairs[1], {
+        status: "completed",
+        winner: bPairs[0],
+        loser: bPairs[1],
+      }));
+
+      const seeds = computePlayoffSeedings(matches, allPairs, 3);
+
+      // Only 4 teams seeded
+      expect(seeds.length).toBe(4);
+      // All must be A-tier
+      seeds.forEach((s) => {
+        expect(s.pair.skillLevel).toBe("A");
+      });
+      // No B-tier pairs
+      const bIds = new Set(bPairs.map((p) => p.id));
+      seeds.forEach((s) => {
+        expect(bIds.has(s.pair.id)).toBe(false);
+      });
+    });
+
+    it("returns combined 8-team bracket in 2-court mode (unchanged)", () => {
+      const aPairs = [
+        makePair("A1a", "A1b", "A", "a1"),
+        makePair("A2a", "A2b", "A", "a2"),
+        makePair("A3a", "A3b", "A", "a3"),
+      ];
+      const bPairs = [
+        makePair("B1a", "B1b", "B", "b1"),
+        makePair("B2a", "B2b", "B", "b2"),
+        makePair("B3a", "B3b", "B", "b3"),
+        makePair("B4a", "B4b", "B", "b4"),
+        makePair("B5a", "B5b", "B", "b5"),
+        makePair("B6a", "B6b", "B", "b6"),
+      ];
+      const allPairs = [...aPairs, ...bPairs];
+
+      const matches: Match[] = [];
+      // A-tier matches
+      for (let i = 0; i < aPairs.length; i++) {
+        for (let j = i + 1; j < aPairs.length; j++) {
+          matches.push(makeMatch(aPairs[i], aPairs[j], {
+            status: "completed", winner: aPairs[i], loser: aPairs[j],
+          }));
+        }
+      }
+      // B-tier matches
+      for (let i = 0; i < bPairs.length; i++) {
+        for (let j = i + 1; j < bPairs.length; j++) {
+          matches.push(makeMatch(bPairs[i], bPairs[j], {
+            status: "completed", winner: bPairs[i], loser: bPairs[j],
+          }));
+        }
+      }
+
+      const seeds = computePlayoffSeedings(matches, allPairs, 2);
+
+      // Should have 8 teams: 3 A-tier + 5 B-tier
+      expect(seeds.length).toBe(8);
+      const aTierSeeds = seeds.filter((s) => s.pair.skillLevel === "A");
+      const bTierSeeds = seeds.filter((s) => s.pair.skillLevel === "B");
+      expect(aTierSeeds.length).toBe(3);
+      expect(bTierSeeds.length).toBe(5);
+    });
   });
 });
