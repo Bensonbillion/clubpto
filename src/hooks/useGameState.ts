@@ -1029,7 +1029,10 @@ export function useGameState(options?: { simulate?: boolean }) {
       }
 
       for (const court of toFill) {
-        const nextPending = findNextPendingForCourt(updatedMatches, court, liveCourtCount, recentPlayerIds, s.pairs, updatedMatches, false);
+        let nextPending = findNextPendingForCourt(updatedMatches, court, liveCourtCount, recentPlayerIds, s.pairs, updatedMatches, false);
+        if (!nextPending) {
+          nextPending = findNextPendingForCourt(updatedMatches, court, liveCourtCount, recentPlayerIds, s.pairs, updatedMatches, true);
+        }
         if (!nextPending) continue;
         if (!canStartMatch(nextPending, updatedMatches)) continue;
         const idx = updatedMatches.findIndex((m) => m.id === nextPending.id);
@@ -3043,7 +3046,11 @@ export function useGameState(options?: { simulate?: boolean }) {
               updatedMatches = [...updatedMatches, { ...nextMatch, status: "playing", court: freedCourt, startedAt: new Date().toISOString(), gameNumber: updatedMatches.length + 1 }];
             }
           } else {
-            const nextPending = findNextPendingForCourt(updatedMatches, freedCourt, courtCount, recentPlayerIds, updatedPairs, updatedMatches, false);
+            let nextPending = findNextPendingForCourt(updatedMatches, freedCourt, courtCount, recentPlayerIds, updatedPairs, updatedMatches, false);
+            // If rest gap blocked all candidates, retry with relaxation so the court doesn't sit empty
+            if (!nextPending) {
+              nextPending = findNextPendingForCourt(updatedMatches, freedCourt, courtCount, recentPlayerIds, updatedPairs, updatedMatches, true);
+            }
             if (nextPending && canStartMatch(nextPending, updatedMatches)) {
               const idx = updatedMatches.findIndex((m) => m.id === nextPending.id);
               if (idx !== -1) {
