@@ -6,10 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Trash2, Plus, Play, RotateCcw, Sparkles, ChevronDown, ChevronUp, Loader2, Zap, Search, Users, FlaskConical } from "lucide-react";
+import { Trash2, Plus, Play, RotateCcw, Sparkles, ChevronDown, ChevronUp, Loader2, Zap, Search, Users, Upload, FlaskConical } from "lucide-react";
 import { toast } from "sonner";
 import { SkillTier } from "@/types/courtManager";
 import PlayerManager from "./PlayerManager";
+import CsvImport from "./CsvImport";
 
 interface AdminSetupProps {
   gameState: ReturnType<typeof useGameState>;
@@ -49,6 +50,9 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
 
   // Player manager state
   const [showPlayerManager, setShowPlayerManager] = useState(false);
+
+  // CSV import state
+  const [showCsvImport, setShowCsvImport] = useState(false);
 
   // AI assistant state
   const [showAi, setShowAi] = useState(false);
@@ -396,6 +400,26 @@ const AdminSetup = ({ gameState }: AdminSetupProps) => {
         {showPlayerManager && (
           <div className="px-8 pb-8 border-t border-border pt-6">
             <PlayerManager onProfilesChanged={fetchProfiles} />
+          </div>
+        )}
+      </div>
+
+      {/* Import Players from CSV */}
+      <div className="rounded-lg border border-border bg-card overflow-hidden">
+        <button
+          onClick={() => setShowCsvImport(!showCsvImport)}
+          className="w-full flex items-center justify-between px-8 py-5 text-left hover:bg-muted/50 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <Upload className="w-5 h-5 text-accent" />
+            <span className="font-display text-xl text-accent">Import Players from CSV</span>
+          </div>
+          {showCsvImport ? <ChevronUp className="w-5 h-5 text-muted-foreground" /> : <ChevronDown className="w-5 h-5 text-muted-foreground" />}
+        </button>
+
+        {showCsvImport && (
+          <div className="px-8 pb-8 border-t border-border pt-6">
+            <CsvImport onImportComplete={fetchProfiles} />
           </div>
         )}
       </div>
