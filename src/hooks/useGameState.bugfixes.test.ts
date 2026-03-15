@@ -1382,3 +1382,80 @@ describe("3-Court A-Tier Enhancement", () => {
     });
   });
 });
+
+// ═══════════════════════════════════════════════════════════
+// Multi-Device: mergeStates Preserves Playoff Matches
+// ═══════════════════════════════════════════════════════════
+
+describe("mergeStates playoff merge", () => {
+  const makeGameState = (overrides: Partial<import("@/types/courtManager").GameState> = {}): import("@/types/courtManager").GameState => ({
+    sessionConfig: { startTime: "20:00", durationMinutes: 85, checkInLocked: false, courtCount: 2 },
+    roster: [],
+    pairs: [],
+    matches: [],
+    gameHistory: [],
+    sessionStarted: true,
+    playoffsStarted: false,
+    totalScheduledGames: 0,
+    playoffMatches: [],
+    ...overrides,
+  });
+
+  it("preserves locally completed playoff match when remote is still playing", () => {
+    const pair1 = makePair("A1", "A2", "A", "p1");
+    const pair2 = makePair("A3", "A4", "A", "p2");
+
+    const localPlayoff: import("@/types/courtManager").PlayoffMatch = {
+      id: "pm1", round: 1, seed1: 1, seed2: 2,
+      pair1, pair2, status: "completed", winner: pair1, court: 1,
+    };
+    const remotePlayoff: import("@/types/courtManager").PlayoffMatch = {
+      id: "pm1", round: 1, seed1: 1, seed2: 2,
+      pair1, pair2, status: "playing", court: 1,
+    };
+
+    const local = makeGameState({ playoffMatches: [localPlayoff], playoffsStarted: true });
+    const remote = makeGameState({ playoffMatches: [remotePlayoff], playoffsStarted: true });
+
+    const merged = mergeStates(local, remote);
+    expect(merged.playoffMatches[0].status).toBe("completed");
+    expect(merged.playoffMatches[0].winner?.id).toBe("p1");
+  });
+
+  it("includes locally-created next-round matches not yet on remote", () => {
+    const pair1 = makePair("A1", "A2", "A", "p1");
+    const pair2 = makePair("A3", "A4", "A", "p2");
+
+    const completedSemi: import("@/types/courtManager").PlayoffMatch = {
+      id: "pm1", round: 1, seed1: 1, seed2: 2,
+      pair1, pair2, status: "completed", winner: pair1, court: 1,
+    };
+    const finalMatch: import("@/types/courtManager").PlayoffMatch = {
+      id: "pm-final", round: 2, seed1: 0, seed2: 0,
+      pair1, pair2: null, status: "pending",
+    };
+
+    const local = makeGameState({
+      playoffMatches: [completedSemi, finalMatch],
+      playoffsStarted: true,
+    });
+    const remote = makeGameState({
+      playoffMatches: [{ ...completedSemi, status: "playing", winner: undefined }],
+      playoffsStarted: true,
+    });
+
+    const merged = mergeStates(local, remote);
+    // Should have both matches: completed semi + final from local
+    expect(merged.playoffMatches.length).toBe(2);
+    expect(merged.playoffMatches[0].status).toBe("completed");
+    expect(merged.playoffMatches[1].id).toBe("pm-final");
+  });
+
+  it("preserves playoffsStarted flag from either side", () => {
+    const local = makeGameState({ playoffsStarted: true });
+    const remote = makeGameState({ playoffsStarted: false });
+
+    const merged = mergeStates(local, remote);
+    expect(merged.playoffsStarted).toBe(true);
+  });
+});

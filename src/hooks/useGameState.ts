@@ -332,6 +332,23 @@ function mergeStates(local: GameState, remote: GameState): GameState {
     mergedWatched[k] = Math.max(mergedWatched[k] || 0, v);
   }
 
+  // Merge playoffMatches: same irreversible-completion logic as regular matches
+  const localPlayoffMap = new Map((local.playoffMatches || []).map(m => [m.id, m]));
+  const remotePlayoffMap = new Map((remote.playoffMatches || []).map(m => [m.id, m]));
+
+  const mergedPlayoffs = (remote.playoffMatches || []).map(rm => {
+    const lm = localPlayoffMap.get(rm.id);
+    if (!lm) return rm;
+    if (statusRank(lm.status) > statusRank(rm.status)) return lm;
+    return rm;
+  });
+  // Add any playoff matches that exist in local but not remote (e.g., next round created locally)
+  for (const [id, lm] of localPlayoffMap) {
+    if (!remotePlayoffMap.has(id)) {
+      mergedPlayoffs.push(lm);
+    }
+  }
+
   return {
     ...remote,
     roster: mergedRoster,
@@ -339,6 +356,8 @@ function mergeStates(local: GameState, remote: GameState): GameState {
     matches: mergedMatches,
     gameHistory: mergedHistory,
     pairGamesWatched: mergedWatched,
+    playoffMatches: mergedPlayoffs,
+    playoffsStarted: local.playoffsStarted || remote.playoffsStarted,
     totalScheduledGames: mergedMatches.length,
   };
 }
@@ -2938,7 +2957,7 @@ export function useGameState(options?: { simulate?: boolean }) {
     (matchId: string, winnerPairId: string) => {
       // Award leaderboard points (fire-and-forget, outside state updater)
       const match = state.matches.find((m) => m.id === matchId);
-      if (match) {
+      if (match && match.status === "playing") {
         const winnerPair = match.pair1.id === winnerPairId ? match.pair1 : match.pair2;
         awardMatchPoints(winnerPair, 3, "regular_win", matchId, state.practiceMode);
       }
@@ -2947,6 +2966,11 @@ export function useGameState(options?: { simulate?: boolean }) {
         const matchIdx = s.matches.findIndex((m) => m.id === matchId);
         if (matchIdx === -1) return s;
         const match = s.matches[matchIdx];
+        // Idempotency: don't re-complete an already completed match
+        if (match.status !== "playing") {
+          console.warn("[PTO] completeMatch skipped — match", matchId, "is", match.status, "not playing");
+          return s;
+        }
         const winnerPair = match.pair1.id === winnerPairId ? match.pair1 : match.pair2;
         const loserPair = match.pair1.id === winnerPairId ? match.pair2 : match.pair1;
         const freedCourt = match.court;
@@ -3648,11 +3672,9 @@ export function useGameState(options?: { simulate?: boolean }) {
     (matchId: string, winnerPairId: string) => {
       // Award leaderboard points (fire-and-forget, outside state updater)
       const pm = state.playoffMatches.find((m) => m.id === matchId);
-      if (pm) {
+      if (pm && pm.status === "playing") {
         const winnerPair = pm.pair1?.id === winnerPairId ? pm.pair1 : pm.pair2;
         if (winnerPair) {
-          // Final = only 1 match in this round → tournament_win (10pts)
-          // Otherwise → playoff_win (5pts)
           const roundMatches = state.playoffMatches.filter((m) => m.round === pm.round);
           const isFinal = roundMatches.length === 1;
           const pts: 5 | 10 = isFinal ? 10 : 5;
@@ -3665,6 +3687,11 @@ export function useGameState(options?: { simulate?: boolean }) {
         const pmIdx = s.playoffMatches.findIndex((m) => m.id === matchId);
         if (pmIdx === -1) return s;
         const pm = s.playoffMatches[pmIdx];
+        // Idempotency: don't re-complete an already completed playoff match
+        if (pm.status !== "playing") {
+          console.warn("[PTO] completePlayoffMatch skipped — match", matchId, "is", pm.status, "not playing");
+          return s;
+        }
         const winner = pm.pair1?.id === winnerPairId ? pm.pair1 : pm.pair2;
         const freedCourt = pm.court || null;
         const updated = [...s.playoffMatches];
