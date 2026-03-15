@@ -438,12 +438,10 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
                 <UserPlus className="w-5 h-5 mr-2" /> Add Late Players
               </Button>
             )}
-            {state.matches.length === 0 && (
-              <Button onClick={handleGenerateWithPasscode} disabled={generating} className="bg-accent text-accent-foreground hover:bg-accent/80 shrink-0 min-h-[48px] px-6 text-base">
-                {!isAdmin && <Lock className="w-4 h-4 mr-2" />}
-                <Swords className="w-5 h-5 mr-2" /> {generating ? "Generating..." : "Generate Games"}
-              </Button>
-            )}
+            <Button onClick={handleGenerateWithPasscode} disabled={generating} className="bg-accent text-accent-foreground hover:bg-accent/80 shrink-0 min-h-[48px] px-6 text-base">
+              {!isAdmin && <Lock className="w-4 h-4 mr-2" />}
+              <Swords className="w-5 h-5 mr-2" /> {generating ? "Generating..." : state.matches.length > 0 ? "Regenerate Games" : "Generate Games"}
+            </Button>
           </div>
         </div>
       )}
