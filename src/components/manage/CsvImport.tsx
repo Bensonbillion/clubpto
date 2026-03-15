@@ -115,11 +115,14 @@ const CsvImport = ({ onImportComplete }: CsvImportProps) => {
   const [fileName, setFileName] = useState("");
   const [importing, setImporting] = useState(false);
   const [results, setResults] = useState<ImportResult[] | null>(null);
+  const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processFile = (file: File) => {
+    if (!file.name.endsWith(".csv")) {
+      toast.error("Please upload a .csv file");
+      return;
+    }
     setFileName(file.name);
     setResults(null);
 
@@ -136,6 +139,28 @@ const CsvImport = ({ onImportComplete }: CsvImportProps) => {
       }
     };
     reader.readAsText(file);
+  };
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processFile(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) processFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
   };
 
   const handleImport = async () => {
@@ -227,11 +252,16 @@ const CsvImport = ({ onImportComplete }: CsvImportProps) => {
         />
         <button
           onClick={() => fileRef.current?.click()}
-          className="w-full border-2 border-dashed border-border rounded-lg p-8 flex flex-col items-center gap-3 hover:border-accent transition-colors"
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          className={`w-full border-2 border-dashed rounded-lg p-8 flex flex-col items-center gap-3 transition-colors ${
+            dragging ? "border-accent bg-accent/10" : "border-border hover:border-accent"
+          }`}
         >
-          <Upload className="w-8 h-8 text-muted-foreground" />
-          <span className="text-muted-foreground">
-            {fileName ? fileName : "Click to select CSV file"}
+          <Upload className={`w-8 h-8 ${dragging ? "text-accent" : "text-muted-foreground"}`} />
+          <span className={dragging ? "text-accent" : "text-muted-foreground"}>
+            {dragging ? "Drop CSV file here" : fileName ? fileName : "Click or drag & drop CSV file"}
           </span>
         </button>
       </div>
