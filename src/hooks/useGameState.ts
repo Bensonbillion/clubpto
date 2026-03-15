@@ -1489,7 +1489,8 @@ export function useGameState(options?: { simulate?: boolean }) {
     let bestTrialBoundaries: number[] = [];
     let bestTrialMaxGap = Infinity;
 
-    for (let trial = 0; trial < 8; trial++) {
+    const TRIAL_COUNT = courtCount === 3 ? 4 : 8;
+    for (let trial = 0; trial < TRIAL_COUNT; trial++) {
       // Reset state for this trial
       schedule.length = 0;
       slotBoundaries.length = 0;
@@ -1616,8 +1617,9 @@ export function useGameState(options?: { simulate?: boolean }) {
             const checkSlot = Math.floor(checkIdx / courtCount);
             for (let adj = Math.max(0, checkSlot - REST_GAP); adj <= Math.min(slotTotal - 1, checkSlot + REST_GAP); adj++) {
               if (adj === checkSlot) continue;
+              const checkPids = new Set(matchPlayerIds(schedule[checkIdx]));
               for (let mi = adj * courtCount; mi < (adj + 1) * courtCount && mi < schedule.length; mi++) {
-                if (matchPlayerIds(schedule[checkIdx]).some((pid) => matchPlayerIds(schedule[mi]).includes(pid))) {
+                if (matchPlayerIds(schedule[mi]).some((pid) => checkPids.has(pid))) {
                   hasBackToBack = true;
                 }
               }
@@ -1719,17 +1721,19 @@ export function useGameState(options?: { simulate?: boolean }) {
       const matchB = schedule[idxB];
       const pidsA = matchPlayerIds(matchA);
       const pidsB = matchPlayerIds(matchB);
+      const setA = new Set(pidsA);
+      const setB = new Set(pidsB);
       // Check matchA in slotB: no cross-court conflict with other games in slotB
       const [startB, endB] = getSlotRange(slotB);
       for (let i = startB; i < endB && i < schedule.length; i++) {
         if (i === idxB) continue;
-        if (matchPlayerIds(schedule[i]).some(id => pidsA.includes(id))) return false;
+        if (matchPlayerIds(schedule[i]).some(id => setA.has(id))) return false;
       }
       // Check matchB in slotA: no cross-court conflict with other games in slotA
       const [startA, endA] = getSlotRange(slotA);
       for (let i = startA; i < endA && i < schedule.length; i++) {
         if (i === idxA) continue;
-        if (matchPlayerIds(schedule[i]).some(id => pidsB.includes(id))) return false;
+        if (matchPlayerIds(schedule[i]).some(id => setB.has(id))) return false;
       }
       // Check back-to-back: matchA in slotB must not conflict with adjacent slots
       for (const adjSlot of [slotB - 1, slotB + 1]) {
@@ -1752,7 +1756,7 @@ export function useGameState(options?: { simulate?: boolean }) {
       return true;
     };
 
-    for (let attempt = 0; attempt < 20; attempt++) {
+    for (let attempt = 0, consecutiveNoSwap = 0; attempt < 20; attempt++) {
       // Build player → slot activity map
       const playerSlots = new Map<string, number[]>();
       for (let i = 0; i < schedule.length; i++) {
@@ -1818,21 +1822,21 @@ export function useGameState(options?: { simulate?: boolean }) {
         }
         if (swapped) break;
       }
+      if (!swapped) { consecutiveNoSwap++; if (consecutiveNoSwap >= 3) break; } else { consecutiveNoSwap = 0; }
     }
 
       // Compute max gap for this trial
-      const trialPlayerSlots = new Map<string, number[]>();
+      const trialPlayerSlots = new Map<string, Set<number>>();
       for (let i = 0; i < schedule.length; i++) {
         const s = getSlotForIndex(i);
         for (const id of matchPlayerIds(schedule[i])) {
-          if (!trialPlayerSlots.has(id)) trialPlayerSlots.set(id, []);
-          const sl = trialPlayerSlots.get(id)!;
-          if (!sl.includes(s)) sl.push(s);
+          if (!trialPlayerSlots.has(id)) trialPlayerSlots.set(id, new Set());
+          trialPlayerSlots.get(id)!.add(s);
         }
       }
       let trialScore = 0;
-      for (const [, pSlots] of trialPlayerSlots) {
-        pSlots.sort((a, b) => a - b);
+      for (const [, pSlotSet] of trialPlayerSlots) {
+        const pSlots = Array.from(pSlotSet).sort((a, b) => a - b);
         for (let i = 0; i < pSlots.length - 1; i++) trialScore = Math.max(trialScore, pSlots[i + 1] - pSlots[i]);
         trialScore = Math.max(trialScore, (totalSlots - 1) - pSlots[pSlots.length - 1]);
       }
