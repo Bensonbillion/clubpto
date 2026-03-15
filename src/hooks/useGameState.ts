@@ -763,12 +763,13 @@ export function useGameState(options?: { simulate?: boolean }) {
             return;
           }
           if (typeof remoteVersion === "number") versionRef.current = remoteVersion;
-          console.log(`✅ [PTO] Applying remote state v${versionRef.current}. Playing:`,
+          console.log(`✅ [PTO] Merging remote state v${versionRef.current}. Playing:`,
             nextState.matches?.filter((m: any) => m.status === "playing").length,
             "Pending:",
             nextState.matches?.filter((m: any) => m.status === "pending").length,
           );
-          setState(nextState);
+          // Merge with local state to preserve any completions not yet saved
+          setState((prev) => mergeStates(prev, nextState));
         }
       )
       .subscribe((status, err) => {
@@ -810,8 +811,8 @@ export function useGameState(options?: { simulate?: boolean }) {
         if (typeof remoteVersion === "number" && remoteVersion <= versionRef.current) return;
         if (!shouldApplyRemote(updatedAt)) return;
         if (typeof remoteVersion === "number") versionRef.current = remoteVersion;
-        console.log(`🔄 [PTO] Poll — applying v${versionRef.current} from DB`);
-        setState(nextState);
+        console.log(`🔄 [PTO] Poll — merging v${versionRef.current} from DB`);
+        setState((prev) => mergeStates(prev, nextState));
       }
     }, 10_000);
     return () => clearInterval(interval);
@@ -915,7 +916,7 @@ export function useGameState(options?: { simulate?: boolean }) {
         if (!pendingRef.current) pendingRef.current = toSave;
       }
       if (retries >= MAX_RETRIES) {
-        console.error(`❌ [PTO] Gave up after ${MAX_RETRIES} retries. Fetching remote state as hard reset.`);
+        console.error(`❌ [PTO] Gave up after ${MAX_RETRIES} retries. Fetching remote state for merge-reset.`);
         const { data: reset } = await supabase
           .from("game_state")
           .select("state, updated_at, version")
@@ -925,8 +926,20 @@ export function useGameState(options?: { simulate?: boolean }) {
           versionRef.current = (reset as any).version as number;
           const resetTs = Date.parse((reset as any).updated_at);
           if (Number.isFinite(resetTs)) lastAppliedUpdatedAtRef.current = Math.max(lastAppliedUpdatedAtRef.current, resetTs);
-          setState(reset.state as unknown as GameState);
-          pendingRef.current = null;
+          const remoteState = reset.state as unknown as GameState;
+          // Merge with current local state to preserve completions
+          setState((prev) => {
+            const merged = mergeStates(prev, remoteState);
+            console.log(`🔀 [PTO] Hard-reset merge — preserving local completions`, {
+              localCompleted: prev.matches?.filter(m => m.status === "completed").length,
+              remoteCompleted: remoteState.matches?.filter(m => m.status === "completed").length,
+              mergedCompleted: merged.matches?.filter(m => m.status === "completed").length,
+            });
+            // Re-queue merged state to save back
+            pendingRef.current = merged;
+            queueMicrotask(() => drainSave());
+            return merged;
+          });
         }
       }
     } finally {
