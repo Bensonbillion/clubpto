@@ -18,6 +18,7 @@ interface CheckInProps {
 const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckInProps) => {
   const { state, toggleCheckIn, checkedInPlayers, generateFullSchedule, addLatePlayersToSchedule, handleLateCheckIn, closeCheckIn, lockCheckIn, startSession, setOddPlayerDecisions, swapPlayersInPairs, swapWaitlistPlayer, lockPairs } = gameState;
   const [generated, setGenerated] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [vipDialogFor, setVipDialogFor] = useState<string | null>(null);
   const [vipFixedPairs, setVipFixedPairs] = useState<FixedPair[]>([]);
   const vipsDismissedRef = useRef<Set<string>>(new Set());
@@ -142,9 +143,17 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
   };
 
   const handleGenerateClick = async () => {
-    await generateFullSchedule(vipFixedPairs);
-    setGenerated(true);
-    onSwitchToCourtDisplay?.();
+    setGenerating(true);
+    try {
+      await generateFullSchedule(vipFixedPairs);
+      setGenerated(true);
+      onSwitchToCourtDisplay?.();
+    } catch (err) {
+      console.error("[PTO] Generate failed:", err);
+      toast.error("Failed to generate schedule — try again");
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const handleGenerateWithPasscode = () => {
@@ -410,9 +419,9 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
           <p className="text-accent text-base">
             ✦ Dynamic mode — {4 - checkedInPlayers.length} more player{4 - checkedInPlayers.length !== 1 ? "s" : ""} needed to auto-start
           </p>
-          <Button onClick={handleGenerateWithPasscode} disabled={checkedInPlayers.length < 4} className="bg-accent text-accent-foreground hover:bg-accent/80 shrink-0 min-h-[48px] px-6 text-base">
+          <Button onClick={handleGenerateWithPasscode} disabled={checkedInPlayers.length < 4 || generating} className="bg-accent text-accent-foreground hover:bg-accent/80 shrink-0 min-h-[48px] px-6 text-base">
             {!isAdmin && <Lock className="w-4 h-4 mr-2" />}
-            <Swords className="w-5 h-5 mr-2" /> Force Generate
+            <Swords className="w-5 h-5 mr-2" /> {generating ? "Generating..." : "Force Generate"}
           </Button>
         </div>
       )}
@@ -430,9 +439,9 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
               </Button>
             )}
             {state.matches.length === 0 && (
-              <Button onClick={handleGenerateWithPasscode} className="bg-accent text-accent-foreground hover:bg-accent/80 shrink-0 min-h-[48px] px-6 text-base">
+              <Button onClick={handleGenerateWithPasscode} disabled={generating} className="bg-accent text-accent-foreground hover:bg-accent/80 shrink-0 min-h-[48px] px-6 text-base">
                 {!isAdmin && <Lock className="w-4 h-4 mr-2" />}
-                <Swords className="w-5 h-5 mr-2" /> Generate Games
+                <Swords className="w-5 h-5 mr-2" /> {generating ? "Generating..." : "Generate Games"}
               </Button>
             )}
           </div>

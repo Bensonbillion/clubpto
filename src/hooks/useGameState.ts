@@ -1185,14 +1185,17 @@ export function useGameState(options?: { simulate?: boolean }) {
     // Fetch pair history BEFORE entering updateState (only async part)
     const twoWeeksAgo = new Date();
     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+    console.log("[PTO] generateFullSchedule: fetching pair history...");
     const historyResult = await query(
       'SELECT player1_name, player2_name FROM pair_history WHERE session_date >= ?',
       [twoWeeksAgo.toISOString().split("T")[0]]
-    ).catch(() => ({ rows: [] }));
+    ).catch((err) => { console.warn("[PTO] Pair history fetch failed:", err); return { rows: [] }; });
     const history = historyResult.rows as any[];
+    console.log("[PTO] generateFullSchedule: history fetched, entering scheduling...");
 
     // All state reads happen inside updateState to avoid stale closures
     updateState((s) => {
+    const _t0 = performance.now();
     let roster = [...s.roster];
     // Auto-check-in any locked teammates
     fixedPairs.forEach((fp) => {
@@ -1488,6 +1491,10 @@ export function useGameState(options?: { simulate?: boolean }) {
     let bestTrialSchedule: Match[] = [];
     let bestTrialBoundaries: number[] = [];
     let bestTrialMaxGap = Infinity;
+
+    console.log("[PTO Perf] Candidates:", allCandidates.length, "Pairs:", allPairs.length, "Slots:", totalSlots, "Courts:", courtCount);
+    const _t1 = performance.now();
+    console.log("[PTO Perf] Setup:", (_t1 - _t0).toFixed(1), "ms");
 
     const TRIAL_COUNT = courtCount === 3 ? 4 : 8;
     for (let trial = 0; trial < TRIAL_COUNT; trial++) {
@@ -1959,6 +1966,8 @@ export function useGameState(options?: { simulate?: boolean }) {
       else if (m.matchupLabel === "B vs C") matchupBreakdown.BvC++;
     });
 
+    const _t2 = performance.now();
+    console.log("[PTO Perf] Total schedule generation:", (_t2 - _t0).toFixed(1), "ms");
     console.log("[PTO Schedule] A=" + aCount + " B=" + bCount + " C=" + cCount + " | " + schedule.length + " games | TargetA=" + getTargetGames(courtCount, "A") + " TargetB=" + getTargetGames(courtCount, "B") + " | AvA=" + matchupBreakdown.AvA + " BvB=" + matchupBreakdown.BvB + " BvA=" + matchupBreakdown.BvA + " CvC=" + matchupBreakdown.CvC + " | Min=" + minG + " Max=" + maxG);
     console.log("[PTO Schedule] Per pair:", pairSummary);
 
