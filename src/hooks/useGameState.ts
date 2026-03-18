@@ -272,11 +272,21 @@ function syncPairsToMatches(pairs: Pair[], matches: Match[]): Match[] {
  * pairs to exceed the game cap.
  */
 function mergeStates(local: GameState, remote: GameState): GameState {
+  const statusRank = (s: string) => s === "completed" ? 3 : s === "playing" ? 2 : 1;
+
+  // If remote has a newer schedule generation, it means a full regeneration happened.
+  // Don't union-merge stale local pairs/matches — use remote as authoritative for those.
+  const remoteGen = remote.scheduleGeneration || 0;
+  const localGen = local.scheduleGeneration || 0;
+  const fullReset = remoteGen > localGen;
+
+  if (fullReset) {
+    console.log(`[PTO Merge] Schedule generation changed (${localGen} → ${remoteGen}) — using remote pairs/matches as authoritative`);
+  }
+
   // Build a map of match statuses from both states
   const localMatchMap = new Map(local.matches.map(m => [m.id, m]));
   const remoteMatchMap = new Map(remote.matches.map(m => [m.id, m]));
-
-  const statusRank = (s: string) => s === "completed" ? 3 : s === "playing" ? 2 : 1;
 
   // Start from remote state (authoritative) and merge in local completions
   const mergedMatches = remote.matches.map(rm => {
@@ -289,10 +299,12 @@ function mergeStates(local: GameState, remote: GameState): GameState {
     return rm;
   });
 
-  // Add any matches that exist in local but not in remote (e.g., dynamically generated)
-  for (const [id, lm] of localMatchMap) {
-    if (!remoteMatchMap.has(id)) {
-      mergedMatches.push(lm);
+  // Add local-only matches ONLY if this isn't a full schedule reset
+  if (!fullReset) {
+    for (const [id, lm] of localMatchMap) {
+      if (!remoteMatchMap.has(id)) {
+        mergedMatches.push(lm);
+      }
     }
   }
 
@@ -318,7 +330,7 @@ function mergeStates(local: GameState, remote: GameState): GameState {
     ...local.gameHistory.filter(h => !historyIds.has(h.id)),
   ];
 
-  // Merge pairs: prefer remote, but add any new pairs from local
+  // Merge pairs: prefer remote, add local-only pairs ONLY if not a full reset
   const remotePairIds = new Set(remote.pairs.map(p => p.id));
   const mergedPairs = [
     ...remote.pairs.map(rp => {
@@ -326,13 +338,15 @@ function mergeStates(local: GameState, remote: GameState): GameState {
       if (!lp) return rp;
       return { ...rp, wins: Math.max(rp.wins, lp.wins), losses: Math.max(rp.losses, lp.losses) };
     }),
-    ...local.pairs.filter(p => !remotePairIds.has(p.id)),
+    ...(fullReset ? [] : local.pairs.filter(p => !remotePairIds.has(p.id))),
   ];
 
   // Merge pairGamesWatched: use max from either
   const mergedWatched: Record<string, number> = { ...(remote.pairGamesWatched || {}) };
-  for (const [k, v] of Object.entries(local.pairGamesWatched || {})) {
-    mergedWatched[k] = Math.max(mergedWatched[k] || 0, v);
+  if (!fullReset) {
+    for (const [k, v] of Object.entries(local.pairGamesWatched || {})) {
+      mergedWatched[k] = Math.max(mergedWatched[k] || 0, v);
+    }
   }
 
   // Merge playoffMatches: same irreversible-completion logic as regular matches
@@ -345,10 +359,12 @@ function mergeStates(local: GameState, remote: GameState): GameState {
     if (statusRank(lm.status) > statusRank(rm.status)) return lm;
     return rm;
   });
-  // Add any playoff matches that exist in local but not remote (e.g., next round created locally)
-  for (const [id, lm] of localPlayoffMap) {
-    if (!remotePlayoffMap.has(id)) {
-      mergedPlayoffs.push(lm);
+  // Add local-only playoff matches ONLY if not a full reset
+  if (!fullReset) {
+    for (const [id, lm] of localPlayoffMap) {
+      if (!remotePlayoffMap.has(id)) {
+        mergedPlayoffs.push(lm);
+      }
     }
   }
 
@@ -360,7 +376,7 @@ function mergeStates(local: GameState, remote: GameState): GameState {
     gameHistory: mergedHistory,
     pairGamesWatched: mergedWatched,
     playoffMatches: mergedPlayoffs,
-    playoffsStarted: local.playoffsStarted || remote.playoffsStarted,
+    playoffsStarted: fullReset ? remote.playoffsStarted : (local.playoffsStarted || remote.playoffsStarted),
     totalScheduledGames: mergedMatches.length,
   };
 }
@@ -2040,6 +2056,7 @@ export function useGameState(options?: { simulate?: boolean }) {
       matches: schedule,
       totalScheduledGames: schedule.length,
       waitlistedPlayers: waitlistedIds,
+      scheduleGeneration: (s.scheduleGeneration || 0) + 1,
     };
     }); // end updateState
   }, [updateState]);

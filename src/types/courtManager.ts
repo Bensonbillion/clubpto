@@ -106,6 +106,8 @@ export interface GameState {
   pairGamesWatched?: Record<string, number>;
   /** Practice mode: syncs across devices, skips leaderboard points */
   practiceMode?: boolean;
+  /** Bumped on each full schedule generation — mergeStates uses this to avoid union-merging stale pairs/matches */
+  scheduleGeneration?: number;
 }
 
 export const DEFAULT_STATE: GameState = {

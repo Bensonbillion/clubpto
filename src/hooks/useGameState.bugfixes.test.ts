@@ -1458,6 +1458,55 @@ describe("mergeStates playoff merge", () => {
     const merged = mergeStates(local, remote);
     expect(merged.playoffsStarted).toBe(true);
   });
+
+  it("does NOT union-merge old pairs when scheduleGeneration bumps (full regen)", () => {
+    const oldPair = makePair("Old1", "Old2", "A", "old-pair-1");
+    const newPair = makePair("New1", "New2", "A", "new-pair-1");
+    const oldMatch = makeMatch(oldPair, makePair("Old3", "Old4", "A", "old-pair-2"), { id: "old-match-1" });
+    const newMatch = makeMatch(newPair, makePair("New3", "New4", "A", "new-pair-2"), { id: "new-match-1" });
+
+    const local = makeGameState({
+      pairs: [oldPair],
+      matches: [oldMatch],
+      scheduleGeneration: 1,
+    });
+    const remote = makeGameState({
+      pairs: [newPair],
+      matches: [newMatch],
+      scheduleGeneration: 2,
+    });
+
+    const merged = mergeStates(local, remote);
+    // Should NOT have old pairs or old matches — full reset
+    expect(merged.pairs.length).toBe(1);
+    expect(merged.pairs[0].id).toBe("new-pair-1");
+    expect(merged.matches.length).toBe(1);
+    expect(merged.matches[0].id).toBe("new-match-1");
+  });
+
+  it("still union-merges pairs/matches when scheduleGeneration is the same", () => {
+    const pair1 = makePair("P1a", "P1b", "A", "pair-1");
+    const pair2 = makePair("P2a", "P2b", "A", "pair-2");
+    const match1 = makeMatch(pair1, pair2, { id: "match-1" });
+    const latePair = makePair("Late1", "Late2", "A", "late-pair");
+    const lateMatch = makeMatch(latePair, pair1, { id: "late-match" });
+
+    const local = makeGameState({
+      pairs: [pair1, pair2, latePair],
+      matches: [match1, lateMatch],
+      scheduleGeneration: 1,
+    });
+    const remote = makeGameState({
+      pairs: [pair1, pair2],
+      matches: [match1],
+      scheduleGeneration: 1,
+    });
+
+    const merged = mergeStates(local, remote);
+    // Same generation: should union-merge the late pair and match
+    expect(merged.pairs.length).toBe(3);
+    expect(merged.matches.length).toBe(2);
+  });
 });
 
 // ═══════════════════════════════════════════════════════════
