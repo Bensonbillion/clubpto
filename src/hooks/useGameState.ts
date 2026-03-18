@@ -93,6 +93,8 @@ function createSessionPairs(
   // ── Step 0: Create VIP fixed pairs from ALL active players ──
   // This runs before the tier split so that cross-pair decisions
   // don't pull a VIP's chosen partner into a different tier array.
+  console.log("[PTO VIP] createSessionPairs called with", fixedPairs.length, "fixedPairs:", fixedPairs.map(fp => `${fp.player1Name} + ${fp.player2Name}`).join(", ") || "(none)");
+  console.log("[PTO VIP] activePlayers:", activePlayers.map(p => `${p.name}(${p.skillLevel})`).join(", "));
   const vipPairs: Pair[] = [];
   const vipPairedIds = new Set<string>();
 
@@ -116,13 +118,14 @@ function createSessionPairs(
     const p2 = activePlayers.find((p) => p.name.toLowerCase() === fp.player2Name.toLowerCase());
     if (p1 && p2) {
       // Use the VIP's base skillLevel (what the dialog showed) for the pair tier
+      console.log(`[PTO VIP] ✅ Fixed pair created: ${p1.name}(${p1.skillLevel}) + ${p2.name}(${p2.skillLevel}) → tier ${p1.skillLevel}`);
       vipPairs.push({
         id: generateId(), player1: p1, player2: p2, skillLevel: p1.skillLevel, wins: 0, losses: 0,
       });
       vipPairedIds.add(p1.id);
       vipPairedIds.add(p2.id);
     } else {
-      console.warn(`[PTO] Fixed pair failed: ${fp.player1Name} + ${fp.player2Name} — player not found in active roster`);
+      console.warn(`[PTO VIP] ❌ Fixed pair failed: ${fp.player1Name} + ${fp.player2Name} — p1=${p1?.name || "NOT FOUND"}, p2=${p2?.name || "NOT FOUND"}`);
     }
   }
 
@@ -1622,6 +1625,8 @@ export function useGameState(options?: { simulate?: boolean }) {
 
     // ── Push VIP matches out of first 2 slots (conflict-safe) ──
     const vipSlotSize = courtCount;
+    const vipMatchCount = schedule.filter(matchHasVip).length;
+    console.log(`[PTO VIP] Push check: ${vipMatchCount} VIP matches in schedule of ${schedule.length}. Checking first ${Math.min(vipSlotSize * 2, schedule.length)} positions.`);
     for (let i = 0; i < Math.min(vipSlotSize * 2, schedule.length); i++) {
       if (matchHasVip(schedule[i])) {
         // Find a swap candidate that won't create a cross-court conflict

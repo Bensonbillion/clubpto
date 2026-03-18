@@ -94,6 +94,7 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
     }
 
     // Pre-session VIP handling
+    console.log(`[PTO VIP CheckIn] ${player.name} — isVip=${isVipPlayer(player.name, player.profileId)}, profileId=${player.profileId || "MISSING"}, dismissed=${vipsDismissedRef.current.has(player.name.toLowerCase())}`);
     if (isVipPlayer(player.name, player.profileId) && !vipsDismissedRef.current.has(player.name.toLowerCase())) {
       setTimeout(() => setVipDialogFor(player.name), 100);
     }
@@ -118,6 +119,7 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
   };
 
   const handleVipConfirm = (teammateName: string | null) => {
+    console.log(`[PTO VIP CheckIn] VIP confirm — vip=${vipDialogFor}, teammate=${teammateName}, late=${!!lateVipPlayerId}, sessionActive=${sessionActive}`);
     if (vipDialogFor) {
       vipsDismissedRef.current.add(vipDialogFor.toLowerCase());
 
@@ -144,6 +146,7 @@ const CheckIn = ({ gameState, onSwitchToCourtDisplay, isAdmin = false }: CheckIn
 
   const handleGenerateClick = async () => {
     setGenerating(true);
+    console.log(`[PTO VIP CheckIn] Generate clicked — vipFixedPairs:`, vipFixedPairs);
     try {
       await generateFullSchedule(vipFixedPairs);
       setGenerated(true);

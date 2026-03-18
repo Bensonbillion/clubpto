@@ -1459,3 +1459,180 @@ describe("mergeStates playoff merge", () => {
     expect(merged.playoffsStarted).toBe(true);
   });
 });
+
+// ═══════════════════════════════════════════════════════════
+// TEST SUITE 9: VIP System — Fixed Pairing
+// ═══════════════════════════════════════════════════════════
+
+describe("VIP System: createSessionPairs with fixedPairs", () => {
+  it("honors a single VIP fixed pair in 2-court mode", () => {
+    const players = [
+      makePlayer("David", "A"),
+      makePlayer("PartnerX", "A"),
+      makePlayer("Alice", "A"),
+      makePlayer("Bob", "A"),
+      makePlayer("Carol", "B"),
+      makePlayer("Dan", "B"),
+      makePlayer("Eve", "B"),
+      makePlayer("Frank", "B"),
+    ];
+
+    const fixedPairs = [{ player1Name: "David", player2Name: "PartnerX" }];
+    const result = createSessionPairs(players, fixedPairs, [], new Set());
+
+    // David should be paired with PartnerX
+    const davidPair = result.allPairs.find(
+      (p) =>
+        (p.player1.name === "David" && p.player2.name === "PartnerX") ||
+        (p.player1.name === "PartnerX" && p.player2.name === "David"),
+    );
+    expect(davidPair, "David + PartnerX should be a pair").toBeDefined();
+    expect(davidPair!.skillLevel).toBe("A");
+  });
+
+  it("does NOT pair VIP with someone else when fixed pair is set", () => {
+    const players = [
+      makePlayer("David", "A"),
+      makePlayer("PartnerX", "A"),
+      makePlayer("Alice", "A"),
+      makePlayer("Bob", "A"),
+    ];
+
+    const fixedPairs = [{ player1Name: "David", player2Name: "PartnerX" }];
+    const result = createSessionPairs(players, fixedPairs, [], new Set());
+
+    // David should NOT appear in any other pair
+    for (const pair of result.allPairs) {
+      if (pair.player1.name === "David" || pair.player2.name === "David") {
+        const partner =
+          pair.player1.name === "David" ? pair.player2.name : pair.player1.name;
+        expect(partner).toBe("PartnerX");
+      }
+    }
+  });
+
+  it("handles multiple VIP fixed pairs without conflicts", () => {
+    const players = [
+      makePlayer("David", "A"),
+      makePlayer("PartnerD", "A"),
+      makePlayer("Benson", "A"),
+      makePlayer("PartnerB", "A"),
+      makePlayer("Alice", "A"),
+      makePlayer("Bob", "A"),
+    ];
+
+    const fixedPairs = [
+      { player1Name: "David", player2Name: "PartnerD" },
+      { player1Name: "Benson", player2Name: "PartnerB" },
+    ];
+    const result = createSessionPairs(players, fixedPairs, [], new Set());
+
+    const davidPair = result.allPairs.find(
+      (p) => p.player1.name === "David" || p.player2.name === "David",
+    );
+    const bensonPair = result.allPairs.find(
+      (p) => p.player1.name === "Benson" || p.player2.name === "Benson",
+    );
+    expect(davidPair).toBeDefined();
+    expect(bensonPair).toBeDefined();
+
+    const davidPartner =
+      davidPair!.player1.name === "David"
+        ? davidPair!.player2.name
+        : davidPair!.player1.name;
+    const bensonPartner =
+      bensonPair!.player1.name === "Benson"
+        ? bensonPair!.player2.name
+        : bensonPair!.player1.name;
+
+    expect(davidPartner).toBe("PartnerD");
+    expect(bensonPartner).toBe("PartnerB");
+  });
+
+  it("deduplicates when two VIPs claim the same partner", () => {
+    const players = [
+      makePlayer("David", "A"),
+      makePlayer("Benson", "A"),
+      makePlayer("SharedPartner", "A"),
+      makePlayer("Alice", "A"),
+    ];
+
+    const fixedPairs = [
+      { player1Name: "David", player2Name: "SharedPartner" },
+      { player1Name: "Benson", player2Name: "SharedPartner" },
+    ];
+    const result = createSessionPairs(players, fixedPairs, [], new Set());
+
+    // David gets SharedPartner (first claim wins)
+    const davidPair = result.allPairs.find(
+      (p) => p.player1.name === "David" || p.player2.name === "David",
+    );
+    expect(davidPair).toBeDefined();
+    const davidPartner =
+      davidPair!.player1.name === "David"
+        ? davidPair!.player2.name
+        : davidPair!.player1.name;
+    expect(davidPartner).toBe("SharedPartner");
+
+    // Benson gets someone else (not SharedPartner)
+    const bensonPair = result.allPairs.find(
+      (p) => p.player1.name === "Benson" || p.player2.name === "Benson",
+    );
+    expect(bensonPair).toBeDefined();
+    const bensonPartner =
+      bensonPair!.player1.name === "Benson"
+        ? bensonPair!.player2.name
+        : bensonPair!.player1.name;
+    expect(bensonPartner).not.toBe("SharedPartner");
+  });
+
+  it("VIP pair excluded when partner not in active players", () => {
+    const players = [
+      makePlayer("David", "A"),
+      // PartnerX is NOT in active players (not checked in)
+      makePlayer("Alice", "A"),
+      makePlayer("Bob", "A"),
+    ];
+
+    const fixedPairs = [{ player1Name: "David", player2Name: "PartnerX" }];
+    const result = createSessionPairs(players, fixedPairs, [], new Set());
+
+    // David should still be paired with someone (Alice or Bob), but not PartnerX
+    const davidPair = result.allPairs.find(
+      (p) => p.player1.name === "David" || p.player2.name === "David",
+    );
+    // David should get paired with remaining A-tier player
+    if (davidPair) {
+      const partner =
+        davidPair.player1.name === "David"
+          ? davidPair.player2.name
+          : davidPair.player1.name;
+      expect(partner).not.toBe("PartnerX");
+    }
+    // No one should be left out — 3 players, so 1 pair + 1 waitlisted
+    expect(result.allPairs.length).toBe(1);
+    expect(result.waitlistedIds.length).toBe(1);
+  });
+
+  it("VIP pair uses correct tier in 2-court mixed-tier session", () => {
+    const players = [
+      makePlayer("David", "A"),
+      makePlayer("PartnerX", "A"),
+      makePlayer("Carol", "B"),
+      makePlayer("Dan", "B"),
+    ];
+
+    const fixedPairs = [{ player1Name: "David", player2Name: "PartnerX" }];
+    const result = createSessionPairs(players, fixedPairs, [], new Set());
+
+    expect(result.allPairs.length).toBe(2);
+
+    const aPair = result.allPairs.find((p) => p.skillLevel === "A");
+    const bPair = result.allPairs.find((p) => p.skillLevel === "B");
+
+    expect(aPair).toBeDefined();
+    expect(bPair).toBeDefined();
+    expect(aPair!.player1.name).toBe("David");
+    expect(aPair!.player2.name).toBe("PartnerX");
+  });
+});
