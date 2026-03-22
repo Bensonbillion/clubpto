@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useGameState } from "@/hooks/useGameState";
-import { Match, Player } from "@/types/courtManager";
-import { Trophy, Timer, UserCheck, ArrowRightLeft, Maximize, Minimize, SkipForward, Users, BarChart3, Clock, UserMinus, Swords, Share2, Settings2, Edit3, RefreshCw, Lock, Zap } from "lucide-react";
+import { Match, Player, Pair, CourtState, CourtFormat, WsoStats } from "@/types/courtManager";
+import { Trophy, Timer, UserCheck, ArrowRightLeft, Maximize, Minimize, SkipForward, Users, BarChart3, Clock, UserMinus, Swords, Share2, Settings2, Edit3, RefreshCw, Lock, Zap, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -230,7 +230,7 @@ const MiniStandings = ({ roster }: { roster: Player[] }) => {
 
 /* ── Main CourtDisplay ────────────────────────────────────────────── */
 const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDisplayProps) => {
-  const { state, court1Match, court2Match, court3Match, pendingMatches, upNextMatches, onDeckMatches, completeMatch, skipMatch, swapPlayer, checkedInPlayers, startPlayoffs, removePlayerMidSession, swapPlayerMidSession, addPlayerMidSession, replacePlayerInPair, startPlayoffMatch, completePlayoffMatch, swapPlayersInPairs, swapWaitlistPlayer, lockPairs, regenerateRemainingSchedule } = gameState;
+  const { state, court1Match, court2Match, court3Match, pendingMatches, upNextMatches, onDeckMatches, completeMatch, skipMatch, swapPlayer, checkedInPlayers, startPlayoffs, removePlayerMidSession, swapPlayerMidSession, addPlayerMidSession, addLatePlayerToCourt, replacePlayerInPair, startPlayoffMatch, completePlayoffMatch, swapPlayersInPairs, swapWaitlistPlayer, lockPairs, regenerateRemainingSchedule, setCourtFormat, recordWsoWinner, undoWsoResult, reorderWsoQueue, executeSubRotation, confirmSubRotationAction, skipSubRotation, startCourt, startAllCourts } = gameState;
   const [showExport, setShowExport] = useState(false);
   const [finishingMatch, setFinishingMatch] = useState<Match | null>(null);
   const [showStandings, setShowStandings] = useState(false);
@@ -238,10 +238,39 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
   const [showManageRoster, setShowManageRoster] = useState(false);
   const [showEditPairs, setShowEditPairs] = useState(false);
   const [showRegenConfirm, setShowRegenConfirm] = useState(false);
+  const [showLateArrival, setShowLateArrival] = useState(false);
+  const [latePlayerName, setLatePlayerName] = useState("");
+  const [latePlayerTier, setLatePlayerTier] = useState<"A" | "B" | "C">("B");
+  const [lateArrivalResult, setLateArrivalResult] = useState<{ paired: boolean; courtNumber: number | null; waitlistPartner?: string } | null>(null);
+  const [showPickSubPlayer, setShowPickSubPlayer] = useState<number | null>(null); // courtNumber or null
   const [searchParams] = useSearchParams();
   const courtFilter = searchParams.get("court");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-confirm sub rotation after 30 seconds
+  const subRotationTimers = useRef<Record<number, NodeJS.Timeout>>({});
+  useEffect(() => {
+    if (!state.courts) return;
+    state.courts.forEach(court => {
+      if (court.sub?.pendingRotation && court.sub.suggestedReplacementId) {
+        if (!subRotationTimers.current[court.courtNumber]) {
+          subRotationTimers.current[court.courtNumber] = setTimeout(() => {
+            confirmSubRotationAction(court.courtNumber);
+            delete subRotationTimers.current[court.courtNumber];
+          }, 30000);
+        }
+      } else {
+        if (subRotationTimers.current[court.courtNumber]) {
+          clearTimeout(subRotationTimers.current[court.courtNumber]);
+          delete subRotationTimers.current[court.courtNumber];
+        }
+      }
+    });
+    return () => {
+      Object.values(subRotationTimers.current).forEach(clearTimeout);
+    };
+  }, [state.courts, confirmSubRotationAction]);
 
   // Track newly added pair IDs for highlight animation
   const [highlightPairIds, setHighlightPairIds] = useState<Set<string>>(new Set());
@@ -314,6 +343,7 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
   }, [state.matches]);
 
   const hasActiveMatches = state.matches.length > 0;
+  const has3CourtLayout = (state.courts || []).length === 3;
   const roundRobinInProgress = hasActiveMatches && !state.playoffsStarted;
 
   // Pending check-in count
@@ -333,7 +363,7 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
         <div className="flex items-center gap-4">
           {isFullscreen && <h2 className="font-display text-3xl text-accent">Club PTO</h2>}
           {/* Session clock */}
-          {hasActiveMatches && (
+          {(hasActiveMatches || has3CourtLayout) && (
             <SessionClock startedAt={state.sessionConfig.sessionStartedAt} durationMinutes={state.sessionConfig.durationMinutes} />
           )}
           {/* Pending check-ins badge (admin) */}
@@ -479,11 +509,14 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
       {/* Courts — hide during playoffs */}
       {!state.playoffsStarted && (
         <>
-          <div className={`flex flex-col ${!courtFilter ? (showCourt3 ? "lg:flex-row" : "md:flex-row") : ""} gap-4 md:gap-5 flex-wrap`}>
-            {showCourt1 && <CourtCard courtNum={1} match={court1Match} totalGames={totalGames} onFinish={setFinishingMatch} onSkip={(m) => skipMatch(m.id)} isAdmin={isAdmin} />}
-            {showCourt2 && <CourtCard courtNum={2} match={court2Match} totalGames={totalGames} onFinish={setFinishingMatch} onSkip={(m) => skipMatch(m.id)} isAdmin={isAdmin} />}
-            {showCourt3 && <CourtCard courtNum={3} match={court3Match} totalGames={totalGames} onFinish={setFinishingMatch} onSkip={(m) => skipMatch(m.id)} isAdmin={isAdmin} />}
-          </div>
+          {/* Court cards showing active matches (2-court, or 3-court with schedule) */}
+          {!has3CourtLayout && (
+            <div className={`flex flex-col ${!courtFilter ? (showCourt3 ? "lg:flex-row" : "md:flex-row") : ""} gap-4 md:gap-5 flex-wrap`}>
+              {showCourt1 && <CourtCard courtNum={1} match={court1Match} totalGames={totalGames} onFinish={setFinishingMatch} onSkip={(m) => skipMatch(m.id)} isAdmin={isAdmin} />}
+              {showCourt2 && <CourtCard courtNum={2} match={court2Match} totalGames={totalGames} onFinish={setFinishingMatch} onSkip={(m) => skipMatch(m.id)} isAdmin={isAdmin} />}
+              {showCourt3 && <CourtCard courtNum={3} match={court3Match} totalGames={totalGames} onFinish={setFinishingMatch} onSkip={(m) => skipMatch(m.id)} isAdmin={isAdmin} />}
+            </div>
+          )}
 
           {/* Up Next — Locked */}
           {upNextMatches.length > 0 && (
@@ -557,8 +590,466 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
             </div>
           )}
 
-          {/* All Pairs */}
-          {allUniquePairs.length > 0 && (
+          {/* 3-Court Per-Court View */}
+          {has3CourtLayout && (() => {
+            const waitingCourts = state.courts!.filter(c => c.status === "waiting");
+            const allWaiting = waitingCourts.length === state.courts!.length;
+            const sessionStart = state.sessionConfig.sessionStartedAt;
+            const sessionElapsedMin = sessionStart ? (Date.now() - new Date(sessionStart).getTime()) / 60000 : 0;
+            const sessionRemainingMin = Math.max(0, (state.sessionConfig.durationMinutes || 85) - sessionElapsedMin);
+
+            return (<div className="space-y-4">
+            {/* Reminder: courts waiting >25 min */}
+            {waitingCourts.map(c => {
+              if (sessionElapsedMin < 25) return null;
+              return (
+                <div key={`reminder-${c.courtNumber}`} className="rounded-md border border-amber-600/30 bg-amber-600/5 px-4 py-2 text-sm text-amber-500">
+                  Court {c.courtNumber} hasn't started yet — {Math.floor(sessionRemainingMin)} minutes remaining in session
+                </div>
+              );
+            })}
+
+            {/* Start All Courts button — shown when all courts are waiting */}
+            {isAdmin && allWaiting && (
+              <div className="space-y-3">
+                <button onClick={() => startAllCourts()}
+                  className="w-full rounded-lg border-2 border-accent bg-accent/10 text-accent font-display text-lg py-4 hover:bg-accent/20 transition-all">
+                  Start All Courts
+                </button>
+                <p className="text-xs text-muted-foreground text-center">Or start courts individually using the buttons below</p>
+              </div>
+            )}
+
+            {/* Add Late Player button — shown when at least one court is active */}
+            {isAdmin && state.courts!.some(c => c.status !== "waiting") && (
+              <button onClick={() => setShowLateArrival(true)}
+                className="w-full rounded-lg border border-border bg-muted/30 text-muted-foreground font-display text-sm py-3 hover:border-accent hover:text-accent transition-all flex items-center justify-center gap-2">
+                <UserPlus className="w-4 h-4" /> Add Late Player
+              </button>
+            )}
+
+            <div className="flex flex-col lg:flex-row gap-4 md:gap-5">
+              {[...state.courts!].sort((a, b) => b.courtNumber - a.courtNumber).map((court) => {
+                const tierColors: Record<string, { border: string; text: string; bg: string }> = {
+                  A: { border: "border-yellow-500/40", text: "text-yellow-400", bg: "bg-yellow-500/10" },
+                  B: { border: "border-gray-300/40", text: "text-gray-300", bg: "bg-gray-300/10" },
+                  C: { border: "border-amber-700/40", text: "text-amber-600", bg: "bg-amber-700/10" },
+                };
+                const colors = tierColors[court.tier];
+                const noGamesYet = court.status === "waiting";
+                const isWso = court.format === "winner_stays_on" && court.wso && court.status !== "waiting";
+
+                // ── Waiting Court Panel ──
+                if (court.status === "waiting") {
+                  const estGamesPerPair = court.assignedPairs.length >= 2
+                    ? Math.floor(Math.floor(sessionRemainingMin / 7) * 2 / court.assignedPairs.length)
+                    : 0;
+                  return (
+                    <div key={court.courtNumber} className={`flex-1 rounded-lg border ${colors.border} border-dashed ${colors.bg} p-4 md:p-6 space-y-4 min-w-[280px]`}>
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-display text-2xl md:text-3xl text-accent">
+                          Court {court.courtNumber} <span className={`${colors.text}`}>— {court.tier}</span>
+                        </h3>
+                        <span className="text-xs uppercase tracking-widest bg-muted/30 text-muted-foreground px-2.5 py-1 rounded-full border border-border">
+                          Ready to Start
+                        </span>
+                      </div>
+
+                      {/* Session context */}
+                      {sessionStart && (
+                        <div className="text-xs text-muted-foreground space-y-1">
+                          {state.courts!.some(c2 => c2.status === "active") && (
+                            <p>Other courts running for {Math.floor(sessionElapsedMin)}:{String(Math.floor((sessionElapsedMin % 1) * 60)).padStart(2, "0")}</p>
+                          )}
+                          <p>{Math.floor(sessionRemainingMin)} min remaining · Est. {estGamesPerPair > 0 ? `${estGamesPerPair}` : "0"} games per pair</p>
+                        </div>
+                      )}
+
+                      {/* Format selector */}
+                      {isAdmin && (
+                        <div className="flex gap-2">
+                          <button onClick={() => setCourtFormat(court.courtNumber, "round_robin")}
+                            className={`flex-1 px-3 py-2 rounded-md border text-sm font-display transition-all ${
+                              court.format !== "winner_stays_on" ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:border-accent/40"
+                            }`}>
+                            Round Robin
+                          </button>
+                          <button onClick={() => setCourtFormat(court.courtNumber, "winner_stays_on")}
+                            className={`flex-1 px-3 py-2 rounded-md border text-sm font-display transition-all ${
+                              court.format === "winner_stays_on" ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:border-accent/40"
+                            }`}>
+                            Winner Stays On
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Pair list */}
+                      <div className="space-y-2">
+                        {court.assignedPairs.map((pair) => (
+                          <div key={pair.id} className="rounded-md border border-border/60 bg-card/80 px-4 py-3 text-center">
+                            <p className="font-display text-base text-foreground">{pair.player1.name}</p>
+                            <p className="text-xs text-muted-foreground my-0.5">&</p>
+                            <p className="font-display text-base text-foreground">{pair.player2.name}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Waitlist */}
+                      {(court.courtWaitlist || []).length > 0 && (
+                        <div>
+                          <p className="text-xs uppercase tracking-widest text-amber-500 mb-2">Waiting for Partner</p>
+                          {court.courtWaitlist!.map((pid) => {
+                            const p = state.roster.find(r => r.id === pid);
+                            return p ? (
+                              <div key={pid} className="rounded-md border border-amber-600/30 bg-amber-600/5 px-4 py-2 text-center text-sm text-amber-500">
+                                {p.name} — needs a partner
+                              </div>
+                            ) : null;
+                          })}
+                        </div>
+                      )}
+
+                      {/* Sub indicator (waiting) */}
+                      {court.sub && (() => {
+                        const subP = state.roster.find(r => r.id === court.sub!.currentSubId);
+                        return subP ? (
+                          <div className="rounded-md border border-blue-500/30 bg-blue-500/5 px-4 py-3 text-center space-y-1">
+                            <p className="text-xs uppercase tracking-widest text-blue-400">Sub</p>
+                            <p className="font-display text-base text-blue-300">{subP.name}</p>
+                            <p className="text-xs text-muted-foreground">Will rotate in every 2 games</p>
+                          </div>
+                        ) : null;
+                      })()}
+
+                      {/* Start button */}
+                      {isAdmin && (
+                        <button onClick={() => startCourt(court.courtNumber)}
+                          className="w-full rounded-lg border-2 border-accent bg-accent/10 text-accent font-display text-base py-3 hover:bg-accent/20 transition-all">
+                          Start Court {court.courtNumber}
+                        </button>
+                      )}
+                    </div>
+                  );
+                }
+
+                // ── WSO Court Panel ──
+                if (isWso) {
+                  const wso = court.wso!;
+                  const sortedStats = Object.values(wso.stats)
+                    .sort((a, b) => b.wins - a.wins || a.losses - b.losses || b.streak - a.streak);
+                  const currentKing = sortedStats.find(s => s.streak > 0 && s.wins > 0);
+                  const longestRecord = [...sortedStats].sort((a, b) => b.longestStreak - a.longestStreak)[0];
+
+                  return (
+                    <div key={court.courtNumber} className={`flex-1 rounded-lg border-2 border-accent/50 bg-accent/5 p-4 md:p-6 space-y-4 min-w-[280px]`}>
+                      {/* Header */}
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-display text-2xl md:text-3xl text-accent">
+                          Court {court.courtNumber} <span className={`${colors.text}`}>— {court.tier}</span>
+                        </h3>
+                        <span className="text-xs uppercase tracking-widest bg-accent/20 text-accent px-2.5 py-1 rounded-full border border-accent/30">
+                          Winner Stays On
+                        </span>
+                      </div>
+
+                      {/* Sub rotation prompt */}
+                      {court.sub?.pendingRotation && court.sub.suggestedReplacementId && (() => {
+                        const sub = court.sub!;
+                        const subP = state.roster.find(r => r.id === sub.currentSubId);
+                        const replaceP = state.roster.find(r => r.id === sub.suggestedReplacementId);
+                        const targetPair = court.assignedPairs.find(p =>
+                          p.player1.id === sub.suggestedReplacementId || p.player2.id === sub.suggestedReplacementId
+                        );
+                        const replaceStats = sub.playerStats[sub.suggestedReplacementId!];
+                        return subP && replaceP ? (
+                          <div className="rounded-lg border-2 border-blue-500/40 bg-blue-500/10 p-4 space-y-3">
+                            <p className="text-xs uppercase tracking-widest text-blue-400 font-display">Sub Rotation</p>
+                            <p className="text-sm text-foreground">
+                              <span className="text-blue-300 font-display">{subP.name}</span> replaces{" "}
+                              <span className="text-foreground font-display">{replaceP.name}</span>
+                              {targetPair && <span className="text-muted-foreground"> in {targetPair.player1.name} & {targetPair.player2.name}</span>}
+                            </p>
+                            {replaceStats && (
+                              <p className="text-xs text-muted-foreground">{replaceP.name} has {replaceStats.gamesPlayed} games (most on court)</p>
+                            )}
+                            <div className="flex gap-2">
+                              <button onClick={() => { confirmSubRotationAction(court.courtNumber); }}
+                                className="flex-1 rounded-md border border-blue-500/40 bg-blue-500/20 text-blue-300 text-sm py-2 font-display hover:bg-blue-500/30 transition-all">
+                                Confirm
+                              </button>
+                              <button onClick={() => setShowPickSubPlayer(court.courtNumber)}
+                                className="flex-1 rounded-md border border-border text-muted-foreground text-sm py-2 hover:border-blue-500/40 transition-all">
+                                Pick Different
+                              </button>
+                              <button onClick={() => skipSubRotation(court.courtNumber)}
+                                className="rounded-md border border-border text-muted-foreground text-sm py-2 px-3 hover:border-border/80 transition-all">
+                                Skip
+                              </button>
+                            </div>
+                          </div>
+                        ) : null;
+                      })()}
+
+                      {/* Sub indicator */}
+                      {court.sub && !court.sub.pendingRotation && (() => {
+                        const subP = state.roster.find(r => r.id === court.sub!.currentSubId);
+                        const stats = court.sub!.playerStats[court.sub!.currentSubId];
+                        const gamesUntilRotation = Math.max(0, court.sub!.rotationFrequency - court.sub!.gamesSinceLastRotation);
+                        return subP ? (
+                          <div className="rounded-md border border-blue-500/20 bg-blue-500/5 px-4 py-2 flex items-center justify-between">
+                            <div>
+                              <span className="text-blue-400 text-xs mr-2">SUB:</span>
+                              <span className="font-display text-sm text-blue-300">{subP.name}</span>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {stats && <span>{stats.gamesPlayed}G</span>}
+                              <span className="mx-1">·</span>
+                              <span>Next in {gamesUntilRotation}g</span>
+                            </div>
+                          </div>
+                        ) : null;
+                      })()}
+
+                      {/* NOW PLAYING */}
+                      {wso.currentGame ? (
+                        <div className="space-y-3">
+                          <p className="text-xs uppercase tracking-widest text-accent">Now Playing — Game #{wso.currentGame.gameNumber}</p>
+                          <div className="flex items-center gap-3">
+                            <div className="flex-1 text-center rounded-md bg-muted/50 border border-border/60 p-3">
+                              <p className="font-display text-base text-foreground">{wso.currentGame.pair1.player1.name}</p>
+                              <p className="text-xs text-muted-foreground my-0.5">&</p>
+                              <p className="font-display text-base text-foreground">{wso.currentGame.pair1.player2.name}</p>
+                              {(() => {
+                                const st = wso.stats[wso.currentGame!.pair1.id];
+                                return st && st.streak > 1 ? <p className="text-sm text-yellow-400 mt-1">🔥{st.streak}</p> : null;
+                              })()}
+                            </div>
+                            <span className="font-display text-xl text-accent">VS</span>
+                            <div className="flex-1 text-center rounded-md bg-muted/50 border border-border/60 p-3">
+                              <p className="font-display text-base text-foreground">{wso.currentGame.pair2.player1.name}</p>
+                              <p className="text-xs text-muted-foreground my-0.5">&</p>
+                              <p className="font-display text-base text-foreground">{wso.currentGame.pair2.player2.name}</p>
+                            </div>
+                          </div>
+
+                          {/* WHO WON buttons */}
+                          <div className="space-y-2">
+                            <p className="text-sm text-accent text-center font-display">Who won?</p>
+                            <button onClick={() => recordWsoWinner(court.courtNumber, wso.currentGame!.pair1.id)}
+                              className="w-full rounded-lg border-2 border-border bg-muted/50 p-4 text-center text-base font-display hover:border-accent hover:bg-accent/10 transition-all min-h-[52px]">
+                              {wso.currentGame.pair1.player1.name} & {wso.currentGame.pair1.player2.name}
+                            </button>
+                            <button onClick={() => recordWsoWinner(court.courtNumber, wso.currentGame!.pair2.id)}
+                              className="w-full rounded-lg border-2 border-border bg-muted/50 p-4 text-center text-base font-display hover:border-accent hover:bg-accent/10 transition-all min-h-[52px]">
+                              {wso.currentGame.pair2.player1.name} & {wso.currentGame.pair2.player2.name}
+                            </button>
+                          </div>
+
+                          {/* Undo button */}
+                          {isAdmin && wso.undoStack.length > 0 && (
+                            <button onClick={() => undoWsoResult(court.courtNumber)}
+                              className="w-full text-sm text-muted-foreground hover:text-accent border border-border rounded-md py-2 transition-all">
+                              Undo Last Result
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-muted-foreground text-center py-4">No active game</p>
+                      )}
+
+                      {/* ON DECK */}
+                      {wso.queue.length > 0 && (
+                        <div>
+                          <p className="text-xs uppercase tracking-widest text-accent mb-2">On Deck</p>
+                          <div className="rounded-md border border-accent/30 bg-accent/5 px-4 py-3 text-center">
+                            <p className="font-display text-base text-foreground">{wso.queue[0].player1.name} & {wso.queue[0].player2.name}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* QUEUE */}
+                      {wso.queue.length > 1 && (
+                        <div>
+                          <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Queue</p>
+                          <div className="space-y-1">
+                            {wso.queue.slice(1).map((pair, i) => (
+                              <div key={pair.id} className="rounded-md border border-border/60 bg-card/80 px-4 py-2 text-center text-sm">
+                                <span className="text-muted-foreground mr-2">{i + 3}.</span>
+                                {pair.player1.name} & {pair.player2.name}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* STATS */}
+                      {wso.history.length > 0 && (
+                        <div>
+                          <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Stats</p>
+                          {currentKing && (
+                            <p className="text-xs text-yellow-400 mb-2">
+                              👑 Current King: {court.assignedPairs.find(p => p.id === currentKing.pairId)?.player1.name} & {court.assignedPairs.find(p => p.id === currentKing.pairId)?.player2.name} (🔥{currentKing.streak})
+                            </p>
+                          )}
+                          {longestRecord && longestRecord.longestStreak > 1 && (
+                            <p className="text-xs text-muted-foreground mb-2">
+                              Longest Streak: {court.assignedPairs.find(p => p.id === longestRecord.pairId)?.player1.name} & {court.assignedPairs.find(p => p.id === longestRecord.pairId)?.player2.name} ({longestRecord.longestStreak} wins)
+                            </p>
+                          )}
+                          <div className="space-y-1">
+                            {sortedStats.map((st, i) => {
+                              const pair = court.assignedPairs.find(p => p.id === st.pairId);
+                              if (!pair) return null;
+                              return (
+                                <div key={st.pairId} className="flex items-center justify-between text-sm px-2 py-1 rounded-md bg-card/50">
+                                  <span className="text-foreground">{i + 1}. {pair.player1.name} & {pair.player2.name}</span>
+                                  <span className="font-mono text-xs">
+                                    <span className="text-accent">{st.wins}W</span>-<span className="text-muted-foreground">{st.losses}L</span>
+                                    {st.streak > 1 && <span className="ml-1 text-yellow-400">🔥{st.streak}</span>}
+                                    {st.longestStreak > 1 && st.streak <= 1 && <span className="ml-1 text-muted-foreground">Best:{st.longestStreak}</span>}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Waitlist */}
+                      {(court.courtWaitlist || []).length > 0 && (
+                        <div>
+                          <p className="text-xs uppercase tracking-widest text-amber-500 mb-2">Waiting for Partner</p>
+                          {court.courtWaitlist!.map((pid) => {
+                            const p = state.roster.find(r => r.id === pid);
+                            return p ? (
+                              <div key={pid} className="rounded-md border border-amber-600/30 bg-amber-600/5 px-4 py-2 text-center text-sm text-amber-500">
+                                {p.name} — needs a partner
+                              </div>
+                            ) : null;
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // ── Round Robin Court Panel ──
+                return (
+                  <div key={court.courtNumber} className={`flex-1 rounded-lg border ${colors.border} ${colors.bg} p-4 md:p-6 space-y-4 min-w-[280px]`}>
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-display text-2xl md:text-3xl text-accent">
+                        Court {court.courtNumber} <span className={`${colors.text}`}>— {court.tier}</span>
+                      </h3>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`text-xs uppercase tracking-widest ${colors.bg} ${colors.text} px-2.5 py-1 rounded-full border ${colors.border}`}>
+                          Tier {court.tier}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {court.assignedPairs.length} pairs · {court.schedule.length} games
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Sub rotation prompt (RR) */}
+                    {court.sub?.pendingRotation && court.sub.suggestedReplacementId && (() => {
+                      const sub = court.sub!;
+                      const subP = state.roster.find(r => r.id === sub.currentSubId);
+                      const replaceP = state.roster.find(r => r.id === sub.suggestedReplacementId);
+                      const targetPair = court.assignedPairs.find(p =>
+                        p.player1.id === sub.suggestedReplacementId || p.player2.id === sub.suggestedReplacementId
+                      );
+                      const replaceStats = sub.playerStats[sub.suggestedReplacementId!];
+                      return subP && replaceP ? (
+                        <div className="rounded-lg border-2 border-blue-500/40 bg-blue-500/10 p-4 space-y-3">
+                          <p className="text-xs uppercase tracking-widest text-blue-400 font-display">Sub Rotation</p>
+                          <p className="text-sm text-foreground">
+                            <span className="text-blue-300 font-display">{subP.name}</span> replaces{" "}
+                            <span className="text-foreground font-display">{replaceP.name}</span>
+                            {targetPair && <span className="text-muted-foreground"> in {targetPair.player1.name} & {targetPair.player2.name}</span>}
+                          </p>
+                          {replaceStats && (
+                            <p className="text-xs text-muted-foreground">{replaceP.name} has {replaceStats.gamesPlayed} games (most on court)</p>
+                          )}
+                          <div className="flex gap-2">
+                            <button onClick={() => confirmSubRotationAction(court.courtNumber)}
+                              className="flex-1 rounded-md border border-blue-500/40 bg-blue-500/20 text-blue-300 text-sm py-2 font-display hover:bg-blue-500/30 transition-all">
+                              Confirm
+                            </button>
+                            <button onClick={() => setShowPickSubPlayer(court.courtNumber)}
+                              className="flex-1 rounded-md border border-border text-muted-foreground text-sm py-2 hover:border-blue-500/40 transition-all">
+                              Pick Different
+                            </button>
+                            <button onClick={() => skipSubRotation(court.courtNumber)}
+                              className="rounded-md border border-border text-muted-foreground text-sm py-2 px-3 hover:border-border/80 transition-all">
+                              Skip
+                            </button>
+                          </div>
+                        </div>
+                      ) : null;
+                    })()}
+
+                    {/* Sub indicator (RR) */}
+                    {court.sub && !court.sub.pendingRotation && (() => {
+                      const subP = state.roster.find(r => r.id === court.sub!.currentSubId);
+                      const stats = court.sub!.playerStats[court.sub!.currentSubId];
+                      const gamesUntilRotation = Math.max(0, court.sub!.rotationFrequency - court.sub!.gamesSinceLastRotation);
+                      return subP ? (
+                        <div className="rounded-md border border-blue-500/20 bg-blue-500/5 px-4 py-2 flex items-center justify-between">
+                          <div>
+                            <span className="text-blue-400 text-xs mr-2">SUB:</span>
+                            <span className="font-display text-sm text-blue-300">{subP.name}</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {stats && <span>{stats.gamesPlayed}G · {stats.timesSubbedOut}x out</span>}
+                            <span className="mx-1">·</span>
+                            <span>Next in {gamesUntilRotation}g</span>
+                          </div>
+                        </div>
+                      ) : null;
+                    })()}
+
+                    <div className="space-y-2">
+                      {court.assignedPairs.map((pair) => {
+                        const pairGames = court.schedule.filter(m => m.pair1.id === pair.id || m.pair2.id === pair.id).length;
+                        return (
+                          <div key={pair.id} className={`rounded-md border border-border/60 bg-card/80 px-4 py-3 text-center ${highlightPairIds.has(pair.id) ? "animate-pulse border-accent bg-accent/10" : ""}`}>
+                            <p className="font-display text-base text-foreground">{pair.player1.name}</p>
+                            <p className="text-xs text-muted-foreground my-0.5">&</p>
+                            <p className="font-display text-base text-foreground">{pair.player2.name}</p>
+                            {court.schedule.length > 0 && (
+                              <p className="text-xs text-muted-foreground mt-1">{pairGames} games</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {court.assignedPairs.length === 0 && (
+                        <p className="text-muted-foreground text-center text-sm py-6">No pairs assigned</p>
+                      )}
+                    </div>
+
+                    {/* Waitlist */}
+                    {(court.courtWaitlist || []).length > 0 && (
+                      <div>
+                        <p className="text-xs uppercase tracking-widest text-amber-500 mb-2">Waiting for Partner</p>
+                        {court.courtWaitlist!.map((pid) => {
+                          const p = state.roster.find(r => r.id === pid);
+                          return p ? (
+                            <div key={pid} className="rounded-md border border-amber-600/30 bg-amber-600/5 px-4 py-2 text-center text-sm text-amber-500">
+                              {p.name} — needs a partner
+                            </div>
+                          ) : null;
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            </div>);
+          })()}
+
+          {/* All Pairs (2-court mode only) */}
+          {!has3CourtLayout && allUniquePairs.length > 0 && (
             <div className="rounded-lg border border-border bg-card p-4 md:p-6 space-y-3">
               <div className="flex items-center gap-2">
                 <Users className="w-5 h-5 text-accent" />
@@ -603,6 +1094,132 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
                 Cancel
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pick Different Sub Player modal */}
+      {showPickSubPlayer !== null && (() => {
+        const court = state.courts?.find(c => c.courtNumber === showPickSubPlayer);
+        if (!court?.sub) return null;
+        const sub = court.sub;
+        // Sort players by games_played DESC for picking
+        const playingPlayers = court.assignedPairs
+          .flatMap(p => [p.player1, p.player2])
+          .filter(p => p.id !== sub.currentSubId)
+          .map(p => ({ ...p, stats: sub.playerStats[p.id] }))
+          .sort((a, b) => (b.stats?.gamesPlayed || 0) - (a.stats?.gamesPlayed || 0));
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in" onClick={() => setShowPickSubPlayer(null)}>
+            <div className="bg-card border border-border rounded-lg p-8 max-w-sm w-full mx-4 space-y-4" onClick={(e) => e.stopPropagation()}>
+              <h3 className="font-display text-2xl text-blue-400">Pick Player to Sub Out</h3>
+              <p className="text-sm text-muted-foreground">Choose who sits out. {state.roster.find(r => r.id === sub.currentSubId)?.name} will take their spot.</p>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {playingPlayers.map(p => (
+                  <button key={p.id} onClick={() => {
+                    executeSubRotation(showPickSubPlayer!, p.id);
+                    setShowPickSubPlayer(null);
+                  }}
+                    className="w-full rounded-md border border-border bg-muted/30 px-4 py-3 text-left hover:border-blue-500/40 hover:bg-blue-500/5 transition-all">
+                    <div className="flex justify-between items-center">
+                      <span className="font-display text-base text-foreground">{p.name}</span>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {p.stats?.gamesPlayed || 0}G · {p.stats?.timesSubbedOut || 0}x out
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <Button variant="outline" onClick={() => setShowPickSubPlayer(null)} className="w-full min-h-[48px]">Cancel</Button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Late Arrival modal (3-court mode) */}
+      {showLateArrival && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in" onClick={() => { setShowLateArrival(false); setLateArrivalResult(null); setLatePlayerName(""); }}>
+          <div className="bg-card border border-border rounded-lg p-8 max-w-sm w-full mx-4 space-y-6" onClick={(e) => e.stopPropagation()}>
+            {!lateArrivalResult ? (
+              <>
+                <h3 className="font-display text-2xl text-accent">Add Late Player</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm text-muted-foreground mb-1 block">Player Name</label>
+                    <input type="text" value={latePlayerName} onChange={(e) => setLatePlayerName(e.target.value)}
+                      className="w-full rounded-md border border-border bg-muted/30 px-4 py-3 text-base text-foreground focus:border-accent focus:outline-none"
+                      placeholder="Enter name" autoFocus />
+                  </div>
+                  <div>
+                    <label className="text-sm text-muted-foreground mb-1 block">Skill Tier</label>
+                    <div className="flex gap-2">
+                      {(["A", "B", "C"] as const).map((t) => (
+                        <button key={t} onClick={() => setLatePlayerTier(t)}
+                          className={`flex-1 px-3 py-2 rounded-md border text-sm font-display transition-all ${
+                            latePlayerTier === t ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:border-accent/40"
+                          }`}>
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Show which court they'll go to */}
+                  <p className="text-xs text-muted-foreground">
+                    Will be assigned to Court {({ A: 3, B: 2, C: 1 })[latePlayerTier]} ({latePlayerTier} tier)
+                    {(() => {
+                      const court = state.courts?.find(c => c.courtNumber === ({ A: 3, B: 2, C: 1 })[latePlayerTier]);
+                      if (!court) return "";
+                      const waitlist = court.courtWaitlist || [];
+                      if (waitlist.length > 0) {
+                        const partner = state.roster.find(r => r.id === waitlist[0]);
+                        return partner ? ` — will pair with ${partner.name}` : "";
+                      }
+                      return " — will wait for a partner";
+                    })()}
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <Button disabled={!latePlayerName.trim()} onClick={() => {
+                    const result = addLatePlayerToCourt(latePlayerName.trim(), latePlayerTier);
+                    if (result.success) {
+                      setLateArrivalResult(result);
+                      if (result.paired) {
+                        toast.success(`${latePlayerName} added to Court ${result.courtNumber}`);
+                      } else {
+                        toast(`${latePlayerName} added to waitlist on Court ${result.courtNumber}`);
+                      }
+                    } else {
+                      toast.error("Could not add player — name may already exist");
+                      setShowLateArrival(false);
+                      setLatePlayerName("");
+                    }
+                  }} className="flex-1 bg-accent text-accent-foreground hover:bg-accent/80 min-h-[48px]">
+                    <UserPlus className="w-4 h-4 mr-2" /> Add Player
+                  </Button>
+                  <Button variant="outline" onClick={() => { setShowLateArrival(false); setLatePlayerName(""); }} className="flex-1 min-h-[48px]">
+                    Cancel
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3 className="font-display text-2xl text-accent">
+                  {lateArrivalResult.paired ? "Player Paired!" : "Added to Waitlist"}
+                </h3>
+                <div className="space-y-2 text-base text-muted-foreground">
+                  <p><span className="text-foreground font-display">{latePlayerName}</span> has been added to Court {lateArrivalResult.courtNumber}.</p>
+                  {lateArrivalResult.paired ? (
+                    <p>They've been paired and added to the schedule.</p>
+                  ) : (
+                    <p>They're waiting for another {latePlayerTier}-tier player to arrive.</p>
+                  )}
+                </div>
+                <Button onClick={() => { setShowLateArrival(false); setLateArrivalResult(null); setLatePlayerName(""); }}
+                  className="w-full bg-accent text-accent-foreground hover:bg-accent/80 min-h-[48px]">
+                  Done
+                </Button>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -87,6 +87,88 @@ export interface OddPlayerDecision {
   crossPairTier?: SkillTier;
 }
 
+export type CourtFormat = "round_robin" | "winner_stays_on";
+
+export interface WsoGame {
+  id: string;
+  pair1: Pair;
+  pair2: Pair;
+  winner?: Pair;
+  loser?: Pair;
+  startedAt?: string;
+  completedAt?: string;
+  gameNumber: number;
+}
+
+export interface WsoStats {
+  pairId: string;
+  wins: number;
+  losses: number;
+  streak: number;
+  longestStreak: number;
+  gamesPlayed: number;
+}
+
+export interface WsoUndoEntry {
+  previousGame: WsoGame;
+  previousQueue: Pair[];
+  previousStats: Record<string, WsoStats>;
+}
+
+export interface WsoState {
+  queue: Pair[];
+  currentGame: WsoGame | null;
+  history: WsoGame[];
+  stats: Record<string, WsoStats>;
+  undoStack: WsoUndoEntry[];
+  gameCounter: number;
+}
+
+export interface SubPlayerStats {
+  playerId: string;
+  gamesPlayed: number;
+  timesSubbedOut: number;
+}
+
+export interface SubRotation {
+  /** Current sub player ID */
+  currentSubId: string;
+  /** Per-player tracking for this court */
+  playerStats: Record<string, SubPlayerStats>;
+  /** Games completed since last rotation */
+  gamesSinceLastRotation: number;
+  /** Rotation frequency (every N completed games) */
+  rotationFrequency: number;
+  /** Whether a rotation prompt is currently pending */
+  pendingRotation: boolean;
+  /** Suggested player to replace (auto-calculated) */
+  suggestedReplacementId?: string;
+  /** Suggested pair to modify */
+  suggestedPairId?: string;
+  /** History of rotations */
+  rotationHistory: { timestamp: string; subIn: string; subOut: string; pairId: string }[];
+}
+
+/** Per-court state for 3-court mode — each court is fully independent */
+export interface CourtState {
+  courtNumber: 1 | 2 | 3;
+  tier: SkillTier;
+  assignedPairs: Pair[];
+  schedule: Match[];
+  completedGames: Match[];
+  standings: Record<string, { wins: number; losses: number; gamesPlayed: number; winPct: number }>;
+  currentSlot: number;
+  status: "waiting" | "active" | "playoffs" | "complete";
+  format: CourtFormat;
+  wso?: WsoState;
+  /** ISO timestamp when this court was started (may differ from session start) */
+  startedAt?: string;
+  /** Player IDs waiting for a partner on this court */
+  courtWaitlist?: string[];
+  /** Sub rotation state — active when court has odd number of players */
+  sub?: SubRotation;
+}
+
 export interface GameState {
   sessionConfig: SessionConfig;
   roster: Player[];
@@ -108,6 +190,8 @@ export interface GameState {
   practiceMode?: boolean;
   /** Bumped on each full schedule generation — mergeStates uses this to avoid union-merging stale pairs/matches */
   scheduleGeneration?: number;
+  /** Per-court state for 3-court mode — each court runs independently */
+  courts?: CourtState[];
 }
 
 export const DEFAULT_STATE: GameState = {
@@ -132,4 +216,5 @@ export const DEFAULT_STATE: GameState = {
   pairsLocked: false,
   newlyAddedPairIds: [],
   pairGamesWatched: {},
+  courts: [],
 };

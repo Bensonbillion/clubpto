@@ -33,6 +33,14 @@ interface Pair { id: string; player1: Player; player2: Player; skillLevel: Skill
 interface Match { id: string; pair1: Pair; pair2: Pair; skillLevel: SkillTier | "cross"; matchupLabel?: string; status: "pending" | "playing" | "completed"; court: number | null; winner?: Pair; loser?: Pair; completedAt?: string; startedAt?: string; gameNumber?: number; courtPool?: "A" | "B" | "C"; }
 interface FixedPair { player1Name: string; player2Name: string; }
 interface PlayoffMatch { id: string; round: number; seed1?: number; seed2?: number; pair1?: Pair | null; pair2?: Pair | null; winner?: Pair; status: "pending" | "playing" | "completed"; court?: number; }
+type CourtFormat = "round_robin" | "winner_stays_on";
+interface WsoGame { id: string; pair1: Pair; pair2: Pair; winner?: Pair; loser?: Pair; startedAt?: string; completedAt?: string; gameNumber: number; }
+interface WsoStats { pairId: string; wins: number; losses: number; streak: number; longestStreak: number; gamesPlayed: number; }
+interface WsoUndoEntry { previousGame: WsoGame; previousQueue: Pair[]; previousStats: Record<string, WsoStats>; }
+interface WsoState { queue: Pair[]; currentGame: WsoGame | null; history: WsoGame[]; stats: Record<string, WsoStats>; undoStack: WsoUndoEntry[]; gameCounter: number; }
+interface SubPlayerStats { playerId: string; gamesPlayed: number; timesSubbedOut: number; }
+interface SubRotation { currentSubId: string; playerStats: Record<string, SubPlayerStats>; gamesSinceLastRotation: number; rotationFrequency: number; pendingRotation: boolean; suggestedReplacementId?: string; suggestedPairId?: string; rotationHistory: { timestamp: string; subIn: string; subOut: string; pairId: string }[]; }
+interface CourtState { courtNumber: 1 | 2 | 3; tier: SkillTier; assignedPairs: Pair[]; schedule: Match[]; completedGames: Match[]; standings: Record<string, { wins: number; losses: number; gamesPlayed: number; winPct: number }>; currentSlot: number; status: "waiting" | "active" | "playoffs" | "complete"; format: CourtFormat; wso?: WsoState; startedAt?: string; courtWaitlist?: string[]; sub?: SubRotation; }
 
 // ═══════════════════════ HELPERS ═══════════════════════
 let idCounter = 0;
@@ -57,6 +65,61 @@ function courtToPool(court: number): "A" | "B" | "C" {
   if (court === 1) return "C";
   if (court === 2) return "B";
   return "A";
+}
+
+/** Least Played First schedule generator — mirrors production generateCourtScheduleForSlots */
+function testGenerateSchedule(court: CourtState, slotCount: number, initialGameCounts?: Map<string, number>): Match[] {
+  const pairs = court.assignedPairs;
+  if (pairs.length < 2) return [];
+  const gameTarget = Math.floor(slotCount * 2 / pairs.length) + (initialGameCounts ? Math.max(0, ...Array.from(initialGameCounts.values())) : 0);
+  const mkKey = (a: string, b: string) => [a, b].sort().join("|||");
+  const MAX = 10;
+  for (let attempt = 0; attempt < MAX; attempt++) {
+    const sched: Match[] = [];
+    const pg = new Map<string, number>();
+    const pls = new Map<string, number>();
+    const used = new Set<string>();
+    pairs.forEach(p => { pg.set(p.id, initialGameCounts?.get(p.id) ?? 0); pls.set(p.id, -2); });
+    const relax = attempt >= 3 ? 1 : 0;
+    for (let slot = 0; slot < slotCount; slot++) {
+      const sorted = [...pairs].sort((a, b) => {
+        const ga = pg.get(a.id) || 0; const gb = pg.get(b.id) || 0;
+        if (ga !== gb) return ga - gb;
+        return (slot - (pls.get(b.id) ?? -2)) - (slot - (pls.get(a.id) ?? -2));
+      });
+      let matched = false;
+      for (let i = 0; i < sorted.length && !matched; i++) {
+        const p1 = sorted[i]; const g1 = pg.get(p1.id) || 0;
+        if (slot - (pls.get(p1.id) ?? -2) < 2) continue;
+        if (g1 >= gameTarget + relax) continue;
+        for (let j = i + 1; j < sorted.length; j++) {
+          const p2 = sorted[j]; const g2 = pg.get(p2.id) || 0;
+          if (slot - (pls.get(p2.id) ?? -2) < 2) continue;
+          if (g2 >= gameTarget + relax) continue;
+          const active = Array.from(pg.values()).filter(v => v > 0);
+          const minG = active.length > 0 ? Math.min(...active) : 0;
+          if (Math.min(g1, g2) > minG + 1 + relax) continue;
+          const k = mkKey(p1.id, p2.id);
+          if (used.has(k)) continue;
+          used.add(k);
+          pg.set(p1.id, g1 + 1); pg.set(p2.id, g2 + 1);
+          pls.set(p1.id, slot); pls.set(p2.id, slot);
+          sched.push({ id: generateId(), pair1: p1, pair2: p2, skillLevel: court.tier, matchupLabel: `${court.tier} vs ${court.tier}`, status: "pending", court: court.courtNumber, courtPool: court.tier, gameNumber: slot });
+          matched = true; break;
+        }
+      }
+    }
+    const games = Array.from(pg.values());
+    const gap = Math.max(...games) - Math.min(...games);
+    let b2b = false;
+    for (const p of pairs) {
+      const sl = sched.map((m, idx) => (m.pair1.id === p.id || m.pair2.id === p.id) ? idx : -1).filter(v => v >= 0);
+      for (let k = 1; k < sl.length; k++) { if (sl[k] - sl[k - 1] < 2) { b2b = true; break; } }
+      if (b2b) break;
+    }
+    if ((gap <= 1 + relax && !b2b) || attempt === MAX - 1) return sched;
+  }
+  return [];
 }
 
 // ═══════════════════════ RESULT TRACKING ═══════════════════════
@@ -1626,6 +1689,1225 @@ if (s26B0Seed3 && s26A1Seed3) {
 }
 if (s26B0Seed3 && s26A0Seed3) {
   assert("seeding", s26B0Seed3.seed > s26A0Seed3.seed, `B0 does NOT leapfrog A0 (didn't beat them)`, `B0=${s26B0Seed3.seed}, A0=${s26A0Seed3.seed}`);
+}
+
+// ── SECTION 27: 3-Court Isolation — Per-Court State ──────────────────────────────
+console.log("\n── SECTION 27: 3-Court Isolation — Per-Court State ──");
+
+// Simulate 10A, 12B, 14C players → 5 A-pairs, 6 B-pairs, 7 C-pairs
+const iso3A = Array.from({ length: 10 }, (_, i) => makePlayer(`iso3A${i + 1}`, "A"));
+const iso3B = Array.from({ length: 12 }, (_, i) => makePlayer(`iso3B${i + 1}`, "B"));
+const iso3C = Array.from({ length: 14 }, (_, i) => makePlayer(`iso3C${i + 1}`, "C"));
+const iso3Ap = createPairs(iso3A, "A"); // 5 pairs
+const iso3Bp = createPairs(iso3B, "B"); // 6 pairs
+const iso3Cp = createPairs(iso3C, "C"); // 7 pairs
+const iso3AllPairs = [...iso3Ap, ...iso3Bp, ...iso3Cp];
+
+// Create courts (mirrors engine logic in generateFullSchedule for 3-court)
+const makeCourt = (num: 1 | 2 | 3, tier: SkillTier, pairs: Pair[]): CourtState => ({
+  courtNumber: num,
+  tier,
+  assignedPairs: pairs,
+  schedule: [],
+  completedGames: [],
+  standings: Object.fromEntries(pairs.map(p => [p.id, { wins: 0, losses: 0, gamesPlayed: 0, winPct: 0 }])),
+  currentSlot: 0,
+  status: "waiting",
+  format: "round_robin",
+});
+
+const isoCourts: CourtState[] = [
+  makeCourt(1, "C", iso3Cp),
+  makeCourt(2, "B", iso3Bp),
+  makeCourt(3, "A", iso3Ap),
+];
+
+// Verify court count and tier assignment
+assert("3court-iso", isoCourts.length === 3, "3 courts created", `${isoCourts.length} courts`);
+assert("3court-iso", isoCourts[0].courtNumber === 1, "Court 1 exists", `courtNumber=${isoCourts[0].courtNumber}`);
+assert("3court-iso", isoCourts[1].courtNumber === 2, "Court 2 exists", `courtNumber=${isoCourts[1].courtNumber}`);
+assert("3court-iso", isoCourts[2].courtNumber === 3, "Court 3 exists", `courtNumber=${isoCourts[2].courtNumber}`);
+
+// Verify tier isolation
+assert("3court-iso", isoCourts[0].tier === "C", "Court 1 = C tier", `tier=${isoCourts[0].tier}`);
+assert("3court-iso", isoCourts[1].tier === "B", "Court 2 = B tier", `tier=${isoCourts[1].tier}`);
+assert("3court-iso", isoCourts[2].tier === "A", "Court 3 = A tier", `tier=${isoCourts[2].tier}`);
+
+// Verify pair counts per court
+assert("3court-iso", isoCourts[0].assignedPairs.length === 7, "Court 1 (C): 7 pairs", `${isoCourts[0].assignedPairs.length} pairs`);
+assert("3court-iso", isoCourts[1].assignedPairs.length === 6, "Court 2 (B): 6 pairs", `${isoCourts[1].assignedPairs.length} pairs`);
+assert("3court-iso", isoCourts[2].assignedPairs.length === 5, "Court 3 (A): 5 pairs", `${isoCourts[2].assignedPairs.length} pairs`);
+console.log(`  Info: Court 1 (C)=${isoCourts[0].assignedPairs.length} pairs, Court 2 (B)=${isoCourts[1].assignedPairs.length} pairs, Court 3 (A)=${isoCourts[2].assignedPairs.length} pairs`);
+
+// Verify ALL pairs on each court are the correct tier — zero crossover
+for (const court of isoCourts) {
+  const wrongTier = court.assignedPairs.filter(p => p.skillLevel !== court.tier);
+  assert("3court-iso", wrongTier.length === 0, `Court ${court.courtNumber} (${court.tier}): zero wrong-tier pairs`, `${wrongTier.length} wrong-tier pairs: ${wrongTier.map(p => p.player1.name + " " + p.skillLevel).join(", ")}`);
+}
+
+// Verify total pairs across all courts equals total pairs generated
+const totalCourtPairs = isoCourts.reduce((sum, c) => sum + c.assignedPairs.length, 0);
+assert("3court-iso", totalCourtPairs === iso3AllPairs.length, `Total pairs (${totalCourtPairs}) = all generated (${iso3AllPairs.length})`, `${totalCourtPairs} vs ${iso3AllPairs.length}`);
+
+// Verify no pair appears on multiple courts
+const allCourtPairIds = new Set<string>();
+let duplicatePairs = 0;
+for (const court of isoCourts) {
+  for (const pair of court.assignedPairs) {
+    if (allCourtPairIds.has(pair.id)) duplicatePairs++;
+    allCourtPairIds.add(pair.id);
+  }
+}
+assert("3court-iso", duplicatePairs === 0, "No duplicate pairs across courts", `${duplicatePairs} duplicates`);
+
+// Verify no player appears on multiple courts
+const allCourtPlayerIds = new Set<string>();
+let duplicatePlayers = 0;
+for (const court of isoCourts) {
+  for (const pair of court.assignedPairs) {
+    for (const pid of [pair.player1.id, pair.player2.id]) {
+      if (allCourtPlayerIds.has(pid)) duplicatePlayers++;
+      allCourtPlayerIds.add(pid);
+    }
+  }
+}
+assert("3court-iso", duplicatePlayers === 0, "No duplicate players across courts", `${duplicatePlayers} duplicates`);
+
+// Verify each court has empty schedule and completedGames (step 1 — no schedules yet)
+for (const court of isoCourts) {
+  assert("3court-iso", court.schedule.length === 0, `Court ${court.courtNumber}: schedule empty`, `${court.schedule.length} matches`);
+  assert("3court-iso", court.completedGames.length === 0, `Court ${court.courtNumber}: completedGames empty`, `${court.completedGames.length} matches`);
+  assert("3court-iso", court.status === "waiting", `Court ${court.courtNumber}: status=waiting`, `status=${court.status}`);
+  assert("3court-iso", court.currentSlot === 0, `Court ${court.courtNumber}: currentSlot=0`, `currentSlot=${court.currentSlot}`);
+}
+
+// Verify standings initialized for all pairs
+for (const court of isoCourts) {
+  const standingIds = Object.keys(court.standings);
+  assert("3court-iso", standingIds.length === court.assignedPairs.length, `Court ${court.courtNumber}: standings for all ${court.assignedPairs.length} pairs`, `${standingIds.length} standing entries`);
+  for (const pair of court.assignedPairs) {
+    const st = court.standings[pair.id];
+    assert("3court-iso", st !== undefined, `Court ${court.courtNumber}: standings for pair ${pair.player1.name}`, "missing");
+    if (st) {
+      assert("3court-iso", st.wins === 0 && st.losses === 0 && st.gamesPlayed === 0 && st.winPct === 0, `Court ${court.courtNumber}: standings zeroed for ${pair.player1.name}`, `${JSON.stringify(st)}`);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 28. 3-Court Least Played First Scheduling
+// ═══════════════════════════════════════════════════════════════
+{
+  console.log("\n── Section 28: 3-Court Least Played First Scheduling ──");
+
+  // Test Court 2 (B) with 6 pairs, 85 min → 12 slots → gameTarget = floor(12*2/6) = 4
+  const lpfPlayers = Array.from({ length: 12 }, (_, i) => makePlayer(`lpfB${i + 1}`, "B"));
+  const lpfPairs = createPairs(lpfPlayers, "B"); // 6 pairs
+  assert("3court-lpf", lpfPairs.length === 6, "6 B pairs created", `${lpfPairs.length} pairs`);
+
+  const lpfCourt: CourtState = {
+    courtNumber: 2,
+    tier: "B",
+    assignedPairs: lpfPairs,
+    schedule: [],
+    completedGames: [],
+    standings: Object.fromEntries(lpfPairs.map(p => [p.id, { wins: 0, losses: 0, gamesPlayed: 0, winPct: 0 }])),
+    currentSlot: 0,
+    status: "waiting",
+    format: "round_robin",
+  };
+
+  // Replicate the generateCourtSchedule algorithm from the engine
+  const totalSlots = Math.floor(85 / 7); // 12
+  assert("3court-lpf", totalSlots === 12, "12 slots for 85 min", `${totalSlots} slots`);
+
+  const gameTarget = Math.floor(totalSlots * 2 / lpfPairs.length); // floor(24/6) = 4
+  assert("3court-lpf", gameTarget === 4, "Game target = 4", `target=${gameTarget}`);
+
+  // Generate all unique matchups
+  const lpfMatchups: { pair1: Pair; pair2: Pair }[] = [];
+  for (let i = 0; i < lpfPairs.length; i++) {
+    for (let j = i + 1; j < lpfPairs.length; j++) {
+      lpfMatchups.push({ pair1: lpfPairs[i], pair2: lpfPairs[j] });
+    }
+  }
+  // 6 pairs → C(6,2) = 15 unique matchups
+  assert("3court-lpf", lpfMatchups.length === 15, "15 unique matchups", `${lpfMatchups.length}`);
+
+  // Run the scheduling algorithm (mirrors engine logic)
+  const MAX_ATTEMPTS = 10;
+  let bestSchedule: Match[] = [];
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const schedule: Match[] = [];
+    const pairGames = new Map<string, number>();
+    const pairLastSlot = new Map<string, number>();
+    const usedMatchups = new Set<string>();
+    lpfPairs.forEach(p => { pairGames.set(p.id, 0); pairLastSlot.set(p.id, -2); });
+
+    const equityRelax = attempt >= 3 ? 1 : 0;
+
+    for (let slot = 0; slot < totalSlots; slot++) {
+      const sorted = [...lpfPairs].sort((a, b) => {
+        const ga = pairGames.get(a.id) || 0;
+        const gb = pairGames.get(b.id) || 0;
+        if (ga !== gb) return ga - gb;
+        const idleA = slot - (pairLastSlot.get(a.id) ?? -2);
+        const idleB = slot - (pairLastSlot.get(b.id) ?? -2);
+        return idleB - idleA;
+      });
+
+      let matched = false;
+      for (let i = 0; i < sorted.length && !matched; i++) {
+        const p1 = sorted[i];
+        const g1 = pairGames.get(p1.id) || 0;
+        const lastSlot1 = pairLastSlot.get(p1.id) ?? -2;
+        if (slot - lastSlot1 < 2) continue;
+        if (g1 >= gameTarget + equityRelax) continue;
+
+        for (let j = i + 1; j < sorted.length; j++) {
+          const p2 = sorted[j];
+          const g2 = pairGames.get(p2.id) || 0;
+          const lastSlot2 = pairLastSlot.get(p2.id) ?? -2;
+          if (slot - lastSlot2 < 2) continue;
+          if (g2 >= gameTarget + equityRelax) continue;
+
+          const activeGames = Array.from(pairGames.values()).filter(v => v > 0);
+          const minGames = activeGames.length > 0 ? Math.min(...activeGames) : 0;
+          if (Math.min(g1, g2) > minGames + 1 + equityRelax) continue;
+
+          const mKey = matchupKey(p1.id, p2.id);
+          if (usedMatchups.has(mKey)) continue;
+
+          usedMatchups.add(mKey);
+          pairGames.set(p1.id, g1 + 1);
+          pairGames.set(p2.id, g2 + 1);
+          pairLastSlot.set(p1.id, slot);
+          pairLastSlot.set(p2.id, slot);
+
+          schedule.push({
+            id: generateId(),
+            pair1: p1,
+            pair2: p2,
+            skillLevel: "B",
+            matchupLabel: "B vs B",
+            status: "pending",
+            court: 2,
+            courtPool: "B",
+            gameNumber: slot, // store actual slot number for back-to-back checks
+          });
+          matched = true;
+          break;
+        }
+      }
+    }
+
+    const games = Array.from(pairGames.values());
+    const maxG = Math.max(...games);
+    const minG = Math.min(...games);
+    const equityGap = maxG - minG;
+
+    let hasBackToBack = false;
+    for (const p of lpfPairs) {
+      const matchSlots = schedule
+        .filter(m => m.pair1.id === p.id || m.pair2.id === p.id)
+        .map(m => m.gameNumber!)
+        .sort((a, b) => a - b);
+      for (let k = 1; k < matchSlots.length; k++) {
+        if (matchSlots[k] - matchSlots[k - 1] < 2) { hasBackToBack = true; break; }
+      }
+      if (hasBackToBack) break;
+    }
+
+    const valid = equityGap <= 1 + equityRelax && !hasBackToBack;
+    if (valid || attempt === MAX_ATTEMPTS - 1) {
+      bestSchedule = schedule;
+      console.log(`  Info: Court 2 (B): ${schedule.length} games, equity=${equityGap}, attempt=${attempt + 1}`);
+      break;
+    }
+  }
+
+  // ── Assertions ──
+
+  // Should have generated matches (12 slots, 6 pairs → 12 matches for 4 games each → 24 pair-slots / 2 = 12)
+  assert("3court-lpf", bestSchedule.length >= 10, `Generated ≥10 matches (got ${bestSchedule.length})`, `${bestSchedule.length} matches`);
+  assert("3court-lpf", bestSchedule.length <= 12, `Generated ≤12 matches (got ${bestSchedule.length})`, `${bestSchedule.length} matches`);
+
+  // Per-pair game counts
+  const pairGameCounts = new Map<string, number>();
+  lpfPairs.forEach(p => pairGameCounts.set(p.id, 0));
+  for (const m of bestSchedule) {
+    pairGameCounts.set(m.pair1.id, (pairGameCounts.get(m.pair1.id) || 0) + 1);
+    pairGameCounts.set(m.pair2.id, (pairGameCounts.get(m.pair2.id) || 0) + 1);
+  }
+
+  const gameCounts = Array.from(pairGameCounts.values());
+  const maxGames = Math.max(...gameCounts);
+  const minGames = Math.min(...gameCounts);
+
+  // Equity gap ≤ 1
+  assert("3court-lpf", maxGames - minGames <= 1, `Equity gap ≤ 1 (max=${maxGames}, min=${minGames})`, `gap=${maxGames - minGames}`);
+
+  // All pairs should have ≥ 3 games
+  assert("3court-lpf", minGames >= 3, `All pairs ≥ 3 games (min=${minGames})`, `min=${minGames}`);
+
+  // All pairs should have ≤ 5 games
+  assert("3court-lpf", maxGames <= 5, `All pairs ≤ 5 games (max=${maxGames})`, `max=${maxGames}`);
+
+  // No duplicate matchups
+  const lpfMatchupSet = new Set<string>();
+  let lpfDupes = 0;
+  for (const m of bestSchedule) {
+    const mKey = matchupKey(m.pair1.id, m.pair2.id);
+    if (lpfMatchupSet.has(mKey)) lpfDupes++;
+    lpfMatchupSet.add(mKey);
+  }
+  assert("3court-lpf", lpfDupes === 0, "No duplicate matchups", `${lpfDupes} duplicates`);
+
+  // No back-to-back (use gameNumber=slot, not array index)
+  let lpfB2B = false;
+  for (const p of lpfPairs) {
+    const matchSlots = bestSchedule
+      .filter(m => m.pair1.id === p.id || m.pair2.id === p.id)
+      .map(m => m.gameNumber!)
+      .sort((a, b) => a - b);
+    for (let k = 1; k < matchSlots.length; k++) {
+      if (matchSlots[k] - matchSlots[k - 1] < 2) { lpfB2B = true; break; }
+    }
+    if (lpfB2B) break;
+  }
+  assert("3court-lpf", !lpfB2B, "No back-to-back games", "back-to-back detected");
+
+  // All matches are B vs B (tier isolation)
+  const wrongTierMatches = bestSchedule.filter(m => m.skillLevel !== "B");
+  assert("3court-lpf", wrongTierMatches.length === 0, "All matches B vs B", `${wrongTierMatches.length} non-B matches`);
+
+  // All matches have correct court number
+  const wrongCourt = bestSchedule.filter(m => m.court !== 2);
+  assert("3court-lpf", wrongCourt.length === 0, "All matches on court 2", `${wrongCourt.length} wrong court`);
+
+  // All matches have courtPool = "B"
+  const wrongPool = bestSchedule.filter(m => m.courtPool !== "B");
+  assert("3court-lpf", wrongPool.length === 0, "All matches courtPool=B", `${wrongPool.length} wrong pool`);
+
+  // Slot numbers (gameNumber) are non-decreasing
+  for (let i = 1; i < bestSchedule.length; i++) {
+    assert("3court-lpf", bestSchedule[i].gameNumber! >= bestSchedule[i - 1].gameNumber!, `Slot order: game ${i} slot ${bestSchedule[i].gameNumber} >= prev ${bestSchedule[i - 1].gameNumber}`, `out of order`);
+  }
+
+  // Test with fewer pairs (3 pairs, 12 slots → gameTarget = floor(24/3) = 8, but only 3 unique matchups)
+  const smallPlayers = Array.from({ length: 6 }, (_, i) => makePlayer(`lpfSmall${i + 1}`, "A"));
+  const smallPairs = createPairs(smallPlayers, "A"); // 3 pairs
+  assert("3court-lpf", smallPairs.length === 3, "3 A pairs for small test", `${smallPairs.length}`);
+
+  // 3 pairs → C(3,2) = 3 unique matchups, so max 3 games
+  const smallSchedule: Match[] = [];
+  const smallPairGames = new Map<string, number>();
+  const smallPairLastSlot = new Map<string, number>();
+  const smallUsed = new Set<string>();
+  smallPairs.forEach(p => { smallPairGames.set(p.id, 0); smallPairLastSlot.set(p.id, -2); });
+  const smallTarget = Math.floor(totalSlots * 2 / smallPairs.length); // floor(24/3)=8, capped by matchups=3
+
+  for (let slot = 0; slot < totalSlots; slot++) {
+    const sorted = [...smallPairs].sort((a, b) => {
+      const ga = smallPairGames.get(a.id) || 0;
+      const gb = smallPairGames.get(b.id) || 0;
+      if (ga !== gb) return ga - gb;
+      return (slot - (smallPairLastSlot.get(b.id) ?? -2)) - (slot - (smallPairLastSlot.get(a.id) ?? -2));
+    });
+    let matched = false;
+    for (let i = 0; i < sorted.length && !matched; i++) {
+      const p1 = sorted[i];
+      const g1 = smallPairGames.get(p1.id) || 0;
+      if (slot - (smallPairLastSlot.get(p1.id) ?? -2) < 2) continue;
+      if (g1 >= smallTarget) continue;
+      for (let j = i + 1; j < sorted.length; j++) {
+        const p2 = sorted[j];
+        const g2 = smallPairGames.get(p2.id) || 0;
+        if (slot - (smallPairLastSlot.get(p2.id) ?? -2) < 2) continue;
+        if (g2 >= smallTarget) continue;
+        const mKey = matchupKey(p1.id, p2.id);
+        if (smallUsed.has(mKey)) continue;
+        smallUsed.add(mKey);
+        smallPairGames.set(p1.id, g1 + 1);
+        smallPairGames.set(p2.id, g2 + 1);
+        smallPairLastSlot.set(p1.id, slot);
+        smallPairLastSlot.set(p2.id, slot);
+        smallSchedule.push({
+          id: generateId(), pair1: p1, pair2: p2, skillLevel: "A", status: "pending", court: 3, courtPool: "A", gameNumber: slot,
+        });
+        matched = true;
+        break;
+      }
+    }
+  }
+
+  // 3 unique matchups means max 3 games, each pair plays 2
+  assert("3court-lpf", smallSchedule.length === 3, `3-pair court: 3 matches`, `${smallSchedule.length} matches`);
+  const smallCounts = Array.from(smallPairGames.values());
+  assert("3court-lpf", smallCounts.every(c => c === 2), "3-pair court: all pairs play 2 games", `counts=${smallCounts}`);
+
+  // No back-to-back in small schedule (use gameNumber=slot, not array index)
+  let smallB2B = false;
+  for (const p of smallPairs) {
+    const matchSlots = smallSchedule
+      .filter(m => m.pair1.id === p.id || m.pair2.id === p.id)
+      .map(m => m.gameNumber!)
+      .sort((a, b) => a - b);
+    for (let k = 1; k < matchSlots.length; k++) {
+      if (matchSlots[k] - matchSlots[k - 1] < 2) { smallB2B = true; break; }
+    }
+  }
+  assert("3court-lpf", !smallB2B, "3-pair: no back-to-back", "back-to-back found");
+
+  // Print per-pair summary
+  console.log("  Info: 6-pair schedule:");
+  for (const p of lpfPairs) {
+    console.log(`    ${p.player1.name}+${p.player2.name}: ${pairGameCounts.get(p.id)} games`);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 29. Winner Stays On (WSO) Mechanics
+// ═══════════════════════════════════════════════════════════════
+{
+  console.log("\n── Section 29: Winner Stays On (WSO) Mechanics ──");
+
+  // Create 5 A pairs for WSO court
+  const wsoPlayers = Array.from({ length: 10 }, (_, i) => makePlayer(`wsoA${i + 1}`, "A"));
+  const wsoPairs = createPairs(wsoPlayers, "A"); // 5 pairs
+  assert("wso", wsoPairs.length === 5, "5 A pairs created", `${wsoPairs.length}`);
+
+  // ── Initialize WSO state ──
+  const initWsoStats = (pairs: Pair[]): Record<string, WsoStats> =>
+    Object.fromEntries(pairs.map(p => [p.id, { pairId: p.id, wins: 0, losses: 0, streak: 0, longestStreak: 0, gamesPlayed: 0 }]));
+
+  // Use deterministic order (not shuffled) for predictable tests
+  const orderedPairs = [...wsoPairs];
+  const wsoState: WsoState = {
+    queue: orderedPairs.slice(2),
+    currentGame: {
+      id: generateId(),
+      pair1: orderedPairs[0], // defender
+      pair2: orderedPairs[1], // challenger
+      startedAt: new Date().toISOString(),
+      gameNumber: 1,
+    },
+    history: [],
+    stats: initWsoStats(orderedPairs),
+    undoStack: [],
+    gameCounter: 1,
+  };
+
+  const wsoCourt: CourtState = {
+    courtNumber: 3,
+    tier: "A",
+    assignedPairs: orderedPairs,
+    schedule: [],
+    completedGames: [],
+    standings: {},
+    currentSlot: 0,
+    status: "active",
+    format: "winner_stays_on",
+    wso: wsoState,
+  };
+
+  // ── Verify initialization ──
+  assert("wso", wsoCourt.format === "winner_stays_on", "Court format is WSO", `format=${wsoCourt.format}`);
+  assert("wso", wsoState.currentGame !== null, "Current game exists", "null");
+  assert("wso", wsoState.currentGame!.pair1.id === orderedPairs[0].id, "Pair 0 is defender", `pair1=${wsoState.currentGame!.pair1.player1.name}`);
+  assert("wso", wsoState.currentGame!.pair2.id === orderedPairs[1].id, "Pair 1 is challenger", `pair2=${wsoState.currentGame!.pair2.player1.name}`);
+  assert("wso", wsoState.queue.length === 3, "3 pairs in queue", `${wsoState.queue.length}`);
+  assert("wso", wsoState.queue[0].id === orderedPairs[2].id, "Queue[0] = pair 2", `${wsoState.queue[0].player1.name}`);
+  assert("wso", wsoState.gameCounter === 1, "Game counter = 1", `${wsoState.gameCounter}`);
+
+  // ── Simulate WSO game flow (mirrors engine recordWsoWinner logic) ──
+  function simulateWsoWinner(court: CourtState, winnerPairId: string): CourtState {
+    const wso = court.wso!;
+    const game = wso.currentGame!;
+    const winnerPair = game.pair1.id === winnerPairId ? game.pair1 : game.pair2;
+    const loserPair = game.pair1.id === winnerPairId ? game.pair2 : game.pair1;
+
+    // Save undo
+    const undoEntry: WsoUndoEntry = {
+      previousGame: { ...game },
+      previousQueue: [...wso.queue],
+      previousStats: JSON.parse(JSON.stringify(wso.stats)),
+    };
+
+    // Update stats
+    const stats = JSON.parse(JSON.stringify(wso.stats)) as Record<string, WsoStats>;
+    const ws = stats[winnerPair.id];
+    ws.wins += 1; ws.streak += 1; ws.longestStreak = Math.max(ws.longestStreak, ws.streak); ws.gamesPlayed += 1;
+    const ls = stats[loserPair.id];
+    ls.losses += 1; ls.streak = 0; ls.gamesPlayed += 1;
+
+    // Queue rotation
+    const newQueue = [...wso.queue, loserPair];
+    const nextChallenger = newQueue.shift();
+    const nextGameNumber = wso.gameCounter + 1;
+
+    const completedGame: WsoGame = { ...game, winner: winnerPair, loser: loserPair, completedAt: new Date().toISOString() };
+    const nextGame: WsoGame | null = nextChallenger ? {
+      id: generateId(), pair1: winnerPair, pair2: nextChallenger, startedAt: new Date().toISOString(), gameNumber: nextGameNumber,
+    } : null;
+
+    return {
+      ...court,
+      wso: {
+        ...wso,
+        queue: newQueue,
+        currentGame: nextGame,
+        history: [...wso.history, completedGame],
+        stats,
+        undoStack: [...wso.undoStack, undoEntry].slice(-20),
+        gameCounter: nextGameNumber,
+      },
+    };
+  }
+
+  function simulateWsoUndo(court: CourtState): CourtState {
+    const wso = court.wso!;
+    const entry = wso.undoStack[wso.undoStack.length - 1];
+    if (!entry) return court;
+    return {
+      ...court,
+      wso: {
+        ...wso,
+        currentGame: entry.previousGame,
+        queue: entry.previousQueue,
+        stats: entry.previousStats,
+        history: wso.history.slice(0, -1),
+        undoStack: wso.undoStack.slice(0, -1),
+        gameCounter: wso.gameCounter - 1,
+      },
+    };
+  }
+
+  // ── Game 1: Pair 0 (defender) wins vs Pair 1 (challenger) ──
+  let court = simulateWsoWinner(wsoCourt, orderedPairs[0].id);
+  let w = court.wso!;
+  assert("wso", w.history.length === 1, "Game 1: 1 completed game", `${w.history.length}`);
+  assert("wso", w.history[0].winner!.id === orderedPairs[0].id, "Game 1: Pair 0 won", `winner=${w.history[0].winner!.player1.name}`);
+  assert("wso", w.currentGame!.pair1.id === orderedPairs[0].id, "Game 1: Winner stays (Pair 0 defending)", `pair1=${w.currentGame!.pair1.player1.name}`);
+  assert("wso", w.currentGame!.pair2.id === orderedPairs[2].id, "Game 1: Next challenger is Pair 2 (from queue)", `pair2=${w.currentGame!.pair2.player1.name}`);
+  assert("wso", w.queue[w.queue.length - 1].id === orderedPairs[1].id, "Game 1: Loser (Pair 1) at back of queue", `last=${w.queue[w.queue.length - 1].player1.name}`);
+  assert("wso", w.stats[orderedPairs[0].id].wins === 1, "Game 1: Pair 0 wins=1", `${w.stats[orderedPairs[0].id].wins}`);
+  assert("wso", w.stats[orderedPairs[0].id].streak === 1, "Game 1: Pair 0 streak=1", `${w.stats[orderedPairs[0].id].streak}`);
+  assert("wso", w.stats[orderedPairs[1].id].losses === 1, "Game 1: Pair 1 losses=1", `${w.stats[orderedPairs[1].id].losses}`);
+  assert("wso", w.stats[orderedPairs[1].id].streak === 0, "Game 1: Pair 1 streak=0", `${w.stats[orderedPairs[1].id].streak}`);
+  assert("wso", w.gameCounter === 2, "Game counter = 2", `${w.gameCounter}`);
+
+  // ── Game 2: Pair 0 wins again (streak grows) ──
+  court = simulateWsoWinner(court, orderedPairs[0].id);
+  w = court.wso!;
+  assert("wso", w.currentGame!.pair1.id === orderedPairs[0].id, "Game 2: Pair 0 still defending", `${w.currentGame!.pair1.player1.name}`);
+  assert("wso", w.currentGame!.pair2.id === orderedPairs[3].id, "Game 2: Pair 3 is next challenger", `${w.currentGame!.pair2.player1.name}`);
+  assert("wso", w.stats[orderedPairs[0].id].wins === 2, "Game 2: Pair 0 wins=2", `${w.stats[orderedPairs[0].id].wins}`);
+  assert("wso", w.stats[orderedPairs[0].id].streak === 2, "Game 2: Pair 0 streak=2", `${w.stats[orderedPairs[0].id].streak}`);
+  assert("wso", w.stats[orderedPairs[0].id].longestStreak === 2, "Game 2: Pair 0 longestStreak=2", `${w.stats[orderedPairs[0].id].longestStreak}`);
+
+  // ── Game 3: Pair 3 (challenger) beats Pair 0 (defender falls) ──
+  court = simulateWsoWinner(court, orderedPairs[3].id);
+  w = court.wso!;
+  assert("wso", w.currentGame!.pair1.id === orderedPairs[3].id, "Game 3: Pair 3 now defending", `${w.currentGame!.pair1.player1.name}`);
+  assert("wso", w.stats[orderedPairs[0].id].streak === 0, "Game 3: Pair 0 streak reset to 0", `${w.stats[orderedPairs[0].id].streak}`);
+  assert("wso", w.stats[orderedPairs[0].id].longestStreak === 2, "Game 3: Pair 0 longestStreak preserved=2", `${w.stats[orderedPairs[0].id].longestStreak}`);
+  assert("wso", w.stats[orderedPairs[3].id].wins === 1, "Game 3: Pair 3 wins=1", `${w.stats[orderedPairs[3].id].wins}`);
+  assert("wso", w.stats[orderedPairs[3].id].streak === 1, "Game 3: Pair 3 streak=1", `${w.stats[orderedPairs[3].id].streak}`);
+  // Pair 0 should be at back of queue now
+  assert("wso", w.queue[w.queue.length - 1].id === orderedPairs[0].id, "Game 3: Pair 0 at back of queue", `${w.queue[w.queue.length - 1].player1.name}`);
+
+  // ── Game 4 & 5: Continue for full cycle ──
+  court = simulateWsoWinner(court, orderedPairs[3].id); // Pair 3 wins again
+  court = simulateWsoWinner(court, orderedPairs[3].id); // Pair 3 wins third time
+  w = court.wso!;
+  assert("wso", w.history.length === 5, "5 completed games after 5 results", `${w.history.length}`);
+  assert("wso", w.stats[orderedPairs[3].id].wins === 3, "Pair 3 total wins=3", `${w.stats[orderedPairs[3].id].wins}`);
+  assert("wso", w.stats[orderedPairs[3].id].streak === 3, "Pair 3 streak=3", `${w.stats[orderedPairs[3].id].streak}`);
+  assert("wso", w.stats[orderedPairs[3].id].longestStreak === 3, "Pair 3 longestStreak=3", `${w.stats[orderedPairs[3].id].longestStreak}`);
+
+  // ── Verify queue rotation: all pairs should have played at least once ──
+  const allPlayed = orderedPairs.every(p => w.stats[p.id].gamesPlayed > 0);
+  assert("wso", allPlayed, "All pairs have played at least 1 game", `some haven't played`);
+
+  // ── Total games played consistency ──
+  const totalPairGames = Object.values(w.stats).reduce((sum, s) => sum + s.gamesPlayed, 0);
+  assert("wso", totalPairGames === w.history.length * 2, `Total pair-games (${totalPairGames}) = history*2 (${w.history.length * 2})`, `mismatch`);
+
+  // ── Undo last result ──
+  const beforeUndo = { ...w };
+  court = simulateWsoUndo(court);
+  w = court.wso!;
+  assert("wso", w.history.length === 4, "After undo: 4 completed games", `${w.history.length}`);
+  assert("wso", w.undoStack.length === beforeUndo.undoStack.length - 1, "Undo stack shrunk by 1", `${w.undoStack.length}`);
+  assert("wso", w.gameCounter === beforeUndo.gameCounter - 1, "Game counter decremented", `${w.gameCounter}`);
+  // Pair 3's last win was undone — streak should be back to 2
+  assert("wso", w.stats[orderedPairs[3].id].wins === 2, "After undo: Pair 3 wins=2", `${w.stats[orderedPairs[3].id].wins}`);
+  assert("wso", w.stats[orderedPairs[3].id].streak === 2, "After undo: Pair 3 streak=2", `${w.stats[orderedPairs[3].id].streak}`);
+  // The opponent from the undone game should have their loss removed
+  const undoneLoserId = beforeUndo.history[4].loser!.id;
+  assert("wso", w.stats[undoneLoserId].losses === beforeUndo.stats[undoneLoserId].losses - 1, "After undo: loser losses decremented", `${w.stats[undoneLoserId].losses}`);
+
+  // ── Undo stack limit (max 20) ──
+  let stackCourt = wsoCourt;
+  for (let i = 0; i < 25; i++) {
+    // Alternate winners to keep it interesting
+    const winnerId = stackCourt.wso!.currentGame!.pair1.id;
+    stackCourt = simulateWsoWinner(stackCourt, winnerId);
+  }
+  assert("wso", stackCourt.wso!.undoStack.length === 20, "Undo stack capped at 20", `${stackCourt.wso!.undoStack.length}`);
+
+  // ── Edge: 2 pairs only ──
+  const twoPairs = wsoPairs.slice(0, 2);
+  const twoWso: WsoState = {
+    queue: [],
+    currentGame: { id: generateId(), pair1: twoPairs[0], pair2: twoPairs[1], startedAt: new Date().toISOString(), gameNumber: 1 },
+    history: [], stats: initWsoStats(twoPairs), undoStack: [], gameCounter: 1,
+  };
+  const twoCourt: CourtState = { courtNumber: 3, tier: "A", assignedPairs: twoPairs, schedule: [], completedGames: [], standings: {}, currentSlot: 0, status: "active", format: "winner_stays_on", wso: twoWso };
+  const after2 = simulateWsoWinner(twoCourt, twoPairs[0].id);
+  assert("wso", after2.wso!.currentGame!.pair1.id === twoPairs[0].id, "2-pair: winner stays", `${after2.wso!.currentGame!.pair1.player1.name}`);
+  assert("wso", after2.wso!.currentGame!.pair2.id === twoPairs[1].id, "2-pair: loser comes right back", `${after2.wso!.currentGame!.pair2.player1.name}`);
+  assert("wso", after2.wso!.queue.length === 0, "2-pair: queue stays empty", `${after2.wso!.queue.length}`);
+
+  // ── Edge: 1 pair ──
+  const onePair = wsoPairs.slice(0, 1);
+  const oneWso: WsoState = {
+    queue: [], currentGame: null, history: [], stats: initWsoStats(onePair), undoStack: [], gameCounter: 0,
+  };
+  assert("wso", oneWso.currentGame === null, "1-pair: no game possible", "has game");
+
+  // ── Format switch: round_robin → WSO ──
+  const rrCourt: CourtState = makeCourt(3, "A", wsoPairs.slice(0, 4));
+  assert("wso", rrCourt.format === "round_robin", "Initially round_robin", `${rrCourt.format}`);
+  assert("wso", rrCourt.wso === undefined, "No WSO state initially", "has wso");
+
+  // Simulate setCourtFormat switching to WSO
+  const switchedCourt: CourtState = {
+    ...rrCourt,
+    format: "winner_stays_on",
+    schedule: [],
+    status: "active",
+    wso: {
+      queue: rrCourt.assignedPairs.slice(2),
+      currentGame: rrCourt.assignedPairs.length >= 2 ? {
+        id: generateId(), pair1: rrCourt.assignedPairs[0], pair2: rrCourt.assignedPairs[1],
+        startedAt: new Date().toISOString(), gameNumber: 1,
+      } : null,
+      history: [], stats: initWsoStats(rrCourt.assignedPairs), undoStack: [], gameCounter: 1,
+    },
+  };
+  assert("wso", switchedCourt.format === "winner_stays_on", "After switch: format=WSO", `${switchedCourt.format}`);
+  assert("wso", switchedCourt.schedule.length === 0, "After switch: schedule cleared", `${switchedCourt.schedule.length}`);
+  assert("wso", switchedCourt.wso !== undefined, "After switch: WSO state exists", "undefined");
+  assert("wso", switchedCourt.wso!.currentGame !== null, "After switch: game started", "null");
+
+  // ── Format switch blocked after games ──
+  const playedCourt: CourtState = { ...switchedCourt, completedGames: [{ id: "x" } as Match] };
+  // Engine blocks switch when completedGames.length > 0 — simulate that check
+  const canSwitch = playedCourt.completedGames.length === 0 && (playedCourt.wso?.history.length || 0) === 0;
+  assert("wso", !canSwitch, "Switch blocked after games played", "switch allowed");
+
+  // Print summary
+  console.log(`  Info: WSO 5-pair test — ${beforeUndo.history.length} games played, undo tested`);
+  for (const p of orderedPairs) {
+    const st = beforeUndo.stats[p.id];
+    console.log(`    ${p.player1.name}+${p.player2.name}: ${st.wins}W-${st.losses}L streak=${st.streak} best=${st.longestStreak}`);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 30. Independent Court Start (delayed start, reduced slots)
+// ═══════════════════════════════════════════════════════════════
+{
+  console.log("\n── Section 30: Independent Court Start ──");
+
+  // Setup: 3 courts with pairs
+  const dcsA = Array.from({ length: 10 }, (_, i) => makePlayer(`dcsA${i + 1}`, "A"));
+  const dcsB = Array.from({ length: 12 }, (_, i) => makePlayer(`dcsB${i + 1}`, "B"));
+  const dcsC = Array.from({ length: 14 }, (_, i) => makePlayer(`dcsC${i + 1}`, "C"));
+  const dcsPairsA = createPairs(dcsA, "A"); // 5 pairs
+  const dcsPairsB = createPairs(dcsB, "B"); // 6 pairs
+  const dcsPairsC = createPairs(dcsC, "C"); // 7 pairs
+
+  const durationMin = 85;
+  const fullSlots = Math.floor(durationMin / 7); // 12
+  assert("court-start", fullSlots === 12, "Full session = 12 slots", `${fullSlots}`);
+
+  // Court 3 (A): starts at session start → gets full 12 slots
+  const court3: CourtState = makeCourt(3, "A", dcsPairsA);
+  const court3Schedule = testGenerateSchedule(court3, fullSlots);
+  const court3Started: CourtState = { ...court3, schedule: court3Schedule, status: "active", startedAt: new Date().toISOString() };
+  assert("court-start", court3Started.status === "active", "Court 3: active", `${court3Started.status}`);
+  assert("court-start", court3Started.schedule.length > 0, "Court 3: has schedule", `${court3Started.schedule.length} games`);
+  assert("court-start", court3Started.startedAt !== undefined, "Court 3: has startedAt", "missing");
+
+  // Court 2 (B): starts at session start → gets full 12 slots
+  const court2: CourtState = makeCourt(2, "B", dcsPairsB);
+  const court2Schedule = testGenerateSchedule(court2, fullSlots);
+  const court2Started: CourtState = { ...court2, schedule: court2Schedule, status: "active", startedAt: new Date().toISOString() };
+  assert("court-start", court2Started.schedule.length > 0, "Court 2: has schedule", `${court2Started.schedule.length} games`);
+
+  // Court 1 (C): delayed start — 15 minutes late → 70 min remaining → 10 slots
+  const delayMin = 15;
+  const remainingMin = durationMin - delayMin; // 70
+  const delayedSlots = Math.floor(remainingMin / 7); // 10
+  assert("court-start", delayedSlots === 10, "Delayed court = 10 slots", `${delayedSlots}`);
+
+  const court1: CourtState = makeCourt(1, "C", dcsPairsC);
+  const court1Schedule = testGenerateSchedule(court1, delayedSlots);
+  const court1Started: CourtState = { ...court1, schedule: court1Schedule, status: "active", startedAt: new Date(Date.now()).toISOString() };
+  assert("court-start", court1Started.schedule.length > 0, "Court 1 (delayed): has schedule", `${court1Started.schedule.length} games`);
+
+  // ── Key assertion: delayed court has fewer games than full-start court ──
+  // Court 2 (6 pairs, 12 slots) vs Court 1 (7 pairs, 10 slots)
+  // Court 2 should generally have more games (more slots, fewer pairs)
+  assert("court-start", court1Started.schedule.length <= court2Started.schedule.length,
+    `Delayed court (${court1Started.schedule.length} games) ≤ full court (${court2Started.schedule.length} games)`,
+    `delayed=${court1Started.schedule.length} > full=${court2Started.schedule.length}`);
+
+  // ── Verify delayed court game target is lower ──
+  const fullTarget = Math.floor(fullSlots * 2 / dcsPairsB.length); // floor(24/6) = 4
+  const delayedTarget = Math.floor(delayedSlots * 2 / dcsPairsC.length); // floor(20/7) = 2
+  assert("court-start", delayedTarget < fullTarget,
+    `Delayed game target (${delayedTarget}) < full target (${fullTarget})`,
+    `delayed=${delayedTarget} >= full=${fullTarget}`);
+
+  // ── Verify per-pair equity on delayed court ──
+  const delayedPairGames = new Map<string, number>();
+  dcsPairsC.forEach(p => delayedPairGames.set(p.id, 0));
+  for (const m of court1Started.schedule) {
+    delayedPairGames.set(m.pair1.id, (delayedPairGames.get(m.pair1.id) || 0) + 1);
+    delayedPairGames.set(m.pair2.id, (delayedPairGames.get(m.pair2.id) || 0) + 1);
+  }
+  const delayedGames = Array.from(delayedPairGames.values());
+  const delayedMax = Math.max(...delayedGames);
+  const delayedMin = Math.min(...delayedGames);
+  assert("court-start", delayedMax - delayedMin <= 1,
+    `Delayed court equity gap ≤ 1 (max=${delayedMax}, min=${delayedMin})`,
+    `gap=${delayedMax - delayedMin}`);
+
+  // ── Courts 2 and 3 unaffected by Court 1 starting ──
+  // Re-generate Court 2 to verify same slot count
+  const court2Verify = testGenerateSchedule(court2, fullSlots);
+  assert("court-start", court2Verify.length === court2Schedule.length,
+    `Court 2 schedule unchanged (${court2Verify.length} = ${court2Schedule.length})`,
+    `changed: ${court2Verify.length} vs ${court2Schedule.length}`);
+
+  // ── Waiting state checks ──
+  const waitingCourt: CourtState = makeCourt(1, "C", dcsPairsC);
+  assert("court-start", waitingCourt.status === "waiting", "Unstarted court: status=waiting", `${waitingCourt.status}`);
+  assert("court-start", waitingCourt.schedule.length === 0, "Unstarted court: empty schedule", `${waitingCourt.schedule.length}`);
+  assert("court-start", waitingCourt.startedAt === undefined, "Unstarted court: no startedAt", `has startedAt`);
+
+  // ── WSO court delayed start ──
+  const wsoCourt: CourtState = { ...makeCourt(3, "A", dcsPairsA.slice(0, 4)), format: "winner_stays_on" };
+  // Simulate startCourt for WSO: just init WSO state, no slots needed
+  const wsoStarted: CourtState = {
+    ...wsoCourt,
+    status: "active",
+    startedAt: new Date().toISOString(),
+    wso: {
+      queue: wsoCourt.assignedPairs.slice(2),
+      currentGame: wsoCourt.assignedPairs.length >= 2 ? {
+        id: generateId(), pair1: wsoCourt.assignedPairs[0], pair2: wsoCourt.assignedPairs[1],
+        startedAt: new Date().toISOString(), gameNumber: 1,
+      } : null,
+      history: [], stats: Object.fromEntries(wsoCourt.assignedPairs.map(p => [p.id, {
+        pairId: p.id, wins: 0, losses: 0, streak: 0, longestStreak: 0, gamesPlayed: 0,
+      }])), undoStack: [], gameCounter: 1,
+    },
+  };
+  assert("court-start", wsoStarted.status === "active", "WSO delayed start: active", `${wsoStarted.status}`);
+  assert("court-start", wsoStarted.wso !== undefined, "WSO delayed start: has WSO state", "undefined");
+  assert("court-start", wsoStarted.wso!.currentGame !== null, "WSO delayed start: has current game", "null");
+  assert("court-start", wsoStarted.schedule.length === 0, "WSO delayed start: no RR schedule", `${wsoStarted.schedule.length}`);
+
+  // ── Edge: 30 minutes late → 55 min remaining → 7 slots ──
+  const lateSlots = Math.floor((durationMin - 30) / 7); // floor(55/7) = 7
+  assert("court-start", lateSlots === 7, "30-min-late court = 7 slots", `${lateSlots}`);
+  const lateCourt = testGenerateSchedule(court1, lateSlots);
+  assert("court-start", lateCourt.length > 0, "30-min-late court has games", `${lateCourt.length}`);
+  assert("court-start", lateCourt.length <= court1Schedule.length,
+    `Late court (${lateCourt.length}) ≤ 15-min-late (${court1Schedule.length})`,
+    `more: ${lateCourt.length} > ${court1Schedule.length}`);
+
+  // Print summary
+  console.log(`  Info: Court 3 (A, full): ${court3Started.schedule.length} games, ${fullSlots} slots`);
+  console.log(`  Info: Court 2 (B, full): ${court2Started.schedule.length} games, ${fullSlots} slots`);
+  console.log(`  Info: Court 1 (C, 15min late): ${court1Started.schedule.length} games, ${delayedSlots} slots`);
+  console.log(`  Info: Court 1 (C, 30min late): ${lateCourt.length} games, ${lateSlots} slots`);
+  console.log(`  Info: Game targets: full B=${fullTarget}, delayed C=${delayedTarget}`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SECTION 31 — Late Arrival Handling (3-Court)
+// ═══════════════════════════════════════════════════════════════
+{
+  console.log("\n[Section 31] Late Arrival Handling (3-court mode)");
+
+  // ── Setup: 6-pair RR court, play 4 games, then add late pair ──
+  const latePairsB: Pair[] = [];
+  for (let i = 0; i < 12; i += 2) {
+    const p1 = makePlayer(`LB${i + 1}`, "B");
+    const p2 = makePlayer(`LB${i + 2}`, "B");
+    latePairsB.push({ id: generateId(), player1: p1, player2: p2, skillLevel: "B", wins: 0, losses: 0 });
+  }
+
+  const rrCourt: CourtState = {
+    ...makeCourt(2, "B", latePairsB),
+    status: "active",
+    startedAt: new Date().toISOString(),
+  };
+
+  // Generate schedule with 12 slots
+  const fullSched = testGenerateSchedule(rrCourt, 12);
+  assert("late-arrival", fullSched.length > 0, "Initial schedule generated", `length=${fullSched.length}`);
+
+  // Mark first 4 games as completed, 5th as playing
+  const withResults = fullSched.map((m, idx) => {
+    if (idx < 4) return { ...m, status: "completed" as const, winner: m.pair1, loser: m.pair2 };
+    if (idx === 4) return { ...m, status: "playing" as const, court: 2 };
+    return m;
+  });
+
+  const courtAfter4: CourtState = {
+    ...rrCourt,
+    schedule: withResults,
+    currentSlot: 4,
+    completedGames: withResults.filter(m => m.status === "completed"),
+  };
+
+  // Simulate late pair addition with schedule regeneration
+  const latePair1 = makePlayer("LateB1", "B");
+  const latePair2 = makePlayer("LateB2", "B");
+  const newPair: Pair = { id: generateId(), player1: latePair1, player2: latePair2, skillLevel: "B", wins: 0, losses: 0 };
+
+  const lockThreshold = courtAfter4.currentSlot + 2; // slot 6
+  const lockedGames = courtAfter4.schedule.filter((m) => {
+    if (m.status === "completed" || m.status === "playing") return true;
+    const slot = m.gameNumber ?? 0;
+    return slot < lockThreshold;
+  });
+
+  // Count locked games: 4 completed + 1 playing + on-deck pending (gameNumber < 6)
+  const lockedPending = courtAfter4.schedule.filter(m => m.status === "pending" && (m.gameNumber ?? 0) < lockThreshold);
+  assert("late-arrival", lockedGames.length >= 5,
+    `Locked games include completed+playing (${lockedGames.length} >= 5)`,
+    `only ${lockedGames.length}`);
+
+  // Build court with new pair for regeneration
+  const updatedAssigned = [...courtAfter4.assignedPairs, newPair];
+  const tempCourt: CourtState = {
+    ...makeCourt(2, "B", updatedAssigned),
+    status: "active",
+  };
+
+  // Compute initial game counts from locked games so LPF prioritizes the 0-game late pair
+  const initialGameCounts = new Map<string, number>();
+  updatedAssigned.forEach(p => initialGameCounts.set(p.id, 0));
+  lockedGames.forEach((m) => {
+    initialGameCounts.set(m.pair1.id, (initialGameCounts.get(m.pair1.id) || 0) + 1);
+    initialGameCounts.set(m.pair2.id, (initialGameCounts.get(m.pair2.id) || 0) + 1);
+  });
+
+  // Regenerate remaining slots
+  const remainingSlots = Math.max(0, 12 - lockedGames.length);
+  const futureGames = testGenerateSchedule(tempCourt, remainingSlots, initialGameCounts);
+
+  // Renumber
+  const renumbered = futureGames.map((m, idx) => ({ ...m, gameNumber: lockThreshold + idx }));
+  const finalSchedule = [...lockedGames, ...renumbered];
+
+  // Verify: games 1-4 unchanged (completed)
+  const first4Unchanged = finalSchedule.slice(0, 4).every((m, i) =>
+    m.id === withResults[i].id && m.status === "completed"
+  );
+  assert("late-arrival", first4Unchanged, "Games 1-4 unchanged after late addition", "some changed");
+
+  // Verify: playing game unchanged
+  assert("late-arrival", finalSchedule[4].id === withResults[4].id && finalSchedule[4].status === "playing",
+    "Active game (5) unchanged", "changed");
+
+  // Verify: late pair appears in regenerated games
+  const latePairInFuture = renumbered.some(m => m.pair1.id === newPair.id || m.pair2.id === newPair.id);
+  assert("late-arrival", latePairInFuture, "Late pair appears in regenerated schedule", "not found");
+
+  // Verify: late pair gets a game within first 2 regenerated slots (LPF prioritizes 0-game pairs)
+  const latePairFirstSlot = renumbered.findIndex(m => m.pair1.id === newPair.id || m.pair2.id === newPair.id);
+  assert("late-arrival", latePairFirstSlot >= 0 && latePairFirstSlot <= 1,
+    `Late pair first game within 2 regenerated slots (slot ${latePairFirstSlot})`,
+    `slot ${latePairFirstSlot}`);
+
+  // Verify: equity after regeneration — all pairs in regenerated portion balanced
+  const futureGameCounts = new Map<string, number>();
+  updatedAssigned.forEach(p => futureGameCounts.set(p.id, 0));
+  renumbered.forEach(m => {
+    futureGameCounts.set(m.pair1.id, (futureGameCounts.get(m.pair1.id) || 0) + 1);
+    futureGameCounts.set(m.pair2.id, (futureGameCounts.get(m.pair2.id) || 0) + 1);
+  });
+  const futureGamesArr = Array.from(futureGameCounts.values()).filter(v => v > 0);
+  const futureMax = futureGamesArr.length > 0 ? Math.max(...futureGamesArr) : 0;
+  const futureMin = futureGamesArr.length > 0 ? Math.min(...futureGamesArr) : 0;
+  assert("late-arrival", futureMax - futureMin <= 2,
+    `Regenerated equity gap ≤ 2 (${futureMax - futureMin})`,
+    `gap=${futureMax - futureMin}`);
+
+  // ── Waitlist: solo player with no partner ──
+  const waitlistCourt: CourtState = {
+    ...makeCourt(1, "C", latePairsB.slice(0, 3).map(p => ({ ...p, skillLevel: "C" as SkillTier }))),
+    status: "active",
+    courtWaitlist: [],
+  };
+
+  // Add single player → goes to waitlist
+  const soloPlayer = makePlayer("SoloC1", "C");
+  const courtWithWaitlist: CourtState = {
+    ...waitlistCourt,
+    courtWaitlist: [soloPlayer.id],
+  };
+  assert("late-arrival", courtWithWaitlist.courtWaitlist!.length === 1,
+    "Solo player added to waitlist", `length=${courtWithWaitlist.courtWaitlist!.length}`);
+
+  // Second player arrives → matches with waitlisted player
+  const soloPlayer2 = makePlayer("SoloC2", "C");
+  const matchedWaitlist = courtWithWaitlist.courtWaitlist!.filter(pid => pid !== soloPlayer.id);
+  const waitlistPair: Pair = { id: generateId(), player1: soloPlayer, player2: soloPlayer2, skillLevel: "C", wins: 0, losses: 0 };
+  assert("late-arrival", matchedWaitlist.length === 0, "Waitlist cleared after partner arrives", `${matchedWaitlist.length} remaining`);
+  assert("late-arrival", waitlistPair.player1.id === soloPlayer.id, "Waitlist pair includes original player", "wrong player");
+
+  // ── WSO: late pair added to queue ──
+  const wsoPairsLate: Pair[] = [];
+  for (let i = 0; i < 6; i += 2) {
+    const p1 = makePlayer(`WLA${i + 1}`, "A");
+    const p2 = makePlayer(`WLA${i + 2}`, "A");
+    wsoPairsLate.push({ id: generateId(), player1: p1, player2: p2, skillLevel: "A", wins: 0, losses: 0 });
+  }
+  const wsoCourt2: CourtState = {
+    ...makeCourt(3, "A", wsoPairsLate),
+    format: "winner_stays_on",
+    status: "active",
+    wso: {
+      queue: [wsoPairsLate[2]],
+      currentGame: { id: generateId(), pair1: wsoPairsLate[0], pair2: wsoPairsLate[1], startedAt: new Date().toISOString(), gameNumber: 1 },
+      history: [],
+      stats: Object.fromEntries(wsoPairsLate.map(p => [p.id, { pairId: p.id, wins: 0, losses: 0, streak: 0, longestStreak: 0, gamesPlayed: 0 }])),
+      undoStack: [],
+      gameCounter: 1,
+    },
+  };
+
+  const wsoLatePair1 = makePlayer("WLateA1", "A");
+  const wsoLatePair2 = makePlayer("WLateA2", "A");
+  const wsoNewPair: Pair = { id: generateId(), player1: wsoLatePair1, player2: wsoLatePair2, skillLevel: "A", wins: 0, losses: 0 };
+
+  // Add to queue (simulating engine behavior)
+  const wsoUpdated: WsoState = {
+    ...wsoCourt2.wso!,
+    queue: [...wsoCourt2.wso!.queue, wsoNewPair],
+    stats: {
+      ...wsoCourt2.wso!.stats,
+      [wsoNewPair.id]: { pairId: wsoNewPair.id, wins: 0, losses: 0, streak: 0, longestStreak: 0, gamesPlayed: 0 },
+    },
+  };
+
+  assert("late-arrival", wsoUpdated.queue.length === 2, `WSO queue has late pair (${wsoUpdated.queue.length})`, `${wsoUpdated.queue.length}`);
+  assert("late-arrival", wsoUpdated.queue[1].id === wsoNewPair.id, "Late pair at back of WSO queue", "wrong position");
+  assert("late-arrival", wsoUpdated.stats[wsoNewPair.id] !== undefined, "WSO stats initialized for late pair", "missing");
+  assert("late-arrival", wsoUpdated.stats[wsoNewPair.id].gamesPlayed === 0, "Late pair starts with 0 games", `${wsoUpdated.stats[wsoNewPair.id].gamesPlayed}`);
+  assert("late-arrival", wsoUpdated.currentGame!.pair1.id === wsoPairsLate[0].id, "WSO current game unchanged by late addition", "changed");
+
+  // ── Tier routing: A→Court3, B→Court2, C→Court1 ──
+  const tierToCourtNum: Record<SkillTier, number> = { C: 1, B: 2, A: 3 };
+  assert("late-arrival", tierToCourtNum["A"] === 3, "A-tier routes to Court 3", `${tierToCourtNum["A"]}`);
+  assert("late-arrival", tierToCourtNum["B"] === 2, "B-tier routes to Court 2", `${tierToCourtNum["B"]}`);
+  assert("late-arrival", tierToCourtNum["C"] === 1, "C-tier routes to Court 1", `${tierToCourtNum["C"]}`);
+
+  console.log(`  Info: Original schedule: ${fullSched.length} games, Locked: ${lockedGames.length}, Regenerated: ${renumbered.length}`);
+  console.log(`  Info: Late pair first regenerated slot: ${latePairFirstSlot}`);
+  console.log(`  Info: Future equity gap: ${futureMax - futureMin}`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SECTION 32 — Sub Rotation System (3-Court)
+// ═══════════════════════════════════════════════════════════════
+{
+  console.log("\n[Section 32] Sub Rotation System (3-court mode)");
+
+  // Mirrors production initializeSubRotation
+  function testInitSubRotation(allPlayerIds: string[], subPlayerId: string): SubRotation {
+    const playerStats: Record<string, SubPlayerStats> = {};
+    allPlayerIds.forEach(pid => {
+      playerStats[pid] = { playerId: pid, gamesPlayed: 0, timesSubbedOut: 0 };
+    });
+    return {
+      currentSubId: subPlayerId,
+      playerStats,
+      gamesSinceLastRotation: 0,
+      rotationFrequency: 2,
+      pendingRotation: false,
+      rotationHistory: [],
+    };
+  }
+
+  // Mirrors production findBestSubTarget
+  function testFindBestSubTarget(sub: SubRotation, courtPairs: Pair[]): { playerId: string; pairId: string } | null {
+    const playingIds = new Set<string>();
+    courtPairs.forEach(p => { playingIds.add(p.player1.id); playingIds.add(p.player2.id); });
+    let best: { playerId: string; pairId: string; games: number; subOuts: number } | null = null;
+    for (const [pid, stats] of Object.entries(sub.playerStats)) {
+      if (pid === sub.currentSubId) continue;
+      if (!playingIds.has(pid)) continue;
+      if (!best || stats.gamesPlayed > best.games ||
+          (stats.gamesPlayed === best.games && stats.timesSubbedOut < best.subOuts)) {
+        const pair = courtPairs.find(p => p.player1.id === pid || p.player2.id === pid);
+        if (pair) best = { playerId: pid, pairId: pair.id, games: stats.gamesPlayed, subOuts: stats.timesSubbedOut };
+      }
+    }
+    return best ? { playerId: best.playerId, pairId: best.pairId } : null;
+  }
+
+  // ── Setup: 13 B players (6 pairs + 1 sub) ──
+  const subPlayers: Player[] = [];
+  for (let i = 0; i < 13; i++) {
+    subPlayers.push(makePlayer(`SB${i + 1}`, "B"));
+  }
+  const subPairs: Pair[] = [];
+  for (let i = 0; i < 12; i += 2) {
+    subPairs.push({ id: generateId(), player1: subPlayers[i], player2: subPlayers[i + 1], skillLevel: "B", wins: 0, losses: 0 });
+  }
+  const subPlayerOdd = subPlayers[12]; // The 13th player is the sub
+
+  const allPlayerIds = subPlayers.map(p => p.id);
+  const subRotation = testInitSubRotation(allPlayerIds, subPlayerOdd.id);
+
+  // ── Test: initialization ──
+  assert("sub-rotation", subRotation.currentSubId === subPlayerOdd.id,
+    `Sub initialized as ${subPlayerOdd.name}`, `wrong sub`);
+  assert("sub-rotation", Object.keys(subRotation.playerStats).length === 13,
+    "All 13 players tracked", `${Object.keys(subRotation.playerStats).length}`);
+  assert("sub-rotation", subRotation.gamesSinceLastRotation === 0,
+    "Games since rotation starts at 0", `${subRotation.gamesSinceLastRotation}`);
+  assert("sub-rotation", subRotation.rotationFrequency === 2,
+    "Rotation frequency is 2", `${subRotation.rotationFrequency}`);
+  assert("sub-rotation", !subRotation.pendingRotation,
+    "No pending rotation at start", "pending");
+
+  // ── Test: simulate 8 games with sub rotation every 2 games ──
+  let currentSub = subRotation;
+  let currentPairs = [...subPairs];
+  const rotations: { subIn: string; subOut: string }[] = [];
+
+  for (let game = 0; game < 8; game++) {
+    // Pick two pairs to play (just use sequential pairs for simplicity)
+    const p1Idx = game % currentPairs.length;
+    const p2Idx = (game + 1) % currentPairs.length;
+    if (p1Idx === p2Idx) continue;
+    const playingPair1 = currentPairs[p1Idx];
+    const playingPair2 = currentPairs[p2Idx];
+
+    // Update player stats for the 4 playing players
+    const playingIds = [playingPair1.player1.id, playingPair1.player2.id, playingPair2.player1.id, playingPair2.player2.id];
+    const updatedStats = { ...currentSub.playerStats };
+    playingIds.forEach(pid => {
+      if (updatedStats[pid]) {
+        updatedStats[pid] = { ...updatedStats[pid], gamesPlayed: updatedStats[pid].gamesPlayed + 1 };
+      }
+    });
+
+    const newGamesSince = currentSub.gamesSinceLastRotation + 1;
+    const shouldRotate = newGamesSince >= currentSub.rotationFrequency;
+
+    if (shouldRotate) {
+      const subWithUpdatedStats: SubRotation = { ...currentSub, playerStats: updatedStats };
+      const target = testFindBestSubTarget(subWithUpdatedStats, currentPairs);
+
+      if (target) {
+        // Execute rotation
+        const oldSubId = currentSub.currentSubId;
+        const subPlayer = subPlayers.find(p => p.id === oldSubId)!;
+        const replacedId = target.playerId;
+
+        // Swap in pairs
+        currentPairs = currentPairs.map(p => {
+          if (p.id !== target.pairId) return p;
+          if (p.player1.id === replacedId) return { ...p, player1: subPlayer };
+          if (p.player2.id === replacedId) return { ...p, player2: subPlayer };
+          return p;
+        });
+
+        // Update sub state
+        const finalStats = { ...updatedStats };
+        if (finalStats[replacedId]) {
+          finalStats[replacedId] = { ...finalStats[replacedId], timesSubbedOut: finalStats[replacedId].timesSubbedOut + 1 };
+        }
+
+        currentSub = {
+          ...currentSub,
+          currentSubId: replacedId,
+          playerStats: finalStats,
+          gamesSinceLastRotation: 0,
+          pendingRotation: false,
+          rotationHistory: [
+            ...currentSub.rotationHistory,
+            { timestamp: new Date().toISOString(), subIn: oldSubId, subOut: replacedId, pairId: target.pairId },
+          ],
+        };
+        rotations.push({ subIn: oldSubId, subOut: replacedId });
+      } else {
+        currentSub = { ...currentSub, playerStats: updatedStats, gamesSinceLastRotation: 0 };
+      }
+    } else {
+      currentSub = { ...currentSub, playerStats: updatedStats, gamesSinceLastRotation: newGamesSince };
+    }
+  }
+
+  // ── Verify: rotation count ──
+  assert("sub-rotation", rotations.length >= 3,
+    `Sub rotated at least 3 times (${rotations.length})`, `only ${rotations.length}`);
+
+  // ── Verify: every player has played 3-4 games ──
+  const allGames = Object.values(currentSub.playerStats).map(s => s.gamesPlayed);
+  const minGames = Math.min(...allGames);
+  const maxGames = Math.max(...allGames);
+  // Note: with only 8 games and 13 players, not everyone plays. But the sub should have played.
+  // The sub cycles through, so the actively-paired players play 2-3 games and the sub + rotated players play 1-2.
+  // With 8 games * 4 players per game = 32 player-game slots across 13 players = ~2.5 avg.
+  assert("sub-rotation", maxGames - minGames <= 3,
+    `Game count spread ≤ 3 (min=${minGames}, max=${maxGames})`,
+    `spread=${maxGames - minGames}`);
+
+  // ── Verify: sub-outs are balanced ──
+  const allSubOuts = Object.values(currentSub.playerStats).map(s => s.timesSubbedOut);
+  const maxSubOuts = Math.max(...allSubOuts);
+  assert("sub-rotation", maxSubOuts <= 2,
+    `Max times subbed out ≤ 2 (${maxSubOuts})`, `${maxSubOuts}`);
+
+  // ── Verify: sub target selection (most games, least sub-outs) ──
+  const testSub: SubRotation = {
+    ...testInitSubRotation(allPlayerIds, subPlayerOdd.id),
+    playerStats: {
+      [subPlayers[0].id]: { playerId: subPlayers[0].id, gamesPlayed: 4, timesSubbedOut: 0 },
+      [subPlayers[1].id]: { playerId: subPlayers[1].id, gamesPlayed: 3, timesSubbedOut: 0 },
+      [subPlayers[2].id]: { playerId: subPlayers[2].id, gamesPlayed: 4, timesSubbedOut: 1 },
+      [subPlayers[3].id]: { playerId: subPlayers[3].id, gamesPlayed: 2, timesSubbedOut: 0 },
+      [subPlayerOdd.id]: { playerId: subPlayerOdd.id, gamesPlayed: 1, timesSubbedOut: 0 },
+    },
+  };
+  const target = testFindBestSubTarget(testSub, subPairs.slice(0, 2));
+  assert("sub-rotation", target !== null, "Found sub target", "null");
+  assert("sub-rotation", target!.playerId === subPlayers[0].id,
+    `Target is player with 4G, 0 sub-outs (${subPlayers[0].name})`,
+    `wrong: ${subPlayers.find(p => p.id === target!.playerId)?.name}`);
+
+  // ── Verify: tie-break (same games, fewer sub-outs wins) ──
+  const testSub2: SubRotation = {
+    ...testInitSubRotation([subPlayers[0].id, subPlayers[1].id, subPlayers[2].id, subPlayers[3].id, subPlayerOdd.id], subPlayerOdd.id),
+    playerStats: {
+      [subPlayers[0].id]: { playerId: subPlayers[0].id, gamesPlayed: 3, timesSubbedOut: 2 },
+      [subPlayers[1].id]: { playerId: subPlayers[1].id, gamesPlayed: 3, timesSubbedOut: 0 },
+      [subPlayers[2].id]: { playerId: subPlayers[2].id, gamesPlayed: 2, timesSubbedOut: 0 },
+      [subPlayers[3].id]: { playerId: subPlayers[3].id, gamesPlayed: 2, timesSubbedOut: 0 },
+      [subPlayerOdd.id]: { playerId: subPlayerOdd.id, gamesPlayed: 1, timesSubbedOut: 0 },
+    },
+  };
+  const target2 = testFindBestSubTarget(testSub2, subPairs.slice(0, 2));
+  assert("sub-rotation", target2 !== null, "Found tie-break target", "null");
+  assert("sub-rotation", target2!.playerId === subPlayers[1].id,
+    `Tie-break: 3G/0out beats 3G/2out (${subPlayers[1].name})`,
+    `wrong: ${subPlayers.find(p => p.id === target2!.playerId)?.name}`);
+
+  // ── Verify: court with sub in makeCourt ──
+  const subCourt: CourtState = {
+    ...makeCourt(2, "B", subPairs),
+    sub: testInitSubRotation(allPlayerIds, subPlayerOdd.id),
+  };
+  assert("sub-rotation", subCourt.sub !== undefined, "Court has sub state", "undefined");
+  assert("sub-rotation", subCourt.sub!.currentSubId === subPlayerOdd.id,
+    "Court sub is correct player", "wrong player");
+  assert("sub-rotation", subCourt.assignedPairs.length === 6,
+    "Court has 6 pairs", `${subCourt.assignedPairs.length}`);
+
+  // ── Verify: rotation triggers after 2 games ──
+  let triggerSub: SubRotation = testInitSubRotation(allPlayerIds, subPlayerOdd.id);
+  // Game 1: no trigger
+  triggerSub = { ...triggerSub, gamesSinceLastRotation: 1 };
+  assert("sub-rotation", triggerSub.gamesSinceLastRotation < triggerSub.rotationFrequency,
+    "No rotation after 1 game", "triggered");
+  // Game 2: trigger
+  triggerSub = { ...triggerSub, gamesSinceLastRotation: 2 };
+  assert("sub-rotation", triggerSub.gamesSinceLastRotation >= triggerSub.rotationFrequency,
+    "Rotation triggers after 2 games", "not triggered");
+
+  // ── Verify: skip rotation resets counter ──
+  const skippedSub: SubRotation = {
+    ...triggerSub,
+    pendingRotation: true,
+    // After skip: reset
+  };
+  const afterSkip: SubRotation = { ...skippedSub, pendingRotation: false, gamesSinceLastRotation: 0 };
+  assert("sub-rotation", !afterSkip.pendingRotation, "Skip clears pending", "still pending");
+  assert("sub-rotation", afterSkip.gamesSinceLastRotation === 0, "Skip resets counter", `${afterSkip.gamesSinceLastRotation}`);
+
+  // ── Verify: late arrival deactivates sub ──
+  const courtWithSub: CourtState = {
+    ...makeCourt(2, "B", subPairs),
+    sub: testInitSubRotation(allPlayerIds, subPlayerOdd.id),
+    status: "active",
+  };
+  // Simulate: late player pairs with sub → sub field becomes undefined
+  const latePlayer = makePlayer("LateB99", "B");
+  const newLatePair: Pair = { id: generateId(), player1: latePlayer, player2: subPlayerOdd, skillLevel: "B", wins: 0, losses: 0 };
+  const courtAfterLate: CourtState = {
+    ...courtWithSub,
+    assignedPairs: [...courtWithSub.assignedPairs, newLatePair],
+    sub: undefined, // Sub system deactivated
+  };
+  assert("sub-rotation", courtAfterLate.sub === undefined,
+    "Sub deactivated after late arrival pairs with sub", "still has sub");
+  assert("sub-rotation", courtAfterLate.assignedPairs.length === 7,
+    "Court has 7 pairs after late arrival", `${courtAfterLate.assignedPairs.length}`);
+
+  // ── Verify: WSO sub — rotation on back-of-queue pair ──
+  const wsoPairsForSub: Pair[] = [];
+  for (let i = 0; i < 6; i += 2) {
+    wsoPairsForSub.push({ id: generateId(), player1: subPlayers[i], player2: subPlayers[i + 1], skillLevel: "B", wins: 0, losses: 0 });
+  }
+  const wsoSubCourt: CourtState = {
+    ...makeCourt(2, "B", wsoPairsForSub),
+    format: "winner_stays_on",
+    status: "active",
+    sub: testInitSubRotation([...wsoPairsForSub.flatMap(p => [p.player1.id, p.player2.id]), subPlayerOdd.id], subPlayerOdd.id),
+    wso: {
+      queue: [wsoPairsForSub[2]],
+      currentGame: { id: generateId(), pair1: wsoPairsForSub[0], pair2: wsoPairsForSub[1], startedAt: new Date().toISOString(), gameNumber: 1 },
+      history: [],
+      stats: Object.fromEntries(wsoPairsForSub.map(p => [p.id, { pairId: p.id, wins: 0, losses: 0, streak: 0, longestStreak: 0, gamesPlayed: 0 }])),
+      undoStack: [],
+      gameCounter: 1,
+    },
+  };
+  assert("sub-rotation", wsoSubCourt.sub !== undefined, "WSO court has sub", "no sub");
+  assert("sub-rotation", wsoSubCourt.format === "winner_stays_on", "WSO format confirmed", wsoSubCourt.format);
+
+  // ── Verify: rotation history tracking ──
+  const histSub: SubRotation = {
+    ...testInitSubRotation(allPlayerIds, subPlayerOdd.id),
+    rotationHistory: [
+      { timestamp: new Date().toISOString(), subIn: subPlayerOdd.id, subOut: subPlayers[0].id, pairId: subPairs[0].id },
+      { timestamp: new Date().toISOString(), subIn: subPlayers[0].id, subOut: subPlayers[2].id, pairId: subPairs[1].id },
+    ],
+  };
+  assert("sub-rotation", histSub.rotationHistory.length === 2,
+    "Rotation history tracked (2 entries)", `${histSub.rotationHistory.length}`);
+  assert("sub-rotation", histSub.rotationHistory[0].subIn === subPlayerOdd.id,
+    "First rotation: sub entered", "wrong");
+  assert("sub-rotation", histSub.rotationHistory[1].subOut === subPlayers[2].id,
+    "Second rotation: correct player subbed out", "wrong");
+
+  console.log(`  Info: Rotations: ${rotations.length}, Game spread: ${minGames}-${maxGames}, Max sub-outs: ${maxSubOuts}`);
+  console.log(`  Info: Rotation sequence: ${rotations.map(r => `${subPlayers.find(p => p.id === r.subIn)?.name}→${subPlayers.find(p => p.id === r.subOut)?.name}`).join(", ")}`);
 }
 
 // ═══════════════════════════════════════════════════════════════

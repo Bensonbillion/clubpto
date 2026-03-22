@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { query } from "@/lib/turso";
-import { GameState, DEFAULT_STATE, Player, Pair, Match, GameHistory, PlayoffMatch, FixedPair, SkillTier, OddPlayerDecision } from "@/types/courtManager";
+import { GameState, DEFAULT_STATE, Player, Pair, Match, GameHistory, PlayoffMatch, FixedPair, SkillTier, OddPlayerDecision, CourtState, CourtFormat, WsoGame, WsoState, WsoStats, WsoUndoEntry, SubRotation, SubPlayerStats } from "@/types/courtManager";
 import { awardPoints, type PointsReason } from "@/lib/leaderboard";
 import { isSimulationMode, setSimulationMode } from "@/lib/simulationMode";
 
@@ -50,8 +50,181 @@ function getPairPlayerIds(pair: Pair): string[] {
   return [pair.player1.id, pair.player2.id];
 }
 
+/** Least Played First schedule generator for a single court (3-court mode).
+ *  Optional initialGameCounts: pre-populate pair game counts (e.g. for late-arrival regeneration). */
+function generateCourtScheduleForSlots(court: CourtState, slotCount: number, initialGameCounts?: Map<string, number>): Match[] {
+  const pairs = court.assignedPairs;
+  if (pairs.length < 2) return [];
+
+  const gameTarget = Math.floor(slotCount * 2 / pairs.length) + (initialGameCounts ? Math.max(0, ...Array.from(initialGameCounts.values())) : 0);
+  const matchupKey3 = (p1Id: string, p2Id: string) => [p1Id, p2Id].sort().join("|||");
+  const MAX_ATTEMPTS = 10;
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const schedule: Match[] = [];
+    const pairGames = new Map<string, number>();
+    const pairLastSlot = new Map<string, number>();
+    const usedMatchups = new Set<string>();
+    pairs.forEach(p => { pairGames.set(p.id, initialGameCounts?.get(p.id) ?? 0); pairLastSlot.set(p.id, -2); });
+
+    const equityRelax = attempt >= 3 ? 1 : 0;
+
+    for (let slot = 0; slot < slotCount; slot++) {
+      const sorted = [...pairs].sort((a, b) => {
+        const ga = pairGames.get(a.id) || 0;
+        const gb = pairGames.get(b.id) || 0;
+        if (ga !== gb) return ga - gb;
+        const idleA = slot - (pairLastSlot.get(a.id) ?? -2);
+        const idleB = slot - (pairLastSlot.get(b.id) ?? -2);
+        return idleB - idleA;
+      });
+
+      let matched = false;
+      for (let i = 0; i < sorted.length && !matched; i++) {
+        const p1 = sorted[i];
+        const g1 = pairGames.get(p1.id) || 0;
+        const lastSlot1 = pairLastSlot.get(p1.id) ?? -2;
+        if (slot - lastSlot1 < 2) continue;
+        if (g1 >= gameTarget + equityRelax) continue;
+
+        for (let j = i + 1; j < sorted.length; j++) {
+          const p2 = sorted[j];
+          const g2 = pairGames.get(p2.id) || 0;
+          const lastSlot2 = pairLastSlot.get(p2.id) ?? -2;
+          if (slot - lastSlot2 < 2) continue;
+          if (g2 >= gameTarget + equityRelax) continue;
+
+          const activeGames = Array.from(pairGames.values()).filter(v => v > 0);
+          const minGames = activeGames.length > 0 ? Math.min(...activeGames) : 0;
+          if (Math.min(g1, g2) > minGames + 1 + equityRelax) continue;
+
+          const mKey = matchupKey3(p1.id, p2.id);
+          if (usedMatchups.has(mKey)) continue;
+
+          usedMatchups.add(mKey);
+          pairGames.set(p1.id, g1 + 1);
+          pairGames.set(p2.id, g2 + 1);
+          pairLastSlot.set(p1.id, slot);
+          pairLastSlot.set(p2.id, slot);
+
+          const tier = court.tier;
+          schedule.push({
+            id: generateId(),
+            pair1: p1,
+            pair2: p2,
+            skillLevel: tier,
+            matchupLabel: `${tier} vs ${tier}`,
+            status: "pending",
+            court: court.courtNumber,
+            courtPool: tier,
+            gameNumber: slot,
+          });
+          matched = true;
+          break;
+        }
+      }
+    }
+
+    // Validation
+    const games = Array.from(pairGames.values());
+    const maxG = Math.max(...games);
+    const minG = Math.min(...games);
+    const equityGap = maxG - minG;
+
+    let maxWait = 0;
+    for (const p of pairs) {
+      const pMatches = schedule.filter(m => m.pair1.id === p.id || m.pair2.id === p.id);
+      if (pMatches.length === 0) { maxWait = slotCount; break; }
+      const firstSlot = schedule.indexOf(pMatches[0]);
+      if (firstSlot > maxWait) maxWait = firstSlot;
+      for (let k = 1; k < pMatches.length; k++) {
+        const gap = schedule.indexOf(pMatches[k]) - schedule.indexOf(pMatches[k - 1]) - 1;
+        if (gap > maxWait) maxWait = gap;
+      }
+    }
+
+    let hasBackToBack = false;
+    for (const p of pairs) {
+      const slots = schedule
+        .map((m, idx) => (m.pair1.id === p.id || m.pair2.id === p.id) ? idx : -1)
+        .filter(idx => idx >= 0);
+      for (let k = 1; k < slots.length; k++) {
+        if (slots[k] - slots[k - 1] < 2) { hasBackToBack = true; break; }
+      }
+      if (hasBackToBack) break;
+    }
+
+    const valid = equityGap <= 1 + equityRelax && !hasBackToBack;
+    if (valid || attempt === MAX_ATTEMPTS - 1) {
+      console.log(`[PTO 3-Court] Court ${court.courtNumber} (${court.tier}): ${schedule.length} games, equity=${equityGap}, maxWait=${maxWait}, slots=${slotCount}, attempt=${attempt + 1}`);
+      return schedule;
+    }
+  }
+
+  return [];
+}
+
+/** Initialize WSO state for a court */
+function initializeWsoState(court: CourtState): WsoState {
+  const shuffled = shuffle(court.assignedPairs);
+  return {
+    queue: shuffled.slice(2),
+    currentGame: shuffled.length >= 2 ? {
+      id: generateId(),
+      pair1: shuffled[0],
+      pair2: shuffled[1],
+      startedAt: new Date().toISOString(),
+      gameNumber: 1,
+    } : null,
+    history: [],
+    stats: Object.fromEntries(court.assignedPairs.map(p => [p.id, {
+      pairId: p.id, wins: 0, losses: 0, streak: 0, longestStreak: 0, gamesPlayed: 0,
+    }])) as Record<string, WsoStats>,
+    undoStack: [],
+    gameCounter: 1,
+  };
+}
+
 function getMatchPlayerIds(m: Match): string[] {
   return [...getPairPlayerIds(m.pair1), ...getPairPlayerIds(m.pair2)];
+}
+
+/** Initialize sub rotation state for a court with an odd player */
+function initializeSubRotation(allPlayerIds: string[], subPlayerId: string): SubRotation {
+  const playerStats: Record<string, SubPlayerStats> = {};
+  allPlayerIds.forEach(pid => {
+    playerStats[pid] = { playerId: pid, gamesPlayed: 0, timesSubbedOut: 0 };
+  });
+  return {
+    currentSubId: subPlayerId,
+    playerStats,
+    gamesSinceLastRotation: 0,
+    rotationFrequency: 2,
+    pendingRotation: false,
+    rotationHistory: [],
+  };
+}
+
+/** Find the best player to sub out: highest games_played, lowest times_subbed_out */
+function findBestSubTarget(sub: SubRotation, courtPairs: Pair[]): { playerId: string; pairId: string } | null {
+  const playingPlayerIds = new Set<string>();
+  courtPairs.forEach(p => { playingPlayerIds.add(p.player1.id); playingPlayerIds.add(p.player2.id); });
+
+  let best: { playerId: string; pairId: string; games: number; subOuts: number } | null = null;
+  for (const [pid, stats] of Object.entries(sub.playerStats)) {
+    if (pid === sub.currentSubId) continue;
+    if (!playingPlayerIds.has(pid)) continue;
+    if (!best ||
+        stats.gamesPlayed > best.games ||
+        (stats.gamesPlayed === best.games && stats.timesSubbedOut < best.subOuts)) {
+      // Find which pair this player is in
+      const pair = courtPairs.find(p => p.player1.id === pid || p.player2.id === pid);
+      if (pair) {
+        best = { playerId: pid, pairId: pair.id, games: stats.gamesPlayed, subOuts: stats.timesSubbedOut };
+      }
+    }
+  }
+  return best ? { playerId: best.playerId, pairId: best.pairId } : null;
 }
 
 function isCrossCohort(matchupLabel?: string): boolean {
@@ -1289,11 +1462,83 @@ export function useGameState(options?: { simulate?: boolean }) {
     const bPairs = allPairs.filter((p) => p.skillLevel === "B");
     const cPairs = allPairs.filter((p) => p.skillLevel === "C");
 
-    // ── Step 2: Generate ALL unique matchups ──────────────────
+    // ── 3-Court Mode: Create per-court state and return (no schedule yet) ──
+    const courtCount = s.sessionConfig.courtCount || 2;
+    if (courtCount === 3) {
+      // Detect odd players per tier — they become subs for their court
+      const tierSubs: Record<SkillTier, Player | null> = { A: null, B: null, C: null };
+      for (const up of unpairedPlayers) {
+        tierSubs[up.skillLevel] = up;
+      }
+
+      const makeCourt = (num: 1 | 2 | 3, tier: SkillTier, pairs: Pair[]): CourtState => {
+        const subPlayer = tierSubs[tier];
+        const allPlayerIds = pairs.flatMap(p => [p.player1.id, p.player2.id]);
+        if (subPlayer) allPlayerIds.push(subPlayer.id);
+        return {
+          courtNumber: num,
+          tier,
+          assignedPairs: pairs,
+          schedule: [],
+          completedGames: [],
+          standings: Object.fromEntries(pairs.map(p => [p.id, { wins: 0, losses: 0, gamesPlayed: 0, winPct: 0 }])),
+          currentSlot: 0,
+          status: "waiting",
+          format: "round_robin",
+          sub: subPlayer ? initializeSubRotation(allPlayerIds, subPlayer.id) : undefined,
+        };
+      };
+
+      const courts: CourtState[] = [
+        makeCourt(1, "C", cPairs),
+        makeCourt(2, "B", bPairs),
+        makeCourt(3, "A", aPairs),
+      ];
+
+      // Log sub assignments
+      courts.forEach(c => {
+        if (c.sub) {
+          const subP = activePlayers.find(p => p.id === c.sub!.currentSubId);
+          console.log(`[PTO 3-Court] Court ${c.courtNumber} (${c.tier}): ${c.assignedPairs.length * 2 + 1} players — ${c.assignedPairs.length} pairs + 1 sub (${subP?.name || "?"})`);
+        }
+      });
+
+      // Save pairs to history (fire-and-forget)
+      if (!isSimulationMode()) {
+        const historyRows = allPairs.map((p) => ({
+          player1_name: p.player1.name,
+          player2_name: p.player2.name,
+        }));
+        if (historyRows.length > 0) {
+          Promise.all(historyRows.map((r) =>
+            query('INSERT INTO pair_history (player1_name, player2_name) VALUES (?, ?)', [r.player1_name, r.player2_name])
+          )).catch(() => {});
+        }
+      }
+
+      console.log("[PTO 3-Court] Court 1 (C):", cPairs.length, "pairs | Court 2 (B):", bPairs.length, "pairs | Court 3 (A):", aPairs.length, "pairs");
+
+      // Courts start in "waiting" — admin uses startCourt / startAllCourts to activate
+      const totalScheduled3 = 0;
+
+      return {
+        ...s,
+        roster,
+        pairs: allPairs,
+        matches: [],
+        totalScheduledGames: totalScheduled3,
+        waitlistedPlayers: waitlistedIds,
+        sessionStarted: true,
+        sessionConfig: { ...s.sessionConfig, sessionStartedAt: new Date().toISOString() },
+        courts,
+      };
+    }
+
+    // ── Step 2 (2-court only): Generate ALL unique matchups ──────────────────
     const durationMin = s.sessionConfig.durationMinutes || 85;
     const minutesPerGame = 7;
     const totalSlots = Math.floor(durationMin / minutesPerGame);
-    const courtCount = s.sessionConfig.courtCount || 2;
+    // courtCount already declared above (2-court guaranteed here since 3-court returned early)
     const maxGames = totalSlots * courtCount;
     const MAX_GAMES = 4; // Hard cap: no pair plays more than 4 games before playoffs
 
@@ -3127,6 +3372,526 @@ export function useGameState(options?: { simulate?: boolean }) {
     }));
   }, [updateState]);
 
+  // ── Winner Stays On (WSO) Actions ─────────────────────────────
+  const setCourtFormat = useCallback(
+    (courtNumber: 1 | 2 | 3, format: CourtFormat) => {
+      updateState((s) => {
+        if (!s.courts) return s;
+        const courts = s.courts.map((c) => {
+          if (c.courtNumber !== courtNumber) return c;
+          // Block format change after court has been activated
+          if (c.status !== "waiting") return c;
+          if (format === "winner_stays_on") {
+            return { ...c, format, schedule: [], wso: undefined };
+          } else {
+            return { ...c, format: "round_robin" as const, wso: undefined, schedule: [] };
+          }
+        });
+        return { ...s, courts };
+      });
+    },
+    [updateState]
+  );
+
+  const recordWsoWinner = useCallback(
+    (courtNumber: number, winnerPairId: string) => {
+      updateState((s) => {
+        if (!s.courts) return s;
+        const courtState = s.courts.find(c2 => c2.courtNumber === courtNumber);
+        if (!courtState || courtState.format !== "winner_stays_on" || !courtState.wso?.currentGame) return s;
+
+        const game = courtState.wso.currentGame;
+        const winnerPair = game.pair1.id === winnerPairId ? game.pair1 : game.pair2;
+        const loserPair = game.pair1.id === winnerPairId ? game.pair2 : game.pair1;
+
+        const courts = s.courts.map((c) => {
+          if (c.courtNumber !== courtNumber || !c.wso?.currentGame) return c;
+
+          // Save undo entry
+          const undoEntry: WsoUndoEntry = {
+            previousGame: { ...c.wso.currentGame },
+            previousQueue: [...c.wso.queue],
+            previousStats: JSON.parse(JSON.stringify(c.wso.stats)),
+          };
+
+          // Update stats
+          const stats = JSON.parse(JSON.stringify(c.wso.stats)) as Record<string, WsoStats>;
+          const ws = stats[winnerPair.id];
+          if (ws) { ws.wins += 1; ws.streak += 1; ws.longestStreak = Math.max(ws.longestStreak, ws.streak); ws.gamesPlayed += 1; }
+          const ls = stats[loserPair.id];
+          if (ls) { ls.losses += 1; ls.streak = 0; ls.gamesPlayed += 1; }
+
+          // Queue: loser goes to back, next challenger from front
+          const newQueue = [...c.wso.queue, loserPair];
+          const nextChallenger = newQueue.shift();
+          const nextGameNumber = c.wso.gameCounter + 1;
+
+          const completedGame: WsoGame = {
+            ...game,
+            winner: winnerPair,
+            loser: loserPair,
+            completedAt: new Date().toISOString(),
+          };
+
+          const nextGame: WsoGame | null = nextChallenger ? {
+            id: generateId(),
+            pair1: winnerPair,
+            pair2: nextChallenger,
+            startedAt: new Date().toISOString(),
+            gameNumber: nextGameNumber,
+          } : null;
+
+          // Update sub rotation state if this court has a sub
+          let updatedSub = c.sub;
+          if (c.sub) {
+            const playingIds = [...getPairPlayerIds(game.pair1), ...getPairPlayerIds(game.pair2)];
+            const updatedStats = { ...c.sub.playerStats };
+            playingIds.forEach(pid => {
+              if (updatedStats[pid]) {
+                updatedStats[pid] = { ...updatedStats[pid], gamesPlayed: updatedStats[pid].gamesPlayed + 1 };
+              }
+            });
+            const newGamesSince = c.sub.gamesSinceLastRotation + 1;
+            const shouldRotate = newGamesSince >= c.sub.rotationFrequency;
+            const target = shouldRotate ? findBestSubTarget({ ...c.sub, playerStats: updatedStats }, c.assignedPairs) : null;
+            updatedSub = {
+              ...c.sub,
+              playerStats: updatedStats,
+              gamesSinceLastRotation: newGamesSince,
+              pendingRotation: shouldRotate,
+              suggestedReplacementId: target?.playerId,
+              suggestedPairId: target?.pairId,
+            };
+          }
+
+          return {
+            ...c,
+            sub: updatedSub,
+            wso: {
+              ...c.wso,
+              queue: newQueue,
+              currentGame: nextGame,
+              history: [...c.wso.history, completedGame],
+              stats,
+              undoStack: [...c.wso.undoStack, undoEntry].slice(-20),
+              gameCounter: nextGameNumber,
+            },
+          };
+        });
+
+        // Update roster-level stats
+        const winnerIds = [winnerPair.player1.id, winnerPair.player2.id];
+        const loserIds = [loserPair.player1.id, loserPair.player2.id];
+        const updatedRoster = s.roster.map(p => {
+          if (winnerIds.includes(p.id)) return { ...p, wins: p.wins + 1, gamesPlayed: p.gamesPlayed + 1 };
+          if (loserIds.includes(p.id)) return { ...p, losses: p.losses + 1, gamesPlayed: p.gamesPlayed + 1 };
+          return p;
+        });
+        const updatedPairs = s.pairs.map(p => {
+          if (p.id === winnerPair.id) return { ...p, wins: p.wins + 1 };
+          if (p.id === loserPair.id) return { ...p, losses: p.losses + 1 };
+          return p;
+        });
+        const historyEntry: GameHistory = {
+          id: generateId(),
+          timestamp: new Date().toISOString(),
+          court: courtNumber,
+          winnerPairId: winnerPair.id,
+          loserPairId: loserPair.id,
+          winnerNames: `${winnerPair.player1.name} & ${winnerPair.player2.name}`,
+          loserNames: `${loserPair.player1.name} & ${loserPair.player2.name}`,
+        };
+
+        return { ...s, courts, roster: updatedRoster, pairs: updatedPairs, gameHistory: [...s.gameHistory, historyEntry] };
+      });
+    },
+    [updateState]
+  );
+
+  const undoWsoResult = useCallback(
+    (courtNumber: number) => {
+      updateState((s) => {
+        if (!s.courts) return s;
+        const courtState = s.courts.find(c2 => c2.courtNumber === courtNumber);
+        if (!courtState || !courtState.wso || courtState.wso.undoStack.length === 0) return s;
+
+        const lastUndo = courtState.wso.undoStack[courtState.wso.undoStack.length - 1];
+        const lastHistory = courtState.wso.history[courtState.wso.history.length - 1];
+
+        const courts = s.courts.map((c) => {
+          if (c.courtNumber !== courtNumber || !c.wso) return c;
+          const stack = c.wso.undoStack.slice(0, -1);
+          return {
+            ...c,
+            wso: {
+              ...c.wso,
+              currentGame: lastUndo.previousGame,
+              queue: lastUndo.previousQueue,
+              stats: lastUndo.previousStats,
+              history: c.wso.history.slice(0, -1),
+              undoStack: stack,
+              gameCounter: c.wso.gameCounter - 1,
+            },
+          };
+        });
+
+        // Undo roster-level stats
+        if (!lastHistory?.winner || !lastHistory?.loser) return { ...s, courts };
+        const wIds = [lastHistory.winner.player1.id, lastHistory.winner.player2.id];
+        const lIds = [lastHistory.loser.player1.id, lastHistory.loser.player2.id];
+        const updatedRoster = s.roster.map(p => {
+          if (wIds.includes(p.id)) return { ...p, wins: Math.max(0, p.wins - 1), gamesPlayed: Math.max(0, p.gamesPlayed - 1) };
+          if (lIds.includes(p.id)) return { ...p, losses: Math.max(0, p.losses - 1), gamesPlayed: Math.max(0, p.gamesPlayed - 1) };
+          return p;
+        });
+        const updatedPairs = s.pairs.map(p => {
+          if (p.id === lastHistory.winner!.id) return { ...p, wins: Math.max(0, p.wins - 1) };
+          if (p.id === lastHistory.loser!.id) return { ...p, losses: Math.max(0, p.losses - 1) };
+          return p;
+        });
+
+        // Remove last gameHistory entry for this court
+        const lastGH = [...s.gameHistory].reverse().find(h => h.court === courtNumber);
+        const gameHistory = lastGH ? s.gameHistory.filter(h => h.id !== lastGH.id) : s.gameHistory;
+
+        return { ...s, courts, roster: updatedRoster, pairs: updatedPairs, gameHistory };
+      });
+    },
+    [updateState]
+  );
+
+  const reorderWsoQueue = useCallback(
+    (courtNumber: number, newQueue: Pair[]) => {
+      updateState((s) => {
+        if (!s.courts) return s;
+        const courts = s.courts.map((c) => {
+          if (c.courtNumber !== courtNumber || !c.wso) return c;
+          return { ...c, wso: { ...c.wso, queue: newQueue } };
+        });
+        return { ...s, courts };
+      });
+    },
+    [updateState]
+  );
+
+  // ── Sub Rotation Actions ────────────────────────────────────────
+  /** Perform a sub rotation: sub enters a pair, the replaced player becomes the new sub */
+  const executeSubRotation = useCallback(
+    (courtNumber: number, playerToSitOutId: string) => {
+      updateState((s) => {
+        if (!s.courts) return s;
+        const courtIdx = s.courts.findIndex(c => c.courtNumber === courtNumber);
+        if (courtIdx === -1) return s;
+        const court = s.courts[courtIdx];
+        if (!court.sub) return s;
+        const sub = court.sub;
+
+        const subPlayerId = sub.currentSubId;
+        // Find the pair containing the player who is sitting out
+        const targetPair = court.assignedPairs.find(p =>
+          p.player1.id === playerToSitOutId || p.player2.id === playerToSitOutId
+        );
+        if (!targetPair) return s;
+
+        // Find the sub player from the roster
+        const subPlayer = s.roster.find(p => p.id === subPlayerId);
+        if (!subPlayer) return s;
+
+        // Swap: sub takes the sitting player's spot in the pair
+        const updatedPairs = court.assignedPairs.map(p => {
+          if (p.id !== targetPair.id) return p;
+          if (p.player1.id === playerToSitOutId) {
+            return { ...p, player1: subPlayer };
+          } else {
+            return { ...p, player2: subPlayer };
+          }
+        });
+
+        // Also update global pairs
+        const updatedGlobalPairs = s.pairs.map(p => {
+          if (p.id !== targetPair.id) return p;
+          if (p.player1.id === playerToSitOutId) {
+            return { ...p, player1: subPlayer };
+          } else {
+            return { ...p, player2: subPlayer };
+          }
+        });
+
+        // Update sub rotation state
+        const updatedSubStats = { ...sub.playerStats };
+        if (updatedSubStats[playerToSitOutId]) {
+          updatedSubStats[playerToSitOutId] = {
+            ...updatedSubStats[playerToSitOutId],
+            timesSubbedOut: updatedSubStats[playerToSitOutId].timesSubbedOut + 1,
+          };
+        }
+
+        const updatedSub: SubRotation = {
+          ...sub,
+          currentSubId: playerToSitOutId,
+          playerStats: updatedSubStats,
+          gamesSinceLastRotation: 0,
+          pendingRotation: false,
+          suggestedReplacementId: undefined,
+          suggestedPairId: undefined,
+          rotationHistory: [
+            ...sub.rotationHistory,
+            { timestamp: new Date().toISOString(), subIn: subPlayerId, subOut: playerToSitOutId, pairId: targetPair.id },
+          ],
+        };
+
+        // Update schedule matches to reflect new pair composition
+        const updatedSchedule = court.schedule.map(m => {
+          if (m.status === "completed") return m;
+          const updatePairInMatch = (pair: Pair): Pair => {
+            if (pair.id !== targetPair.id) return pair;
+            if (pair.player1.id === playerToSitOutId) return { ...pair, player1: subPlayer };
+            if (pair.player2.id === playerToSitOutId) return { ...pair, player2: subPlayer };
+            return pair;
+          };
+          return { ...m, pair1: updatePairInMatch(m.pair1), pair2: updatePairInMatch(m.pair2) };
+        });
+
+        // For WSO courts, also update queue and current game
+        let updatedWso = court.wso;
+        if (court.format === "winner_stays_on" && court.wso) {
+          const updateWsoPair = (pair: Pair): Pair => {
+            if (pair.id !== targetPair.id) return pair;
+            if (pair.player1.id === playerToSitOutId) return { ...pair, player1: subPlayer };
+            if (pair.player2.id === playerToSitOutId) return { ...pair, player2: subPlayer };
+            return pair;
+          };
+          updatedWso = {
+            ...court.wso,
+            queue: court.wso.queue.map(updateWsoPair),
+            currentGame: court.wso.currentGame ? {
+              ...court.wso.currentGame,
+              pair1: updateWsoPair(court.wso.currentGame.pair1),
+              pair2: updateWsoPair(court.wso.currentGame.pair2),
+            } : null,
+          };
+        }
+
+        const updatedCourt: CourtState = {
+          ...court,
+          assignedPairs: updatedPairs,
+          schedule: updatedSchedule,
+          sub: updatedSub,
+          wso: updatedWso,
+        };
+
+        const courts = s.courts.map((c, idx) => idx === courtIdx ? updatedCourt : c);
+        return { ...s, courts, pairs: updatedGlobalPairs };
+      });
+    },
+    [updateState]
+  );
+
+  /** Confirm the auto-suggested sub rotation */
+  const confirmSubRotationAction = useCallback(
+    (courtNumber: number) => {
+      updateState((s) => {
+        if (!s.courts) return s;
+        const court = s.courts.find(c => c.courtNumber === courtNumber);
+        if (!court?.sub?.pendingRotation || !court.sub.suggestedReplacementId) return s;
+
+        // Execute inline — same logic as executeSubRotation but within single updateState
+        const courtIdx = s.courts.findIndex(c => c.courtNumber === courtNumber);
+        const sub = court.sub;
+        const playerToSitOutId = sub.suggestedReplacementId!;
+        const subPlayerId = sub.currentSubId;
+
+        const targetPair = court.assignedPairs.find(p =>
+          p.player1.id === playerToSitOutId || p.player2.id === playerToSitOutId
+        );
+        if (!targetPair) return s;
+
+        const subPlayer = s.roster.find(p => p.id === subPlayerId);
+        if (!subPlayer) return s;
+
+        const updatedPairs = court.assignedPairs.map(p => {
+          if (p.id !== targetPair.id) return p;
+          if (p.player1.id === playerToSitOutId) return { ...p, player1: subPlayer };
+          return { ...p, player2: subPlayer };
+        });
+
+        const updatedGlobalPairs = s.pairs.map(p => {
+          if (p.id !== targetPair.id) return p;
+          if (p.player1.id === playerToSitOutId) return { ...p, player1: subPlayer };
+          return { ...p, player2: subPlayer };
+        });
+
+        const updatedSubStats = { ...sub.playerStats };
+        if (updatedSubStats[playerToSitOutId]) {
+          updatedSubStats[playerToSitOutId] = {
+            ...updatedSubStats[playerToSitOutId],
+            timesSubbedOut: updatedSubStats[playerToSitOutId].timesSubbedOut + 1,
+          };
+        }
+
+        const updatedSub: SubRotation = {
+          ...sub,
+          currentSubId: playerToSitOutId,
+          playerStats: updatedSubStats,
+          gamesSinceLastRotation: 0,
+          pendingRotation: false,
+          suggestedReplacementId: undefined,
+          suggestedPairId: undefined,
+          rotationHistory: [
+            ...sub.rotationHistory,
+            { timestamp: new Date().toISOString(), subIn: subPlayerId, subOut: playerToSitOutId, pairId: targetPair.id },
+          ],
+        };
+
+        const updatedSchedule = court.schedule.map(m => {
+          if (m.status === "completed") return m;
+          const updatePairInMatch = (pair: Pair): Pair => {
+            if (pair.id !== targetPair.id) return pair;
+            if (pair.player1.id === playerToSitOutId) return { ...pair, player1: subPlayer };
+            if (pair.player2.id === playerToSitOutId) return { ...pair, player2: subPlayer };
+            return pair;
+          };
+          return { ...m, pair1: updatePairInMatch(m.pair1), pair2: updatePairInMatch(m.pair2) };
+        });
+
+        let updatedWso = court.wso;
+        if (court.format === "winner_stays_on" && court.wso) {
+          const updateWsoPair = (pair: Pair): Pair => {
+            if (pair.id !== targetPair.id) return pair;
+            if (pair.player1.id === playerToSitOutId) return { ...pair, player1: subPlayer };
+            if (pair.player2.id === playerToSitOutId) return { ...pair, player2: subPlayer };
+            return pair;
+          };
+          updatedWso = {
+            ...court.wso,
+            queue: court.wso.queue.map(updateWsoPair),
+            currentGame: court.wso.currentGame ? {
+              ...court.wso.currentGame,
+              pair1: updateWsoPair(court.wso.currentGame.pair1),
+              pair2: updateWsoPair(court.wso.currentGame.pair2),
+            } : null,
+          };
+        }
+
+        const updatedCourt: CourtState = {
+          ...court,
+          assignedPairs: updatedPairs,
+          schedule: updatedSchedule,
+          sub: updatedSub,
+          wso: updatedWso,
+        };
+
+        const courts = s.courts.map((c, idx) => idx === courtIdx ? updatedCourt : c);
+        return { ...s, courts, pairs: updatedGlobalPairs };
+      });
+    },
+    [updateState]
+  );
+
+  const skipSubRotation = useCallback(
+    (courtNumber: number) => {
+      updateState((s) => {
+        if (!s.courts) return s;
+        const courts = s.courts.map(c => {
+          if (c.courtNumber !== courtNumber || !c.sub?.pendingRotation) return c;
+          return {
+            ...c,
+            sub: {
+              ...c.sub,
+              pendingRotation: false,
+              gamesSinceLastRotation: 0, // Reset counter — skip means wait another cycle
+              suggestedReplacementId: undefined,
+              suggestedPairId: undefined,
+            },
+          };
+        });
+        return { ...s, courts };
+      });
+    },
+    [updateState]
+  );
+
+  // ── Court Start Actions (3-court independent start) ────────────
+  const startCourt = useCallback(
+    (courtNumber: number) => {
+      updateState((s) => {
+        if (!s.courts) return s;
+        const sessionStart = s.sessionConfig.sessionStartedAt;
+        if (!sessionStart) return s;
+        const durationMin = s.sessionConfig.durationMinutes || 85;
+        const now = Date.now();
+        const elapsed = (now - new Date(sessionStart).getTime()) / 60000;
+        const remainingMin = Math.max(0, durationMin - elapsed);
+        const availableSlots = Math.floor(remainingMin / 7);
+
+        const courts = s.courts.map((c) => {
+          if (c.courtNumber !== courtNumber || c.status !== "waiting") return c;
+          const startedAt = new Date().toISOString();
+          if (c.format === "winner_stays_on") {
+            return {
+              ...c,
+              status: "active" as const,
+              startedAt,
+              wso: initializeWsoState(c),
+            };
+          } else {
+            const schedule = generateCourtScheduleForSlots(c, availableSlots);
+            return {
+              ...c,
+              status: schedule.length > 0 ? "active" as const : "waiting" as const,
+              startedAt,
+              schedule,
+            };
+          }
+        });
+
+        const totalScheduled = courts.reduce((sum, c2) => sum + c2.schedule.length, 0);
+        return { ...s, courts, totalScheduledGames: totalScheduled };
+      });
+    },
+    [updateState]
+  );
+
+  const startAllCourts = useCallback(
+    () => {
+      updateState((s) => {
+        if (!s.courts) return s;
+        const sessionStart = s.sessionConfig.sessionStartedAt;
+        if (!sessionStart) return s;
+        const durationMin = s.sessionConfig.durationMinutes || 85;
+        const now = Date.now();
+        const elapsed = (now - new Date(sessionStart).getTime()) / 60000;
+        const remainingMin = Math.max(0, durationMin - elapsed);
+        const availableSlots = Math.floor(remainingMin / 7);
+
+        const courts = s.courts.map((c) => {
+          if (c.status !== "waiting") return c;
+          const startedAt = new Date().toISOString();
+          if (c.format === "winner_stays_on") {
+            return {
+              ...c,
+              status: "active" as const,
+              startedAt,
+              wso: initializeWsoState(c),
+            };
+          } else {
+            const schedule = generateCourtScheduleForSlots(c, availableSlots);
+            return {
+              ...c,
+              status: schedule.length > 0 ? "active" as const : "waiting" as const,
+              startedAt,
+              schedule,
+            };
+          }
+        });
+
+        const totalScheduled = courts.reduce((sum, c2) => sum + c2.schedule.length, 0);
+        return { ...s, courts, totalScheduledGames: totalScheduled };
+      });
+    },
+    [updateState]
+  );
+
   const resetSession = useCallback((keepRoster = false) => {
     updateState((prev) => {
       if (keepRoster && prev.roster.length > 0) {
@@ -3609,6 +4374,243 @@ export function useGameState(options?: { simulate?: boolean }) {
     [updateState]
   );
 
+  // Add a late player in 3-court mode — routes to correct court by tier
+  const addLatePlayerToCourt = useCallback(
+    (name: string, tier: SkillTier): { success: boolean; paired: boolean; courtNumber: number | null } => {
+      let result: { success: boolean; paired: boolean; courtNumber: number | null } = {
+        success: false, paired: false, courtNumber: null,
+      };
+      updateState((s) => {
+        if (!s.courts || s.courts.length === 0) return s;
+
+        // Duplicate check
+        if (s.roster.some((p) => p.name.toLowerCase() === name.toLowerCase())) return s;
+
+        // Determine target court by tier: A→Court 3, B→Court 2, C→Court 1
+        const tierToCourtNum: Record<SkillTier, number> = { C: 1, B: 2, A: 3 };
+        const targetCourtNum = tierToCourtNum[tier];
+        const courtIdx = s.courts.findIndex((c) => c.courtNumber === targetCourtNum);
+        if (courtIdx === -1) return s;
+        const court = s.courts[courtIdx];
+
+        const newPlayer: Player = {
+          id: generateId(),
+          name,
+          skillLevel: tier,
+          checkedIn: true,
+          checkInTime: new Date().toISOString(),
+          wins: 0,
+          losses: 0,
+          gamesPlayed: 0,
+        };
+
+        const updatedRoster = [...s.roster, newPlayer];
+
+        // If court has a sub, pair the late player with the sub (deactivates sub system)
+        if (court.sub) {
+          const subPlayerId = court.sub.currentSubId;
+          const subPlayer = updatedRoster.find(p => p.id === subPlayerId);
+          if (subPlayer) {
+            const newPair: Pair = {
+              id: generateId(),
+              player1: newPlayer,
+              player2: subPlayer,
+              skillLevel: tier,
+              wins: 0,
+              losses: 0,
+            };
+            const updatedAssignedPairs = [...court.assignedPairs, newPair];
+            let finalCourt: CourtState = { ...court, assignedPairs: updatedAssignedPairs, sub: undefined };
+
+            if (court.format === "winner_stays_on" && court.wso) {
+              finalCourt.wso = {
+                ...court.wso,
+                queue: [...court.wso.queue, newPair],
+                stats: {
+                  ...court.wso.stats,
+                  [newPair.id]: { pairId: newPair.id, wins: 0, losses: 0, streak: 0, longestStreak: 0, gamesPlayed: 0 },
+                },
+              };
+            } else if (court.status === "active") {
+              // RR: regenerate future schedule with new pair
+              const sessionStart = s.sessionConfig.sessionStartedAt;
+              const durationMin = s.sessionConfig.durationMinutes || 85;
+              const now = Date.now();
+              const elapsed = sessionStart ? (now - new Date(sessionStart).getTime()) / 60000 : 0;
+              const remainingMin = Math.max(0, durationMin - elapsed);
+              const totalAvailableSlots = Math.floor(remainingMin / 7);
+              const lockThreshold = court.currentSlot + 2;
+              const lockedGames = court.schedule.filter(m => {
+                if (m.status === "completed" || m.status === "playing") return true;
+                return (m.gameNumber ?? 0) < lockThreshold;
+              });
+              const remainingSlots = Math.max(0, totalAvailableSlots - lockedGames.length);
+              const initialGameCounts = new Map<string, number>();
+              updatedAssignedPairs.forEach(p => initialGameCounts.set(p.id, 0));
+              lockedGames.forEach(m => {
+                initialGameCounts.set(m.pair1.id, (initialGameCounts.get(m.pair1.id) || 0) + 1);
+                initialGameCounts.set(m.pair2.id, (initialGameCounts.get(m.pair2.id) || 0) + 1);
+              });
+              const tempCourt: CourtState = { ...finalCourt, schedule: [], completedGames: [], currentSlot: 0, standings: {} };
+              const futureGames = generateCourtScheduleForSlots(tempCourt, remainingSlots, initialGameCounts);
+              const renumbered = futureGames.map((m, idx) => ({ ...m, gameNumber: lockThreshold + idx }));
+              finalCourt.schedule = [...lockedGames, ...renumbered];
+            }
+
+            const updatedCourts = s.courts.map((c, idx) => idx === courtIdx ? finalCourt : c);
+            const totalScheduled = updatedCourts.reduce((sum, c2) => sum + c2.schedule.length, 0);
+            result = { success: true, paired: true, courtNumber: targetCourtNum };
+            return {
+              ...s,
+              roster: updatedRoster,
+              pairs: [...s.pairs, newPair],
+              courts: updatedCourts,
+              totalScheduledGames: totalScheduled,
+              newlyAddedPairIds: [...(s.newlyAddedPairIds || []), newPair.id],
+            };
+          }
+        }
+
+        // Check court waitlist for an unpaired same-tier partner
+        const waitlist = court.courtWaitlist || [];
+        const partnerPlayerId = waitlist.find((pid) =>
+          updatedRoster.find((p) => p.id === pid && p.skillLevel === tier)
+        );
+
+        if (!partnerPlayerId) {
+          // No partner — add to waitlist
+          const updatedCourts = s.courts.map((c, idx) => {
+            if (idx !== courtIdx) return c;
+            return { ...c, courtWaitlist: [...waitlist, newPlayer.id] };
+          });
+          result = { success: true, paired: false, courtNumber: targetCourtNum };
+          return { ...s, roster: updatedRoster, courts: updatedCourts };
+        }
+
+        // Found a partner — create pair
+        const partner = updatedRoster.find((p) => p.id === partnerPlayerId)!;
+        const newPair: Pair = {
+          id: generateId(),
+          player1: newPlayer,
+          player2: partner,
+          skillLevel: tier,
+          wins: 0,
+          losses: 0,
+        };
+
+        // Remove partner from waitlist
+        const newWaitlist = waitlist.filter((pid) => pid !== partnerPlayerId);
+
+        // Add pair to court's assignedPairs
+        const updatedAssignedPairs = [...court.assignedPairs, newPair];
+        const updatedCourt: CourtState = { ...court, assignedPairs: updatedAssignedPairs, courtWaitlist: newWaitlist };
+
+        if (court.format === "winner_stays_on" && court.wso) {
+          // WSO: add pair to back of queue, add stats entry
+          const updatedWso: WsoState = {
+            ...court.wso,
+            queue: [...court.wso.queue, newPair],
+            stats: {
+              ...court.wso.stats,
+              [newPair.id]: {
+                pairId: newPair.id, wins: 0, losses: 0, streak: 0,
+                longestStreak: 0, gamesPlayed: 0,
+              },
+            },
+          };
+          const finalCourt: CourtState = { ...updatedCourt, wso: updatedWso };
+          const updatedCourts = s.courts.map((c, idx) => idx === courtIdx ? finalCourt : c);
+          result = { success: true, paired: true, courtNumber: targetCourtNum };
+          return {
+            ...s,
+            roster: updatedRoster,
+            pairs: [...s.pairs, newPair],
+            courts: updatedCourts,
+            newlyAddedPairIds: [...(s.newlyAddedPairIds || []), newPair.id],
+          };
+        } else if (court.status === "active") {
+          // RR: regenerate future schedule slots, protecting completed + active + on-deck
+          const currentSlot = court.currentSlot;
+          // Lock threshold: current + 2 covers active game and on-deck
+          const lockThreshold = currentSlot + 2;
+
+          // Split schedule into locked (completed/active/on-deck) and future
+          const lockedGames = court.schedule.filter((m) => {
+            if (m.status === "completed" || m.status === "playing") return true;
+            // On-deck: pending games with slot < lockThreshold
+            const slot = m.gameNumber ?? 0;
+            return slot < lockThreshold;
+          });
+
+          // Calculate remaining slots from session time
+          const sessionStart = s.sessionConfig.sessionStartedAt;
+          const durationMin = s.sessionConfig.durationMinutes || 85;
+          const now = Date.now();
+          const elapsed = sessionStart ? (now - new Date(sessionStart).getTime()) / 60000 : 0;
+          const remainingMin = Math.max(0, durationMin - elapsed);
+          const totalAvailableSlots = Math.floor(remainingMin / 7);
+          // Remaining slots = total available minus locked games count
+          const remainingSlots = Math.max(0, totalAvailableSlots - lockedGames.length);
+
+          // Compute initial game counts from locked games so LPF prioritizes the 0-game late pair
+          const initialGameCounts = new Map<string, number>();
+          updatedAssignedPairs.forEach(p => initialGameCounts.set(p.id, 0));
+          lockedGames.forEach((m) => {
+            initialGameCounts.set(m.pair1.id, (initialGameCounts.get(m.pair1.id) || 0) + 1);
+            initialGameCounts.set(m.pair2.id, (initialGameCounts.get(m.pair2.id) || 0) + 1);
+          });
+
+          // Build a temporary court with all pairs (including new) for schedule generation
+          const tempCourt: CourtState = {
+            ...updatedCourt,
+            assignedPairs: updatedAssignedPairs,
+            schedule: [],
+            completedGames: [],
+            currentSlot: 0,
+            standings: {},
+          };
+
+          // Generate new schedule for remaining slots — pass initial counts so late pair (0 games) is prioritized
+          const futureGames = generateCourtScheduleForSlots(tempCourt, remainingSlots, initialGameCounts);
+
+          // Renumber future games to continue from lock threshold
+          const renumbered = futureGames.map((m, idx) => ({
+            ...m,
+            gameNumber: lockThreshold + idx,
+          }));
+
+          const finalSchedule = [...lockedGames, ...renumbered];
+          const finalCourt: CourtState = { ...updatedCourt, schedule: finalSchedule };
+          const updatedCourts = s.courts.map((c, idx) => idx === courtIdx ? finalCourt : c);
+
+          const totalScheduled = updatedCourts.reduce((sum, c2) => sum + c2.schedule.length, 0);
+          result = { success: true, paired: true, courtNumber: targetCourtNum };
+          return {
+            ...s,
+            roster: updatedRoster,
+            pairs: [...s.pairs, newPair],
+            courts: updatedCourts,
+            totalScheduledGames: totalScheduled,
+            newlyAddedPairIds: [...(s.newlyAddedPairIds || []), newPair.id],
+          };
+        } else {
+          // Court is waiting — just add pair to assignedPairs
+          const updatedCourts = s.courts.map((c, idx) => idx === courtIdx ? updatedCourt : c);
+          result = { success: true, paired: true, courtNumber: targetCourtNum };
+          return {
+            ...s,
+            roster: updatedRoster,
+            pairs: [...s.pairs, newPair],
+            courts: updatedCourts,
+            newlyAddedPairIds: [...(s.newlyAddedPairIds || []), newPair.id],
+          };
+        }
+      });
+      return result;
+    },
+    [updateState]
+  );
+
   // Correct a game result — updates both player and pair stats, then syncs
   const correctGameResult = useCallback(
     (matchId: string, newWinnerPairId: string) => {
@@ -3837,11 +4839,21 @@ export function useGameState(options?: { simulate?: boolean }) {
     skipMatch,
     completeMatch,
     startSession,
+    setCourtFormat,
+    recordWsoWinner,
+    undoWsoResult,
+    reorderWsoQueue,
+    executeSubRotation,
+    confirmSubRotationAction,
+    skipSubRotation,
+    startCourt,
+    startAllCourts,
     resetSession,
     startPlayoffs,
     removePlayerMidSession,
     swapPlayerMidSession,
     addPlayerMidSession,
+    addLatePlayerToCourt,
     correctGameResult,
     generatePlayoffMatches,
     startPlayoffMatch,
