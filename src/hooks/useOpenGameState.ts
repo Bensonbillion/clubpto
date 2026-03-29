@@ -732,7 +732,7 @@ export function useOpenGameState(options?: { simulate?: boolean }) {
   const localMutationRef = useRef(false);
   const mutationCounterRef = useRef(0);
   const lastAppliedUpdatedAtRef = useRef<number>(0);
-  const versionRef = useRef<number>(0);
+  // No version column in DB — using updated_at timestamp guard instead
   const realtimeConnectedRef = useRef(false);
   const simulateRef = useRef(simulate);
 
@@ -751,7 +751,7 @@ export function useOpenGameState(options?: { simulate?: boolean }) {
     const load = async () => {
       const { data } = await supabase
         .from("game_state")
-        .select("state, updated_at, version")
+        .select("state, updated_at")
         .eq("id", ROW_ID)
         .single();
 
@@ -760,17 +760,14 @@ export function useOpenGameState(options?: { simulate?: boolean }) {
         console.log(`📦 [PTO Open] No row found for "${ROW_ID}" — creating initial row`);
         await supabase
           .from("game_state")
-          .upsert({ id: ROW_ID, state: JSON.parse(JSON.stringify(OPEN_DEFAULT_STATE)), updated_at: new Date().toISOString(), version: 0 })
+          .upsert({ id: ROW_ID, state: JSON.parse(JSON.stringify(OPEN_DEFAULT_STATE)), updated_at: new Date().toISOString() })
           .select()
           .single();
-        versionRef.current = 0;
       }
 
       if (data?.state) {
         const loaded = data.state as unknown as OpenGameState;
-        const serverVersion = (data as any).version as number | undefined;
-        if (typeof serverVersion === "number") versionRef.current = serverVersion;
-        console.log(`📦 [PTO Open] Loaded initial state — version ${versionRef.current}`);
+        console.log(`📦 [PTO Open] Loaded initial state`);
 
         const serverUpdatedAt = (data as any).updated_at as string | undefined;
         if (serverUpdatedAt) {
@@ -811,17 +808,10 @@ export function useOpenGameState(options?: { simulate?: boolean }) {
         { event: "UPDATE", schema: "public", table: "game_state", filter: `id=eq.${ROW_ID}` },
         (payload) => {
           const now = new Date().toISOString();
-          const updatedBy = (payload.new as any)?.updated_by as string | undefined;
           const updatedAt = (payload.new as any)?.updated_at as string | undefined;
-          const isOwnUpdate = updatedBy === DEVICE_ID;
-          const remoteVersion = (payload.new as any)?.version as number | undefined;
 
           console.log(`🔥 [PTO Open] REALTIME UPDATE @ ${now}`, {
-            updatedBy: updatedBy ?? "(no device tag)",
             updatedAt,
-            isOwnUpdate,
-            remoteVersion,
-            localVersion: versionRef.current,
             blocked: { saving: savingRef.current, pending: !!pendingRef.current, localMutation: localMutationRef.current },
           });
 
@@ -831,16 +821,11 @@ export function useOpenGameState(options?: { simulate?: boolean }) {
           }
           const nextState = (payload.new as any)?.state as OpenGameState | undefined;
           if (!nextState) { console.warn("⚠️ [PTO Open] Realtime payload missing state"); return; }
-          if (typeof remoteVersion === "number" && remoteVersion <= versionRef.current) {
-            console.warn(`⚠️ [PTO Open] Realtime update REJECTED — stale version (remote v${remoteVersion} <= local v${versionRef.current})`);
-            return;
-          }
           if (!shouldApplyRemote(updatedAt)) {
             console.warn("⚠️ [PTO Open] Realtime update REJECTED by timestamp guard");
             return;
           }
-          if (typeof remoteVersion === "number") versionRef.current = remoteVersion;
-          console.log(`✅ [PTO Open] Merging remote state v${versionRef.current}`);
+          console.log(`✅ [PTO Open] Merging remote state`);
           setState(prev => mergeStates(prev, nextState));
         }
       )
@@ -865,19 +850,16 @@ export function useOpenGameState(options?: { simulate?: boolean }) {
       console.log("🔄 [PTO Open] Realtime disconnected — polling fallback");
       const { data } = await supabase
         .from("game_state")
-        .select("state, updated_at, version")
+        .select("state, updated_at")
         .eq("id", ROW_ID)
         .single();
 
       const nextState = data?.state as unknown as OpenGameState | undefined;
       const updatedAt = (data as any)?.updated_at as string | undefined;
-      const remoteVersion = (data as any)?.version as number | undefined;
 
       if (nextState && !savingRef.current && !pendingRef.current && !localMutationRef.current) {
-        if (typeof remoteVersion === "number" && remoteVersion <= versionRef.current) return;
         if (!shouldApplyRemote(updatedAt)) return;
-        if (typeof remoteVersion === "number") versionRef.current = remoteVersion;
-        console.log(`🔄 [PTO Open] Poll — merging v${versionRef.current} from DB`);
+        console.log(`🔄 [PTO Open] Poll — merging from DB`);
         setState(prev => mergeStates(prev, nextState));
       }
     }, 10_000);
@@ -898,69 +880,27 @@ export function useOpenGameState(options?: { simulate?: boolean }) {
         pendingRef.current = null;
 
         const updatedAt = new Date().toISOString();
-        const expectedVersion = versionRef.current;
-        const nextVersion = expectedVersion + 1;
-        console.log(`💾 [PTO Open] Saving state v${expectedVersion}→v${nextVersion} @ ${updatedAt} from ${DEVICE_ID}`);
+        console.log(`💾 [PTO Open] Saving state @ ${updatedAt} from ${DEVICE_ID}`);
 
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from("game_state")
           .update({
             state: JSON.parse(JSON.stringify(toSave)),
             updated_at: updatedAt,
-            updated_by: DEVICE_ID,
-            version: nextVersion,
           })
-          .eq("id", ROW_ID)
-          .eq("version", expectedVersion)
-          .select("version")
-          .single();
+          .eq("id", ROW_ID);
 
-        if (!error && data) {
-          versionRef.current = nextVersion;
+        if (!error) {
           retries = 0;
-          console.log(`✅ [PTO Open] Save succeeded — now v${nextVersion}`);
+          console.log(`✅ [PTO Open] Save succeeded`);
           const ts = Date.parse(updatedAt);
           if (Number.isFinite(ts)) lastAppliedUpdatedAtRef.current = Math.max(lastAppliedUpdatedAtRef.current, ts);
-          continue;
-        }
-
-        if (!error && !data) {
-          retries++;
-          console.warn(`⚠️ [PTO Open] Version conflict (attempt ${retries}/${MAX_RETRIES})! Fetching latest version...`);
-          const { data: fresh } = await supabase
-            .from("game_state")
-            .select("state, updated_at, version")
-            .eq("id", ROW_ID)
-            .single();
-          if (fresh) {
-            const freshVersion = (fresh as any).version as number;
-            versionRef.current = freshVersion;
-            const freshTs = Date.parse((fresh as any).updated_at);
-            if (Number.isFinite(freshTs)) lastAppliedUpdatedAtRef.current = Math.max(lastAppliedUpdatedAtRef.current, freshTs);
-            const remoteState = (fresh as any).state as OpenGameState;
-            if (remoteState) {
-              const merged = mergeStates(toSave, remoteState);
-              if (!pendingRef.current) pendingRef.current = merged;
-              setState(merged);
-            } else {
-              if (!pendingRef.current) pendingRef.current = toSave;
-            }
-          } else {
-            if (!pendingRef.current) pendingRef.current = toSave;
-          }
-          await new Promise(r => setTimeout(r, 200));
           continue;
         }
 
         retries++;
         console.error(`❌ [PTO Open] Save failed (attempt ${retries}/${MAX_RETRIES}):`, error);
         await new Promise(r => setTimeout(r, 500));
-        const { data: freshForRetry } = await supabase
-          .from("game_state")
-          .select("version")
-          .eq("id", ROW_ID)
-          .single();
-        if (freshForRetry) versionRef.current = (freshForRetry as any).version as number;
         if (!pendingRef.current) pendingRef.current = toSave;
       }
 
@@ -968,11 +908,10 @@ export function useOpenGameState(options?: { simulate?: boolean }) {
         console.error(`❌ [PTO Open] Gave up after ${MAX_RETRIES} retries. Fetching remote state for merge-reset.`);
         const { data: reset } = await supabase
           .from("game_state")
-          .select("state, updated_at, version")
+          .select("state, updated_at")
           .eq("id", ROW_ID)
           .single();
         if (reset) {
-          versionRef.current = (reset as any).version as number;
           const resetTs = Date.parse((reset as any).updated_at);
           if (Number.isFinite(resetTs)) lastAppliedUpdatedAtRef.current = Math.max(lastAppliedUpdatedAtRef.current, resetTs);
           const remoteState = reset.state as unknown as OpenGameState;
