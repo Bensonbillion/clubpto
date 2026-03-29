@@ -749,25 +749,40 @@ export function useOpenGameState(options?: { simulate?: boolean }) {
   useEffect(() => {
     if (simulate) return;
     const load = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("game_state")
         .select("state, updated_at")
         .eq("id", ROW_ID)
         .single();
 
-      if (!data) {
+      if (error || !data) {
         // Row doesn't exist yet — create it
-        console.log(`📦 [PTO Open] No row found for "${ROW_ID}" — creating initial row`);
-        await supabase
+        console.log(`📦 [PTO Open] No row found for "${ROW_ID}" (${error?.message || 'null'}) — creating initial row`);
+        const { error: upsertErr } = await supabase
           .from("game_state")
           .upsert({ id: ROW_ID, state: JSON.parse(JSON.stringify(OPEN_DEFAULT_STATE)), updated_at: new Date().toISOString() })
           .select()
           .single();
+        if (upsertErr) console.error(`❌ [PTO Open] Failed to create row:`, upsertErr);
+        setLoading(false);
+        return;
       }
 
       if (data?.state) {
-        const loaded = data.state as unknown as OpenGameState;
-        console.log(`📦 [PTO Open] Loaded initial state`);
+        const raw = data.state as unknown as OpenGameState;
+        // Validate: if state is missing critical fields, merge with defaults
+        const loaded: OpenGameState = {
+          ...OPEN_DEFAULT_STATE,
+          ...raw,
+          sessionConfig: { ...OPEN_DEFAULT_STATE.sessionConfig, ...(raw.sessionConfig || {}) },
+          roster: raw.roster || [],
+          pairs: raw.pairs || [],
+          matches: raw.matches || [],
+          gameHistory: raw.gameHistory || [],
+          playoffMatches: raw.playoffMatches || [],
+          courts: raw.courts || [],
+        };
+        console.log(`📦 [PTO Open] Loaded initial state — ${loaded.roster.length} players in roster`);
 
         const serverUpdatedAt = (data as any).updated_at as string | undefined;
         if (serverUpdatedAt) {
