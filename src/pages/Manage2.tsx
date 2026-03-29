@@ -11,15 +11,17 @@
  */
 import { useState } from "react";
 import { useOpenGameState } from "@/hooks/useOpenGameState";
+import AdminSetup from "@/components/manage2/AdminSetup";
 import CheckIn from "@/components/manage2/CheckIn";
 import CourtDisplay from "@/components/manage2/CourtDisplay";
 import StatsPlayoffs from "@/components/manage2/StatsPlayoffs";
 import LeaderboardTab from "@/components/manage/LeaderboardTab";
-import { UserCheck, Monitor, BarChart3, Trophy, Lock } from "lucide-react";
+import { Settings, UserCheck, Monitor, BarChart3, Trophy, Lock } from "lucide-react";
 
 const ADMIN_PASSCODE = "7777";
 
 const tabs = [
+  { id: "admin", label: "Admin Setup", icon: Settings },
   { id: "checkin", label: "Check-In", icon: UserCheck },
   { id: "courts", label: "Court Display", icon: Monitor },
   { id: "stats", label: "Stats & Playoffs", icon: BarChart3 },
@@ -144,6 +146,7 @@ const Manage2 = () => {
                 >
                   <Icon className="w-5 h-5" />
                   <span>{tab.label}</span>
+                  {tab.id === "admin" && !adminUnlocked && <Lock className="w-3.5 h-3.5 ml-0.5" />}
                   {tab.id === "stats" && !statsUnlocked && <Lock className="w-3.5 h-3.5 ml-0.5" />}
                 </button>
               );
@@ -159,6 +162,9 @@ const Manage2 = () => {
           </div>
         ) : (
           <>
+            {activeTab === "admin" && (
+              adminUnlocked ? <AdminSetup gameState={gameState} /> : <PasscodeGate onUnlock={() => setAdminUnlocked(true)} />
+            )}
             {activeTab === "checkin" && (
               <CheckIn
                 gameState={gameState}
@@ -185,23 +191,6 @@ const Manage2 = () => {
         )}
       </main>
 
-      {/* Admin unlock — floating button */}
-      {!adminUnlocked && (
-        <div className="fixed bottom-6 right-6 z-40">
-          <button
-            onClick={() => {
-              const code = prompt("Admin passcode:");
-              if (code === ADMIN_PASSCODE) {
-                setAdminUnlocked(true);
-              }
-            }}
-            className="w-12 h-12 rounded-full border border-accent/30 bg-card flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity"
-            title="Unlock admin"
-          >
-            <Lock className="w-5 h-5 text-accent" />
-          </button>
-        </div>
-      )}
     </div>
   );
 };
