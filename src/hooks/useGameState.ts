@@ -50,6 +50,11 @@ function getPairPlayerIds(pair: Pair): string[] {
   return [pair.player1.id, pair.player2.id];
 }
 
+/** Returns true if a pair contains a coach-flagged player */
+function isCoachPair(pair: Pair): boolean {
+  return !!(pair.player1.isCoach || pair.player2.isCoach);
+}
+
 /** Least Played First schedule generator for a single court (3-court mode).
  *  Optional initialGameCounts: pre-populate pair game counts (e.g. for late-arrival regeneration). */
 function generateCourtScheduleForSlots(court: CourtState, slotCount: number, initialGameCounts?: Map<string, number>): Match[] {
@@ -60,6 +65,14 @@ function generateCourtScheduleForSlots(court: CourtState, slotCount: number, ini
   const matchupKey3 = (p1Id: string, p2Id: string) => [p1Id, p2Id].sort().join("|||");
   const MAX_ATTEMPTS = 10;
 
+  // Pre-compute per-pair minimum gap: coach pairs need wider spacing
+  // Normal: gap of 2 (1 slot between). Coach: gap of 4 (3 slots between), fallback to 3 after attempt 5.
+  const pairMinGap = new Map<string, number>();
+  const hasCoach = pairs.some(isCoachPair);
+  pairs.forEach(p => {
+    pairMinGap.set(p.id, isCoachPair(p) ? 4 : 2);
+  });
+
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const schedule: Match[] = [];
     const pairGames = new Map<string, number>();
@@ -68,6 +81,18 @@ function generateCourtScheduleForSlots(court: CourtState, slotCount: number, ini
     pairs.forEach(p => { pairGames.set(p.id, initialGameCounts?.get(p.id) ?? 0); pairLastSlot.set(p.id, -2); });
 
     const equityRelax = attempt >= 3 ? 1 : 0;
+
+    // Relax coach gap after attempt 5: reduce from 4 (3-slot gap) to 3 (2-slot gap)
+    if (hasCoach && attempt >= 5) {
+      pairs.forEach(p => {
+        if (isCoachPair(p) && (pairMinGap.get(p.id) || 2) > 3) {
+          pairMinGap.set(p.id, 3);
+        }
+      });
+      if (attempt === 5) {
+        console.warn(`[PTO Coach] Coach gap reduced to 2 for coach pairs on Court ${court.courtNumber} — not enough slots for 3-gap spacing`);
+      }
+    }
 
     for (let slot = 0; slot < slotCount; slot++) {
       const sorted = [...pairs].sort((a, b) => {
@@ -84,14 +109,16 @@ function generateCourtScheduleForSlots(court: CourtState, slotCount: number, ini
         const p1 = sorted[i];
         const g1 = pairGames.get(p1.id) || 0;
         const lastSlot1 = pairLastSlot.get(p1.id) ?? -2;
-        if (slot - lastSlot1 < 2) continue;
+        const minGap1 = pairMinGap.get(p1.id) || 2;
+        if (slot - lastSlot1 < minGap1) continue;
         if (g1 >= gameTarget + equityRelax) continue;
 
         for (let j = i + 1; j < sorted.length; j++) {
           const p2 = sorted[j];
           const g2 = pairGames.get(p2.id) || 0;
           const lastSlot2 = pairLastSlot.get(p2.id) ?? -2;
-          if (slot - lastSlot2 < 2) continue;
+          const minGap2 = pairMinGap.get(p2.id) || 2;
+          if (slot - lastSlot2 < minGap2) continue;
           if (g2 >= gameTarget + equityRelax) continue;
 
           const activeGames = Array.from(pairGames.values()).filter(v => v > 0);
@@ -145,11 +172,12 @@ function generateCourtScheduleForSlots(court: CourtState, slotCount: number, ini
 
     let hasBackToBack = false;
     for (const p of pairs) {
+      const minGap = pairMinGap.get(p.id) || 2;
       const slots = schedule
         .map((m, idx) => (m.pair1.id === p.id || m.pair2.id === p.id) ? idx : -1)
         .filter(idx => idx >= 0);
       for (let k = 1; k < slots.length; k++) {
-        if (slots[k] - slots[k - 1] < 2) { hasBackToBack = true; break; }
+        if (slots[k] - slots[k - 1] < minGap) { hasBackToBack = true; break; }
       }
       if (hasBackToBack) break;
     }
@@ -1366,6 +1394,18 @@ export function useGameState(options?: { simulate?: boolean }) {
           const next = cycle[p.skillLevel] || "C";
           return { ...p, skillLevel: next };
         }),
+      }));
+    },
+    [updateState]
+  );
+
+  const toggleCoach = useCallback(
+    (id: string) => {
+      updateState((s) => ({
+        ...s,
+        roster: s.roster.map((p) =>
+          p.id === id ? { ...p, isCoach: !p.isCoach } : p
+        ),
       }));
     },
     [updateState]
@@ -4822,6 +4862,7 @@ export function useGameState(options?: { simulate?: boolean }) {
     addPlayer,
     removePlayer,
     toggleSkillLevel,
+    toggleCoach,
     setPlayerSkillLevel,
     setAllSkillLevels,
     toggleCheckIn,

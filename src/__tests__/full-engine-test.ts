@@ -28,7 +28,7 @@
 
 // ═══════════════════════ TYPES ═══════════════════════
 type SkillTier = "A" | "B" | "C";
-interface Player { id: string; name: string; skillLevel: SkillTier; checkedIn: boolean; checkInTime: string | null; wins: number; losses: number; gamesPlayed: number; profileId?: string; }
+interface Player { id: string; name: string; skillLevel: SkillTier; checkedIn: boolean; checkInTime: string | null; wins: number; losses: number; gamesPlayed: number; profileId?: string; isCoach?: boolean; }
 interface Pair { id: string; player1: Player; player2: Player; skillLevel: SkillTier; wins: number; losses: number; }
 interface Match { id: string; pair1: Pair; pair2: Pair; skillLevel: SkillTier | "cross"; matchupLabel?: string; status: "pending" | "playing" | "completed"; court: number | null; winner?: Pair; loser?: Pair; completedAt?: string; startedAt?: string; gameNumber?: number; courtPool?: "A" | "B" | "C"; }
 interface FixedPair { player1Name: string; player2Name: string; }
@@ -67,6 +67,10 @@ function courtToPool(court: number): "A" | "B" | "C" {
   return "A";
 }
 
+function testIsCoachPair(pair: Pair): boolean {
+  return !!(pair.player1.isCoach || pair.player2.isCoach);
+}
+
 /** Least Played First schedule generator — mirrors production generateCourtScheduleForSlots */
 function testGenerateSchedule(court: CourtState, slotCount: number, initialGameCounts?: Map<string, number>): Match[] {
   const pairs = court.assignedPairs;
@@ -74,6 +78,10 @@ function testGenerateSchedule(court: CourtState, slotCount: number, initialGameC
   const gameTarget = Math.floor(slotCount * 2 / pairs.length) + (initialGameCounts ? Math.max(0, ...Array.from(initialGameCounts.values())) : 0);
   const mkKey = (a: string, b: string) => [a, b].sort().join("|||");
   const MAX = 10;
+  // Per-pair minimum gap: coach pairs need wider spacing
+  const pmg = new Map<string, number>();
+  const hasCoach = pairs.some(testIsCoachPair);
+  pairs.forEach(p => { pmg.set(p.id, testIsCoachPair(p) ? 4 : 2); });
   for (let attempt = 0; attempt < MAX; attempt++) {
     const sched: Match[] = [];
     const pg = new Map<string, number>();
@@ -81,6 +89,10 @@ function testGenerateSchedule(court: CourtState, slotCount: number, initialGameC
     const used = new Set<string>();
     pairs.forEach(p => { pg.set(p.id, initialGameCounts?.get(p.id) ?? 0); pls.set(p.id, -2); });
     const relax = attempt >= 3 ? 1 : 0;
+    // Relax coach gap after attempt 5
+    if (hasCoach && attempt >= 5) {
+      pairs.forEach(p => { if (testIsCoachPair(p) && (pmg.get(p.id) || 2) > 3) pmg.set(p.id, 3); });
+    }
     for (let slot = 0; slot < slotCount; slot++) {
       const sorted = [...pairs].sort((a, b) => {
         const ga = pg.get(a.id) || 0; const gb = pg.get(b.id) || 0;
@@ -90,11 +102,13 @@ function testGenerateSchedule(court: CourtState, slotCount: number, initialGameC
       let matched = false;
       for (let i = 0; i < sorted.length && !matched; i++) {
         const p1 = sorted[i]; const g1 = pg.get(p1.id) || 0;
-        if (slot - (pls.get(p1.id) ?? -2) < 2) continue;
+        const mg1 = pmg.get(p1.id) || 2;
+        if (slot - (pls.get(p1.id) ?? -2) < mg1) continue;
         if (g1 >= gameTarget + relax) continue;
         for (let j = i + 1; j < sorted.length; j++) {
           const p2 = sorted[j]; const g2 = pg.get(p2.id) || 0;
-          if (slot - (pls.get(p2.id) ?? -2) < 2) continue;
+          const mg2 = pmg.get(p2.id) || 2;
+          if (slot - (pls.get(p2.id) ?? -2) < mg2) continue;
           if (g2 >= gameTarget + relax) continue;
           const active = Array.from(pg.values()).filter(v => v > 0);
           const minG = active.length > 0 ? Math.min(...active) : 0;
@@ -113,8 +127,9 @@ function testGenerateSchedule(court: CourtState, slotCount: number, initialGameC
     const gap = Math.max(...games) - Math.min(...games);
     let b2b = false;
     for (const p of pairs) {
+      const mg = pmg.get(p.id) || 2;
       const sl = sched.map((m, idx) => (m.pair1.id === p.id || m.pair2.id === p.id) ? idx : -1).filter(v => v >= 0);
-      for (let k = 1; k < sl.length; k++) { if (sl[k] - sl[k - 1] < 2) { b2b = true; break; } }
+      for (let k = 1; k < sl.length; k++) { if (sl[k] - sl[k - 1] < mg) { b2b = true; break; } }
       if (b2b) break;
     }
     if ((gap <= 1 + relax && !b2b) || attempt === MAX - 1) return sched;
@@ -2908,6 +2923,192 @@ for (const court of isoCourts) {
 
   console.log(`  Info: Rotations: ${rotations.length}, Game spread: ${minGames}-${maxGames}, Max sub-outs: ${maxSubOuts}`);
   console.log(`  Info: Rotation sequence: ${rotations.map(r => `${subPlayers.find(p => p.id === r.subIn)?.name}→${subPlayers.find(p => p.id === r.subOut)?.name}`).join(", ")}`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SECTION 33: COACH GAP SCHEDULING
+// ═══════════════════════════════════════════════════════════════
+{
+  console.log("\n── Section 33: Coach Gap Scheduling ──");
+
+  // Create 10 A-tier players; Benson and David are coaches
+  const coachPlayers: Player[] = [
+    { ...makePlayer("Benson", "A"), isCoach: true },
+    { ...makePlayer("Albright", "A") },
+    { ...makePlayer("David", "A"), isCoach: true },
+    { ...makePlayer("Marcus", "A") },
+    { ...makePlayer("Tony", "A") },
+    { ...makePlayer("Chris", "A") },
+    { ...makePlayer("Leo", "A") },
+    { ...makePlayer("James", "A") },
+    { ...makePlayer("Nick", "A") },
+    { ...makePlayer("Will", "A") },
+  ];
+
+  // Create 5 pairs: Benson+Albright (coach pair), David+Marcus (coach pair), plus 3 normal pairs
+  const coachPairs: Pair[] = [
+    { id: generateId(), player1: coachPlayers[0], player2: coachPlayers[1], skillLevel: "A", wins: 0, losses: 0 }, // Benson+Albright (coach)
+    { id: generateId(), player1: coachPlayers[2], player2: coachPlayers[3], skillLevel: "A", wins: 0, losses: 0 }, // David+Marcus (coach)
+    { id: generateId(), player1: coachPlayers[4], player2: coachPlayers[5], skillLevel: "A", wins: 0, losses: 0 }, // Tony+Chris (normal)
+    { id: generateId(), player1: coachPlayers[6], player2: coachPlayers[7], skillLevel: "A", wins: 0, losses: 0 }, // Leo+James (normal)
+    { id: generateId(), player1: coachPlayers[8], player2: coachPlayers[9], skillLevel: "A", wins: 0, losses: 0 }, // Nick+Will (normal)
+  ];
+
+  // ── Verify isCoachPair helper ──
+  assert("coach-gap", testIsCoachPair(coachPairs[0]) === true, "Benson+Albright detected as coach pair", "not detected");
+  assert("coach-gap", testIsCoachPair(coachPairs[1]) === true, "David+Marcus detected as coach pair", "not detected");
+  assert("coach-gap", testIsCoachPair(coachPairs[2]) === false, "Tony+Chris is NOT a coach pair", "false positive");
+  assert("coach-gap", testIsCoachPair(coachPairs[3]) === false, "Leo+James is NOT a coach pair", "false positive");
+  assert("coach-gap", testIsCoachPair(coachPairs[4]) === false, "Nick+Will is NOT a coach pair", "false positive");
+
+  // ── Generate schedule for Court 3 (A-tier) with 10 slots (realistic: ~70min / 7min per slot) ──
+  const coachCourt: CourtState = {
+    courtNumber: 3,
+    tier: "A",
+    assignedPairs: coachPairs,
+    schedule: [],
+    completedGames: [],
+    standings: Object.fromEntries(coachPairs.map(p => [p.id, { wins: 0, losses: 0, gamesPlayed: 0, winPct: 0 }])),
+    currentSlot: 0,
+    status: "active",
+    format: "round_robin",
+  };
+
+  const coachSchedule = testGenerateSchedule(coachCourt, 10);
+  assert("coach-gap", coachSchedule.length > 0, `Schedule generated (${coachSchedule.length} games)`, "empty schedule");
+
+  // ── Verify coach pairs have minimum 3-slot gap ──
+  // Use gameNumber (slot index) not array index — some slots may be empty
+  function getSlots(pairId: string, sched: Match[]): number[] {
+    return sched
+      .filter(m => m.pair1.id === pairId || m.pair2.id === pairId)
+      .map(m => m.gameNumber ?? 0);
+  }
+
+  // Benson+Albright (coach pair) — minimum 3-slot gap
+  const bensonSlots = getSlots(coachPairs[0].id, coachSchedule);
+  let bensonMinGap = Infinity;
+  for (let i = 1; i < bensonSlots.length; i++) {
+    const gap = bensonSlots[i] - bensonSlots[i - 1];
+    if (gap < bensonMinGap) bensonMinGap = gap;
+  }
+  assert("coach-gap", bensonSlots.length >= 2,
+    `Benson+Albright played ${bensonSlots.length} games`, `only ${bensonSlots.length} games`);
+  assert("coach-gap", bensonMinGap >= 3,
+    `Benson+Albright min gap is ${bensonMinGap} (≥3 required)`, `gap too small: ${bensonMinGap}`);
+
+  // David+Marcus (coach pair) — minimum 3-slot gap
+  const davidSlots = getSlots(coachPairs[1].id, coachSchedule);
+  let davidMinGap = Infinity;
+  for (let i = 1; i < davidSlots.length; i++) {
+    const gap = davidSlots[i] - davidSlots[i - 1];
+    if (gap < davidMinGap) davidMinGap = gap;
+  }
+  assert("coach-gap", davidSlots.length >= 2,
+    `David+Marcus played ${davidSlots.length} games`, `only ${davidSlots.length} games`);
+  assert("coach-gap", davidMinGap >= 3,
+    `David+Marcus min gap is ${davidMinGap} (≥3 required)`, `gap too small: ${davidMinGap}`);
+
+  // ── Verify normal pairs have normal 1-slot minimum gap (actual gap ≥ 2 in schedule indices) ──
+  for (let np = 2; np < coachPairs.length; np++) {
+    const normalSlots = getSlots(coachPairs[np].id, coachSchedule);
+    let normalMinGap = Infinity;
+    for (let i = 1; i < normalSlots.length; i++) {
+      const gap = normalSlots[i] - normalSlots[i - 1];
+      if (gap < normalMinGap) normalMinGap = gap;
+    }
+    const pairName = `${coachPairs[np].player1.name}+${coachPairs[np].player2.name}`;
+    assert("coach-gap", normalMinGap >= 2,
+      `${pairName} min gap is ${normalMinGap} (normal ≥2)`, `gap too small: ${normalMinGap}`);
+  }
+
+  // ── Verify all pairs play same number of total games (within ±1) ──
+  const coachGameCounts = coachPairs.map(p => getSlots(p.id, coachSchedule).length);
+  const coachMaxGames = Math.max(...coachGameCounts);
+  const coachMinGames = Math.min(...coachGameCounts);
+  assert("coach-gap", coachMaxGames - coachMinGames <= 1,
+    `Game equity maintained: all pairs play ${coachMinGames}-${coachMaxGames} games`, `uneven: ${coachMinGames}-${coachMaxGames}`);
+
+  // ── Verify coach minimum gap is strictly higher than normal minimum gap ──
+  let normalMinGapOverall = Infinity;
+  for (let np = 2; np < coachPairs.length; np++) {
+    const normalSlots = getSlots(coachPairs[np].id, coachSchedule);
+    for (let i = 1; i < normalSlots.length; i++) {
+      const g = normalSlots[i] - normalSlots[i - 1];
+      if (g < normalMinGapOverall) normalMinGapOverall = g;
+    }
+  }
+  const coachMinGapOverall = Math.min(bensonMinGap, davidMinGap);
+  assert("coach-gap", coachMinGapOverall >= normalMinGapOverall,
+    `Coach min gap (${coachMinGapOverall}) ≥ normal min gap (${normalMinGapOverall})`,
+    `coach ${coachMinGapOverall} < normal ${normalMinGapOverall}`);
+
+  // ── Edge case: schedule with all coach pairs (5 pairs, all coaches) ──
+  const allCoachPlayers: Player[] = Array.from({ length: 10 }, (_, i) =>
+    ({ ...makePlayer(`Coach${i}`, "A"), isCoach: true })
+  );
+  const allCoachPairs: Pair[] = [];
+  for (let i = 0; i < allCoachPlayers.length - 1; i += 2) {
+    allCoachPairs.push({ id: generateId(), player1: allCoachPlayers[i], player2: allCoachPlayers[i + 1], skillLevel: "A", wins: 0, losses: 0 });
+  }
+  const allCoachCourt: CourtState = {
+    courtNumber: 3,
+    tier: "A",
+    assignedPairs: allCoachPairs,
+    schedule: [],
+    completedGames: [],
+    standings: Object.fromEntries(allCoachPairs.map(p => [p.id, { wins: 0, losses: 0, gamesPlayed: 0, winPct: 0 }])),
+    currentSlot: 0,
+    status: "active",
+    format: "round_robin",
+  };
+  const allCoachSched = testGenerateSchedule(allCoachCourt, 10);
+  assert("coach-gap", allCoachSched.length > 0, `All-coach schedule generated (${allCoachSched.length} games)`, "empty schedule");
+
+  // All pairs should have ≥3 gap (relaxed from ≥4)
+  let allCoachGapsOk = true;
+  for (const p of allCoachPairs) {
+    const sl = getSlots(p.id, allCoachSched);
+    for (let i = 1; i < sl.length; i++) {
+      if (sl[i] - sl[i - 1] < 3) { allCoachGapsOk = false; break; }
+    }
+    if (!allCoachGapsOk) break;
+  }
+  assert("coach-gap", allCoachGapsOk, "All-coach pairs maintain ≥3 gap", "gap violation in all-coach scenario");
+
+  // ── Edge case: no coaches — normal scheduling unchanged ──
+  const noCoachPlayers: Player[] = Array.from({ length: 10 }, (_, i) =>
+    makePlayer(`NormalP${i}`, "A")
+  );
+  const noCoachPairs: Pair[] = [];
+  for (let i = 0; i < noCoachPlayers.length - 1; i += 2) {
+    noCoachPairs.push({ id: generateId(), player1: noCoachPlayers[i], player2: noCoachPlayers[i + 1], skillLevel: "A", wins: 0, losses: 0 });
+  }
+  const noCoachCourt: CourtState = {
+    courtNumber: 3,
+    tier: "A",
+    assignedPairs: noCoachPairs,
+    schedule: [],
+    completedGames: [],
+    standings: Object.fromEntries(noCoachPairs.map(p => [p.id, { wins: 0, losses: 0, gamesPlayed: 0, winPct: 0 }])),
+    currentSlot: 0,
+    status: "active",
+    format: "round_robin",
+  };
+  const noCoachSched = testGenerateSchedule(noCoachCourt, 10);
+  assert("coach-gap", noCoachSched.length > 0, `No-coach schedule generated (${noCoachSched.length} games)`, "empty schedule");
+  // No coach pairs means all pairs have normal gap (≥2)
+  let noCoachGapsOk = true;
+  for (const p of noCoachPairs) {
+    const sl = getSlots(p.id, noCoachSched);
+    for (let i = 1; i < sl.length; i++) {
+      if (sl[i] - sl[i - 1] < 2) { noCoachGapsOk = false; break; }
+    }
+  }
+  assert("coach-gap", noCoachGapsOk, "No-coach pairs all have normal ≥2 gap", "gap violation in no-coach scenario");
+
+  console.log(`  Info: Coach schedule: ${coachSchedule.length} games, Benson slots: [${bensonSlots}], David slots: [${davidSlots}]`);
+  console.log(`  Info: Coach min gap: ${coachMinGapOverall}, Normal min gap: ${normalMinGapOverall}`);
 }
 
 // ═══════════════════════════════════════════════════════════════

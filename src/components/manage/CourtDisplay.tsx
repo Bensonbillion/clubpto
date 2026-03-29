@@ -683,13 +683,25 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
                         </div>
                       )}
 
+                      {/* Coaches indicator */}
+                      {(() => {
+                        const coaches = court.assignedPairs
+                          .flatMap(p => [p.player1, p.player2])
+                          .filter(p => p.isCoach);
+                        return coaches.length > 0 ? (
+                          <div className="text-xs text-blue-400">
+                            🏃 Coaches: {coaches.map(c => c.name).join(", ")} (3-slot gap)
+                          </div>
+                        ) : null;
+                      })()}
+
                       {/* Pair list */}
                       <div className="space-y-2">
                         {court.assignedPairs.map((pair) => (
                           <div key={pair.id} className="rounded-md border border-border/60 bg-card/80 px-4 py-3 text-center">
-                            <p className="font-display text-base text-foreground">{pair.player1.name}</p>
+                            <p className="font-display text-base text-foreground">{pair.player1.name}{pair.player1.isCoach ? " 🏃" : ""}</p>
                             <p className="text-xs text-muted-foreground my-0.5">&</p>
-                            <p className="font-display text-base text-foreground">{pair.player2.name}</p>
+                            <p className="font-display text-base text-foreground">{pair.player2.name}{pair.player2.isCoach ? " 🏃" : ""}</p>
                           </div>
                         ))}
                       </div>
@@ -1011,13 +1023,16 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
                     <div className="space-y-2">
                       {court.assignedPairs.map((pair) => {
                         const pairGames = court.schedule.filter(m => m.pair1.id === pair.id || m.pair2.id === pair.id).length;
+                        const hasCoach = pair.player1.isCoach || pair.player2.isCoach;
                         return (
                           <div key={pair.id} className={`rounded-md border border-border/60 bg-card/80 px-4 py-3 text-center ${highlightPairIds.has(pair.id) ? "animate-pulse border-accent bg-accent/10" : ""}`}>
-                            <p className="font-display text-base text-foreground">{pair.player1.name}</p>
+                            <p className="font-display text-base text-foreground">{pair.player1.name}{pair.player1.isCoach ? " 🏃" : ""}</p>
                             <p className="text-xs text-muted-foreground my-0.5">&</p>
-                            <p className="font-display text-base text-foreground">{pair.player2.name}</p>
+                            <p className="font-display text-base text-foreground">{pair.player2.name}{pair.player2.isCoach ? " 🏃" : ""}</p>
                             {court.schedule.length > 0 && (
-                              <p className="text-xs text-muted-foreground mt-1">{pairGames} games</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {pairGames} games{hasCoach ? " · 3-slot gap" : ""}
+                              </p>
                             )}
                           </div>
                         );

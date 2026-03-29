@@ -11,6 +11,8 @@ export interface Player {
   gamesPlayed: number;
   /** Supabase players table ID — links roster player to their DB profile */
   profileId?: string;
+  /** Coach flag — wider gap between games (3-slot minimum instead of 1) */
+  isCoach?: boolean;
 }
 
 export interface Pair {

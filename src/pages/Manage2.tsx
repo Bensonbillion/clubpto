@@ -1,0 +1,209 @@
+/**
+ * Manage2 — PTO OPEN Court Manager
+ *
+ * Open-mode session management:
+ * - Passcode: 7777
+ * - Cross-tier pairing (any player can pair with any player)
+ * - 1 or 2 courts
+ * - Session name field
+ * - Unified standings (no tier grouping)
+ * - Shared Leaderboard tab with manage/
+ */
+import { useState } from "react";
+import { useOpenGameState } from "@/hooks/useOpenGameState";
+import CheckIn from "@/components/manage2/CheckIn";
+import CourtDisplay from "@/components/manage2/CourtDisplay";
+import StatsPlayoffs from "@/components/manage2/StatsPlayoffs";
+import LeaderboardTab from "@/components/manage/LeaderboardTab";
+import { UserCheck, Monitor, BarChart3, Trophy, Lock } from "lucide-react";
+
+const ADMIN_PASSCODE = "7777";
+
+const tabs = [
+  { id: "checkin", label: "Check-In", icon: UserCheck },
+  { id: "courts", label: "Court Display", icon: Monitor },
+  { id: "stats", label: "Stats & Playoffs", icon: BarChart3 },
+  { id: "leaderboard", label: "Leaderboard", icon: Trophy },
+] as const;
+
+type Tab = (typeof tabs)[number]["id"];
+
+const PasscodeGate = ({ onUnlock }: { onUnlock: () => void }) => {
+  const [code, setCode] = useState("");
+  const [error, setError] = useState(false);
+
+  const handleDigit = (d: string) => {
+    const next = code + d;
+    setError(false);
+    if (next.length === 4) {
+      if (next === ADMIN_PASSCODE) {
+        onUnlock();
+      } else {
+        setError(true);
+        setCode("");
+      }
+    } else {
+      setCode(next);
+    }
+  };
+
+  const handleDelete = () => {
+    setCode((c) => c.slice(0, -1));
+    setError(false);
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center py-20 space-y-8 animate-fade-up">
+      <div className="w-20 h-20 rounded-full bg-accent/10 border border-accent/30 flex items-center justify-center">
+        <Lock className="w-10 h-10 text-accent" />
+      </div>
+      <div>
+        <h3 className="font-display text-3xl text-accent text-center">Admin Access</h3>
+        <p className="text-base text-muted-foreground text-center mt-2">Enter 4-digit passcode</p>
+      </div>
+      <div className="flex gap-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div
+            key={i}
+            className={`w-5 h-5 rounded-full border-2 transition-all duration-200 ${
+              i < code.length
+                ? "bg-accent border-accent scale-110"
+                : "border-muted-foreground/40"
+            } ${error ? "border-destructive bg-destructive/30 animate-pulse-soft" : ""}`}
+          />
+        ))}
+      </div>
+      {error && <p className="text-sm text-destructive">Incorrect passcode</p>}
+      <div className="grid grid-cols-3 gap-4 max-w-[300px]">
+        {["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "←"].map((d) =>
+          d === "" ? (
+            <div key="empty" />
+          ) : (
+            <button
+              key={d}
+              onClick={() => (d === "←" ? handleDelete() : handleDigit(d))}
+              className="w-20 h-20 rounded-lg border border-border bg-card text-foreground font-display text-2xl hover:bg-muted hover:border-accent/40 transition-all active:scale-95"
+            >
+              {d}
+            </button>
+          )
+        )}
+      </div>
+    </div>
+  );
+};
+
+const Manage2 = () => {
+  const [activeTab, setActiveTab] = useState<Tab>("checkin");
+  const [adminUnlocked, setAdminUnlockedRaw] = useState(() => sessionStorage.getItem("pto_open_admin") === "1");
+  const [statsUnlocked, setStatsUnlockedRaw] = useState(() => sessionStorage.getItem("pto_open_stats") === "1");
+
+  const setAdminUnlocked = (v: boolean) => {
+    sessionStorage.setItem("pto_open_admin", v ? "1" : "0");
+    setAdminUnlockedRaw(v);
+  };
+  const setStatsUnlocked = (v: boolean) => {
+    sessionStorage.setItem("pto_open_stats", v ? "1" : "0");
+    setStatsUnlockedRaw(v);
+  };
+
+  const gameState = useOpenGameState();
+  const sessionName = (gameState.state.sessionConfig as { sessionName?: string }).sessionName || "";
+
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-30">
+        <div className="max-w-full xl:max-w-6xl mx-auto px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
+          <h1 className="font-display text-2xl md:text-3xl text-accent">PTO OPEN</h1>
+          {sessionName ? (
+            <span className="text-xs md:text-sm uppercase tracking-widest text-accent/70">
+              {sessionName}
+            </span>
+          ) : (
+            <span className="text-xs md:text-sm uppercase tracking-widest text-muted-foreground">
+              Court Manager
+            </span>
+          )}
+        </div>
+        <div className="max-w-full xl:max-w-6xl mx-auto px-4 md:px-6">
+          <nav className="flex gap-2 -mb-px overflow-x-auto scrollbar-hide">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`
+                    flex items-center gap-2.5 px-5 py-4 text-base font-body whitespace-nowrap border-b-2 transition-colors min-h-[48px]
+                    ${
+                      activeTab === tab.id
+                        ? "border-accent text-accent"
+                        : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                    }
+                  `}
+                >
+                  <Icon className="w-5 h-5" />
+                  <span>{tab.label}</span>
+                  {tab.id === "stats" && !statsUnlocked && <Lock className="w-3.5 h-3.5 ml-0.5" />}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+      </header>
+
+      <main className="max-w-full xl:max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-8">
+        {gameState.loading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="text-muted-foreground text-base animate-pulse-soft">Loading session state…</div>
+          </div>
+        ) : (
+          <>
+            {activeTab === "checkin" && (
+              <CheckIn
+                gameState={gameState}
+                onSwitchToCourtDisplay={() => setActiveTab("courts")}
+                isAdmin={adminUnlocked}
+              />
+            )}
+            {activeTab === "courts" && (
+              <CourtDisplay
+                gameState={gameState}
+                onGoToCheckIn={() => setActiveTab("checkin")}
+                isAdmin={adminUnlocked}
+              />
+            )}
+            {activeTab === "stats" && (
+              statsUnlocked ? (
+                <StatsPlayoffs gameState={gameState} />
+              ) : (
+                <PasscodeGate onUnlock={() => setStatsUnlocked(true)} />
+              )
+            )}
+            {activeTab === "leaderboard" && <LeaderboardTab />}
+          </>
+        )}
+      </main>
+
+      {/* Admin unlock — floating button */}
+      {!adminUnlocked && (
+        <div className="fixed bottom-6 right-6 z-40">
+          <button
+            onClick={() => {
+              const code = prompt("Admin passcode:");
+              if (code === ADMIN_PASSCODE) {
+                setAdminUnlocked(true);
+              }
+            }}
+            className="w-12 h-12 rounded-full border border-accent/30 bg-card flex items-center justify-center opacity-40 hover:opacity-100 transition-opacity"
+            title="Unlock admin"
+          >
+            <Lock className="w-5 h-5 text-accent" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Manage2;
