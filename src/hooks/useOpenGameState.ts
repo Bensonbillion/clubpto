@@ -98,7 +98,7 @@ function findBestSubTarget(sub: SubRotation, courtPairs: Pair[]): { playerId: st
 
 // ─── Open Mode: NO tier-based scheduling ──────────────────────────────
 // All pairs are valid opponents. Tiers are display-only.
-const TARGET_GAMES = 4;
+const TARGET_GAMES = 3;
 
 /**
  * Least Played First schedule generator for a single open court.
@@ -406,7 +406,7 @@ function mergeStates(local: OpenGameState, remote: OpenGameState): OpenGameState
 
 /** Universal guard: returns true if BOTH pairs are under the hard cap */
 function canStartMatch(match: Match, allMatches: Match[]): boolean {
-  const HARD_CAP = 4;
+  const HARD_CAP = 3;
   let pair1Games = 0;
   let pair2Games = 0;
   for (const m of allMatches) {
@@ -506,7 +506,7 @@ function findNextPendingForCourt(
     pairTotalGames.set(m.pair2.id, (pairTotalGames.get(m.pair2.id) || 0) + 1);
   }
 
-  const HARD_CAP = 4;
+  const HARD_CAP = 3;
 
   const availablePairCounts = allPairs
     .filter(p => !getPairPlayerIds(p).some(id => busyPlayerIds.has(id)))
