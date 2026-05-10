@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useGameState } from "@/hooks/useGameState";
 import AdminSetup from "@/components/manage/AdminSetup";
 import CheckIn from "@/components/manage/CheckIn";
@@ -6,7 +7,7 @@ import CourtDisplay from "@/components/manage/CourtDisplay";
 import StatsPlayoffs from "@/components/manage/StatsPlayoffs";
 import LeaderboardTab from "@/components/manage/LeaderboardTab";
 import DebugPanel from "@/components/manage/DebugPanel";
-import { Settings, UserCheck, Monitor, BarChart3, Trophy, Lock, Bug } from "lucide-react";
+import { Settings, UserCheck, Monitor, BarChart3, Trophy, Lock, Bug, Award } from "lucide-react";
 
 const ADMIN_PASSCODE = "9999";
 
@@ -128,6 +129,14 @@ const Manage = () => {
                 </button>
               );
             })}
+            <Link
+              to="/admin/playoffs/set01"
+              className="flex items-center gap-2.5 px-5 py-4 text-base font-body whitespace-nowrap border-b-2 border-transparent text-muted-foreground hover:text-foreground hover:border-border transition-colors min-h-[48px]"
+            >
+              <Award className="w-5 h-5" />
+              <span>Tournament</span>
+              <Lock className="w-3.5 h-3.5 ml-0.5" />
+            </Link>
           </nav>
         </div>
       </header>
