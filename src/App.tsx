@@ -20,6 +20,9 @@ import ManualPlayoffs from "./pages/ManualPlayoffs";
 import Simulate from "./pages/Simulate";
 import EngineTest from "./pages/EngineTest";
 import SeasonReset from "./pages/admin/SeasonReset";
+import SessionHistory from "./pages/admin/SessionHistory";
+import SessionDetail from "./pages/admin/SessionDetail";
+import Set01Tournament from "./pages/admin/Set01Tournament";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -51,7 +54,10 @@ const App = () => (
           <Route path="/leaderboard" element={<Leaderboard />} />
           <Route path="/profile/:playerId" element={<Profile />} />
           <Route path="/admin/playoffs" element={<ManualPlayoffs />} />
+          <Route path="/admin/playoffs/set01" element={<Set01Tournament />} />
           <Route path="/admin/reset" element={<SeasonReset />} />
+          <Route path="/admin/history" element={<SessionHistory />} />
+          <Route path="/admin/history/:id" element={<SessionDetail />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
