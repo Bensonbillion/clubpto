@@ -10,19 +10,17 @@ export const colors = {
   muted: '#A8A29E',
 } as const;
 
-// Navigation items
+// Navigation items (membership parked for now)
 export const navItems = [
   { label: "About", href: "/about" },
-  { label: "Membership", href: "/membership" },
   { label: "Play", href: "/book" },
-  { label: "Events", href: "/events" },
   { label: "Community", href: "/community" },
   { label: "FAQ", href: "/faq" },
 ] as const;
 
 // Social links
 export const socialLinks = {
-  instagram: "https://instagram.com/clubpto",
+  instagram: "https://www.instagram.com/club_pto",
 } as const;
 
 // Club info
@@ -30,5 +28,22 @@ export const clubInfo = {
   name: "Club PTO",
   tagline: "Where the game meets the city",
   address: "Toronto, ON",
-  email: "hello@clubpto.com",
+  email: "clubptobookings@gmail.com",
+} as const;
+
+// Courtside II, the next event. One source of truth for every surface.
+export const courtsideII = {
+  name: "Courtside Social II",
+  subtitle: "The Clubhouse Experience",
+  dateLabel: "Sat · Jul 18",
+  date: "2026-07-18",
+  venue: "The Pad · 309 Cherry St",
+  ticketsUrl:
+    "https://www.eventbrite.ca/e/courtside-social-ii-the-clubhouse-experience-by-clubpto-tickets-1992069417252?aff=ptosite",
+} as const;
+
+// Weekly meets
+export const weeklyMeets = {
+  days: "Wednesday + Sunday",
+  city: "Toronto",
 } as const;

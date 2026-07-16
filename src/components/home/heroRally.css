@@ -1,0 +1,274 @@
+/*
+  RALLY hero, ported from the winning Claude Design exploration
+  (hero-c "collage poster", July 2026). Tokens are scoped to .hero-rally
+  so the RALLY palette stays out of the rest of the site.
+*/
+.hero-rally {
+  --ink: oklch(14% 0.02 262);
+  --chalk: oklch(95.5% 0.017 102);
+  --volt: oklch(90% 0.225 125);
+  --volt-deep: oklch(80% 0.21 127);
+  --blue: oklch(48% 0.235 264);
+  --flare: oklch(66% 0.23 38);
+  --f-display: "Anton", sans-serif;
+  --f-body: "Archivo", system-ui, sans-serif;
+  --f-mono: "Space Mono", ui-monospace, monospace;
+  --e-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+  overflow: clip;
+  background: var(--ink);
+  color: var(--chalk);
+  font-family: var(--f-body);
+  -webkit-font-smoothing: antialiased;
+  /* clearance for the fixed site header */
+  padding-top: 4rem;
+}
+
+/* grain overlay */
+.hero-rally::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.055;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.hero-rally .mono {
+  font-family: var(--f-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero-rally .stage {
+  position: relative;
+  flex: 1;
+  min-height: 520px;
+}
+
+.hero-rally .type {
+  position: absolute;
+  left: clamp(1rem, 4vw, 4rem);
+  top: 1.4rem;
+  z-index: 1;
+  font-family: var(--f-display);
+  font-weight: 400;
+  text-transform: uppercase;
+  line-height: 0.88;
+  font-size: clamp(4.8rem, 21vw, 9.5rem);
+  color: var(--chalk);
+}
+.hero-rally .type i {
+  color: var(--volt);
+  font-style: normal;
+}
+
+.hero-rally .frame {
+  position: absolute;
+  margin: 0;
+  border: 1px solid oklch(95.5% 0.017 102 / 0.3);
+}
+.hero-rally .frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(1.08) contrast(1.04);
+}
+.hero-rally .f1 {
+  right: -1.2rem;
+  top: 6.5rem;
+  z-index: 2;
+  width: clamp(210px, 59vw, 250px);
+  height: clamp(250px, 69vw, 290px);
+  transform: rotate(4deg);
+  box-shadow: 12px 12px 0 var(--blue);
+}
+.hero-rally .f2 {
+  left: -0.9rem;
+  top: 19.5rem;
+  z-index: 3;
+  width: clamp(185px, 51vw, 220px);
+  height: clamp(220px, 62vw, 265px);
+  transform: rotate(-5deg);
+  box-shadow: 10px 10px 0 var(--volt);
+}
+.hero-rally .f3 {
+  right: 0.6rem;
+  top: 26rem;
+  z-index: 4;
+  width: clamp(170px, 47vw, 205px);
+  height: clamp(200px, 55vw, 240px);
+  transform: rotate(2.5deg);
+  box-shadow: 10px 10px 0 var(--flare);
+}
+
+.hero-rally .stamp {
+  position: absolute;
+  left: clamp(1rem, 4vw, 4rem);
+  top: 24.4rem;
+  z-index: 5;
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 2px solid var(--flare);
+  color: var(--flare);
+  background: oklch(14% 0.02 262 / 0.85);
+  padding: 0.6em 0.9em;
+  transform: rotate(-7deg);
+  text-align: center;
+}
+
+.hero-rally .foot {
+  position: relative;
+  z-index: 6;
+  padding: 0 clamp(1.1rem, 4vw, 3.5rem) 1.2rem;
+}
+
+.hero-rally .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  color: var(--volt);
+  margin-bottom: 0.9rem;
+  font-size: 10px;
+}
+.hero-rally .eyebrow .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--volt);
+  animation: hero-rally-pulse 1.6s ease-in-out infinite;
+}
+@keyframes hero-rally-pulse {
+  50% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+}
+
+.hero-rally .cta {
+  display: flex;
+  justify-content: center;
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 1.3em 2em;
+  border-radius: 999px;
+  background: var(--volt);
+  color: var(--ink);
+  text-decoration: none;
+  transition: transform 0.18s var(--e-out), background 0.18s;
+}
+.hero-rally .cta:hover {
+  background: var(--volt-deep);
+}
+.hero-rally .cta:active {
+  transform: scale(0.965);
+  transition-duration: 34ms;
+}
+
+.hero-rally .meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.9rem;
+  color: oklch(95.5% 0.017 102 / 0.7);
+  font-size: 9px;
+}
+
+/* mid-size band (large phones / small tablets): keep the collage from
+   swallowing the type before the desktop composition kicks in */
+@media (min-width: 560px) and (max-width: 767px) {
+  .hero-rally .stage {
+    min-height: 48rem;
+  }
+  .hero-rally .type {
+    font-size: 6rem;
+  }
+  .hero-rally .f2 {
+    top: 24rem;
+  }
+  .hero-rally .stamp {
+    top: 28.5rem;
+  }
+  .hero-rally .f3 {
+    top: 30rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .hero-rally {
+    padding-top: 5rem;
+  }
+  .hero-rally .stage {
+    min-height: 0;
+  }
+  .hero-rally .type {
+    left: 5vw;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: clamp(5rem, 10vw, 10rem);
+  }
+  .hero-rally .f1 {
+    right: 7vw;
+    top: 6vh;
+    width: min(24vw, 340px);
+    height: min(28vw, 400px);
+  }
+  .hero-rally .f2 {
+    left: auto;
+    right: 29vw;
+    top: 38vh;
+    width: min(19vw, 270px);
+    height: min(23vw, 325px);
+  }
+  .hero-rally .f3 {
+    right: 5vw;
+    top: 58vh;
+    width: min(17vw, 245px);
+    height: min(20vw, 285px);
+  }
+  .hero-rally .stamp {
+    left: auto;
+    right: 24vw;
+    top: 24vh;
+    font-size: 11px;
+  }
+  .hero-rally .foot {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: end;
+    gap: 1.2rem 2.5rem;
+    padding-bottom: 2rem;
+  }
+  .hero-rally .eyebrow {
+    grid-column: 1 / -1;
+    margin-bottom: 0;
+  }
+  .hero-rally .cta {
+    justify-self: start;
+  }
+  .hero-rally .meta {
+    margin-top: 0;
+    justify-content: flex-end;
+    gap: 2.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-rally *,
+  .hero-rally *::before,
+  .hero-rally *::after {
+    animation-duration: 0.001s !important;
+    transition-duration: 0.001s !important;
+  }
+}

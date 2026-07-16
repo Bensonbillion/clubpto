@@ -1,97 +1,72 @@
-import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { useLayoutEffect, useRef } from "react";
+import gsap from "gsap";
+import heroGridStyle from "@/assets/hero-grid-style.jpg";
+import heroGridPoint from "@/assets/hero-grid-point.jpg";
+import heroSocial from "@/assets/hero-s2-social.jpg";
+import "./heroRally.css";
 
-const stagger = {
-  animate: {
-    transition: { staggerChildren: 0.3 },
-  },
-};
-
-const fadeUp = {
-  initial: { opacity: 0, y: 30 },
-  animate: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.8, ease: "easeOut" as const },
-  },
-};
+const TICKETS_URL =
+  "https://www.eventbrite.ca/e/courtside-social-ii-the-clubhouse-experience-by-clubpto-tickets-1992069417252?aff=ptosite";
 
 const Hero = () => {
+  const sectionRef = useRef<HTMLElement>(null);
+
+  // Entrance choreography and idle float, as authored in hero-c
+  useLayoutEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const ctx = gsap.context(() => {
+      gsap.from(".f1", { y: 60, rotate: 12, autoAlpha: 0, duration: 0.9, ease: "expo.out", delay: 0.2 });
+      gsap.from(".f2", { y: 60, rotate: -14, autoAlpha: 0, duration: 0.9, ease: "expo.out", delay: 0.38 });
+      gsap.from(".f3", { y: 60, rotate: 10, autoAlpha: 0, duration: 0.9, ease: "expo.out", delay: 0.56 });
+      gsap.from(".stamp", { scale: 0.4, rotate: 14, autoAlpha: 0, duration: 0.8, ease: "elastic.out(1,0.5)", delay: 0.9 });
+      gsap.to(".f1", { y: -7, duration: 3.2, yoyo: true, repeat: -1, ease: "sine.inOut" });
+      gsap.to(".f2", { y: 6, duration: 3.8, yoyo: true, repeat: -1, ease: "sine.inOut" });
+      gsap.to(".f3", { y: -5, duration: 3.5, yoyo: true, repeat: -1, ease: "sine.inOut" });
+    }, sectionRef);
+
+    return () => ctx.revert();
+  }, []);
+
   return (
-    <section className="relative h-screen flex items-center justify-center overflow-hidden">
-      {/* Background — subtle radial gradient placeholder (video later) */}
-      <div className="absolute inset-0 bg-dark">
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(ellipse at center, #2D2D2D 0%, #1A1A1A 70%)",
-          }}
-        />
+    <section ref={sectionRef} className="hero-rally">
+      <div className="stage">
+        <h1 className="type">
+          More
+          <br />
+          than
+          <br />
+          a
+          <br />
+          game<i>.</i>
+        </h1>
+        <figure className="frame f1">
+          <img src={heroGridStyle} alt="Style in the room at Set 01" />
+        </figure>
+        <figure className="frame f2">
+          <img src={heroGridPoint} alt="Match point at golden hour" loading="lazy" />
+        </figure>
+        <figure className="frame f3">
+          <img src={heroSocial} alt="Two friends in the room" loading="lazy" />
+        </figure>
+        <span className="stamp mono">
+          Set 01 sold out
+          <br />
+          in advance
+        </span>
       </div>
-
-      {/* Content */}
-      <motion.div
-        variants={stagger}
-        initial="initial"
-        animate="animate"
-        className="relative z-10 text-center px-5"
-      >
-        {/* Club name */}
-        <motion.h1
-          variants={fadeUp}
-          className="font-display text-[14vw] md:text-[10vw] leading-[0.9] tracking-[0.15em] text-cream font-normal"
-        >
-          CLUB
-        </motion.h1>
-        <motion.h1
-          variants={fadeUp}
-          className="font-display text-[14vw] md:text-[10vw] leading-[0.9] tracking-[0.15em] text-cream font-normal"
-        >
-          PTO
-        </motion.h1>
-
-        {/* Tagline */}
-        <motion.p
-          variants={fadeUp}
-          className="font-body text-lg md:text-xl text-muted font-light tracking-wide opacity-80 mt-6"
-        >
-          Where the game meets the city
-        </motion.p>
-
-        {/* CTAs */}
-        <motion.div
-          variants={fadeUp}
-          className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8"
-        >
-          <Link
-            to="/membership"
-            className="bg-gold text-dark px-8 py-3 text-xs uppercase tracking-[0.15em] font-body font-medium hover:bg-cream transition-all duration-500 active:scale-[0.98]"
-          >
-            Join the Club
-          </Link>
-          <Link
-            to="/book"
-            className="border border-cream/30 text-cream px-8 py-3 text-xs uppercase tracking-[0.15em] font-body hover:border-cream transition-all duration-500 active:scale-[0.98]"
-          >
-            Reserve a Court
-          </Link>
-        </motion.div>
-      </motion.div>
-
-      {/* Scroll indicator */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 2, duration: 0.8 }}
-        className="absolute bottom-8 left-1/2 -translate-x-1/2"
-      >
-        <motion.div
-          animate={{ y: [0, 8, 0] }}
-          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-          className="w-px h-10 bg-gradient-to-b from-cream/40 to-transparent"
-        />
-      </motion.div>
+      <div className="foot">
+        <p className="eyebrow mono">
+          <span className="dot" /> A Padel Social Club in Toronto
+        </p>
+        <a className="cta" href={TICKETS_URL} target="_blank" rel="noopener noreferrer">
+          Courtside II · Jul 18 · Tickets ↗
+        </a>
+        <div className="meta mono">
+          <span>The Pad · 309 Cherry St</span>
+          <span>Wed + Sun weekly</span>
+        </div>
+      </div>
     </section>
   );
 };
