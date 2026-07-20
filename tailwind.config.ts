@@ -18,13 +18,14 @@ export default {
         body: ['DM Sans', 'Inter', 'system-ui', 'sans-serif'],
       },
       colors: {
+        // Club PTO brand (sampled from the FINAL logo files, July 2026)
         dark: {
-          DEFAULT: '#1A1A1A',
-          surface: '#2D2D2D',
-          elevated: '#3A3A3A',
+          DEFAULT: '#0B3A38',
+          surface: '#0F4440',
+          elevated: '#155049',
         },
-        cream: '#F5F0EB',
-        gold: '#C9A84C',
+        cream: '#F0E6D3',
+        gold: '#B8B539',
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

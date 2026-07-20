@@ -1,9 +1,9 @@
-import { courtsideII, weeklyMeets } from "@/lib/constants";
+import { courtsideII, weeklyMeets, isCourtsideUpcoming } from "@/lib/constants";
 
 const items = [
   `${courtsideII.name} · ${courtsideII.dateLabel}`,
   courtsideII.venue,
-  "Tickets live",
+  isCourtsideUpcoming() ? "Tickets live" : "Just played · Recap soon",
   `Weekly meets · ${weeklyMeets.days}`,
   "A padel social club in Toronto",
 ];

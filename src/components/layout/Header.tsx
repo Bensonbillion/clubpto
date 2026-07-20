@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { navItems, courtsideII } from "@/lib/constants";
+import { navItems, courtsideII, weeklyMeets, isCourtsideUpcoming } from "@/lib/constants";
+import logoWordmark from "@/assets/logo-wordmark.png";
 import { staggerContainer, fadeIn } from "@/lib/animations";
 
 const Header = () => {
@@ -37,6 +38,10 @@ const Header = () => {
 
   const isActive = (href: string) => location.pathname === href;
 
+  // The homepage hero is cream, so the header can start transparent there.
+  // Inner pages sit on teal, where the teal wordmark needs the cream bar.
+  const solid = scrolled || location.pathname !== "/";
+
   return (
     <>
       <header
@@ -44,16 +49,16 @@ const Header = () => {
           hidden ? "-translate-y-full" : "translate-y-0"
         }`}
         style={{
-          background: scrolled ? "oklch(14% 0.02 262 / 0.92)" : "transparent",
-          backdropFilter: scrolled ? "blur(12px)" : undefined,
-          borderBottom: scrolled ? "1px solid var(--line)" : "1px solid transparent",
+          background: solid ? "rgba(240, 230, 211, 0.93)" : "transparent",
+          backdropFilter: solid ? "blur(12px)" : undefined,
+          borderBottom: solid ? "1px solid rgba(11, 58, 56, 0.15)" : "1px solid transparent",
         }}
       >
         <div className="max-w-7xl mx-auto px-5 md:px-8 lg:px-12">
           <div className="flex items-center justify-between h-16 md:h-20">
             {/* Logo */}
-            <Link to="/" className="rly-brand">
-              CLUB PTO<em>*</em>
+            <Link to="/" className="flex items-center">
+              <img src={logoWordmark} alt="Club PTO" className="h-7 md:h-8 w-auto" />
             </Link>
 
             {/* Desktop nav */}
@@ -69,15 +74,26 @@ const Header = () => {
               ))}
             </nav>
 
-            {/* Tickets CTA, desktop */}
-            <a
-              href={courtsideII.ticketsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rly-pill rly-pill--nav hidden lg:inline-flex"
-            >
-              Tickets ↗
-            </a>
+            {/* State-aware CTA, desktop */}
+            {isCourtsideUpcoming() ? (
+              <a
+                href={courtsideII.ticketsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rly-pill rly-pill--nav hidden lg:inline-flex"
+              >
+                Tickets ↗
+              </a>
+            ) : (
+              <a
+                href={weeklyMeets.bookingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rly-pill rly-pill--nav hidden lg:inline-flex"
+              >
+                Book a spot ↗
+              </a>
+            )}
 
             {/* Mobile hamburger */}
             <button
@@ -90,19 +106,19 @@ const Header = () => {
                 className={`block w-6 h-px transition-all duration-300 ${
                   isOpen ? "rotate-45 translate-y-[3px]" : ""
                 }`}
-                style={{ background: "var(--chalk)" }}
+                style={{ background: "var(--ink)" }}
               />
               <span
                 className={`block w-6 h-px transition-all duration-300 ${
                   isOpen ? "opacity-0" : ""
                 }`}
-                style={{ background: "var(--chalk)" }}
+                style={{ background: "var(--ink)" }}
               />
               <span
                 className={`block w-6 h-px transition-all duration-300 ${
                   isOpen ? "-rotate-45 -translate-y-[3px]" : ""
                 }`}
-                style={{ background: "var(--chalk)" }}
+                style={{ background: "var(--ink)" }}
               />
             </button>
           </div>
@@ -118,7 +134,7 @@ const Header = () => {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
             className="fixed inset-0 z-40 flex items-center justify-center"
-            style={{ background: "var(--ink)" }}
+            style={{ background: "var(--chalk)" }}
           >
             <motion.nav
               variants={staggerContainer}
@@ -138,15 +154,27 @@ const Header = () => {
                 </motion.div>
               ))}
               <motion.div variants={fadeIn}>
-                <a
-                  href={courtsideII.ticketsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="rly-pill mt-4"
-                  onClick={() => setIsOpen(false)}
-                >
-                  Courtside II · Tickets ↗
-                </a>
+                {isCourtsideUpcoming() ? (
+                  <a
+                    href={courtsideII.ticketsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rly-pill mt-4"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    Courtside II · Tickets ↗
+                  </a>
+                ) : (
+                  <a
+                    href={weeklyMeets.bookingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rly-pill mt-4"
+                    onClick={() => setIsOpen(false)}
+                  >
+                    Book a weekly spot ↗
+                  </a>
+                )}
               </motion.div>
             </motion.nav>
           </motion.div>

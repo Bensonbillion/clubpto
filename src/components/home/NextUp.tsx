@@ -1,4 +1,3 @@
-import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { fadeUp, staggerContainer } from "@/lib/animations";
 import { courtsideII, weeklyMeets } from "@/lib/constants";
@@ -17,7 +16,7 @@ const NextUp = () => {
   const countdown = daysOut(courtsideII.date);
 
   return (
-    <section className="rly-nextup">
+    <section className="rly-nextup rly-nextup--chalk">
       <motion.div
         variants={fadeUp}
         initial="initial"
@@ -90,9 +89,14 @@ const NextUp = () => {
             <span>{weeklyMeets.city}</span>
           </div>
           <div className="rly-card__cta-row">
-            <Link className="rly-pill rly-pill--ghost" to="/book">
-              Book a spot
-            </Link>
+            <a
+              className="rly-pill rly-pill--ghost"
+              href={weeklyMeets.bookingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Book a spot ↗
+            </a>
           </div>
         </motion.article>
       </motion.div>

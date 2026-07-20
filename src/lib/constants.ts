@@ -42,8 +42,14 @@ export const courtsideII = {
     "https://www.eventbrite.ca/e/courtside-social-ii-the-clubhouse-experience-by-clubpto-tickets-1992069417252?aff=ptosite",
 } as const;
 
-// Weekly meets
+// Weekly meets. Booking runs through Acuity; the site never owns checkout.
 export const weeklyMeets = {
   days: "Wednesday + Sunday",
   city: "Toronto",
+  bookingUrl: "https://clubptobookings.as.me/",
 } as const;
+
+// True until the end of event day (America/Toronto). Every surface that
+// sells tickets must check this so the site never promotes a past event.
+export const isCourtsideUpcoming = () =>
+  new Date(`${courtsideII.date}T23:59:59-04:00`).getTime() > Date.now();

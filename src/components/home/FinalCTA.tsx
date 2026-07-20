@@ -1,7 +1,6 @@
-import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { fadeUp } from "@/lib/animations";
-import { clubInfo, courtsideII, socialLinks } from "@/lib/constants";
+import { clubInfo, courtsideII, socialLinks, weeklyMeets, isCourtsideUpcoming } from "@/lib/constants";
 
 const FinalCTA = () => (
   <section className="rly-final">
@@ -17,17 +16,45 @@ const FinalCTA = () => (
         starts here<i>.</i>
       </h2>
       <div className="rly-final__pills">
-        <a
-          className="rly-pill"
-          href={courtsideII.ticketsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Courtside II · Tickets ↗
-        </a>
-        <Link className="rly-pill rly-pill--ghost" to="/book">
-          Book a weekly spot
-        </Link>
+        {isCourtsideUpcoming() ? (
+          <>
+            <a
+              className="rly-pill"
+              href={courtsideII.ticketsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Courtside II · Tickets ↗
+            </a>
+            <a
+              className="rly-pill rly-pill--ghost"
+              href={weeklyMeets.bookingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Book a weekly spot ↗
+            </a>
+          </>
+        ) : (
+          <>
+            <a
+              className="rly-pill"
+              href={weeklyMeets.bookingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Book a weekly spot ↗
+            </a>
+            <a
+              className="rly-pill rly-pill--ghost"
+              href={socialLinks.instagram}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Recap on @club_pto ↗
+            </a>
+          </>
+        )}
       </div>
       <p className="rly-final__contact">
         <a href={`mailto:${clubInfo.email}`}>{clubInfo.email}</a>

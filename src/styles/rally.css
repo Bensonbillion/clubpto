@@ -4,16 +4,18 @@
   Facts render in Space Mono. Display slams in Anton. Body in Archivo.
 */
 :root {
-  --ink: oklch(14% 0.02 262);
-  --ink-2: oklch(17% 0.022 262);
-  --ink-3: oklch(22% 0.024 262);
-  --chalk: oklch(95.5% 0.017 102);
-  --chalk-dim: oklch(95.5% 0.017 102 / 0.58);
-  --volt: oklch(90% 0.225 125);
-  --volt-deep: oklch(80% 0.21 127);
-  --blue: oklch(48% 0.235 264);
-  --flare: oklch(66% 0.23 38);
-  --line: oklch(95.5% 0.017 102 / 0.14);
+  /* Club PTO brand palette, sampled from the FINAL logo files (July 2026):
+     deep teal court, warm linen paper, chartreuse ball, dusty blue, olive. */
+  --ink: #0b3a38;
+  --ink-2: #0f4440;
+  --ink-3: #155049;
+  --chalk: #f0e6d3;
+  --chalk-dim: rgba(240, 230, 211, 0.62);
+  --volt: #b8b539;
+  --volt-deep: #9c9a2c;
+  --blue: #7ba6c9;
+  --flare: #8a8724;
+  --line: rgba(240, 230, 211, 0.16);
   --f-display: "Anton", sans-serif;
   --f-body: "Archivo", system-ui, sans-serif;
   --f-mono: "Space Mono", ui-monospace, monospace;
@@ -93,7 +95,7 @@
 .rly-pill--ghost {
   background: transparent;
   color: var(--chalk);
-  border: 1px solid oklch(95.5% 0.017 102 / 0.35);
+  border: 1px solid rgba(240, 230, 211, 0.4);
 }
 .rly-pill--ghost:hover {
   background: transparent;
@@ -108,9 +110,9 @@
   font-size: 10px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  border: 2px solid var(--flare);
-  color: var(--flare);
-  background: oklch(14% 0.02 262 / 0.85);
+  border: 2px solid var(--ink);
+  color: var(--ink);
+  background: var(--volt);
   padding: 0.6em 0.9em;
   transform: rotate(-4deg);
   text-align: center;
@@ -202,6 +204,28 @@
     gap: 3rem;
   }
 }
+/* chalk light-beat variant: cream ground, ink ticket cards */
+.rly-nextup--chalk {
+  background: var(--chalk);
+  border-top: 1px solid rgba(11, 58, 56, 0.2);
+}
+.rly-nextup--chalk .rly-nextup__title {
+  color: var(--ink);
+}
+.rly-nextup--chalk .rly-display i {
+  color: var(--blue);
+}
+.rly-nextup--chalk .rly-kicker {
+  color: var(--blue);
+}
+.rly-nextup--chalk .rly-kicker .rly-dot {
+  background: var(--blue);
+}
+.rly-nextup--chalk .rly-card {
+  background: var(--ink);
+  border-color: rgba(11, 58, 56, 0.3);
+}
+
 .rly-card {
   position: relative;
   background: var(--ink-2);
@@ -226,7 +250,7 @@
   text-transform: uppercase;
 }
 .rly-card--blue .rly-card__kicker {
-  color: oklch(70% 0.16 264);
+  color: var(--blue);
 }
 .rly-card--volt .rly-card__kicker {
   color: var(--volt);
@@ -316,7 +340,7 @@
   width: clamp(230px, 32vw, 340px);
   height: clamp(290px, 40vw, 420px);
   object-fit: cover;
-  border: 1px solid oklch(95.5% 0.017 102 / 0.3);
+  border: 1px solid rgba(240, 230, 211, 0.35);
   filter: saturate(1.08) contrast(1.04);
   user-select: none;
   -webkit-user-drag: none;
@@ -407,12 +431,14 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--chalk-dim);
+  color: rgba(11, 58, 56, 0.66);
   transition: color 0.3s;
 }
-.rly-navlink:hover,
+.rly-navlink:hover {
+  color: var(--ink);
+}
 .rly-navlink.is-active {
-  color: var(--volt);
+  color: var(--volt-deep);
 }
 .rly-pill--nav {
   font-size: 11px;
@@ -422,12 +448,12 @@
   font-family: var(--f-display);
   font-size: 2rem;
   text-transform: uppercase;
-  color: var(--chalk);
+  color: var(--ink);
   transition: color 0.3s;
 }
 .rly-mobilelink:hover,
 .rly-mobilelink.is-active {
-  color: var(--volt);
+  color: var(--volt-deep);
 }
 
 /* ---------- footer ---------- */

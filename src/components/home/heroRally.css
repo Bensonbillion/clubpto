@@ -1,15 +1,14 @@
 /*
-  RALLY hero, ported from the winning Claude Design exploration
-  (hero-c "collage poster", July 2026). Tokens are scoped to .hero-rally
-  so the RALLY palette stays out of the rest of the site.
+  Club PTO hero: the hero-c collage-poster layout (Claude Design winner,
+  July 2026) re-grounded in the real brand: warm linen paper, deep teal
+  type, chartreuse ball accent. Tokens scoped to .hero-rally.
 */
 .hero-rally {
-  --ink: oklch(14% 0.02 262);
-  --chalk: oklch(95.5% 0.017 102);
-  --volt: oklch(90% 0.225 125);
-  --volt-deep: oklch(80% 0.21 127);
-  --blue: oklch(48% 0.235 264);
-  --flare: oklch(66% 0.23 38);
+  --court: #0b3a38;
+  --paper: #f0e6d3;
+  --chart: #b8b539;
+  --chart-deep: #9c9a2c;
+  --sky: #7ba6c9;
   --f-display: "Anton", sans-serif;
   --f-body: "Archivo", system-ui, sans-serif;
   --f-mono: "Space Mono", ui-monospace, monospace;
@@ -20,22 +19,22 @@
   flex-direction: column;
   min-height: 100svh;
   overflow: clip;
-  background: var(--ink);
-  color: var(--chalk);
+  background: var(--paper);
+  color: var(--court);
   font-family: var(--f-body);
   -webkit-font-smoothing: antialiased;
   /* clearance for the fixed site header */
   padding-top: 4rem;
 }
 
-/* grain overlay */
+/* linen grain overlay */
 .hero-rally::after {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 60;
   pointer-events: none;
-  opacity: 0.055;
+  opacity: 0.05;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
@@ -61,17 +60,17 @@
   text-transform: uppercase;
   line-height: 0.88;
   font-size: clamp(4.8rem, 21vw, 9.5rem);
-  color: var(--chalk);
+  color: var(--court);
 }
 .hero-rally .type i {
-  color: var(--volt);
+  color: var(--chart);
   font-style: normal;
 }
 
 .hero-rally .frame {
   position: absolute;
   margin: 0;
-  border: 1px solid oklch(95.5% 0.017 102 / 0.3);
+  border: 1px solid rgba(11, 58, 56, 0.35);
 }
 .hero-rally .frame img {
   width: 100%;
@@ -86,7 +85,7 @@
   width: clamp(210px, 59vw, 250px);
   height: clamp(250px, 69vw, 290px);
   transform: rotate(4deg);
-  box-shadow: 12px 12px 0 var(--blue);
+  box-shadow: 12px 12px 0 var(--sky);
 }
 .hero-rally .f2 {
   left: -0.9rem;
@@ -95,7 +94,7 @@
   width: clamp(185px, 51vw, 220px);
   height: clamp(220px, 62vw, 265px);
   transform: rotate(-5deg);
-  box-shadow: 10px 10px 0 var(--volt);
+  box-shadow: 10px 10px 0 var(--chart);
 }
 .hero-rally .f3 {
   right: 0.6rem;
@@ -104,7 +103,7 @@
   width: clamp(170px, 47vw, 205px);
   height: clamp(200px, 55vw, 240px);
   transform: rotate(2.5deg);
-  box-shadow: 10px 10px 0 var(--flare);
+  box-shadow: 10px 10px 0 var(--court);
 }
 
 .hero-rally .stamp {
@@ -117,9 +116,9 @@
   font-size: 9px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  border: 2px solid var(--flare);
-  color: var(--flare);
-  background: oklch(14% 0.02 262 / 0.85);
+  border: 2px solid var(--court);
+  color: var(--court);
+  background: var(--chart);
   padding: 0.6em 0.9em;
   transform: rotate(-7deg);
   text-align: center;
@@ -135,7 +134,7 @@
   display: flex;
   align-items: center;
   gap: 0.8em;
-  color: var(--volt);
+  color: var(--court);
   margin-bottom: 0.9rem;
   font-size: 10px;
 }
@@ -143,7 +142,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--volt);
+  background: var(--chart-deep);
   animation: hero-rally-pulse 1.6s ease-in-out infinite;
 }
 @keyframes hero-rally-pulse {
@@ -163,13 +162,13 @@
   text-transform: uppercase;
   padding: 1.3em 2em;
   border-radius: 999px;
-  background: var(--volt);
-  color: var(--ink);
+  background: var(--chart);
+  color: var(--court);
   text-decoration: none;
   transition: transform 0.18s var(--e-out), background 0.18s;
 }
 .hero-rally .cta:hover {
-  background: var(--volt-deep);
+  background: var(--chart-deep);
 }
 .hero-rally .cta:active {
   transform: scale(0.965);
@@ -181,7 +180,7 @@
   justify-content: space-between;
   gap: 1rem;
   margin-top: 0.9rem;
-  color: oklch(95.5% 0.017 102 / 0.7);
+  color: rgba(11, 58, 56, 0.7);
   font-size: 9px;
 }
 

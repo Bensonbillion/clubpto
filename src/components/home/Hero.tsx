@@ -3,10 +3,8 @@ import gsap from "gsap";
 import heroGridStyle from "@/assets/hero-grid-style.jpg";
 import heroGridPoint from "@/assets/hero-grid-point.jpg";
 import heroSocial from "@/assets/hero-s2-social.jpg";
+import { courtsideII, weeklyMeets, isCourtsideUpcoming } from "@/lib/constants";
 import "./heroRally.css";
-
-const TICKETS_URL =
-  "https://www.eventbrite.ca/e/courtside-social-ii-the-clubhouse-experience-by-clubpto-tickets-1992069417252?aff=ptosite";
 
 const Hero = () => {
   const sectionRef = useRef<HTMLElement>(null);
@@ -59,9 +57,15 @@ const Hero = () => {
         <p className="eyebrow mono">
           <span className="dot" /> A Padel Social Club in Toronto
         </p>
-        <a className="cta" href={TICKETS_URL} target="_blank" rel="noopener noreferrer">
-          Courtside II · Jul 18 · Tickets ↗
-        </a>
+        {isCourtsideUpcoming() ? (
+          <a className="cta" href={courtsideII.ticketsUrl} target="_blank" rel="noopener noreferrer">
+            Courtside II · {courtsideII.dateLabel} · Tickets ↗
+          </a>
+        ) : (
+          <a className="cta" href={weeklyMeets.bookingUrl} target="_blank" rel="noopener noreferrer">
+            Book a weekly spot ↗
+          </a>
+        )}
         <div className="meta mono">
           <span>The Pad · 309 Cherry St</span>
           <span>Wed + Sun weekly</span>
