@@ -31,7 +31,8 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      {/* basename follows Vite's base so subpath deploys (e.g. GitHub Pages) work; "/" locally */}
+      <BrowserRouter basename={import.meta.env.BASE_URL}>
         <Routes>
           {/* Public routes — wrapped with Header + Footer + Lenis */}
           <Route element={<PublicLayout />}>
