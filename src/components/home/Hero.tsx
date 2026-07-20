@@ -67,7 +67,7 @@ const Hero = () => {
           </a>
         )}
         <div className="meta mono">
-          <span>The Pad · 309 Cherry St</span>
+          <span>Toronto</span>
           <span>Wed + Sun weekly</span>
         </div>
       </div>
