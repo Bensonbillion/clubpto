@@ -13,7 +13,7 @@ const FinalCTA = () => (
       <h2 className="rly-display rly-final__title">
         Your game
         <br />
-        starts here<i>.</i>
+        starts <span className="rly-script">here.</span>
       </h2>
       <div className="rly-final__pills">
         {isCourtsideUpcoming() ? (
@@ -32,7 +32,7 @@ const FinalCTA = () => (
               target="_blank"
               rel="noopener noreferrer"
             >
-              Book a weekly spot ↗
+              Book a session ↗
             </a>
           </>
         ) : (
@@ -43,7 +43,7 @@ const FinalCTA = () => (
               target="_blank"
               rel="noopener noreferrer"
             >
-              Book a weekly spot ↗
+              Book a session ↗
             </a>
             <a
               className="rly-pill rly-pill--ghost"

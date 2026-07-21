@@ -1,33 +1,37 @@
 /*
-  Club PTO hero: the hero-c collage-poster layout (Claude Design winner,
-  July 2026) re-grounded in the real brand: warm linen paper, deep teal
-  type, chartreuse ball accent. Tokens scoped to .hero-rally.
+  Club PTO hero: the hero-c collage-poster layout on the Brand Book v2
+  night system. Forest ground, cream Bricolage statement, Yellowtail
+  script landing last in lime, VT323 facts. Tokens scoped to .hero-rally.
 */
 .hero-rally {
-  --court: #0b3a38;
-  --paper: #f0e6d3;
-  --chart: #b8b539;
-  --chart-deep: #9c9a2c;
-  --sky: #7ba6c9;
-  --f-display: "Anton", sans-serif;
-  --f-body: "Archivo", system-ui, sans-serif;
-  --f-mono: "Space Mono", ui-monospace, monospace;
-  --e-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --night: #0a1810;
+  --deep: #0e2418;
+  --cream: #f4ede0;
+  --muted: #b5ae9e;
+  --lime: #d9e270;
+  --lime-bright: #e8f088;
+  --sage: #9faf9b;
+  --clay: #7b5136;
+  --f-display: "Bricolage Grotesque", system-ui, sans-serif;
+  --f-body: "DM Sans", system-ui, sans-serif;
+  --f-mono: "VT323", ui-monospace, monospace;
+  --f-script: "Yellowtail", cursive;
+  --e-out: cubic-bezier(0.22, 1, 0.36, 1);
 
   position: relative;
   display: flex;
   flex-direction: column;
   min-height: 100svh;
   overflow: clip;
-  background: var(--paper);
-  color: var(--court);
+  background: var(--night);
+  color: var(--cream);
   font-family: var(--f-body);
   -webkit-font-smoothing: antialiased;
   /* clearance for the fixed site header */
   padding-top: 4rem;
 }
 
-/* linen grain overlay */
+/* grain overlay */
 .hero-rally::after {
   content: "";
   position: absolute;
@@ -56,21 +60,26 @@
   top: 1.4rem;
   z-index: 1;
   font-family: var(--f-display);
-  font-weight: 400;
+  font-weight: 800;
   text-transform: uppercase;
-  line-height: 0.88;
-  font-size: clamp(4.8rem, 21vw, 9.5rem);
-  color: var(--court);
+  line-height: 0.9;
+  letter-spacing: -0.01em;
+  font-size: clamp(4.4rem, 19vw, 9rem);
+  color: var(--cream);
 }
-.hero-rally .type i {
-  color: var(--chart);
-  font-style: normal;
+.hero-rally .type .script {
+  font-family: var(--f-script);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.95em;
+  color: var(--lime);
 }
 
 .hero-rally .frame {
   position: absolute;
   margin: 0;
-  border: 1px solid rgba(11, 58, 56, 0.35);
+  border: 1px solid rgba(244, 237, 224, 0.28);
 }
 .hero-rally .frame img {
   width: 100%;
@@ -85,7 +94,7 @@
   width: clamp(210px, 59vw, 250px);
   height: clamp(250px, 69vw, 290px);
   transform: rotate(4deg);
-  box-shadow: 12px 12px 0 var(--sky);
+  box-shadow: 12px 12px 0 var(--clay);
 }
 .hero-rally .f2 {
   left: -0.9rem;
@@ -94,7 +103,7 @@
   width: clamp(185px, 51vw, 220px);
   height: clamp(220px, 62vw, 265px);
   transform: rotate(-5deg);
-  box-shadow: 10px 10px 0 var(--chart);
+  box-shadow: 10px 10px 0 var(--lime);
 }
 .hero-rally .f3 {
   right: 0.6rem;
@@ -103,7 +112,7 @@
   width: clamp(170px, 47vw, 205px);
   height: clamp(200px, 55vw, 240px);
   transform: rotate(2.5deg);
-  box-shadow: 10px 10px 0 var(--court);
+  box-shadow: 10px 10px 0 var(--sage);
 }
 
 .hero-rally .stamp {
@@ -112,14 +121,13 @@
   top: 24.4rem;
   z-index: 5;
   font-family: var(--f-mono);
-  font-weight: 700;
-  font-size: 9px;
-  letter-spacing: 0.12em;
+  font-size: 13px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  border: 2px solid var(--court);
-  color: var(--court);
-  background: var(--chart);
-  padding: 0.6em 0.9em;
+  border: 2px solid var(--night);
+  color: var(--night);
+  background: var(--lime);
+  padding: 0.5em 0.8em;
   transform: rotate(-7deg);
   text-align: center;
 }
@@ -134,19 +142,20 @@
   display: flex;
   align-items: center;
   gap: 0.8em;
-  color: var(--court);
+  color: var(--cream);
   margin-bottom: 0.9rem;
-  font-size: 10px;
-  /* paper chip so it stays readable when the collage runs behind the foot */
-  background: rgba(240, 230, 211, 0.92);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  /* forest chip so it stays readable when the collage runs behind the foot */
+  background: rgba(14, 36, 24, 0.92);
   width: fit-content;
-  padding: 0.5em 0.8em;
+  padding: 0.45em 0.8em;
 }
 .hero-rally .eyebrow .dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--chart-deep);
+  background: var(--lime);
   animation: hero-rally-pulse 1.6s ease-in-out infinite;
 }
 @keyframes hero-rally-pulse {
@@ -156,23 +165,24 @@
   }
 }
 
+/* square lime button, VT323 caps, glow on hover (book rules) */
 .hero-rally .cta {
   display: flex;
   justify-content: center;
   font-family: var(--f-mono);
-  font-weight: 700;
-  font-size: 12px;
+  font-size: 17px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  padding: 1.3em 2em;
-  border-radius: 999px;
-  background: var(--chart);
-  color: var(--court);
+  padding: 0.9em 1.8em;
+  border-radius: 0;
+  background: var(--lime);
+  color: var(--night);
   text-decoration: none;
-  transition: transform 0.18s var(--e-out), background 0.18s;
+  transition: transform 0.18s var(--e-out), background 0.18s, box-shadow 0.18s;
 }
 .hero-rally .cta:hover {
-  background: var(--chart-deep);
+  background: var(--lime-bright);
+  box-shadow: 0 0 28px rgba(217, 226, 112, 0.5);
 }
 .hero-rally .cta:active {
   transform: scale(0.965);
@@ -184,12 +194,12 @@
   justify-content: space-between;
   gap: 1rem;
   margin-top: 0.9rem;
-  color: var(--court);
-  font-size: 9px;
+  color: var(--cream);
+  font-size: 12px;
 }
 .hero-rally .meta span {
-  background: rgba(240, 230, 211, 0.92);
-  padding: 0.5em 0.7em;
+  background: rgba(14, 36, 24, 0.92);
+  padding: 0.45em 0.7em;
 }
 
 /* mid-size band (large phones / small tablets): keep the collage from
@@ -199,7 +209,7 @@
     min-height: 48rem;
   }
   .hero-rally .type {
-    font-size: 6rem;
+    font-size: 5.6rem;
   }
   .hero-rally .f2 {
     top: 24rem;
@@ -223,7 +233,7 @@
     left: 5vw;
     top: 50%;
     transform: translateY(-50%);
-    font-size: clamp(5rem, 10vw, 10rem);
+    font-size: clamp(4.6rem, 9.5vw, 9.5rem);
   }
   .hero-rally .f1 {
     right: 7vw;
@@ -248,7 +258,7 @@
     left: auto;
     right: 24vw;
     top: 24vh;
-    font-size: 11px;
+    font-size: 15px;
   }
   .hero-rally .foot {
     display: grid;

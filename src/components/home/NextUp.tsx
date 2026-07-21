@@ -86,6 +86,7 @@ const NextUp = () => {
             <span>
               <strong>{weeklyMeets.days}</strong>
             </span>
+            <span>Compete Wednesday, unwind Sunday</span>
             <span>{weeklyMeets.city}</span>
           </div>
           <div className="rly-card__cta-row">
@@ -95,7 +96,7 @@ const NextUp = () => {
               target="_blank"
               rel="noopener noreferrer"
             >
-              Book a spot ↗
+              Book a session ↗
             </a>
           </div>
         </motion.article>

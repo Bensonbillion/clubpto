@@ -14,18 +14,18 @@ export default {
     },
     extend: {
       fontFamily: {
-        display: ['Playfair Display', 'Georgia', 'serif'],
+        display: ['Bricolage Grotesque', 'system-ui', 'sans-serif'],
         body: ['DM Sans', 'Inter', 'system-ui', 'sans-serif'],
       },
       colors: {
-        // Club PTO brand (sampled from the FINAL logo files, July 2026)
+        // Club PTO Brand Book v2 palette (July 2026)
         dark: {
-          DEFAULT: '#0B3A38',
-          surface: '#0F4440',
-          elevated: '#155049',
+          DEFAULT: '#0A1810',
+          surface: '#0E2418',
+          elevated: '#173724',
         },
-        cream: '#F0E6D3',
-        gold: '#B8B539',
+        cream: '#F4EDE0',
+        gold: '#D9E270',
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

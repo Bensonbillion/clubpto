@@ -36,7 +36,7 @@ const Hero = () => {
           <br />
           a
           <br />
-          game<i>.</i>
+          <span className="script">game.</span>
         </h1>
         <figure className="frame f1">
           <img src={heroGridStyle} alt="Style in the room at Set 01" />

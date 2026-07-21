@@ -49,8 +49,8 @@
     --radius: 0.25rem;
 
     /* Typography */
-    --font-display: 'Playfair Display', Georgia, serif;
-    --font-body: 'Inter', system-ui, sans-serif;
+    --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
+    --font-body: 'DM Sans', system-ui, sans-serif;
 
     /* Enhanced shadows & glows */
     --glow-primary: 0 0 60px hsl(142 70% 45% / 0.3);
