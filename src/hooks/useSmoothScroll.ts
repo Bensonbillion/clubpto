@@ -11,10 +11,12 @@ export function useSmoothScroll() {
     const isTouch = window.matchMedia("(pointer: coarse)").matches;
     if (isTouch) return;
 
+    // Light smoothing only: long durations read as laggy scroll
     const lenis = new Lenis({
-      duration: 1.2,
+      duration: 0.6,
       easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       smoothWheel: true,
+      wheelMultiplier: 1.4,
     });
 
     lenis.on("scroll", ScrollTrigger.update);
