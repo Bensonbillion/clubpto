@@ -834,4 +834,4 @@ console.log(`  • ${rounds.reduce((a, r) => a + r.length, 0)} playoff games`);
 console.log(`  • Champion: ${champion.player1.name} & ${champion.player2.name}`);
 console.log("");
 
-process.exit(failed > 0 ? 1 : 0);
+(process as any).exit(failed > 0 ? 1 : 0);

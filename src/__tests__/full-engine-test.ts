@@ -3123,4 +3123,4 @@ if (failures.length > 0) {
   failures.forEach(f => console.log(`    [${f.section}] ${f.msg}`));
 }
 
-process.exit(failed > 0 ? 1 : 0);
+(process as any).exit(failed > 0 ? 1 : 0);

@@ -1409,9 +1409,11 @@ export function useGameState(options?: { simulate?: boolean }) {
     const cPairs = allPairs.filter((p) => p.skillLevel === "C");
 
     // ── 3-Court Mode: Create per-court state and return (no schedule yet) ──
-    const courtCount = s.sessionConfig.courtCount || 2;
+    const courtCount: number = s.sessionConfig.courtCount || 2;
     if (courtCount === 3) {
-      // Detect odd players per tier — they become subs for their court
+      // Detect odd players per tier (waitlisted from pairing) — they become subs for their court
+      const waitlistedSet = new Set(pairingResult.waitlistedIds);
+      const unpairedPlayers = activePlayers.filter(p => waitlistedSet.has(p.id));
       const tierSubs: Record<SkillTier, Player | null> = { A: null, B: null, C: null };
       for (const up of unpairedPlayers) {
         tierSubs[up.skillLevel] = up;
