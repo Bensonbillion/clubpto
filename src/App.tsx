@@ -10,6 +10,7 @@ import About from "./pages/About";
 import FAQPage from "./pages/FAQPage";
 import Events from "./pages/Events";
 import Community from "./pages/Community";
+import Partners from "./pages/Partners";
 import Manage from "./pages/Manage";
 import Manage2 from "./pages/Manage2";
 import Install from "./pages/Install";
@@ -44,6 +45,7 @@ const App = () => (
             <Route path="/membership" element={<Navigate to="/" replace />} />
             <Route path="/events" element={<Events />} />
             <Route path="/community" element={<Community />} />
+            <Route path="/partners" element={<Partners />} />
             <Route path="/install" element={<Install />} />
           </Route>
 

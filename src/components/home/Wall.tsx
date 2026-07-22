@@ -11,14 +11,14 @@ import groupPhoto from "@/assets/group-photo.jpg";
 import padelDetail from "@/assets/padel-detail.jpg";
 
 const photos = [
-  { src: gallery1, caption: "Match point" },
-  { src: playersDuo, caption: "Doubles" },
-  { src: courtAction, caption: "Court action" },
-  { src: gallery2, caption: "Rally night" },
-  { src: groupPhoto, caption: "The crew" },
-  { src: gallery3, caption: "Courtside" },
-  { src: padelDetail, caption: "The details" },
-  { src: gallery4, caption: "Golden hour" },
+  gallery1,
+  playersDuo,
+  courtAction,
+  gallery2,
+  groupPhoto,
+  gallery3,
+  padelDetail,
+  gallery4,
 ];
 
 const Wall = () => {
@@ -61,7 +61,7 @@ const Wall = () => {
             <span className="rly-dot" /> The wall
           </p>
           <h2 className="rly-display rly-wall__title">
-            Real nights<i>.</i>
+            Real <span className="rly-script">nights.</span>
           </h2>
         </div>
         <span className="rly-wall__hint">Drag to explore →</span>
@@ -76,10 +76,9 @@ const Wall = () => {
         onPointerCancel={endDrag}
         onPointerLeave={endDrag}
       >
-        {photos.map((photo) => (
-          <figure key={photo.caption} className="rly-wall__item">
-            <img src={photo.src} alt={photo.caption} loading="lazy" draggable={false} />
-            <figcaption className="rly-wall__caption">{photo.caption}</figcaption>
+        {photos.map((src) => (
+          <figure key={src} className="rly-wall__item">
+            <img src={src} alt="" loading="lazy" draggable={false} />
           </figure>
         ))}
       </div>

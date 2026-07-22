@@ -15,6 +15,7 @@ export const navItems = [
   { label: "About", href: "/about" },
   { label: "Play", href: "/book" },
   { label: "Community", href: "/community" },
+  { label: "Partners", href: "/partners" },
   { label: "FAQ", href: "/faq" },
 ] as const;
 
