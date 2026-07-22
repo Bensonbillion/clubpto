@@ -788,4 +788,4 @@ log("");
 log(`  RESULT: ${passed} passed, ${failed} failed`);
 log("");
 
-process.exit(failed > 0 ? 1 : 0);
+(process as any).exit(failed > 0 ? 1 : 0);

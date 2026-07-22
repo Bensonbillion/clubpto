@@ -383,4 +383,4 @@ console.log("\n══ TEST 13: A vs C matchup allowed ══");
 console.log("\n" + "═".repeat(60));
 console.log(`OPEN ENGINE TESTS: ${passed} passed, ${failed} failed, ${passed + failed} total`);
 console.log("═".repeat(60));
-process.exit(failed > 0 ? 1 : 0);
+(process as any).exit(failed > 0 ? 1 : 0);

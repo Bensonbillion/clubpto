@@ -249,7 +249,7 @@ const CourtDisplay = ({ gameState, onGoToCheckIn, isAdmin = false }: CourtDispla
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Auto-confirm sub rotation after 30 seconds
-  const subRotationTimers = useRef<Record<number, NodeJS.Timeout>>({});
+  const subRotationTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
   useEffect(() => {
     if (!state.courts) return;
     state.courts.forEach(court => {

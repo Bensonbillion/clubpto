@@ -2,11 +2,14 @@
  * SessionExport for Open Mode — same export pattern but with "PTO OPEN" branding.
  * Single unified standings (no tier grouping).
  */
-import { GameState, Match, PlayoffMatch } from "@/types/courtManager";
+import { Match, PlayoffMatch } from "@/types/courtManager";
+import { OpenGameState } from "@/types/openCourtManager";
 import { Button } from "@/components/ui/button";
 import { Copy, Share2, Check } from "lucide-react";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
+
+type GameState = OpenGameState;
 
 interface SessionExportProps {
   state: GameState;
