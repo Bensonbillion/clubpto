@@ -8,11 +8,11 @@ import Index from "./pages/Index";
 import Book from "./pages/Book";
 import About from "./pages/About";
 import FAQPage from "./pages/FAQPage";
-import Events from "./pages/Events";
 import Community from "./pages/Community";
 import Partners from "./pages/Partners";
 import Manage from "./pages/Manage";
 import Manage2 from "./pages/Manage2";
+import ManageNext from "./pages/ManageNext";
 import Install from "./pages/Install";
 import Leaderboard from "./pages/Leaderboard";
 import Profile from "./pages/Profile";
@@ -45,7 +45,8 @@ const App = () => (
             <Route path="/faq" element={<FAQPage />} />
             {/* Membership is parked for now; keep the URL alive as a redirect */}
             <Route path="/membership" element={<Navigate to="/" replace />} />
-            <Route path="/events" element={<Events />} />
+            {/* Old events page retired; Courtside info lives on the homepage */}
+            <Route path="/events" element={<Navigate to="/" replace />} />
             <Route path="/community" element={<Community />} />
             <Route path="/partners" element={<Partners />} />
             <Route path="/install" element={<Install />} />
@@ -54,6 +55,7 @@ const App = () => (
           {/* Manage route — completely isolated, no public layout */}
           <Route path="/manage" element={<Manage />} />
           <Route path="/manage2" element={<Manage2 />} />
+          <Route path="/manage-next" element={<ManageNext />} />
           <Route path="/manage/simulate" element={<Simulate />} />
           <Route path="/manage/test" element={<EngineTest />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
