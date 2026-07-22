@@ -23,6 +23,8 @@ import SeasonReset from "./pages/admin/SeasonReset";
 import SessionHistory from "./pages/admin/SessionHistory";
 import SessionDetail from "./pages/admin/SessionDetail";
 import Set01Tournament from "./pages/admin/Set01Tournament";
+import Login from "./pages/Login";
+import OAuthConsent from "./pages/OAuthConsent";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -61,6 +63,8 @@ const App = () => (
           <Route path="/admin/reset" element={<SeasonReset />} />
           <Route path="/admin/history" element={<SessionHistory />} />
           <Route path="/admin/history/:id" element={<SessionDetail />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
