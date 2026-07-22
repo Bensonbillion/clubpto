@@ -48,6 +48,12 @@ export interface SessionStoreConfig<T> {
   storage: KeyValueStorage;
   remote: RemoteSync<T> | null;
   defaults: () => T;
+  /**
+   * Upgrade an older-schema state instead of discarding it. Return null only
+   * when the old shape is truly unusable — silent data loss on version bumps
+   * is exactly the "vanished roster" bug class (§13: completed data is sacred).
+   */
+  migrate?: (oldState: unknown, oldVersion: number) => T | null;
   onSyncStatusChange?: (status: SyncStatus) => void;
 }
 
@@ -63,13 +69,19 @@ export function createSessionStore<T>(config: SessionStoreConfig<T>): SessionSto
     }
   };
 
+  const upgrade = (env: Envelope<T> | null): Envelope<T> | null => {
+    if (!env) return null;
+    if (env.schemaVersion === config.schemaVersion) return env;
+    const migrated = config.migrate?.(env.state, env.schemaVersion);
+    if (migrated == null) return null;
+    return { schemaVersion: config.schemaVersion, savedAt: env.savedAt, state: migrated };
+  };
+
   const readLocal = (): Envelope<T> | null => {
     try {
       const raw = config.storage.getItem(config.storageKey);
       if (!raw) return null;
-      const parsed = JSON.parse(raw) as Envelope<T>;
-      if (parsed.schemaVersion !== config.schemaVersion) return null; // stale schema — treat as absent
-      return parsed;
+      return upgrade(JSON.parse(raw) as Envelope<T>);
     } catch {
       return null;
     }
@@ -111,8 +123,8 @@ export function createSessionStore<T>(config: SessionStoreConfig<T>): SessionSto
       }
       if (config.remote) {
         try {
-          const remote = await config.remote.pull();
-          if (remote && remote.schemaVersion === config.schemaVersion) {
+          const remote = upgrade(await config.remote.pull());
+          if (remote) {
             config.storage.setItem(config.storageKey, JSON.stringify(remote));
             latest = remote;
             return { state: remote.state, source: "remote" as const };

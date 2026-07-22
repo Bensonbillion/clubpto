@@ -23,6 +23,7 @@ import { pausedOverlapMs, projectFinish, roundBoundaryDecision, type PauseInterv
 import type { CompletedRRGame } from "../playoffs";
 import { playerStandings, seedWednesdayTop8, sortSeeding, wednesdayBracket } from "../playoffs";
 import { createSessionStore, type SessionStore, type SyncStatus } from "../persistence";
+import { fetchClassicRoster, supabaseRemote } from "../supabase";
 
 // ---------------------------------------------------------------------------
 // Session state (the persisted envelope)
@@ -120,7 +121,33 @@ export const SESSION_TEMPLATES: Record<string, { label: string; note?: string; p
 };
 
 const STORAGE_KEY = "cm_v2_session";
-const SCHEMA_VERSION = 3; // bump when SessionV2 shape changes — old sessions reset
+const SCHEMA_VERSION = 4;
+
+/**
+ * Schema migration — NEVER discard older state on a version bump (the v3 bump
+ * silently dropped the roster; that class of loss is banned). Any recognizable
+ * older SessionV2 shape is upgraded by layering it over fresh defaults.
+ */
+function migrateSession(oldState: unknown, _oldVersion: number): SessionV2 | null {
+  if (typeof oldState !== "object" || oldState === null) return null;
+  const old = oldState as Partial<SessionV2>;
+  if (!Array.isArray(old.players)) return null; // unrecognizable — nothing worth keeping
+  const base = DEFAULTS();
+  return {
+    ...base,
+    ...old,
+    config: { ...base.config, ...(old.config ?? {}) },
+    unpaired: { ...base.unpaired, ...(old.unpaired ?? {}) },
+    players: old.players,
+    pairs: old.pairs ?? [],
+    results: old.results ?? [],
+    voidedGames: old.voidedGames ?? [],
+    gameStarts: old.gameStarts ?? {},
+    paceSamples: old.paceSamples ?? [],
+    pauses: old.pauses ?? [],
+    vipRejected: old.vipRejected ?? [],
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Derived helpers (pure)
@@ -206,6 +233,12 @@ export interface UseSessionV2 {
   toggleCheckIn(playerId: string): void;
   setVipPick(vipId: string, partnerId: string | null): void;
   setFlag(playerId: string, flag: "isVip" | "isCoach", value: boolean): void;
+  /** Edit a player's name or tier (admin, any time — stable IDs never change). */
+  updatePlayer(playerId: string, patch: { name?: string; tier?: Tier }): void;
+  /** Pull the classic manager's shared roster (read-only) into this roster. Returns players added. */
+  importClassicRoster(): Promise<number>;
+  /** Full roster wipe — separate from resetSession, which keeps the roster. */
+  clearRoster(): void;
   updateConfig(patch: Partial<SessionV2Config>): void;
   /** One-tap preset (§14). Key of SESSION_TEMPLATES. Setup phase only. */
   applyTemplate(key: string): void;
@@ -273,8 +306,11 @@ export function useSessionV2(): UseSessionV2 {
       storageKey: STORAGE_KEY,
       schemaVersion: SCHEMA_VERSION,
       storage: window.localStorage,
-      remote: null, // Supabase adapter lands later — NEW row, never legacy game_state
+      // Background mirror on the NEW cm_v3_session row (§13) — the tablet's
+      // localStorage stays the live source of truth.
+      remote: supabaseRemote<SessionV2>(),
       defaults: DEFAULTS,
+      migrate: migrateSession,
       onSyncStatusChange: setSyncStatus,
     });
     storeRef.current = store;
@@ -282,6 +318,14 @@ export function useSessionV2(): UseSessionV2 {
       setSession(state);
       setLoading(false);
     });
+    // Catch-up loop: retry any unsynced write when the wifi comes back.
+    const retry = window.setInterval(() => void store.flush(), 20_000);
+    const onOnline = () => void store.flush();
+    window.addEventListener("online", onOnline);
+    return () => {
+      window.clearInterval(retry);
+      window.removeEventListener("online", onOnline);
+    };
   }, []);
 
   /** Every mutation goes through commit: local write FIRST, then React state. */
@@ -415,8 +459,46 @@ export function useSessionV2(): UseSessionV2 {
   }, [commit]);
 
   const resetSession = useCallback(() => {
-    storeRef.current?.clearLocal();
-    commit(() => DEFAULTS());
+    // End-of-night reset: the ROSTER survives (it's the multi-week asset);
+    // check-ins, pairs, games, and results are tonight's data and clear.
+    commit((s) => ({
+      ...DEFAULTS(),
+      config: s.config,
+      players: s.players.map((p) => ({
+        ...p,
+        checkedIn: false,
+        checkInTime: undefined,
+        vipPartnerId: undefined,
+      })),
+    }));
+  }, [commit]);
+
+  const clearRoster = useCallback(() => {
+    commit((s) => ({ ...s, players: [], pairs: [], unpaired: { A: [], B: [], C: [] } }));
+  }, [commit]);
+
+  const updatePlayer = useCallback((playerId: string, patch: { name?: string; tier?: Tier }) => {
+    commit((s) => ({
+      ...s,
+      players: s.players.map((p) =>
+        p.id === playerId
+          ? { ...p, ...(patch.name?.trim() ? { name: patch.name.trim() } : {}), ...(patch.tier ? { tier: patch.tier } : {}) }
+          : p,
+      ),
+    }));
+  }, [commit]);
+
+  const importClassicRoster = useCallback(async (): Promise<number> => {
+    const imported = await fetchClassicRoster();
+    let added = 0;
+    commit((s) => {
+      const byId = new Set(s.players.map((p) => p.id));
+      const byName = new Set(s.players.map((p) => p.name.toLowerCase()));
+      const fresh = imported.filter((p) => !byId.has(p.id) && !byName.has(p.name.toLowerCase()));
+      added = fresh.length;
+      return { ...s, players: [...s.players, ...fresh] };
+    });
+    return added;
   }, [commit]);
 
   // --- rounds --------------------------------------------------------------
@@ -667,6 +749,9 @@ export function useSessionV2(): UseSessionV2 {
     toggleCheckIn,
     setVipPick,
     setFlag,
+    updatePlayer,
+    importClassicRoster,
+    clearRoster,
     updateConfig,
     applyTemplate,
     setPractice,

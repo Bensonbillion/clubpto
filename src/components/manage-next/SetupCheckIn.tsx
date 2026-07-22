@@ -19,6 +19,7 @@ import {
   FlaskConical,
   Info,
   Lock,
+  Pencil,
   Play,
   Plus,
   Search,
@@ -267,41 +268,128 @@ const AddPlayerRow = ({ s }: { s: UseSessionV2 }) => {
   );
 };
 
-/* ── Check-in row ────────────────────────────────────────────────── */
+/* ── Check-in row (with inline edit — name and tier, any time) ───── */
 
-const CheckInRow = ({ player, s }: { player: Player; s: UseSessionV2 }) => (
-  <div className="flex items-center gap-3 rounded-lg border border-border bg-dark-elevated p-3">
-    <button
-      onClick={() => s.toggleCheckIn(player.id)}
-      aria-pressed={player.checkedIn}
-      className={`flex items-center justify-center gap-2 min-w-[110px] min-h-[52px] rounded-md border-2 font-display text-sm uppercase tracking-wider transition-all active:scale-[0.97] ${
-        player.checkedIn
-          ? "border-gold bg-gold/15 text-gold"
-          : "border-border bg-dark-surface text-muted-foreground hover:border-gold/40"
-      }`}
-    >
-      <Check className={`w-5 h-5 ${player.checkedIn ? "opacity-100" : "opacity-30"}`} />
-      {player.checkedIn ? "In" : "Check in"}
-    </button>
-    <TierBadge tier={player.tier} />
-    <div className="flex-1 min-w-0">
-      <p className="text-cream font-body text-lg leading-tight truncate">{player.name}</p>
-      {(player.isVip || player.isCoach) && (
-        <div className="flex gap-1.5 mt-1">
-          {player.isVip && <Chip>VIP</Chip>}
-          {player.isCoach && <Chip>Coach</Chip>}
+const CheckInRow = ({ player, s }: { player: Player; s: UseSessionV2 }) => {
+  const [editing, setEditing] = useState(false);
+  const [draftName, setDraftName] = useState(player.name);
+
+  const saveEdit = () => {
+    s.updatePlayer(player.id, { name: draftName });
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-3 rounded-lg border-2 border-gold/50 bg-dark-elevated p-3 flex-wrap">
+        <input
+          value={draftName}
+          onChange={(e) => setDraftName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && saveEdit()}
+          autoFocus
+          className="flex-1 min-w-[140px] h-12 px-3 rounded-md border border-border bg-dark-surface text-cream text-lg focus:border-gold focus:outline-none"
+        />
+        <div className="flex gap-1.5">
+          {TIERS.map((tier) => (
+            <button
+              key={tier}
+              onClick={() => s.updatePlayer(player.id, { tier })}
+              className={`w-11 h-11 rounded-md border-2 font-display text-sm transition-all active:scale-95 ${
+                player.tier === tier
+                  ? TIER_BADGE[tier].replace("border-", "border-2 border-")
+                  : "border-border text-muted-foreground hover:border-gold/40"
+              }`}
+            >
+              {tier}
+            </button>
+          ))}
         </div>
-      )}
+        <button
+          onClick={saveEdit}
+          className="h-11 px-4 rounded-md border-2 border-gold bg-gold/15 text-gold text-sm uppercase tracking-wider transition-all active:scale-95"
+        >
+          Done
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-border bg-dark-elevated p-3">
+      <button
+        onClick={() => s.toggleCheckIn(player.id)}
+        aria-pressed={player.checkedIn}
+        className={`flex items-center justify-center gap-2 min-w-[110px] min-h-[52px] rounded-md border-2 font-display text-sm uppercase tracking-wider transition-all active:scale-[0.97] ${
+          player.checkedIn
+            ? "border-gold bg-gold/15 text-gold"
+            : "border-border bg-dark-surface text-muted-foreground hover:border-gold/40"
+        }`}
+      >
+        <Check className={`w-5 h-5 ${player.checkedIn ? "opacity-100" : "opacity-30"}`} />
+        {player.checkedIn ? "In" : "Check in"}
+      </button>
+      <TierBadge tier={player.tier} />
+      <div className="flex-1 min-w-0">
+        <p className="text-cream font-body text-lg leading-tight truncate">{player.name}</p>
+        {(player.isVip || player.isCoach) && (
+          <div className="flex gap-1.5 mt-1">
+            {player.isVip && <Chip>VIP</Chip>}
+            {player.isCoach && <Chip>Coach</Chip>}
+          </div>
+        )}
+      </div>
+      <button
+        onClick={() => {
+          setDraftName(player.name);
+          setEditing(true);
+        }}
+        aria-label={`Edit ${player.name}`}
+        className="w-11 h-11 flex items-center justify-center rounded-md text-muted-foreground hover:text-cream hover:bg-muted/40 transition-colors flex-shrink-0"
+      >
+        <Pencil className="w-4 h-4" />
+      </button>
+      <button
+        onClick={() => s.removePlayer(player.id)}
+        aria-label={`Remove ${player.name}`}
+        className="w-11 h-11 flex items-center justify-center rounded-md text-muted-foreground hover:text-cream hover:bg-muted/40 transition-colors flex-shrink-0"
+      >
+        <Trash2 className="w-5 h-5" />
+      </button>
     </div>
+  );
+};
+
+/* ── Classic roster import (Supabase, read-only source) ──────────── */
+
+const ImportClassicButton = ({ s }: { s: UseSessionV2 }) => {
+  const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [added, setAdded] = useState(0);
+
+  const run = async () => {
+    setState("loading");
+    try {
+      const count = await s.importClassicRoster();
+      setAdded(count);
+      setState("done");
+    } catch {
+      setState("error");
+    }
+  };
+
+  return (
     <button
-      onClick={() => s.removePlayer(player.id)}
-      aria-label={`Remove ${player.name}`}
-      className="w-11 h-11 flex items-center justify-center rounded-md text-muted-foreground hover:text-cream hover:bg-muted/40 transition-colors flex-shrink-0"
+      onClick={run}
+      disabled={state === "loading"}
+      className="h-11 px-4 rounded-md border-2 border-gold/60 text-gold text-sm hover:bg-gold/10 transition-colors disabled:opacity-60 flex items-center gap-2"
     >
-      <Trash2 className="w-5 h-5" />
+      <Users className="w-4 h-4" />
+      {state === "idle" && "Import classic roster"}
+      {state === "loading" && "Importing…"}
+      {state === "done" && (added > 0 ? `Added ${added} players` : "Roster up to date")}
+      {state === "error" && "Import failed — check wifi, tap to retry"}
     </button>
-  </div>
-);
+  );
+};
 
 /* ── VIP picks (admin-only — never player-facing, §18.3) ─────────── */
 
@@ -530,12 +618,15 @@ export default function SetupCheckIn({ s }: { s: UseSessionV2 }) {
       <Section
         title="Roster"
         aside={
-          <button
-            onClick={s.loadDemoRoster}
-            className="h-11 px-4 rounded-md border border-border text-muted-foreground text-sm hover:text-cream hover:border-gold/40 transition-colors"
-          >
-            Load demo roster
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <ImportClassicButton s={s} />
+            <button
+              onClick={s.loadDemoRoster}
+              className="h-11 px-4 rounded-md border border-border text-muted-foreground text-sm hover:text-cream hover:border-gold/40 transition-colors"
+            >
+              Load demo roster
+            </button>
+          </div>
         }
       >
         <AddPlayerRow s={s} />

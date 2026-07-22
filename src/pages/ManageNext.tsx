@@ -119,7 +119,7 @@ const ManageNext = () => {
           </nav>
           <button
             onClick={() => {
-              if (window.confirm("Reset the whole session? Completed data will be cleared from this tablet.")) {
+              if (window.confirm("Reset tonight's session? The roster is kept — check-ins, pairs, games, and results are cleared.")) {
                 s.resetSession();
                 setTab("session");
               }
