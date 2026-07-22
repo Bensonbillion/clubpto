@@ -1,0 +1,624 @@
+// Court Manager v2 — Setup & Check-In (admin-only, pre-session flow).
+// Renders when s.session.phase === "setup". Tablet-first, winner-tap-only
+// software: no score inputs exist anywhere. Tier badges and VIP mechanics are
+// visible HERE because this is an admin screen (§18 — never player-facing).
+
+import { useMemo, useState, type ReactNode } from "react";
+import { SESSION_TEMPLATES, type UseSessionV2 } from "@/court-manager/react/useSessionV2";
+import type { Pair, Player, Tier } from "@/court-manager/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Check,
+  Clock,
+  FlaskConical,
+  Info,
+  Lock,
+  Play,
+  Plus,
+  Search,
+  Trash2,
+  Users,
+} from "lucide-react";
+
+const TIERS: Tier[] = ["A", "B", "C"];
+
+// Tier badge colors: A gold, B silver, C bronze — admin-view styling only (§18.6).
+const TIER_BADGE: Record<Tier, string> = {
+  A: "bg-gold/10 text-gold border-gold/40",
+  B: "bg-slate-400/10 text-slate-300 border-slate-400/40",
+  C: "bg-amber-600/10 text-amber-500 border-amber-600/40",
+};
+
+const NO_PICK = "__none";
+
+/* ── Small shared pieces ─────────────────────────────────────────── */
+
+const TierBadge = ({ tier }: { tier: Tier }) => (
+  <span
+    className={`inline-flex items-center justify-center w-8 h-8 rounded-full border font-display text-sm flex-shrink-0 ${TIER_BADGE[tier]}`}
+  >
+    {tier}
+  </span>
+);
+
+const Chip = ({ children }: { children: ReactNode }) => (
+  <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 rounded-full border border-border bg-muted/40 text-muted-foreground">
+    {children}
+  </span>
+);
+
+const Section = ({
+  title,
+  aside,
+  children,
+}: {
+  title: string;
+  aside?: ReactNode;
+  children: ReactNode;
+}) => (
+  <section className="rounded-lg border border-border bg-dark-surface p-4 md:p-6 space-y-4">
+    <div className="flex items-center justify-between gap-3 flex-wrap">
+      <h2 className="font-display text-xl md:text-2xl text-accent">{title}</h2>
+      {aside}
+    </div>
+    {children}
+  </section>
+);
+
+/* ── Config strip ────────────────────────────────────────────────── */
+
+const TemplatesRow = ({ s }: { s: UseSessionV2 }) => (
+  <div className="space-y-1.5">
+    <span className="block text-xs uppercase tracking-widest text-muted-foreground">
+      Templates
+    </span>
+    <div className="flex flex-wrap gap-2.5">
+      {Object.entries(SESSION_TEMPLATES).map(([key, template]) => (
+        <button
+          key={key}
+          onClick={() => s.applyTemplate(key)}
+          className="min-h-[52px] px-4 py-2 rounded-md border-2 border-border bg-dark-elevated text-left transition-all active:scale-95 hover:border-gold/40"
+        >
+          <span className="block font-display text-base text-cream">{template.label}</span>
+          {template.note && (
+            <span className="block text-[11px] text-muted-foreground mt-0.5 max-w-[280px]">
+              {template.note}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
+const PracticeToggle = ({ s }: { s: UseSessionV2 }) => {
+  const locked = s.session.results.length > 0 || s.session.voidedGames.length > 0;
+  const on = s.session.practice;
+  return (
+    <div className="space-y-1.5">
+      <span className="block text-xs uppercase tracking-widest text-muted-foreground">
+        Practice session
+      </span>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={() => s.setPractice(!on)}
+          aria-pressed={on}
+          disabled={locked}
+          className={`h-12 px-4 rounded-md border-2 flex items-center gap-2 text-xs uppercase tracking-widest transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 ${
+            on
+              ? "border-gold bg-gold/15 text-gold"
+              : "border-border bg-dark-elevated text-muted-foreground hover:border-gold/40"
+          }`}
+        >
+          <FlaskConical className="w-4 h-4" />
+          {on ? "Practice on" : "Practice off"}
+        </button>
+        <p className="text-sm text-muted-foreground max-w-[420px]">
+          {locked ? (
+            <span className="flex items-center gap-1.5">
+              <Lock className="w-3.5 h-3.5 flex-shrink-0" />
+              Locked — the first result has been recorded.
+            </span>
+          ) : (
+            "Results don't count toward leaderboards or multi-week records."
+          )}
+        </p>
+      </div>
+    </div>
+  );
+};
+
+const ConfigStrip = ({ s }: { s: UseSessionV2 }) => (
+  <Section title="Session Setup">
+    <TemplatesRow s={s} />
+
+    <div className="flex flex-wrap items-end gap-6">
+      <label className="space-y-1.5">
+        <span className="block text-xs uppercase tracking-widest text-muted-foreground">
+          Hard stop
+        </span>
+        <span className="flex items-center gap-2">
+          <Clock className="w-5 h-5 text-muted-foreground" />
+          <input
+            type="time"
+            value={s.session.config.hardStopTime}
+            onChange={(e) => s.updateConfig({ hardStopTime: e.target.value })}
+            className="min-h-[48px] rounded-md border border-border bg-dark-elevated px-4 font-mono text-lg text-cream focus:outline-none focus:border-gold/60"
+          />
+        </span>
+      </label>
+
+      <div className="space-y-1.5">
+        <span className="block text-xs uppercase tracking-widest text-muted-foreground">
+          Target rounds
+        </span>
+        <div className="flex gap-2">
+          {[3, 4].map((n) => {
+            const active = s.session.config.targetRounds === n;
+            return (
+              <button
+                key={n}
+                onClick={() => s.updateConfig({ targetRounds: n })}
+                aria-pressed={active}
+                className={`w-14 h-12 rounded-md border-2 font-display text-lg transition-all active:scale-95 ${
+                  active
+                    ? "border-gold bg-gold/15 text-gold"
+                    : "border-border bg-dark-elevated text-muted-foreground hover:border-gold/40"
+                }`}
+              >
+                {n}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <span className="block text-xs uppercase tracking-widest text-muted-foreground">
+          Courts
+        </span>
+        <div className="h-12 px-5 flex items-center rounded-md border border-border bg-dark-elevated text-cream font-display text-lg">
+          2
+          <span className="ml-2 text-xs text-muted-foreground tracking-wide">fixed</span>
+        </div>
+      </div>
+    </div>
+
+    <PracticeToggle s={s} />
+  </Section>
+);
+
+/* ── Add-player row ──────────────────────────────────────────────── */
+
+const AddPlayerRow = ({ s }: { s: UseSessionV2 }) => {
+  const [name, setName] = useState("");
+  const [tier, setTier] = useState<Tier>("B");
+  const [isVip, setIsVip] = useState(false);
+  const [isCoach, setIsCoach] = useState(false);
+
+  const add = () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    s.addPlayer(trimmed, tier, { isVip, isCoach });
+    setName("");
+    setIsVip(false);
+    setIsCoach(false);
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && add()}
+        placeholder="Player name"
+        className="flex-1 min-w-[180px] min-h-[52px] rounded-md border border-border bg-dark-elevated px-4 text-lg text-cream placeholder:text-muted-foreground/60 focus:outline-none focus:border-gold/60"
+      />
+      <div className="flex gap-1.5">
+        {TIERS.map((t) => (
+          <button
+            key={t}
+            onClick={() => setTier(t)}
+            aria-pressed={tier === t}
+            className={`w-12 h-12 rounded-md border-2 font-display text-base transition-all active:scale-95 ${
+              tier === t
+                ? TIER_BADGE[t] + " border-current"
+                : "border-border bg-dark-elevated text-muted-foreground hover:border-gold/40"
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+      {(
+        [
+          ["VIP", isVip, setIsVip],
+          ["Coach", isCoach, setIsCoach],
+        ] as const
+      ).map(([label, on, set]) => (
+        <button
+          key={label}
+          onClick={() => set(!on)}
+          aria-pressed={on}
+          className={`h-12 px-4 rounded-md border-2 text-xs uppercase tracking-widest transition-all active:scale-95 ${
+            on
+              ? "border-gold bg-gold/15 text-gold"
+              : "border-border bg-dark-elevated text-muted-foreground hover:border-gold/40"
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+      <button
+        onClick={add}
+        disabled={!name.trim()}
+        className="h-12 px-5 rounded-md bg-gold text-dark font-display text-base flex items-center gap-2 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gold/90"
+      >
+        <Plus className="w-5 h-5" />
+        Add
+      </button>
+    </div>
+  );
+};
+
+/* ── Check-in row ────────────────────────────────────────────────── */
+
+const CheckInRow = ({ player, s }: { player: Player; s: UseSessionV2 }) => (
+  <div className="flex items-center gap-3 rounded-lg border border-border bg-dark-elevated p-3">
+    <button
+      onClick={() => s.toggleCheckIn(player.id)}
+      aria-pressed={player.checkedIn}
+      className={`flex items-center justify-center gap-2 min-w-[110px] min-h-[52px] rounded-md border-2 font-display text-sm uppercase tracking-wider transition-all active:scale-[0.97] ${
+        player.checkedIn
+          ? "border-gold bg-gold/15 text-gold"
+          : "border-border bg-dark-surface text-muted-foreground hover:border-gold/40"
+      }`}
+    >
+      <Check className={`w-5 h-5 ${player.checkedIn ? "opacity-100" : "opacity-30"}`} />
+      {player.checkedIn ? "In" : "Check in"}
+    </button>
+    <TierBadge tier={player.tier} />
+    <div className="flex-1 min-w-0">
+      <p className="text-cream font-body text-lg leading-tight truncate">{player.name}</p>
+      {(player.isVip || player.isCoach) && (
+        <div className="flex gap-1.5 mt-1">
+          {player.isVip && <Chip>VIP</Chip>}
+          {player.isCoach && <Chip>Coach</Chip>}
+        </div>
+      )}
+    </div>
+    <button
+      onClick={() => s.removePlayer(player.id)}
+      aria-label={`Remove ${player.name}`}
+      className="w-11 h-11 flex items-center justify-center rounded-md text-muted-foreground hover:text-cream hover:bg-muted/40 transition-colors flex-shrink-0"
+    >
+      <Trash2 className="w-5 h-5" />
+    </button>
+  </div>
+);
+
+/* ── VIP picks (admin-only — never player-facing, §18.3) ─────────── */
+
+const VipPicks = ({ s }: { s: UseSessionV2 }) => {
+  const vips = useMemo(
+    () =>
+      s.session.players
+        .filter((p) => p.isVip)
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [s.session.players],
+  );
+
+  if (vips.length === 0) return null;
+
+  return (
+    <Section title="VIP Picks" aside={<Chip>Admin only</Chip>}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {vips.map((vip) => {
+          const candidates = s.session.players
+            .filter((p) => p.tier === vip.tier && p.id !== vip.id)
+            .sort(
+              (a, b) =>
+                Number(b.checkedIn) - Number(a.checkedIn) || a.name.localeCompare(b.name),
+            );
+          return (
+            <div
+              key={vip.id}
+              className="flex items-center gap-3 rounded-lg border border-border bg-dark-elevated p-3"
+            >
+              <TierBadge tier={vip.tier} />
+              <p className="text-cream font-body text-base min-w-0 truncate">{vip.name}</p>
+              <div className="ml-auto w-[200px] flex-shrink-0">
+                <Select
+                  value={vip.vipPartnerId ?? NO_PICK}
+                  onValueChange={(v) => s.setVipPick(vip.id, v === NO_PICK ? null : v)}
+                >
+                  <SelectTrigger className="min-h-[48px] bg-dark-surface border-border text-cream">
+                    <SelectValue placeholder="Partner" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_PICK}>No pick</SelectItem>
+                    {candidates.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                        {c.checkedIn ? "" : " (not checked in)"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {s.session.vipRejected.length > 0 && (
+        <div className="rounded-lg border border-amber-600/30 bg-amber-600/5 p-4 space-y-2">
+          {s.session.vipRejected.map((r) => (
+            <p
+              key={`${r.vipId}-${r.partnerId}`}
+              className="flex items-start gap-2 text-sm text-amber-400/90"
+            >
+              <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
+              <span>
+                {s.playerName(r.vipId)} → {s.playerName(r.partnerId)}: {r.reason}
+              </span>
+            </p>
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+};
+
+/* ── Pairs & waitlist ────────────────────────────────────────────── */
+
+const PairsPanel = ({ s }: { s: UseSessionV2 }) => {
+  const pairsByTier = useMemo(() => {
+    const grouped: Record<Tier, Pair[]> = { A: [], B: [], C: [] };
+    for (const pair of s.session.pairs) grouped[pair.tier].push(pair);
+    return grouped;
+  }, [s.session.pairs]);
+
+  const hasUnpaired = TIERS.some((t) => s.session.unpaired[t].length > 0);
+
+  if (s.session.pairs.length === 0 && !hasUnpaired) return null;
+
+  return (
+    <Section
+      title="Pairs"
+      aside={
+        <span className="text-sm text-muted-foreground">
+          {s.session.pairs.length} pair{s.session.pairs.length === 1 ? "" : "s"}
+        </span>
+      }
+    >
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {TIERS.map((tier) => (
+          <div key={tier} className="space-y-2">
+            <div className="flex items-center gap-2">
+              <TierBadge tier={tier} />
+              <span className="text-xs uppercase tracking-widest text-muted-foreground">
+                Tier {tier}
+              </span>
+            </div>
+            {pairsByTier[tier].length === 0 ? (
+              <p className="text-sm text-muted-foreground/60 px-1">No pairs</p>
+            ) : (
+              pairsByTier[tier].map((pair) => (
+                <div
+                  key={pair.id}
+                  className="flex items-center gap-2 rounded-md border border-border bg-dark-elevated px-4 py-3 min-h-[52px]"
+                >
+                  <span className="text-cream font-body text-base min-w-0 truncate">
+                    {s.pairName(pair.id)}
+                  </span>
+                  {pair.vipLocked && (
+                    <Lock className="w-4 h-4 text-muted-foreground/70 ml-auto flex-shrink-0" />
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        ))}
+      </div>
+
+      {hasUnpaired && (
+        <div className="rounded-lg border border-border bg-dark-elevated p-4 space-y-3">
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">
+            Waitlist / sub candidates
+          </p>
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
+            {TIERS.flatMap((tier) =>
+              s.session.unpaired[tier].map((playerId) => (
+                <span key={playerId} className="flex items-center gap-2">
+                  <TierBadge tier={tier} />
+                  <span className="text-cream/90 font-body">{s.playerName(playerId)}</span>
+                </span>
+              )),
+            )}
+          </div>
+        </div>
+      )}
+    </Section>
+  );
+};
+
+/* ── Balance warnings (§14 — advisory, never blocking) ───────────── */
+
+const BalanceWarnings = ({ s }: { s: UseSessionV2 }) => {
+  const warnings = useMemo(() => {
+    const out: string[] = [];
+    if (s.session.pairs.length === 0) return out;
+
+    const counts: Record<Tier, number> = { A: 0, B: 0, C: 0 };
+    for (const pair of s.session.pairs) counts[pair.tier] += 1;
+
+    for (const tier of TIERS) {
+      const n = counts[tier];
+      if (n > 0 && n < 3) {
+        out.push(
+          `Tier ${tier}: ${n} pair${n === 1 ? "" : "s"} — limited variety, max ${n - 1} game${
+            n - 1 === 1 ? "" : "s"
+          } without repeats`,
+        );
+      }
+    }
+
+    const waitlist = TIERS.flatMap((tier) =>
+      s.session.unpaired[tier].map((playerId) => s.playerName(playerId)),
+    );
+    if (waitlist.length > 0) {
+      out.push(`Sub rotation likely — waitlist: ${waitlist.join(", ")}`);
+    }
+
+    const active = TIERS.map((tier) => counts[tier]).filter((n) => n > 0);
+    if (active.length >= 2 && Math.max(...active) > 2 * Math.min(...active)) {
+      out.push(
+        `Heavy tier imbalance — pairs: A ${counts.A} · B ${counts.B} · C ${counts.C}`,
+      );
+    }
+    return out;
+  }, [s]);
+
+  if (warnings.length === 0) return null;
+
+  return (
+    <div className="rounded-lg border border-amber-600/30 bg-amber-600/5 p-4 space-y-2">
+      <p className="text-xs uppercase tracking-widest text-amber-500/80">
+        Balance notes — advisory only
+      </p>
+      {warnings.map((w) => (
+        <p key={w} className="flex items-start gap-2 text-sm text-amber-400/90">
+          <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
+          <span>{w}</span>
+        </p>
+      ))}
+    </div>
+  );
+};
+
+/* ── Main component ──────────────────────────────────────────────── */
+
+export default function SetupCheckIn({ s }: { s: UseSessionV2 }) {
+  const [search, setSearch] = useState("");
+
+  const sortedPlayers = useMemo(
+    () => [...s.session.players].sort((a, b) => a.name.localeCompare(b.name)),
+    [s.session.players],
+  );
+
+  // Client-side filter keeps a 100+ player door tap-tap-tap (§14).
+  // Alphabetical order is preserved: we filter the already-sorted list.
+  const visiblePlayers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return sortedPlayers;
+    return sortedPlayers.filter((p) => p.name.toLowerCase().includes(q));
+  }, [sortedPlayers, search]);
+
+  const canStart = s.session.pairs.length >= 4;
+
+  return (
+    <div className="space-y-6 animate-fade-up">
+      <ConfigStrip s={s} />
+
+      <Section
+        title="Roster"
+        aside={
+          <button
+            onClick={s.loadDemoRoster}
+            className="h-11 px-4 rounded-md border border-border text-muted-foreground text-sm hover:text-cream hover:border-gold/40 transition-colors"
+          >
+            Load demo roster
+          </button>
+        }
+      >
+        <AddPlayerRow s={s} />
+      </Section>
+
+      <Section
+        title="Check-In"
+        aside={
+          <span className="text-base text-cream">
+            <span className="font-display text-xl text-gold">{s.countSummary.checkedIn}</span>
+            <span className="text-muted-foreground">
+              {" "}
+              of {s.countSummary.total} checked in
+            </span>
+          </span>
+        }
+      >
+        {sortedPlayers.length === 0 ? (
+          <p className="text-muted-foreground text-base py-6 text-center">
+            No players yet — add them above, or load the demo roster.
+          </p>
+        ) : (
+          <>
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search players"
+                aria-label="Search players"
+                className="w-full min-h-[52px] rounded-md border border-border bg-dark-elevated pl-12 pr-4 text-lg text-cream placeholder:text-muted-foreground/60 focus:outline-none focus:border-gold/60"
+              />
+            </div>
+            {visiblePlayers.length === 0 ? (
+              <p className="text-muted-foreground text-base py-6 text-center">
+                No players match “{search.trim()}”.
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+                {visiblePlayers.map((p) => (
+                  <CheckInRow key={p.id} player={p} s={s} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </Section>
+
+      <VipPicks s={s} />
+
+      <button
+        onClick={s.buildPairs}
+        disabled={s.countSummary.checkedIn < 2}
+        className="w-full min-h-[64px] rounded-lg border-2 border-gold/60 text-gold font-display text-lg uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-[0.99] hover:bg-gold/10 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+      >
+        <Users className="w-6 h-6" />
+        Generate Pairs
+      </button>
+
+      <PairsPanel s={s} />
+
+      <BalanceWarnings s={s} />
+
+      <div className="space-y-2 pb-8">
+        <button
+          onClick={s.startSession}
+          disabled={!canStart}
+          className={`w-full min-h-[72px] rounded-lg font-display text-xl uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-[0.99] ${
+            canStart
+              ? "bg-gold text-dark hover:bg-gold/90"
+              : "bg-dark-elevated border border-border text-muted-foreground/60 cursor-not-allowed"
+          }`}
+        >
+          <Play className="w-6 h-6" />
+          Start Session
+        </button>
+        {!canStart && (
+          <p className="text-sm text-muted-foreground text-center">
+            Generate at least 4 pairs to start — {s.session.pairs.length} so far.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}

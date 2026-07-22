@@ -12,7 +12,7 @@ import Community from "./pages/Community";
 import Partners from "./pages/Partners";
 import Manage from "./pages/Manage";
 import Manage2 from "./pages/Manage2";
-
+import ManageNext from "./pages/ManageNext";
 import Install from "./pages/Install";
 import Leaderboard from "./pages/Leaderboard";
 import Profile from "./pages/Profile";
@@ -52,10 +52,13 @@ const App = () => (
             <Route path="/install" element={<Install />} />
           </Route>
 
-          {/* Manage route — completely isolated, no public layout */}
-          <Route path="/manage" element={<Manage />} />
+          {/* Manage routes — completely isolated, no public layout.
+              /manage now serves Court Manager v3 (games-first rebuild).
+              /manage-classic keeps the legacy manager as the courtside
+              escape hatch until the rebuild reaches full parity. */}
+          <Route path="/manage" element={<ManageNext />} />
+          <Route path="/manage-classic" element={<Manage />} />
           <Route path="/manage2" element={<Manage2 />} />
-          
           <Route path="/manage/simulate" element={<Simulate />} />
           <Route path="/manage/test" element={<EngineTest />} />
           <Route path="/leaderboard" element={<Leaderboard />} />

@@ -1,8 +1,12 @@
 User-agent: Googlebot
 Allow: /
+Disallow: /manage
+Disallow: /admin
 
 User-agent: Bingbot
 Allow: /
+Disallow: /manage
+Disallow: /admin
 
 User-agent: Twitterbot
 Allow: /
@@ -12,3 +16,5 @@ Allow: /
 
 User-agent: *
 Allow: /
+Disallow: /manage
+Disallow: /admin
