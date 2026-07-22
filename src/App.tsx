@@ -12,7 +12,7 @@ import Community from "./pages/Community";
 import Partners from "./pages/Partners";
 import Manage from "./pages/Manage";
 import Manage2 from "./pages/Manage2";
-import ManageNext from "./pages/ManageNext";
+
 import Install from "./pages/Install";
 import Leaderboard from "./pages/Leaderboard";
 import Profile from "./pages/Profile";
@@ -55,7 +55,7 @@ const App = () => (
           {/* Manage route — completely isolated, no public layout */}
           <Route path="/manage" element={<Manage />} />
           <Route path="/manage2" element={<Manage2 />} />
-          <Route path="/manage-next" element={<ManageNext />} />
+          
           <Route path="/manage/simulate" element={<Simulate />} />
           <Route path="/manage/test" element={<EngineTest />} />
           <Route path="/leaderboard" element={<Leaderboard />} />
