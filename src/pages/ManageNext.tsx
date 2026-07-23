@@ -14,6 +14,7 @@ import { useSessionV2 } from "@/court-manager/react/useSessionV2";
 import { SessionSetup, CheckIn } from "@/components/manage-next/SetupCheckIn";
 import RoundBoard from "@/components/manage-next/RoundBoard";
 import StandingsPlayoffs from "@/components/manage-next/StandingsPlayoffs";
+import { ManageErrorBoundary } from "@/components/manage-next/ManageErrorBoundary";
 
 const ADMIN_PASSCODE = "9999";
 
@@ -95,7 +96,7 @@ type Tab = (typeof tabs)[number]["id"];
 const LOCKED_TABS: Tab[] = tabs.filter((t) => t.locked).map((t) => t.id);
 const isLocked = (t: Tab) => LOCKED_TABS.includes(t);
 
-const ManageNext = () => {
+const ManageNextInner = () => {
   // Passcode unlocks the admin tabs (Roster, Standings) for this browser
   // session; a refresh re-locks them — the open tabs never lock, so helpers
   // are never blocked, and a curious player who grabs the tablet can't reach
@@ -179,5 +180,13 @@ const ManageNext = () => {
     </div>
   );
 };
+
+// The boundary must sit OUTSIDE the component that calls useSessionV2, so a
+// throw during that component's render is caught instead of white-screening.
+const ManageNext = () => (
+  <ManageErrorBoundary>
+    <ManageNextInner />
+  </ManageErrorBoundary>
+);
 
 export default ManageNext;

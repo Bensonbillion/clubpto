@@ -107,9 +107,21 @@ export function createSessionStore<T>(config: SessionStoreConfig<T>): SessionSto
   return {
     save(state, nowMs) {
       const envelope: Envelope<T> = { schemaVersion: config.schemaVersion, savedAt: nowMs, state };
-      // The write that matters can never be lost to a network blip.
-      config.storage.setItem(config.storageKey, JSON.stringify(envelope));
+      // Keep the in-memory copy FIRST so the remote mirror still has it even if
+      // the local write fails.
       latest = envelope;
+      try {
+        // The write that matters can never be lost to a network blip.
+        config.storage.setItem(config.storageKey, JSON.stringify(envelope));
+      } catch {
+        // Storage blocked (Safari Private Browsing, quota, disabled). This runs
+        // inside a React setState updater — if it threw, the render phase would
+        // blow up and white-screen the live board. Swallow it: flag the error,
+        // fall back to the in-memory + remote copies, never crash.
+        setStatus("error");
+        if (config.remote) void pushLatest();
+        return;
+      }
       // Local-only mode (no remote configured): the local write IS the sync.
       setStatus(config.remote ? "pending" : "synced");
       if (config.remote) void pushLatest();
