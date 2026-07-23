@@ -16,10 +16,14 @@ export interface Player {
   isCoach: boolean;
   checkedIn: boolean;
   checkInTime?: number; // epoch ms
-  // Contact details (admin-only; never shown player-facing). Imported from CSV.
+  /**
+   * Last name — used only to disambiguate duplicate first names at check-in.
+   * NOTE: email/phone are deliberately NOT stored here. Session state syncs to
+   * the game_state Supabase row, which is world-readable (public RLS, no auth),
+   * so contact PII must never live in it. Contacts stay in the source CSV until
+   * the backend has real authentication + a locked-down table.
+   */
   lastName?: string;
-  email?: string;
-  phone?: string;
 }
 
 export interface Pair {

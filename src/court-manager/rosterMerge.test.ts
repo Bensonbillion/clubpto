@@ -12,9 +12,9 @@ const p = (over: Partial<Player> & { name: string }): Player => ({
 });
 
 describe("mergeRoster", () => {
-  it("attaches CSV contacts to a classic first-name-only entry without duplicating", () => {
+  it("attaches a CSV last name to a classic first-name-only entry without duplicating", () => {
     const existing = [p({ id: "classic-benson", name: "Benson", tier: "A" })];
-    const incoming = [p({ id: "csv-1", name: "Benson", lastName: "Billions", email: "b@x.com", phone: "+1416" })];
+    const incoming = [p({ id: "csv-1", name: "Benson", lastName: "Billions" })];
 
     const result = mergeRoster(existing, incoming);
 
@@ -25,8 +25,6 @@ describe("mergeRoster", () => {
       id: "classic-benson", // stable id preserved
       tier: "A", // real tier preserved, not clobbered to B
       lastName: "Billions",
-      email: "b@x.com",
-      phone: "+1416",
     });
   });
 
@@ -56,7 +54,7 @@ describe("mergeRoster", () => {
   });
 
   it("is idempotent — re-importing the same list changes nothing", () => {
-    const roster = [p({ id: "csv-1", name: "Ada", lastName: "Lovelace", email: "ada@x.com" })];
+    const roster = [p({ id: "csv-1", name: "Ada", lastName: "Lovelace" })];
     const again = mergeRoster(roster, [...roster]);
 
     expect(again.players).toHaveLength(1);

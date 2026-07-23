@@ -519,9 +519,10 @@ export function useSessionV2(): UseSessionV2 {
   }, [commit]);
 
   const importCsv = useCallback((csvText: string): { added: number; updated: number } => {
-    // Preferred (display) name = first name, by owner's instruction. Contacts
-    // ride along on the Player (admin-only). New CSV people default to tier B —
-    // the admin assigns real tiers at check-in.
+    // Preferred (display) name = first name. New CSV people default to tier B —
+    // the admin assigns real tiers at check-in. Email/phone are intentionally
+    // dropped: session state syncs to a world-readable Supabase row, so contact
+    // PII must not be persisted here (see Player.lastName note).
     const parsed = parseRosterCsv(csvText);
     const incoming: Player[] = parsed.map((c) => ({
       id: c.sourceKey,
@@ -531,8 +532,6 @@ export function useSessionV2(): UseSessionV2 {
       isCoach: false,
       checkedIn: false,
       lastName: c.lastName ?? undefined,
-      email: c.email ?? undefined,
-      phone: c.phone ?? undefined,
     }));
     const merged = mergeRoster(sessionRef.current.players, incoming);
     commit((s) => ({ ...s, players: mergeRoster(s.players, incoming).players }));

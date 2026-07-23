@@ -23,14 +23,12 @@ function fullKey(first: string, last: string | undefined | null): string {
   return `${norm(first)}|${norm(last)}`;
 }
 
-/** Fill only missing contact fields; never blank out data the existing row already has. */
+/** Fill only a missing last name; never blank out data the existing row already has. */
 function attach(existing: Player, incoming: Player): Player {
   return {
     ...existing,
     name: incoming.name.trim() || existing.name,
     lastName: existing.lastName ?? incoming.lastName,
-    email: existing.email ?? incoming.email,
-    phone: existing.phone ?? incoming.phone,
   };
 }
 
