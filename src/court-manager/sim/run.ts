@@ -7,7 +7,7 @@
 // week without a green run here is a session running on hope.
 
 import type { Pair, RoundGame, Tier } from "../types";
-import { generatePairs, pairLatecomers, publicCountSummary, publicRoster, resolveVipPicks } from "../checkin";
+import { generatePairs, pairLatecomers, publicCountSummary, publicRoster, resolveVipPicks, swapPairMembers } from "../checkin";
 import { generateRoundSchedule, regenerateFromRound } from "../scheduler/rounds";
 import { validateRoundSchedule } from "../scheduler/validate";
 import { addLpfPair, createLpfCourt, nextLpfSlot, removeLpfPair } from "../scheduler/lpf";
@@ -900,6 +900,32 @@ section("Pair generation: within tier, VIP locks preserved, odd players surfaced
   assert(!paired.has("c9"), "players who haven't checked in are never paired");
   const cPaired = ["c2", "c3", "c4"].filter((id) => paired.has(id)).length;
   assert(cPaired === 2 && gen.unpaired.C.length === 2, "remaining odd C player joins the waitlist too");
+}
+
+section("Manual swap: trade two players between pairs, tier-safe, VIP-aware (§5)");
+{
+  const pairs: Pair[] = [
+    { id: "pa", playerIds: ["a1", "a2"], tier: "A", vipLocked: true },
+    { id: "pb", playerIds: ["a3", "a4"], tier: "A" },
+    { id: "pc", playerIds: ["b1", "b2"], tier: "B" },
+  ];
+  // Same-tier swap: a2 and a3 trade pairs.
+  const swapped = swapPairMembers(pairs, "a2", "a3");
+  const pa = swapped.find((p) => p.id === "pa")!;
+  const pb = swapped.find((p) => p.id === "pb")!;
+  assert(pa.playerIds.includes("a1") && pa.playerIds.includes("a3"), "swap moved a3 into pair pa");
+  assert(pb.playerIds.includes("a4") && pb.playerIds.includes("a2"), "swap moved a2 into pair pb");
+  assert(pa.vipLocked === false, "swap clears the VIP lock on a hand-edited pair");
+  assert(pairs.find((p) => p.id === "pa")!.playerIds.join() === "a1,a2", "swap is pure — original pairs untouched");
+  // Cross-tier swap is refused (would break the tier model).
+  assert(swapPairMembers(pairs, "a2", "b1") === pairs, "cross-tier swap is a no-op");
+  // Same-pair / unpaired / same-player are no-ops.
+  assert(swapPairMembers(pairs, "a1", "a2") === pairs, "same-pair swap is a no-op");
+  assert(swapPairMembers(pairs, "a1", "zzz") === pairs, "swap with an unpaired id is a no-op");
+  assert(swapPairMembers(pairs, "a1", "a1") === pairs, "swap of a player with themselves is a no-op");
+  // Every player still appears exactly once after a valid swap (no dupes/drops).
+  const ids = swapped.flatMap((p) => p.playerIds).sort().join(",");
+  assert(ids === "a1,a2,a3,a4,b1,b2", "swap conserves the full player set");
 }
 
 // ---------------------------------------------------------------------------

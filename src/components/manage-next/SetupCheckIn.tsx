@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  ArrowRightLeft,
   Check,
   FlaskConical,
   Info,
@@ -590,15 +591,38 @@ const VipPicks = ({ s }: { s: UseSessionV2 }) => {
 /* ── Pairs & waitlist ────────────────────────────────────────────── */
 
 const PairsPanel = ({ s }: { s: UseSessionV2 }) => {
+  // Manual swap: tap a player to select, tap another in the SAME tier to trade
+  // them between pairs. Setup-only affordance (pairs lock once the game starts).
+  const [swapSel, setSwapSel] = useState<string | null>(null);
+
   const pairsByTier = useMemo(() => {
     const grouped: Record<Tier, Pair[]> = { A: [], B: [], C: [] };
     for (const pair of s.session.pairs) grouped[pair.tier].push(pair);
     return grouped;
   }, [s.session.pairs]);
 
+  const selTier = useMemo(
+    () => (swapSel ? s.session.pairs.find((p) => p.playerIds.includes(swapSel))?.tier ?? null : null),
+    [swapSel, s.session.pairs],
+  );
+
   const hasUnpaired = TIERS.some((t) => s.session.unpaired[t].length > 0);
 
   if (s.session.pairs.length === 0 && !hasUnpaired) return null;
+
+  const pick = (playerId: string, tier: Tier) => {
+    if (swapSel === null) {
+      setSwapSel(playerId);
+      return;
+    }
+    if (swapSel === playerId) {
+      setSwapSel(null); // tapped the same player — deselect
+      return;
+    }
+    if (tier !== selTier) return; // different tier — ignore (kept out of reach visually too)
+    s.swapPlayers(swapSel, playerId);
+    setSwapSel(null);
+  };
 
   return (
     <Section
@@ -609,6 +633,28 @@ const PairsPanel = ({ s }: { s: UseSessionV2 }) => {
         </span>
       }
     >
+      <div className="flex items-center justify-between gap-3 flex-wrap rounded-md border border-border bg-dark-elevated/60 px-3 py-2">
+        <p className="text-sm text-muted-foreground flex items-center gap-2">
+          <ArrowRightLeft className="w-4 h-4 flex-shrink-0" />
+          {swapSel ? (
+            <span className="text-cream">
+              Swapping <span className="text-gold">{s.playerName(swapSel)}</span> — tap another Tier {selTier} player
+              to trade.
+            </span>
+          ) : (
+            "Tap a player, then another in the same tier, to swap them."
+          )}
+        </p>
+        {swapSel && (
+          <button
+            onClick={() => setSwapSel(null)}
+            className="h-9 px-3 rounded-md border border-border text-xs uppercase tracking-wider text-muted-foreground hover:text-cream transition-colors"
+          >
+            Cancel
+          </button>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {TIERS.map((tier) => (
           <div key={tier} className="space-y-2">
@@ -624,11 +670,30 @@ const PairsPanel = ({ s }: { s: UseSessionV2 }) => {
               pairsByTier[tier].map((pair) => (
                 <div
                   key={pair.id}
-                  className="flex items-center gap-2 rounded-md border border-border bg-dark-elevated px-4 py-3 min-h-[52px]"
+                  className="flex items-center gap-1 rounded-md border border-border bg-dark-elevated px-2 py-2 min-h-[52px]"
                 >
-                  <span className="text-cream font-body text-base min-w-0 truncate">
-                    {s.pairName(pair.id)}
-                  </span>
+                  {pair.playerIds.map((pid, i) => {
+                    const selected = swapSel === pid;
+                    const dimmed = swapSel !== null && !selected && selTier !== tier;
+                    return (
+                      <span key={pid} className="flex items-center min-w-0">
+                        <button
+                          onClick={() => pick(pid, tier)}
+                          aria-pressed={selected}
+                          className={`px-2 py-1.5 rounded-md text-base truncate transition-colors active:scale-95 ${
+                            selected
+                              ? "bg-gold/25 text-gold ring-1 ring-gold"
+                              : dimmed
+                                ? "text-muted-foreground/40"
+                                : "text-cream hover:bg-gold/10"
+                          }`}
+                        >
+                          {s.playerName(pid)}
+                        </button>
+                        {i === 0 && <span className="text-muted-foreground text-sm px-0.5">&</span>}
+                      </span>
+                    );
+                  })}
                   {pair.vipLocked && (
                     <Lock className="w-4 h-4 text-muted-foreground/70 ml-auto flex-shrink-0" />
                   )}

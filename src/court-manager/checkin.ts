@@ -170,3 +170,29 @@ export function pairLatecomers(
   }
   return { pairs, leftover };
 }
+
+/**
+ * Manually swap two players between their pairs — the admin's day-of override
+ * ("I want these two together instead"). Both must be paired, in DIFFERENT
+ * pairs, and share the same pair tier, so each pair stays single-tier and the
+ * tier-balanced schedule remains valid. A VIP lock on either touched pair is
+ * cleared, since a hand-edit overrides the VIP's pick. Returns the pairs
+ * unchanged if the swap isn't valid (same player, unpaired, same pair, or a
+ * tier mismatch) — callers can trust it never produces a broken pairing.
+ */
+export function swapPairMembers(pairs: Pair[], idA: string, idB: string): Pair[] {
+  if (idA === idB) return pairs;
+  const pa = pairs.find((p) => p.playerIds.includes(idA));
+  const pb = pairs.find((p) => p.playerIds.includes(idB));
+  if (!pa || !pb || pa.id === pb.id) return pairs;
+  if (pa.tier !== pb.tier) return pairs; // cross-tier swap would break the tier model
+  return pairs.map((p) => {
+    if (p.id === pa.id) {
+      return { ...p, playerIds: p.playerIds.map((id) => (id === idA ? idB : id)) as [string, string], vipLocked: false };
+    }
+    if (p.id === pb.id) {
+      return { ...p, playerIds: p.playerIds.map((id) => (id === idB ? idA : id)) as [string, string], vipLocked: false };
+    }
+    return p;
+  });
+}

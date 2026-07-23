@@ -15,7 +15,7 @@ import type {
   StandingRow,
   Tier,
 } from "../types";
-import { generatePairs, pairLatecomers, publicCountSummary } from "../checkin";
+import { generatePairs, pairLatecomers, publicCountSummary, swapPairMembers } from "../checkin";
 import { parseRosterCsv } from "../rosterCsv";
 import { mergeRoster } from "../rosterMerge";
 import { generateRoundSchedule, regenerateFromRound } from "../scheduler/rounds";
@@ -265,6 +265,8 @@ export interface UseSessionV2 {
   buildPairs(): void;
   /** Re-randomize the pairs (VIP locks stay). Setup phase only. */
   reshufflePairs(): void;
+  /** Hand-swap two players between their pairs (same tier). Setup phase only. */
+  swapPlayers(playerIdA: string, playerIdB: string): void;
   startSession(): void;
   resetSession(): void;
 
@@ -467,6 +469,16 @@ export function useSessionV2(): UseSessionV2 {
       const pairSeed = (s.pairSeed ?? s.config.seed) + 1;
       const gen = generatePairs(s.players, pairSeed);
       return { ...s, pairSeed, pairs: gen.pairs, unpaired: gen.unpaired, vipRejected: gen.vip.rejected };
+    });
+  }, [commit]);
+
+  // Hand-swap two players between their pairs (admin day-of override). Setup
+  // only — the pure function keeps both pairs same-tier and valid, and no-ops
+  // on an invalid pick so the schedule is never left with a broken pairing.
+  const swapPlayers = useCallback((idA: string, idB: string) => {
+    commit((s) => {
+      if (!canMutateSetup(s.phase)) return s;
+      return { ...s, pairs: swapPairMembers(s.pairs, idA, idB) };
     });
   }, [commit]);
 
@@ -894,6 +906,7 @@ export function useSessionV2(): UseSessionV2 {
     setPractice,
     buildPairs,
     reshufflePairs,
+    swapPlayers,
     startSession,
     resetSession,
     courts,
