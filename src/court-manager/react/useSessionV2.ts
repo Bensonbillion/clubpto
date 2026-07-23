@@ -167,6 +167,9 @@ function migrateSession(oldState: unknown, _oldVersion: number): SessionV2 | nul
     paceSamples: old.paceSamples ?? [],
     pauses: old.pauses ?? [],
     vipRejected: old.vipRejected ?? [],
+    // Normalize a playoffs object from an older build that predates undoStack,
+    // so canUndoPlayoff and undoPlayoffWinner never hit an undefined stack.
+    playoffs: old.playoffs ? { ...old.playoffs, undoStack: old.playoffs.undoStack ?? [] } : old.playoffs ?? null,
   };
 }
 
@@ -869,7 +872,10 @@ export function useSessionV2(): UseSessionV2 {
     startPlayoffs,
     recordPlayoffWinner,
     undoPlayoffWinner,
-    canUndoPlayoff: (session.playoffs?.undoStack.length ?? 0) > 0,
+    // Optional-chain undoStack too: a stale playoffs object (loaded from an
+    // older build before undoStack existed) would otherwise throw during render
+    // and white-screen the whole page with no in-UI recovery.
+    canUndoPlayoff: (session.playoffs?.undoStack?.length ?? 0) > 0,
     pairName,
     playerName,
   };

@@ -64,7 +64,11 @@ export function mergeRoster(existing: Player[], incoming: Player[]): RosterMerge
 
   for (const inc of incoming) {
     let idx = players.findIndex((p, i) => !usedIdx.has(i) && p.id === inc.id);
-    if (idx === -1) {
+    // Full-name match ONLY when the incoming player actually has a last name.
+    // Two first-name-only people (e.g. two bare "Tosin") share the key "tosin|",
+    // so an unguarded full-name match would collapse distinct people; blank last
+    // names fall through to the both-sides-unique first-name rule below instead.
+    if (idx === -1 && norm(inc.lastName) !== "") {
       idx = players.findIndex(
         (p, i) => !usedIdx.has(i) && fullKey(p.name, p.lastName) === fullKey(inc.name, inc.lastName),
       );

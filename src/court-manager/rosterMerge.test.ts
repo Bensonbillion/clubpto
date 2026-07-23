@@ -105,6 +105,18 @@ describe("mergeRoster", () => {
     expect(result.added).toBe(1);
   });
 
+  // Two first-name-only people (both blank last names, e.g. two bare "Tosin")
+  // must NOT collapse via the full-name key "tosin|".
+  it("keeps two distinct first-name-only people who share a first name", () => {
+    const incoming = [
+      p({ id: "t1", name: "Tosin" }),
+      p({ id: "t2", name: "Tosin" }),
+    ];
+    const result = mergeRoster([], incoming);
+    expect(result.players).toHaveLength(2);
+    expect(result.added).toBe(2);
+  });
+
   // Finding 3: importing CSV before classic must still keep the classic
   // member's real tier and stable id.
   it("keeps the classic tier and stable id regardless of import order", () => {
