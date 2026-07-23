@@ -478,7 +478,14 @@ const PlayoffMatchCard = ({
   decidedSide?: "a" | "b";
 }) => {
   const decided = decidedSide !== undefined;
-  const stage = match.stage === "final" ? "Final" : match.stage === "semi" ? "Semi-final" : "Playoff";
+  const stage =
+    match.stage === "final"
+      ? "Final"
+      : match.stage === "semi"
+        ? "Semi-final"
+        : match.stage === "quarter"
+          ? "Quarter-final"
+          : "Playoff";
   const teamNames = (team: PlayoffMatch["a"]) => team.ids.map(s.playerName).join(" & ");
 
   const side = (key: "a" | "b") => {

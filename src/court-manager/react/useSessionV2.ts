@@ -764,21 +764,10 @@ export function useSessionV2(): UseSessionV2 {
       const checkedIn = s.players.filter((p) => p.checkedIn);
       const games = rrGames(s);
       const { seeds, notes } = seedWednesdayTop8(checkedIn, s.pairs, games);
-      let matches: PlayoffMatch[];
-      if (seeds.length >= 8) {
-        matches = wednesdayBracket(seeds.slice(0, 8));
-      } else if (seeds.length >= 4) {
-        // Small-session fallback: one final, seeds 1&4 vs 2&3.
-        matches = [{
-          id: "final",
-          stage: "final",
-          court: 1,
-          a: { seedLabel: "1 & 4", ids: [seeds[0].id, seeds[3].id] },
-          b: { seedLabel: "2 & 3", ids: [seeds[1].id, seeds[2].id] },
-        }];
-      } else {
-        return s;
-      }
+      // Standard knockout, pair vs pair: 1v8, 4v5, 2v7, 3v6 → semis → final.
+      // Short fields degrade inside wednesdayBracket; too few eligible → no-op.
+      const matches = wednesdayBracket(seeds, s.pairs);
+      if (matches.length === 0) return s;
       return { ...s, phase: "playoffs", playoffs: { seeds, notes, matches, winners: {}, undoStack: [] } };
     });
   }, [commit]);
@@ -802,11 +791,26 @@ export function useSessionV2(): UseSessionV2 {
       let champion = s.champion;
       let phase = s.phase;
 
+      const winTeam = (m: PlayoffMatch) => (winners[m.id] === "a" ? m.a : m.b);
+
+      // All four quarters in → build the semis. Bracket order is preserved, so
+      // quarters[0..1] are the top half (1v8, 4v5) and [2..3] the bottom half
+      // (2v7, 3v6): their winners meet on each side, keeping 1 and 2 apart
+      // until the final.
+      const quarters = matches.filter((m) => m.stage === "quarter");
+      const allQuartersDone = quarters.length === 4 && quarters.every((m) => winners[m.id]);
+      if (allQuartersDone && !matches.some((m) => m.stage === "semi")) {
+        matches = [
+          ...matches,
+          { id: "semi1", stage: "semi", court: 1, a: winTeam(quarters[0]), b: winTeam(quarters[1]) },
+          { id: "semi2", stage: "semi", court: 2, a: winTeam(quarters[2]), b: winTeam(quarters[3]) },
+        ];
+      }
+
       const semis = matches.filter((m) => m.stage === "semi");
       const bothSemisDone = semis.length === 2 && semis.every((m) => winners[m.id]);
       const finalExists = matches.some((m) => m.stage === "final");
       if (bothSemisDone && !finalExists) {
-        const winTeam = (m: PlayoffMatch) => (winners[m.id] === "a" ? m.a : m.b);
         matches = [
           ...matches,
           { id: "final", stage: "final", court: 1, a: winTeam(semis[0]), b: winTeam(semis[1]) },

@@ -174,18 +174,21 @@ export function seedWednesdayTop8(
   games: CompletedRRGame[],
   minGames: number = PLAYOFF_MIN_GAMES,
 ): WednesdaySeeding {
-  const h2hPairs = buildPairH2h(games);
-  const pairOf = new Map<string, string>();
-  for (const pair of pairs) for (const pid of pair.playerIds) pairOf.set(pid, pair.id);
-  const h2h = (a: string, b: string) => {
-    const pa = pairOf.get(a);
-    const pb = pairOf.get(b);
-    if (!pa || !pb || pa === pb) return 0;
-    return h2hPairs(pa, pb);
-  };
+  // Seeds are PAIRS — the night is played in fixed pairs and padel is doubles,
+  // so the knockout is pair vs pair (seed 1 PLAYS seed 8). Head-to-head is
+  // therefore already at the right granularity.
+  const h2h = buildPairH2h(games);
+  const playerNameOf = new Map(players.map((p) => [p.id, p.name] as const));
+  const labelled = pairStandings(pairs, games).map((r) => {
+    const pair = pairs.find((p) => p.id === r.id);
+    return {
+      ...r,
+      name: pair ? pair.playerIds.map((id) => playerNameOf.get(id) ?? id).join(" & ") : r.id,
+    };
+  });
 
   const notes: string[] = [];
-  const rows = applyFloor(playerStandings(players, pairs, games), minGames, notes);
+  const rows = applyFloor(labelled, minGames, notes);
 
   // Default order: tier priority, each tier sorted by the chain.
   const full = (["A", "B", "C"] as Tier[]).flatMap((t) =>
@@ -236,19 +239,38 @@ export function seedWednesdayTop8(
   return { seeds: full.slice(0, 8), notes };
 }
 
-/** Seeds 1&8 vs 4&5, 2&7 vs 3&6 as doubles teams; semis simultaneous, then the final. */
-export function wednesdayBracket(seeds: StandingRow[]): PlayoffMatch[] {
-  if (seeds.length !== 8) {
-    throw new Error(`Wednesday bracket needs exactly 8 seeded players (got ${seeds.length}).`);
+/**
+ * Standard single-elimination seeding, pair vs pair. With 8 seeds the quarters
+ * are 1v8 and 4v5 (top half) and 2v7 and 3v6 (bottom half), so the winners meet
+ * in the semis and the top two seeds can only collide in the final. Short
+ * fields degrade the standard way: 4-7 seeds → semis (1v4, 2v3); 2-3 → a
+ * straight final; fewer than 2 → no bracket.
+ */
+export function wednesdayBracket(seeds: StandingRow[], pairs: Pair[]): PlayoffMatch[] {
+  // A seed is a pair; the team's ids are that pair's two players so the board
+  // can render real names.
+  const idsOf = (r: StandingRow): string[] =>
+    pairs.find((p) => p.id === r.id)?.playerIds.slice() ?? [r.id];
+  const side = (i: number) => ({ seedLabel: `${i + 1}`, ids: idsOf(seeds[i]) });
+
+  if (seeds.length >= 8) {
+    return [
+      { id: "q1", stage: "quarter", court: 1, a: side(0), b: side(7) }, // 1 v 8
+      { id: "q2", stage: "quarter", court: 2, a: side(3), b: side(4) }, // 4 v 5
+      { id: "q3", stage: "quarter", court: 1, a: side(1), b: side(6) }, // 2 v 7
+      { id: "q4", stage: "quarter", court: 2, a: side(2), b: side(5) }, // 3 v 6
+    ];
   }
-  const team = (i: number, j: number) => ({
-    seedLabel: `${i + 1} & ${j + 1}`,
-    ids: [seeds[i].id, seeds[j].id],
-  });
-  return [
-    { id: "semi1", stage: "semi", court: 1, a: team(0, 7), b: team(3, 4) },
-    { id: "semi2", stage: "semi", court: 2, a: team(1, 6), b: team(2, 5) },
-  ];
+  if (seeds.length >= 4) {
+    return [
+      { id: "semi1", stage: "semi", court: 1, a: side(0), b: side(3) }, // 1 v 4
+      { id: "semi2", stage: "semi", court: 2, a: side(1), b: side(2) }, // 2 v 3
+    ];
+  }
+  if (seeds.length >= 2) {
+    return [{ id: "final", stage: "final", court: 1, a: side(0), b: side(1) }];
+  }
+  return [];
 }
 
 // ---------------------------------------------------------------------------

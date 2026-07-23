@@ -467,15 +467,14 @@ section("Seeding chain: H2H breaks Win% ties and is displayed (§10)");
   assert(sorted[xi].tiebreakApplied === "wins head-to-head", `applied tiebreaker recorded (got "${sorted[xi].tiebreakApplied}")`);
 }
 
-section("Wednesday top-8 player bracket + C-beat-B override (§10)");
+section("Wednesday top-8 PAIR bracket: standard seeding, 1 PLAYS 8 (§10)");
 {
-  // 3 A pairs (6 players) so B fills the last two seeds — the override only
-  // exists when a beaten B player still holds a seed.
+  // 4 pairs per tier; every pair plays 2 games so all clear the eligibility
+  // floor. Seeds are PAIRS (fixed-pair doubles), so the knockout is pair vs pair.
   const players: Player[] = [];
   const pairs: import("../types").Pair[] = [];
-  const tierCounts = { A: 3, B: 4, C: 4 } as const;
   (["A", "B", "C"] as const).forEach((tier) => {
-    for (let i = 1; i <= tierCounts[tier]; i++) {
+    for (let i = 1; i <= 4; i++) {
       const pid = `${tier}${i}`;
       pairs.push({ id: pid, playerIds: [`${pid}a`, `${pid}b`], tier });
       for (const suffix of ["a", "b"]) {
@@ -490,30 +489,42 @@ section("Wednesday top-8 player bracket + C-beat-B override (§10)");
       }
     }
   });
-  // Every seeded pair needs >= 2 games (eligibility floor). B1 is the only
-  // eligible B pair (1-1) → B1's players take seeds 7-8. C1 (2-0, beat B1
-  // head-to-head) takes those spots.
-  const games: CompletedRRGame[] = [
-    { pairIds: ["A1", "A2"], winnerPairId: "A1" },
-    { pairIds: ["A3", "A1"], winnerPairId: "A3" },
-    { pairIds: ["A2", "A3"], winnerPairId: "A2" },
-    { pairIds: ["B1", "B2"], winnerPairId: "B1" },
-    { pairIds: ["C1", "B1"], winnerPairId: "C1" }, // the override game
-    { pairIds: ["C1", "C4"], winnerPairId: "C1" }, // C1 clears the 2-game floor
-    { pairIds: ["C2", "C3"], winnerPairId: "C2" },
-  ];
-  const { seeds, notes } = seedWednesdayTop8(players, pairs, games);
-  assert(seeds.length === 8, "8 seeds selected");
-  assert(seeds.slice(0, 6).every((s) => s.tier === "A"), "all A players seed first");
-  const b1Seeded = seeds.some((s) => s.id.startsWith("B1"));
-  const c1Seeded = seeds.filter((s) => s.id.startsWith("C1")).length;
-  assert(!b1Seeded && c1Seeded === 2, "C1's players (beat B1 head-to-head) take B1's seats");
-  assert(notes.some((n) => n.includes("head-to-head")), "override is disclosed");
+  // Within each tier: 1 beats 2, 3 beats 4, 1 beats 3, 2 beats 4 → 1 is 2-0,
+  // 2 and 3 are 1-1, 4 is 0-2. No cross-tier wins, so no leapfrog here.
+  const games: CompletedRRGame[] = (["A", "B", "C"] as const).flatMap((t) => [
+    { pairIds: [`${t}1`, `${t}2`] as [string, string], winnerPairId: `${t}1` },
+    { pairIds: [`${t}3`, `${t}4`] as [string, string], winnerPairId: `${t}3` },
+    { pairIds: [`${t}1`, `${t}3`] as [string, string], winnerPairId: `${t}1` },
+    { pairIds: [`${t}2`, `${t}4`] as [string, string], winnerPairId: `${t}2` },
+  ]);
 
-  const bracket = wednesdayBracket(seeds);
-  assert(bracket.length === 2, "two simultaneous semis");
-  assert(bracket[0].a.seedLabel === "1 & 8" && bracket[0].b.seedLabel === "4 & 5", "semi 1 is 1&8 vs 4&5");
-  assert(bracket[1].a.seedLabel === "2 & 7" && bracket[1].b.seedLabel === "3 & 6", "semi 2 is 2&7 vs 3&6");
+  const { seeds } = seedWednesdayTop8(players, pairs, games);
+  assert(seeds.length === 8, "8 PAIRS seeded");
+  assert(seeds.every((s) => pairs.some((p) => p.id === s.id)), "each seed is a pair, not a player");
+  assert(seeds.slice(0, 4).every((s) => s.tier === "A"), "all four A pairs seed first");
+  assert(seeds.slice(4, 8).every((s) => s.tier === "B"), "B pairs fill seeds 5-8");
+  assert(seeds[0].name.includes("&"), "seed shows both partners' names");
+
+  const bracket = wednesdayBracket(seeds, pairs);
+  assert(bracket.length === 4, "four quarter-finals");
+  assert(bracket.every((m) => m.stage === "quarter"), "all four are quarter-finals");
+  // Standard seeding: 1v8 and 4v5 in the top half, 2v7 and 3v6 in the bottom.
+  const label = (i: number, side: "a" | "b") => bracket[i][side].seedLabel;
+  assert(label(0, "a") === "1" && label(0, "b") === "8", "quarter 1 is seed 1 vs seed 8");
+  assert(label(1, "a") === "4" && label(1, "b") === "5", "quarter 2 is seed 4 vs seed 5");
+  assert(label(2, "a") === "2" && label(2, "b") === "7", "quarter 3 is seed 2 vs seed 7");
+  assert(label(3, "a") === "3" && label(3, "b") === "6", "quarter 4 is seed 3 vs seed 6");
+  // Seeds 1 and 2 sit in opposite halves, so they can only meet in the final.
+  assert(bracket[0].a.seedLabel === "1" && bracket[2].a.seedLabel === "2", "seeds 1 and 2 are in opposite halves");
+  // A team's ids are the PAIR's two players, so the board renders real names.
+  assert(
+    bracket[0].a.ids.length === 2 && bracket[0].a.ids.join() === pairs.find((p) => p.id === seeds[0].id)!.playerIds.join(),
+    "quarter team carries the pair's two player ids",
+  );
+  // Short field degrades the standard way.
+  assert(wednesdayBracket(seeds.slice(0, 4), pairs).every((m) => m.stage === "semi"), "4 seeds → semis (1v4, 2v3)");
+  assert(wednesdayBracket(seeds.slice(0, 2), pairs)[0].stage === "final", "2 seeds → straight final");
+  assert(wednesdayBracket(seeds.slice(0, 1), pairs).length === 0, "fewer than 2 seeds → no bracket");
 }
 
 section("Playoff leapfrog: a B who beat an A seeds above that A (§11)");
