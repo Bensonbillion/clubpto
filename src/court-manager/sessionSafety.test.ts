@@ -3,7 +3,6 @@ import {
   canAdvanceToNextRound,
   canMutateSetup,
   clearTwoCourtSchedule,
-  resolveSameDayHardStop,
 } from "./sessionSafety";
 
 describe("live-session safety regressions", () => {
@@ -18,13 +17,6 @@ describe("live-session safety regressions", () => {
     expect(canAdvanceToNextRound([[{ id: "r1" }]], 1)).toBe(false);
     expect(canAdvanceToNextRound([[{ id: "r1" }], [{ id: "r2" }]], 1)).toBe(true);
     expect(canAdvanceToNextRound([[{ id: "r1" }], []], 1)).toBe(false);
-  });
-
-  it("keeps a live hard stop on the current day instead of silently moving it to tomorrow", () => {
-    const now = new Date("2026-07-22T22:05:00-04:00").getTime();
-    const resolved = resolveSameDayHardStop("22:00", now);
-    expect(resolved).toBe(new Date("2026-07-22T22:00:00-04:00").getTime());
-    expect(resolveSameDayHardStop("", now)).toBeNull();
   });
 
   it("clears every schedule field while preserving the roster for the next 2-court session", () => {

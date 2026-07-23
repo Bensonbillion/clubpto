@@ -107,12 +107,8 @@ export interface SessionConfig {
   mode: SessionMode;
   /** Venue label, e.g. "mississauga" | "north-york" — keys measured pace history. */
   venue: string;
-  /** The venue-imposed end, epoch ms. Every projection runs against this. */
-  hardStopAt: number;
   /** Assumed avg game duration (ms) until measured data replaces it (section 8). */
   assumedGameMs: number;
-  /** Playoff time budget (ms) included in every projection (~20-25 min). */
-  playoffBudgetMs: number;
   /** Wednesday target rounds (4) — minimum guarantee is targetRounds - 1. */
   targetRounds: number;
   /** How many leading rounds are pure same-tier (2 in the base plan). */
@@ -214,7 +210,7 @@ export interface PlayoffMatch {
 }
 
 // ---------------------------------------------------------------------------
-// Pace engine (section 8)
+// Pace measurement — how long games actually take (no hard-stop deadline)
 // ---------------------------------------------------------------------------
 
 export interface PaceState {
@@ -223,14 +219,4 @@ export interface PaceState {
   assumedGameMs: number;
   /** Below this many samples the assumed value is used. */
   minSamples: number;
-}
-
-export interface PaceProjection {
-  avgGameMs: number;
-  usingMeasured: boolean;
-  projectedFinishAt: number; // epoch ms
-  hardStopAt: number;
-  /** Positive = past the hard stop. */
-  overrunMs: number;
-  fits: boolean;
 }

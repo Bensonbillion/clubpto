@@ -11,7 +11,7 @@ import { generatePairs, publicCountSummary, publicRoster, resolveVipPicks } from
 import { generateRoundSchedule, regenerateFromRound } from "../scheduler/rounds";
 import { validateRoundSchedule } from "../scheduler/validate";
 import { addLpfPair, createLpfCourt, nextLpfSlot, removeLpfPair } from "../scheduler/lpf";
-import { avgGameMs, createPaceState, recordGameDuration, roundBoundaryDecision } from "../pace";
+import { avgGameMs, createPaceState, recordGameDuration } from "../pace";
 import {
   addWsoPair,
   createWsoState,
@@ -291,43 +291,6 @@ section("Pace engine: measured reality replaces assumption (§8)");
   pace = recordGameDuration(pace, t0, t0 + 45 * 60_000);
   pace = recordGameDuration(pace, t0, t0 + 30_000);
   assert(pace.samples.length === before, "insane durations rejected");
-}
-
-section("Decision point: the doc's round-3 scenario (§6, §8)");
-{
-  // 9:20 PM, round 4 = 6 games on 2 courts (3 slots), playoffs ~22 min,
-  // hard stop 10:00 PM. Averaging 9.4 min → projected 10:10 → JUMP.
-  const mkTime = (h: number, min: number) => Date.UTC(2026, 6, 22, h, min); // TZ-independent
-  let pace = createPaceState(9 * 60_000);
-  const t0 = mkTime(1, 0);
-  for (let i = 0; i < 6; i++) pace = recordGameDuration(pace, t0, t0 + 9.4 * 60_000);
-
-  const slow = roundBoundaryDecision({
-    nowMs: mkTime(21, 20),
-    gamesRemaining: 6,
-    courts: 2,
-    hardStopAt: mkTime(22, 0),
-    playoffBudgetMs: 22 * 60_000,
-    pace,
-    nextRoundLabel: "round 4",
-  });
-  assert(slow.recommendation === "jump", `9.4-min pace at 9:20 → recommend jump (got ${slow.recommendation})`);
-  assert(!slow.projection.fits, "projection lands past the hard stop");
-  assert(slow.projection.usingMeasured, "projection uses measured durations, not the assumption");
-
-  // Fast night: 7.5-min games → plays round 4 without thinking.
-  let fastPace = createPaceState(9 * 60_000);
-  for (let i = 0; i < 6; i++) fastPace = recordGameDuration(fastPace, t0, t0 + 7.5 * 60_000);
-  const fast = roundBoundaryDecision({
-    nowMs: mkTime(21, 15),
-    gamesRemaining: 6,
-    courts: 2,
-    hardStopAt: mkTime(22, 0),
-    playoffBudgetMs: 22 * 60_000,
-    pace: fastPace,
-    nextRoundLabel: "round 4",
-  });
-  assert(fast.recommendation === "play", `7.5-min pace at 9:15 → recommend play (got ${fast.recommendation})`);
 }
 
 // ---------------------------------------------------------------------------

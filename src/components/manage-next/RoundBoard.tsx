@@ -11,7 +11,6 @@ import {
   Ban,
   ChevronDown,
   ChevronUp,
-  Clock,
   Pause,
   Play,
   Trophy,
@@ -21,11 +20,6 @@ import {
 
 const fmtClock = (ms: number) =>
   new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-
-const fmtMinutes = (ms: number) => {
-  const m = ms / 60_000;
-  return m >= 10 ? `${Math.round(m)}` : `${Math.round(m * 10) / 10}`;
-};
 
 /* ── tiny sub-components ──────────────────────────────────────────── */
 
@@ -114,31 +108,13 @@ const ConfirmBlock = ({
 
 /* ── projection banner (§8) — information, not alarm ──────────────── */
 
-const ProjectionBanner = ({ s }: { s: UseSessionV2 }) => {
-  const p = s.projection;
+const PaceLine = ({ s }: { s: UseSessionV2 }) => {
+  const p = s.paceInfo;
   if (!p) return null;
-  const tone = p.fits
-    ? "border-accent/50 bg-accent/5 text-foreground"
-    : "border-amber-500/50 bg-amber-500/5 text-foreground";
   return (
-    <div
-      className={`rounded-lg border-l-2 ${tone} border border-border px-4 py-3 text-base flex flex-wrap items-center gap-x-2 gap-y-1`}
-    >
-      <span className="text-muted-foreground">
-        Avg game {fmtMinutes(p.avgGameMs)} min
-        <span className="text-xs ml-1">({p.usingMeasured ? "measured" : "assumed"})</span>
-      </span>
-      <span className="text-muted-foreground">·</span>
-      <span>
-        Projected finish <span className="font-display">{fmtClock(p.projectedFinishAt)}</span>
-      </span>
-      <span className="text-muted-foreground">·</span>
-      <span className="text-muted-foreground">hard stop {fmtClock(p.hardStopAt)}</span>
-      <span className={p.fits ? "text-accent" : "text-amber-400"}>
-        {p.fits
-          ? "— on track, playoffs fit"
-          : `— runs ${fmtMinutes(p.overrunMs)} min past the stop`}
-      </span>
+    <div className="rounded-lg border border-border bg-card px-4 py-2.5 text-sm text-muted-foreground">
+      Averaging {p.avgMinPerGame.toFixed(1)} min/game
+      <span className="text-xs ml-1">({p.usingMeasured ? "measured" : "estimated"})</span>
     </div>
   );
 };
@@ -270,25 +246,31 @@ const CourtCard = ({ view, s }: { view: CourtView; s: UseSessionV2 }) => {
 /* ── decision point (§6) — prominent but calm ─────────────────────── */
 
 const DecisionPanel = ({ s }: { s: UseSessionV2 }) => {
-  // One-tap confirm (§6): PLAY ROUND N commits ~27 irreversible minutes.
-  // First tap arms the choice; the armed slot repeats the projection line.
+  // Manual choice at the round boundary: play the next round or jump to
+  // playoffs. First tap arms; second confirms (guards a fat-finger).
   const [arming, setArming] = useState<"play" | "playoffs" | null>(null);
-  const d = s.decision;
-  if (!d) return null;
   const nextRound = s.session.currentRound + 1;
-  const playIsRecommended = d.recommendation === "play";
+  const pace = s.paceInfo;
+  const message = `Everyone's played ${nextRound - 1} games. Play round ${nextRound}, or jump to playoffs?`;
   const base =
     "flex-1 min-h-[72px] rounded-lg px-6 py-4 font-display text-lg md:text-xl transition-all active:scale-[0.98] touch-manipulation";
   const goldButton = `${base} bg-accent text-accent-foreground hover:bg-accent/90 border-2 border-accent`;
   const quietButton = `${base} border-2 border-border bg-muted text-foreground hover:border-accent/50 hover:bg-accent/10`;
   return (
     <div className="rounded-lg border border-accent/40 bg-dark-elevated/60 p-5 md:p-6 space-y-4 animate-fade-up">
-      <p className="text-xs uppercase tracking-widest text-accent">Decision point</p>
-      <p className="text-base md:text-lg text-foreground">{d.message}</p>
+      <p className="text-xs uppercase tracking-widest text-accent">Round {nextRound - 1} complete</p>
+      <p className="text-base md:text-lg text-foreground">
+        {message}
+        {pace && (
+          <span className="text-muted-foreground text-sm block mt-1">
+            Averaging {pace.avgMinPerGame.toFixed(1)} min/game.
+          </span>
+        )}
+      </p>
       <div className="flex flex-col md:flex-row gap-3">
         {arming === "play" ? (
           <ConfirmBlock
-            message={d.message}
+            message={`Play round ${nextRound}?`}
             onConfirm={() => {
               setArming(null);
               s.playNextRound();
@@ -296,21 +278,13 @@ const DecisionPanel = ({ s }: { s: UseSessionV2 }) => {
             onBack={() => setArming(null)}
           />
         ) : (
-          <button
-            onClick={() => setArming("play")}
-            className={playIsRecommended ? goldButton : quietButton}
-          >
+          <button onClick={() => setArming("play")} className={goldButton}>
             PLAY ROUND {nextRound}
-            {playIsRecommended && (
-              <span className="block text-xs font-body uppercase tracking-widest opacity-70 mt-1">
-                Recommended
-              </span>
-            )}
           </button>
         )}
         {arming === "playoffs" ? (
           <ConfirmBlock
-            message={d.message}
+            message={`Jump to playoffs — everyone at ${nextRound - 1} games?`}
             onConfirm={() => {
               setArming(null);
               s.startPlayoffs();
@@ -318,16 +292,8 @@ const DecisionPanel = ({ s }: { s: UseSessionV2 }) => {
             onBack={() => setArming(null)}
           />
         ) : (
-          <button
-            onClick={() => setArming("playoffs")}
-            className={!playIsRecommended ? goldButton : quietButton}
-          >
+          <button onClick={() => setArming("playoffs")} className={quietButton}>
             JUMP TO PLAYOFFS — everyone at {nextRound - 1} games
-            {!playIsRecommended && (
-              <span className="block text-xs font-body uppercase tracking-widest opacity-70 mt-1">
-                Recommended
-              </span>
-            )}
           </button>
         )}
       </div>
@@ -340,9 +306,7 @@ const DecisionPanel = ({ s }: { s: UseSessionV2 }) => {
 const FinalRoundPanel = ({ s }: { s: UseSessionV2 }) => {
   const [arming, setArming] = useState(false);
   const { targetRounds } = s.session.config;
-  const message =
-    s.decision?.message ??
-    `All ${targetRounds} rounds are in — seed the bracket and start playoffs.`;
+  const message = `All ${targetRounds} rounds are in — seed the bracket and start playoffs.`;
   return (
     <div className="rounded-lg border border-accent/40 bg-dark-elevated/60 p-5 md:p-6 space-y-4 animate-fade-up">
       <p className="text-base text-foreground">
@@ -503,19 +467,6 @@ export default function RoundBoard({ s }: { s: UseSessionV2 }) {
             </span>
           )}
           <SyncPill status={s.syncStatus} />
-          {/* Hard stop is editable mid-session (§5) — projections update instantly */}
-          <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-            <Clock className="w-4 h-4" />
-            <span className="hidden md:inline">Hard stop</span>
-            <input
-              type="time"
-              value={session.config.hardStopTime}
-              onChange={(e) => {
-                if (e.target.value) s.setHardStopLive(e.target.value);
-              }}
-              className="min-h-[44px] rounded-lg border border-border bg-card px-2 text-sm text-foreground [color-scheme:dark] focus:border-accent focus:outline-none touch-manipulation"
-            />
-          </label>
           {!s.isPaused && (
             <button
               onClick={s.pauseSession}
@@ -547,8 +498,8 @@ export default function RoundBoard({ s }: { s: UseSessionV2 }) {
         </div>
       )}
 
-      {/* pace projection — calm, single line */}
-      <ProjectionBanner s={s} />
+      {/* measured pace — informational, no deadline */}
+      <PaceLine s={s} />
 
       {/* schedule disclosures — quiet amber */}
       {s.scheduleWarnings.length > 0 && (
@@ -563,7 +514,7 @@ export default function RoundBoard({ s }: { s: UseSessionV2 }) {
       )}
 
       {/* decision point — before the final round only */}
-      {s.atDecisionPoint && s.decision && <DecisionPanel s={s} />}
+      {s.atDecisionPoint && <DecisionPanel s={s} />}
 
       {/* final round complete — playoffs are the only move (confirm-guarded) */}
       {finalRoundDone && <FinalRoundPanel s={s} />}

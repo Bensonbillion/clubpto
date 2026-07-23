@@ -21,17 +21,12 @@ import { mergeRoster } from "../rosterMerge";
 import { generateRoundSchedule } from "../scheduler/rounds";
 import { validateRoundSchedule } from "../scheduler/validate";
 import { correctResult } from "../edge";
-import { pausedOverlapMs, projectFinish, roundBoundaryDecision, type PauseInterval } from "../pace";
+import { avgGameMs, pausedOverlapMs, type PauseInterval } from "../pace";
 import type { CompletedRRGame } from "../playoffs";
 import { playerStandings, seedWednesdayTop8, sortSeeding, wednesdayBracket } from "../playoffs";
 import { createSessionStore, type SessionStore, type SyncStatus } from "../persistence";
 import { fetchClassicRoster, supabaseRemote } from "../supabase";
-import {
-  canAdvanceToNextRound,
-  canMutateSetup,
-  clearTwoCourtSchedule,
-  resolveSameDayHardStop,
-} from "../sessionSafety";
+import { canAdvanceToNextRound, canMutateSetup, clearTwoCourtSchedule } from "../sessionSafety";
 
 // ---------------------------------------------------------------------------
 // Session state (the persisted envelope)
@@ -43,10 +38,8 @@ export interface SessionV2Config {
   courts: number;
   targetRounds: number;
   sameTierRounds: number;
+  /** Baseline used to estimate game length until real durations are measured. */
   assumedGameMinutes: number;
-  playoffBudgetMinutes: number;
-  /** "HH:MM" 24h — resolved to an epoch hard stop when the session starts. */
-  hardStopTime: string;
   seed: number;
 }
 
@@ -88,7 +81,6 @@ export interface SessionV2 {
   /** Pause intervals (§8) — frozen time is excluded from measured durations. */
   pauses: PauseInterval[];
   sessionStartedAt: number | null;
-  hardStopAt: number | null;
   playoffs: PlayoffsState | null;
   /** Winning players' ids once the final resolves. */
   champion: string[] | null;
@@ -99,8 +91,6 @@ const DEFAULT_CONFIG: SessionV2Config = {
   targetRounds: 4,
   sameTierRounds: 2,
   assumedGameMinutes: 9,
-  playoffBudgetMinutes: 22,
-  hardStopTime: "22:00",
   seed: 1,
 };
 
@@ -120,7 +110,6 @@ const DEFAULTS = (): SessionV2 => ({
   paceSamples: [],
   pauses: [],
   sessionStartedAt: null,
-  hardStopAt: null,
   playoffs: null,
   champion: null,
 });
@@ -129,12 +118,12 @@ const DEFAULTS = (): SessionV2 => ({
 export const SESSION_TEMPLATES: Record<string, { label: string; note?: string; patch: Partial<SessionV2Config> }> = {
   wednesday: {
     label: "Wednesday · Mississauga",
-    patch: { courts: 2, targetRounds: 4, sameTierRounds: 2, assumedGameMinutes: 9, playoffBudgetMinutes: 20, hardStopTime: "22:00" },
+    patch: { courts: 2, targetRounds: 4, sameTierRounds: 2, assumedGameMinutes: 9 },
   },
   sunday: {
     label: "Sunday · North York",
     note: "3-court isolated mode UI is still in build — this preset covers timing only.",
-    patch: { courts: 2, targetRounds: 3, sameTierRounds: 2, assumedGameMinutes: 8, playoffBudgetMinutes: 15, hardStopTime: "20:40" },
+    patch: { courts: 2, targetRounds: 3, sameTierRounds: 2, assumedGameMinutes: 8 },
   },
 };
 
@@ -233,15 +222,6 @@ function courtViews(s: SessionV2): CourtView[] {
   return views;
 }
 
-function gamesRemaining(s: SessionV2): number {
-  const done = settledIds(s);
-  let n = 0;
-  for (let r = s.currentRound; r <= (s.schedule?.rounds.length ?? 0); r++) {
-    n += roundGames(s, r).filter((g) => !done.has(g.id)).length;
-  }
-  return n;
-}
-
 // ---------------------------------------------------------------------------
 // The hook
 // ---------------------------------------------------------------------------
@@ -278,11 +258,10 @@ export interface UseSessionV2 {
   courts: CourtView[];
   countSummary: { checkedIn: number; total: number };
   roundComplete: boolean;
-  /** True only at the boundary before the final round (§6 decision point). */
+  /** True only at the boundary before the final round — a manual play/jump choice. */
   atDecisionPoint: boolean;
-  decision: ReturnType<typeof roundBoundaryDecision> | null;
-  /** Live projection banner (visible from mid-session onward). */
-  projection: ReturnType<typeof projectFinish> | null;
+  /** Measured game pace (informational only — there is no hard-stop deadline). */
+  paceInfo: { avgMinPerGame: number; usingMeasured: boolean } | null;
   scheduleWarnings: string[];
   recordWinner(gameId: string, winnerPairId: string): void;
   correctGame(gameId: string, winnerPairId: string): void;
@@ -293,8 +272,6 @@ export interface UseSessionV2 {
   isPaused: boolean;
   pauseSession(): void;
   resumeSession(): void;
-  /** Hard stop is editable mid-session (§5) — projections update instantly. */
-  setHardStopLive(hhmm: string): void;
 
   // Playoffs
   standings: StandingRow[];
@@ -314,11 +291,6 @@ let idCounter = 0;
 function freshId(prefix: string): string {
   idCounter += 1;
   return `${prefix}-${Date.now().toString(36)}-${idCounter}`;
-}
-
-/** Same-day hard stop; falls back to a 22:00 default if the string is unparseable. */
-function resolveHardStop(hhmm: string, nowMs: number): number {
-  return resolveSameDayHardStop(hhmm, nowMs) ?? resolveSameDayHardStop("22:00", nowMs) ?? nowMs;
 }
 
 export function useSessionV2(): UseSessionV2 {
@@ -464,7 +436,6 @@ export function useSessionV2(): UseSessionV2 {
         schedule,
         currentRound: 1,
         sessionStartedAt: now,
-        hardStopAt: resolveHardStop(s.config.hardStopTime, now),
         results: [],
         voidedGames: [],
         paceSamples: [],
@@ -489,7 +460,6 @@ export function useSessionV2(): UseSessionV2 {
       vipRejected: [],
       unpaired: { A: [], B: [], C: [] },
       sessionStartedAt: null,
-      hardStopAt: null,
       players: s.players.map((p) => ({
         ...p,
         checkedIn: false,
@@ -665,19 +635,6 @@ export function useSessionV2(): UseSessionV2 {
     }));
   }, [commit]);
 
-  const setHardStopLive = useCallback((hhmm: string) => {
-    commit((s) => {
-      // Same-day resolution; a cleared/invalid field keeps the existing stop
-      // rather than snapping to a default or jumping to tomorrow.
-      const resolved = s.sessionStartedAt !== null ? resolveSameDayHardStop(hhmm, Date.now()) : null;
-      return {
-        ...s,
-        config: { ...s.config, hardStopTime: hhmm },
-        hardStopAt: resolved ?? s.hardStopAt,
-      };
-    });
-  }, [commit]);
-
   // --- playoffs ------------------------------------------------------------
 
   const startPlayoffs = useCallback(() => {
@@ -782,29 +739,12 @@ export function useSessionV2(): UseSessionV2 {
     roundComplete &&
     session.currentRound === session.config.targetRounds - 1;
 
-  const decision = useMemo(() => {
-    if (!atDecisionPoint || !session.hardStopAt) return null;
-    return roundBoundaryDecision({
-      nowMs: Date.now(),
-      gamesRemaining: roundGames(session, session.currentRound + 1).length,
-      courts: session.config.courts,
-      hardStopAt: session.hardStopAt,
-      playoffBudgetMs: session.config.playoffBudgetMinutes * 60_000,
-      pace: toPace(session),
-      nextRoundLabel: `round ${session.currentRound + 1}`,
-    });
-  }, [session, atDecisionPoint]);
-
-  const projection = useMemo(() => {
-    if (session.phase !== "rounds" || !session.hardStopAt || session.results.length === 0) return null;
-    return projectFinish({
-      nowMs: Date.now(),
-      gamesRemaining: gamesRemaining(session),
-      courts: session.config.courts,
-      hardStopAt: session.hardStopAt,
-      playoffBudgetMs: session.config.playoffBudgetMinutes * 60_000,
-      pace: toPace(session),
-    });
+  // Measured game pace — shown as plain information (how long games run). No
+  // deadline, no recommendation: the admin decides when to jump to playoffs.
+  const paceInfo = useMemo(() => {
+    if (session.phase !== "rounds" || session.results.length === 0) return null;
+    const { value, usingMeasured } = avgGameMs(toPace(session));
+    return { avgMinPerGame: value / 60_000, usingMeasured };
   }, [session]);
 
   const scheduleWarnings = useMemo(() => {
@@ -857,8 +797,7 @@ export function useSessionV2(): UseSessionV2 {
     countSummary,
     roundComplete,
     atDecisionPoint,
-    decision,
-    projection,
+    paceInfo,
     scheduleWarnings,
     recordWinner,
     correctGame,
@@ -867,7 +806,6 @@ export function useSessionV2(): UseSessionV2 {
     isPaused,
     pauseSession,
     resumeSession,
-    setHardStopLive,
     standings,
     startPlayoffs,
     recordPlayoffWinner,

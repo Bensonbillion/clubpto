@@ -5,7 +5,6 @@
 //   - setup-only actions (START SESSION, GENERATE PAIRS, config, demo roster)
 //     must be inert once a round is under way;
 //   - the board must never advance into a round the scheduler never generated;
-//   - a live hard-stop edit must stay on TODAY, not silently jump to tomorrow;
 //   - clearing the schedule must wipe every derived field but keep the roster.
 
 export type SessionPhaseLike = "setup" | "rounds" | "playoffs" | "done";
@@ -24,23 +23,6 @@ export function canMutateSetup(phase: SessionPhaseLike): boolean {
 export function canAdvanceToNextRound<T>(rounds: T[][] | null | undefined, currentRound: number): boolean {
   const next = rounds?.[currentRound];
   return Array.isArray(next) && next.length > 0;
-}
-
-/**
- * Resolve an "HH:MM" hard stop to an epoch on the SAME calendar day as `now`.
- * Never rolls forward a day — a 22:00 stop entered at 22:05 must read as 22:05-
- * past-the-limit, not "tomorrow, ~24h of slack" (which made projections lie).
- * Returns null for empty/invalid input so the caller can keep the prior value.
- */
-export function resolveSameDayHardStop(hhmm: string, nowMs: number): number | null {
-  const match = /^(\d{1,2}):(\d{2})$/.exec(hhmm.trim());
-  if (!match) return null;
-  const h = Number(match[1]);
-  const m = Number(match[2]);
-  if (h > 23 || m > 59) return null;
-  const d = new Date(nowMs);
-  d.setHours(h, m, 0, 0);
-  return d.getTime();
 }
 
 export interface TwoCourtScheduleFields {

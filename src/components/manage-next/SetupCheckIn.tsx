@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/select";
 import {
   Check,
-  Clock,
   FlaskConical,
   Info,
   Lock,
@@ -148,21 +147,6 @@ const ConfigStrip = ({ s }: { s: UseSessionV2 }) => (
     <TemplatesRow s={s} />
 
     <div className="flex flex-wrap items-end gap-6">
-      <label className="space-y-1.5">
-        <span className="block text-xs uppercase tracking-widest text-muted-foreground">
-          Hard stop
-        </span>
-        <span className="flex items-center gap-2">
-          <Clock className="w-5 h-5 text-muted-foreground" />
-          <input
-            type="time"
-            value={s.session.config.hardStopTime}
-            onChange={(e) => s.updateConfig({ hardStopTime: e.target.value })}
-            className="min-h-[48px] rounded-md border border-border bg-dark-elevated px-4 font-mono text-lg text-cream focus:outline-none focus:border-gold/60"
-          />
-        </span>
-      </label>
-
       <div className="space-y-1.5">
         <span className="block text-xs uppercase tracking-widest text-muted-foreground">
           Target rounds
