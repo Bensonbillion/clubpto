@@ -142,3 +142,31 @@ export function generatePairs(players: Player[], seed = 1): PairGeneration {
 
   return { pairs, vip, unpaired };
 }
+
+/**
+ * Pair the checked-in players who are NOT already in a pair — the mid-session
+ * late arrivals. Existing pairs are left untouched (their identity + game
+ * history must survive). Within-tier only; earliest-arriving first so the
+ * people who've waited longest get slotted in soonest. A single leftover with
+ * no same-tier partner waits (returned in `leftover`).
+ */
+export function pairLatecomers(
+  players: Player[],
+  alreadyPaired: Set<string>,
+): { pairs: Pair[]; leftover: Record<Tier, string[]> } {
+  const pairs: Pair[] = [];
+  const leftover: Record<Tier, string[]> = { A: [], B: [], C: [] };
+  for (const tier of ["A", "B", "C"] as Tier[]) {
+    const pool = players
+      .filter((p) => p.tier === tier && p.checkedIn && !alreadyPaired.has(p.id))
+      .sort((a, b) => (a.checkInTime ?? 0) - (b.checkInTime ?? 0))
+      .map((p) => p.id);
+    while (pool.length >= 2) {
+      const a = pool.shift() as string;
+      const b = pool.shift() as string;
+      pairs.push({ id: pairId(a, b), playerIds: [a, b], tier });
+    }
+    leftover[tier].push(...pool);
+  }
+  return { pairs, leftover };
+}

@@ -15,10 +15,10 @@ import type {
   StandingRow,
   Tier,
 } from "../types";
-import { generatePairs, publicCountSummary } from "../checkin";
+import { generatePairs, pairLatecomers, publicCountSummary } from "../checkin";
 import { parseRosterCsv } from "../rosterCsv";
 import { mergeRoster } from "../rosterMerge";
-import { generateRoundSchedule } from "../scheduler/rounds";
+import { generateRoundSchedule, regenerateFromRound } from "../scheduler/rounds";
 import { validateRoundSchedule } from "../scheduler/validate";
 import { correctResult } from "../edge";
 import { avgGameMs, pausedOverlapMs, type PauseInterval } from "../pace";
@@ -276,6 +276,10 @@ export interface UseSessionV2 {
   recordWinner(gameId: string, winnerPairId: string): void;
   correctGame(gameId: string, winnerPairId: string): void;
   playNextRound(): void;
+  /** Checked-in players who arrived after Start and aren't paired into games yet. */
+  latecomers: Player[];
+  /** Pair the latecomers and slot them into the remaining rounds (join next round). */
+  addLatecomers(): void;
   /** END GAME — ABANDONED (§9): VOID (counts for nobody) or AWARD to a pair. */
   abandonGame(gameId: string, outcome: "void" | "award", awardPairId?: string): void;
   /** Pause (§8): freezes measured time for interruptions. */
@@ -601,6 +605,37 @@ export function useSessionV2(): UseSessionV2 {
     });
   }, [commit]);
 
+  // Slot mid-session latecomers into the session: pair the checked-in players
+  // who aren't in a pair yet, then regenerate the FUTURE rounds (keeping the
+  // current and completed rounds untouched) so the newcomers play the rest of
+  // the night. They join from the next round — earliest-arrived paired first.
+  const addLatecomers = useCallback(() => {
+    commit((s) => {
+      if (s.phase !== "rounds" || !s.schedule) return s;
+      // No future rounds left to add anyone into.
+      if (s.currentRound >= s.config.targetRounds) return s;
+      const alreadyPaired = new Set(s.pairs.flatMap((p) => p.playerIds));
+      const { pairs: newPairs } = pairLatecomers(s.players, alreadyPaired);
+      if (newPairs.length === 0) return s; // nobody to add (or only unpaired singles)
+
+      const allPairs = [...s.pairs, ...newPairs];
+      // Keep rounds 1..currentRound (played / in progress); regenerate the rest.
+      const keep = s.currentRound;
+      const completedRounds = s.schedule.rounds.slice(0, keep);
+      const completedByes: Record<number, string[]> = {};
+      for (const [r, ids] of Object.entries(s.schedule.byes)) {
+        if (Number(r) <= keep) completedByes[Number(r)] = ids;
+      }
+      const schedule = regenerateFromRound(allPairs, completedRounds, completedByes, {
+        rounds: s.config.targetRounds,
+        sameTierRounds: s.config.sameTierRounds,
+        courts: s.config.courts,
+        seed: s.config.seed,
+      });
+      return { ...s, pairs: allPairs, schedule };
+    });
+  }, [commit]);
+
   const correctGame = useCallback((gameId: string, winnerPairId: string) => {
     commit((s) => {
       if (s.playoffs) return s; // corrections after seeding need a re-seed — not silently
@@ -772,6 +807,13 @@ export function useSessionV2(): UseSessionV2 {
     [session.players],
   );
   const isPaused = session.pauses.some((p) => p.end === null);
+  // Checked-in players who joined after the pairs were set and aren't in any
+  // pair yet — the mid-session latecomers waiting to be slotted into games.
+  const latecomers = useMemo(() => {
+    if (session.phase !== "rounds") return [];
+    const paired = new Set(session.pairs.flatMap((p) => p.playerIds));
+    return session.players.filter((p) => p.checkedIn && !paired.has(p.id));
+  }, [session.phase, session.pairs, session.players]);
   const roundComplete = useMemo(
     () => isRoundComplete(session, session.currentRound),
     [session],
@@ -845,6 +887,8 @@ export function useSessionV2(): UseSessionV2 {
     recordWinner,
     correctGame,
     playNextRound,
+    latecomers,
+    addLatecomers,
     abandonGame,
     isPaused,
     pauseSession,

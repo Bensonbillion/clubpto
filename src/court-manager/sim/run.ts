@@ -7,7 +7,7 @@
 // week without a green run here is a session running on hope.
 
 import type { Pair, RoundGame, Tier } from "../types";
-import { generatePairs, publicCountSummary, publicRoster, resolveVipPicks } from "../checkin";
+import { generatePairs, pairLatecomers, publicCountSummary, publicRoster, resolveVipPicks } from "../checkin";
 import { generateRoundSchedule, regenerateFromRound } from "../scheduler/rounds";
 import { validateRoundSchedule } from "../scheduler/validate";
 import { addLpfPair, createLpfCourt, nextLpfSlot, removeLpfPair } from "../scheduler/lpf";
@@ -312,6 +312,60 @@ section("Stress: 60 random Wednesday shapes stay structurally valid");
     }
   }
   assert(allClean, "all 60 random shapes validate clean");
+}
+
+// ---------------------------------------------------------------------------
+section("Late arrivals: pairLatecomers + regenerate future rounds (§11)");
+{
+  // Start: 4A/4B/4C = 12 pairs, 4 rounds. Play round 1, then two B latecomers
+  // + two C latecomers check in. They must pair within tier and appear only in
+  // the regenerated future rounds — existing pairs and round 1 untouched.
+  const pairs = makePairs({ A: 4, B: 4, C: 4 });
+  const config = { rounds: 4, sameTierRounds: 2, courts: 2, seed: 3 };
+  const schedule = generateRoundSchedule(pairs, config);
+
+  const alreadyPaired = new Set(pairs.flatMap((p) => p.playerIds));
+  const latePlayers = [
+    { id: "LB1", name: "LB1", tier: "B" as Tier, isVip: false, isCoach: false, checkedIn: true, checkInTime: 1 },
+    { id: "LB2", name: "LB2", tier: "B" as Tier, isVip: false, isCoach: false, checkedIn: true, checkInTime: 2 },
+    { id: "LC1", name: "LC1", tier: "C" as Tier, isVip: false, isCoach: false, checkedIn: true, checkInTime: 3 },
+    { id: "LC2", name: "LC2", tier: "C" as Tier, isVip: false, isCoach: false, checkedIn: true, checkInTime: 4 },
+    { id: "LA1", name: "LA1", tier: "A" as Tier, isVip: false, isCoach: false, checkedIn: true, checkInTime: 5 },
+  ];
+  const { pairs: newPairs, leftover } = pairLatecomers(latePlayers, alreadyPaired);
+  assert(newPairs.length === 2, `two full late pairs formed (B+B, C+C) — got ${newPairs.length}`);
+  assert(leftover.A.length === 1, "the lone A latecomer waits for a same-tier partner");
+  assert(
+    newPairs.every((p) => {
+      const [a, b] = p.playerIds.map((id) => latePlayers.find((x) => x.id === id));
+      return a && b && a.tier === b.tier;
+    }),
+    "late pairs are within tier",
+  );
+
+  // Regenerate future rounds (keep round 1) with the late pairs added.
+  const allPairs = [...pairs, ...newPairs];
+  const completedByes: Record<number, string[]> = {};
+  for (const [r, ids] of Object.entries(schedule.byes)) if (Number(r) <= 1) completedByes[Number(r)] = ids;
+  const after = regenerateFromRound(allPairs, schedule.rounds.slice(0, 1), completedByes, config);
+
+  assert(
+    JSON.stringify(after.rounds[0]) === JSON.stringify(schedule.rounds[0]),
+    "round 1 (already played) is untouched by the late join",
+  );
+  const lateIds = new Set(newPairs.map((p) => p.id));
+  const lateGames = after.rounds.slice(1).flat().filter((g) => lateIds.has(g.pairIds[0]) || lateIds.has(g.pairIds[1]));
+  assert(lateGames.length > 0, "late pairs are scheduled in the regenerated future rounds");
+  assert(
+    lateGames.every((g) => g.round >= 2),
+    "late pairs never appear in round 1 (they joined after it)",
+  );
+  const violations = validateRoundSchedule(allPairs, after, {
+    maxSpread: 1,
+    spreadExempt: [...lateIds],
+  });
+  violations.forEach((v) => console.error(`  validator: ${v.message}`));
+  assert(violations.length === 0, "late-join schedule validates clean");
 }
 
 // ---------------------------------------------------------------------------

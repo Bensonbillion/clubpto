@@ -14,6 +14,7 @@ import {
   Pause,
   Play,
   Trophy,
+  UserPlus,
 } from "lucide-react";
 
 /* ── formatting helpers ───────────────────────────────────────────── */
@@ -335,6 +336,48 @@ const FinalRoundPanel = ({ s }: { s: UseSessionV2 }) => {
   );
 };
 
+/* ── late arrivals — pair & slot mid-session latecomers into games ─── */
+
+const LatecomerPanel = ({ s }: { s: UseSessionV2 }) => {
+  const late = s.latecomers;
+  if (late.length === 0) return null;
+  const names = late.map((p) => p.name).join(", ");
+  const nextRound = s.session.currentRound + 1;
+  const finalRound = s.session.currentRound >= s.session.config.targetRounds;
+  // Can we pair anyone? A tier needs at least two waiting players.
+  const byTier: Record<string, number> = {};
+  for (const p of late) byTier[p.tier] = (byTier[p.tier] ?? 0) + 1;
+  const canPair = Object.values(byTier).some((n) => n >= 2);
+
+  return (
+    <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 md:p-5 space-y-3">
+      <p className="text-xs uppercase tracking-widest text-amber-400">
+        Late arrivals ({late.length})
+      </p>
+      <p className="text-base text-foreground">
+        Checked in after the start, not in games yet: <span className="text-cream">{names}</span>.
+      </p>
+      {finalRound ? (
+        <p className="text-sm text-muted-foreground">
+          The session is on its final round — they can&apos;t be slotted into more games.
+        </p>
+      ) : canPair ? (
+        <button
+          onClick={s.addLatecomers}
+          className="min-h-[56px] px-6 rounded-lg bg-accent text-accent-foreground border-2 border-accent font-display text-lg hover:bg-accent/90 active:scale-[0.98] transition-all touch-manipulation inline-flex items-center gap-3"
+        >
+          <UserPlus className="w-5 h-5" />
+          Add to the games — join round {nextRound}
+        </button>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Each needs a same-tier partner — check in one more player in their tier (A/B/C) to pair them.
+        </p>
+      )}
+    </div>
+  );
+};
+
 /* ── collapsible game history with flip-result corrections (§9) ───── */
 
 const GameHistory = ({ s }: { s: UseSessionV2 }) => {
@@ -497,6 +540,9 @@ export default function RoundBoard({ s }: { s: UseSessionV2 }) {
           </button>
         </div>
       )}
+
+      {/* late arrivals — pair & slot them into the remaining rounds */}
+      <LatecomerPanel s={s} />
 
       {/* measured pace — informational, no deadline */}
       <PaceLine s={s} />
