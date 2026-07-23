@@ -60,8 +60,8 @@ const StandingsTable = ({ rows }: { rows: StandingRow[] }) => {
   }
 
   return (
-    <div className="rounded-lg border border-border bg-card overflow-hidden">
-      <table className="w-full text-left">
+    <div className="rounded-lg border border-border bg-card overflow-x-auto">
+      <table className="w-full text-left min-w-[560px]">
         <thead>
           <tr className="border-b border-border text-xs uppercase tracking-widest text-muted-foreground">
             <th className="px-4 py-3 w-12 font-normal">#</th>

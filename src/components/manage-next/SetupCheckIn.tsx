@@ -37,6 +37,13 @@ const TIER_BADGE: Record<Tier, string> = {
   C: "bg-amber-600/10 text-amber-500 border-amber-600/40",
 };
 
+// Filled style for the ACTIVE segment of the inline A/B/C tier switcher.
+const TIER_ACTIVE: Record<Tier, string> = {
+  A: "bg-gold/20 text-gold",
+  B: "bg-slate-400/20 text-slate-100",
+  C: "bg-amber-600/25 text-amber-300",
+};
+
 const NO_PICK = "__none";
 
 /* ── Small shared pieces ─────────────────────────────────────────── */
@@ -269,7 +276,29 @@ const AddPlayerRow = ({ s }: { s: UseSessionV2 }) => {
   );
 };
 
-/* ── Check-in row (with inline edit — name and tier, any time) ───── */
+/* ── Inline A/B/C tier switcher — one tap moves a player between tiers ── */
+
+const TierSwitch = ({ player, s }: { player: Player; s: UseSessionV2 }) => (
+  <div className="flex rounded-md border border-border overflow-hidden flex-shrink-0">
+    {TIERS.map((tier) => (
+      <button
+        key={tier}
+        onClick={() => s.updatePlayer(player.id, { tier })}
+        aria-label={`Move ${player.name} to tier ${tier}`}
+        aria-pressed={player.tier === tier}
+        className={`w-9 h-11 font-display text-sm border-r border-border last:border-r-0 transition-colors active:scale-95 ${
+          player.tier === tier
+            ? TIER_ACTIVE[tier]
+            : "text-muted-foreground/50 hover:text-cream hover:bg-muted/30"
+        }`}
+      >
+        {tier}
+      </button>
+    ))}
+  </div>
+);
+
+/* ── Check-in row — compact, one line, iPad-first ────────────────── */
 
 const CheckInRow = ({ player, s }: { player: Player; s: UseSessionV2 }) => {
   const [editing, setEditing] = useState(false);
@@ -282,32 +311,36 @@ const CheckInRow = ({ player, s }: { player: Player; s: UseSessionV2 }) => {
 
   if (editing) {
     return (
-      <div className="flex items-center gap-3 rounded-lg border-2 border-gold/50 bg-dark-elevated p-3 flex-wrap">
+      <div className="flex items-center gap-2 rounded-md border-2 border-gold/50 bg-dark-elevated px-2 py-1.5 flex-wrap">
         <input
           value={draftName}
           onChange={(e) => setDraftName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && saveEdit()}
           autoFocus
-          className="flex-1 min-w-[140px] h-12 px-3 rounded-md border border-border bg-dark-surface text-cream text-lg focus:border-gold focus:outline-none"
+          className="flex-1 min-w-[120px] h-11 px-3 rounded-md border border-border bg-dark-surface text-cream text-base focus:border-gold focus:outline-none"
         />
-        <div className="flex gap-1.5">
-          {TIERS.map((tier) => (
-            <button
-              key={tier}
-              onClick={() => s.updatePlayer(player.id, { tier })}
-              className={`w-11 h-11 rounded-md border-2 font-display text-sm transition-all active:scale-95 ${
-                player.tier === tier
-                  ? TIER_BADGE[tier].replace("border-", "border-2 border-")
-                  : "border-border text-muted-foreground hover:border-gold/40"
-              }`}
-            >
-              {tier}
-            </button>
-          ))}
-        </div>
+        <button
+          onClick={() => s.setFlag(player.id, "isVip", !player.isVip)}
+          className={`h-11 px-3 rounded-md border text-xs uppercase tracking-wider transition-all active:scale-95 ${player.isVip ? "border-gold bg-gold/15 text-gold" : "border-border text-muted-foreground"}`}
+        >
+          VIP
+        </button>
+        <button
+          onClick={() => s.setFlag(player.id, "isCoach", !player.isCoach)}
+          className={`h-11 px-3 rounded-md border text-xs uppercase tracking-wider transition-all active:scale-95 ${player.isCoach ? "border-gold bg-gold/15 text-gold" : "border-border text-muted-foreground"}`}
+        >
+          Coach
+        </button>
+        <button
+          onClick={() => s.removePlayer(player.id)}
+          aria-label={`Remove ${player.name}`}
+          className="w-11 h-11 flex items-center justify-center rounded-md border border-border text-muted-foreground hover:text-red-400 hover:border-red-400/40 transition-colors"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
         <button
           onClick={saveEdit}
-          className="h-11 px-4 rounded-md border-2 border-gold bg-gold/15 text-gold text-sm uppercase tracking-wider transition-all active:scale-95"
+          className="h-11 px-4 rounded-md border-2 border-gold bg-gold/15 text-gold text-xs uppercase tracking-wider transition-all active:scale-95"
         >
           Done
         </button>
@@ -316,50 +349,41 @@ const CheckInRow = ({ player, s }: { player: Player; s: UseSessionV2 }) => {
   }
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border bg-dark-elevated p-3">
+    <div
+      className={`flex items-center gap-2 rounded-md border px-2 py-1.5 transition-colors ${
+        player.checkedIn ? "border-gold/40 bg-gold/[0.06]" : "border-border bg-dark-elevated"
+      }`}
+    >
       <button
         onClick={() => s.toggleCheckIn(player.id)}
         aria-pressed={player.checkedIn}
-        className={`flex items-center justify-center gap-2 min-w-[110px] min-h-[52px] rounded-md border-2 font-display text-sm uppercase tracking-wider transition-all active:scale-[0.97] ${
+        aria-label={player.checkedIn ? `Check out ${player.name}` : `Check in ${player.name}`}
+        className={`flex items-center justify-center w-12 h-11 rounded-md border-2 flex-shrink-0 transition-all active:scale-[0.97] ${
           player.checkedIn
-            ? "border-gold bg-gold/15 text-gold"
+            ? "border-gold bg-gold/20 text-gold"
             : "border-border bg-dark-surface text-muted-foreground hover:border-gold/40"
         }`}
       >
         <Check className={`w-5 h-5 ${player.checkedIn ? "opacity-100" : "opacity-30"}`} />
-        {player.checkedIn ? "In" : "Check in"}
       </button>
-      <TierBadge tier={player.tier} />
-      <div className="flex-1 min-w-0">
-        <p className="text-cream font-body text-lg leading-tight truncate">
+      <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
+        <span className="text-cream font-body text-base leading-tight truncate">
           {player.name}
-          {player.lastName && (
-            <span className="text-muted-foreground font-normal"> {player.lastName}</span>
-          )}
-        </p>
-        {(player.isVip || player.isCoach) && (
-          <div className="flex gap-1.5 mt-1">
-            {player.isVip && <Chip>VIP</Chip>}
-            {player.isCoach && <Chip>Coach</Chip>}
-          </div>
-        )}
+          {player.lastName && <span className="text-muted-foreground font-normal"> {player.lastName}</span>}
+        </span>
+        {player.isVip && <span className="text-[10px] text-gold flex-shrink-0">VIP</span>}
+        {player.isCoach && <span className="text-[10px] text-gold flex-shrink-0">◆</span>}
       </div>
+      <TierSwitch player={player} s={s} />
       <button
         onClick={() => {
           setDraftName(player.name);
           setEditing(true);
         }}
         aria-label={`Edit ${player.name}`}
-        className="w-11 h-11 flex items-center justify-center rounded-md text-muted-foreground hover:text-cream hover:bg-muted/40 transition-colors flex-shrink-0"
+        className="w-9 h-11 flex items-center justify-center rounded-md text-muted-foreground/70 hover:text-cream hover:bg-muted/40 transition-colors flex-shrink-0"
       >
         <Pencil className="w-4 h-4" />
-      </button>
-      <button
-        onClick={() => s.removePlayer(player.id)}
-        aria-label={`Remove ${player.name}`}
-        className="w-11 h-11 flex items-center justify-center rounded-md text-muted-foreground hover:text-cream hover:bg-muted/40 transition-colors flex-shrink-0"
-      >
-        <Trash2 className="w-5 h-5" />
       </button>
     </div>
   );
@@ -640,22 +664,26 @@ const BalanceWarnings = ({ s }: { s: UseSessionV2 }) => {
 
 export default function SetupCheckIn({ s }: { s: UseSessionV2 }) {
   const [search, setSearch] = useState("");
+  // Default to the CHECKED-IN working set so the admin isn't scrolling 400+
+  // names. Searching always spans the whole roster; "All" browses everyone.
+  const [rosterView, setRosterView] = useState<"in" | "all">("in");
 
   const sortedPlayers = useMemo(
     () => [...s.session.players].sort((a, b) => a.name.localeCompare(b.name)),
     [s.session.players],
   );
 
-  // Client-side filter keeps a 400+ player door tap-tap-tap (§14). Search spans
-  // first AND last name so duplicate first names (5 "Tosin"s) stay findable.
-  // Alphabetical order is preserved: we filter the already-sorted list.
+  const q = search.trim().toLowerCase();
+  const searching = q.length > 0;
+
+  // Search spans first AND last name so duplicate first names (5 "Tosin"s)
+  // stay findable. When not searching, show only the current filter's set.
   const visiblePlayers = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return sortedPlayers;
-    return sortedPlayers.filter((p) =>
-      `${p.name} ${p.lastName ?? ""}`.toLowerCase().includes(q),
-    );
-  }, [sortedPlayers, search]);
+    if (searching) {
+      return sortedPlayers.filter((p) => `${p.name} ${p.lastName ?? ""}`.toLowerCase().includes(q));
+    }
+    return rosterView === "in" ? sortedPlayers.filter((p) => p.checkedIn) : sortedPlayers;
+  }, [sortedPlayers, q, searching, rosterView]);
 
   const isSetup = s.session.phase === "setup";
   const canStart = s.session.pairs.length >= 4;
@@ -694,23 +722,44 @@ export default function SetupCheckIn({ s }: { s: UseSessionV2 }) {
           </p>
         ) : (
           <>
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
-              <input
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search players"
-                aria-label="Search players"
-                className="w-full min-h-[52px] rounded-md border border-border bg-dark-elevated pl-12 pr-4 text-lg text-cream placeholder:text-muted-foreground/60 focus:outline-none focus:border-gold/60"
-              />
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search to check anyone in…"
+                  aria-label="Search players"
+                  className="w-full min-h-[48px] rounded-md border border-border bg-dark-elevated pl-11 pr-4 text-base text-cream placeholder:text-muted-foreground/60 focus:outline-none focus:border-gold/60"
+                />
+              </div>
+              {/* Working-set filter — keeps the door low-scroll (§14). Hidden while searching. */}
+              {!searching && (
+                <div className="flex rounded-md border border-border overflow-hidden flex-shrink-0">
+                  <button
+                    onClick={() => setRosterView("in")}
+                    className={`min-h-[48px] px-3 text-sm transition-colors ${rosterView === "in" ? "bg-gold/15 text-gold" : "text-muted-foreground hover:text-cream"}`}
+                  >
+                    In ({s.countSummary.checkedIn})
+                  </button>
+                  <button
+                    onClick={() => setRosterView("all")}
+                    className={`min-h-[48px] px-3 text-sm border-l border-border transition-colors ${rosterView === "all" ? "bg-gold/15 text-gold" : "text-muted-foreground hover:text-cream"}`}
+                  >
+                    All ({s.countSummary.total})
+                  </button>
+                </div>
+              )}
             </div>
             {visiblePlayers.length === 0 ? (
               <p className="text-muted-foreground text-base py-6 text-center">
-                No players match “{search.trim()}”.
+                {searching
+                  ? `No players match “${search.trim()}”.`
+                  : "No one checked in yet — search a name to check them in."}
               </p>
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5">
                 {visiblePlayers.map((p) => (
                   <CheckInRow key={p.id} player={p} s={s} />
                 ))}
