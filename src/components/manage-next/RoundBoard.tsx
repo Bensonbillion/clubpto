@@ -1,10 +1,11 @@
 // Court Manager v2 — RoundBoard: live round play (phase === "rounds").
 // Two courts side by side, winner-tap-only results, calm pace surfaces.
-// Admin-only screen — tier badges allowed, numeric scores never exist (§9).
+// HELPER-FACING screen (no passcode): tier labels are NEVER shown here (§18) —
+// helpers and players only see names. Numeric scores never exist (§9).
 
 import { useMemo, useState } from "react";
 import type { UseSessionV2, CourtView } from "@/court-manager/react/useSessionV2";
-import type { RoundGame, Tier } from "@/court-manager/types";
+import type { RoundGame } from "@/court-manager/types";
 import {
   AlertTriangle,
   ArrowRightLeft,
@@ -23,20 +24,6 @@ const fmtClock = (ms: number) =>
   new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
 /* ── tiny sub-components ──────────────────────────────────────────── */
-
-const TIER_BADGE: Record<Tier, string> = {
-  A: "bg-accent/15 text-accent border-accent/40",
-  B: "bg-zinc-400/15 text-zinc-300 border-zinc-400/40",
-  C: "bg-amber-600/15 text-amber-500 border-amber-600/40",
-};
-
-const TierBadge = ({ tier }: { tier: Tier }) => (
-  <span
-    className={`inline-flex items-center justify-center w-6 h-6 rounded-full border text-xs font-display ${TIER_BADGE[tier]}`}
-  >
-    {tier}
-  </span>
-);
 
 const SyncPill = ({ status }: { status: UseSessionV2["syncStatus"] }) => {
   const view =
@@ -63,17 +50,12 @@ const PairLine = ({
   pairId: string;
   s: UseSessionV2;
   muted?: boolean;
-}) => {
-  const tier = s.session.pairs.find((p) => p.id === pairId)?.tier;
-  return (
-    <span className="inline-flex items-center gap-2">
-      {tier && <TierBadge tier={tier} />}
-      <span className={muted ? "text-muted-foreground" : "text-foreground"}>
-        {s.pairName(pairId)}
-      </span>
-    </span>
-  );
-};
+}) => (
+  // Names only — no tier labels on this helper-facing screen (§18).
+  <span className={muted ? "text-muted-foreground" : "text-foreground"}>
+    {s.pairName(pairId)}
+  </span>
+);
 
 /* ── inline confirm guard (§6) — one tap arms, second tap commits ── */
 
@@ -142,24 +124,18 @@ const CourtCard = ({ view, s }: { view: CourtView; s: UseSessionV2 }) => {
             <p className="text-xs uppercase tracking-widest text-muted-foreground">
               Now playing — tap who won
             </p>
-            {game.pairIds.map((pairId) => {
-              const tier = s.session.pairs.find((p) => p.id === pairId)?.tier;
-              return (
-                <button
-                  key={pairId}
-                  onClick={() => s.recordWinner(game.id, pairId)}
-                  className="w-full min-h-[72px] rounded-lg border-2 border-border bg-muted px-5 py-4 flex items-center justify-between gap-3 text-left hover:border-accent hover:bg-accent/10 active:border-accent active:bg-accent/20 active:scale-[0.98] transition-all touch-manipulation"
-                >
-                  <span className="flex items-center gap-3 min-w-0">
-                    {tier && <TierBadge tier={tier} />}
-                    <span className="font-display text-xl md:text-2xl text-foreground truncate">
-                      {s.pairName(pairId)}
-                    </span>
-                  </span>
-                  <Trophy className="w-5 h-5 shrink-0 text-muted-foreground/50" />
-                </button>
-              );
-            })}
+            {game.pairIds.map((pairId) => (
+              <button
+                key={pairId}
+                onClick={() => s.recordWinner(game.id, pairId)}
+                className="w-full min-h-[72px] rounded-lg border-2 border-border bg-muted px-5 py-4 flex items-center justify-between gap-3 text-left hover:border-accent hover:bg-accent/10 active:border-accent active:bg-accent/20 active:scale-[0.98] transition-all touch-manipulation"
+              >
+                <span className="font-display text-xl md:text-2xl text-foreground truncate min-w-0">
+                  {s.pairName(pairId)}
+                </span>
+                <Trophy className="w-5 h-5 shrink-0 text-muted-foreground/50" />
+              </button>
+            ))}
 
             {/* END GAME — ABANDONED (§9): void or award, never a fake result */}
             {abandoning === game.id ? (
@@ -371,7 +347,7 @@ const LatecomerPanel = ({ s }: { s: UseSessionV2 }) => {
         </button>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Each needs a same-tier partner — check in one more player in their tier (A/B/C) to pair them.
+          Waiting on a partner for each — they&apos;ll be ready to add as soon as a matching player checks in.
         </p>
       )}
     </div>

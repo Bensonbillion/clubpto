@@ -1,6 +1,12 @@
 // Court Manager v2 — dev route while the rebuild hardens (COURT-MANAGER.md).
-// Passcode-gated, never linked from the public site, robots-blocked.
+// Never linked from the public site, robots-blocked.
 // The legacy /manage and /manage2 are untouched and remain the live systems.
+//
+// ACCESS MODEL (owner's rule): the passcode guards ONLY the admin surfaces —
+// Roster (add/edit players, tiers, generate the play) and Standings (the
+// leaderboard/playoffs). Check-In and Courts are WIDE OPEN so day-of helpers
+// can check people in and run both courts with no passcode. Tier labels are
+// never shown on the open surfaces (§18).
 
 import { useEffect, useState } from "react";
 import { Lock, Delete, Settings, UserCheck, Monitor, BarChart3, RotateCcw } from "lucide-react";
@@ -30,13 +36,16 @@ const PasscodeGate = ({ onUnlock }: { onUnlock: () => void }) => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-8 bg-dark text-cream">
+    <div className="min-h-[70vh] flex flex-col items-center justify-center gap-8 text-cream">
       <div className="w-20 h-20 rounded-full bg-accent/10 border border-accent/30 flex items-center justify-center">
         <Lock className="w-10 h-10 text-accent" />
       </div>
       <div className="text-center">
-        <h1 className="font-display text-3xl text-accent">Court Manager · Next</h1>
+        <h1 className="font-display text-3xl text-accent">Admin area</h1>
         <p className="mt-2 text-muted-foreground">{error ? "Wrong passcode — try again" : "Enter 4-digit passcode"}</p>
+        <p className="mt-1 text-sm text-muted-foreground/70">
+          Check-In and Courts need no code — helpers can use them freely.
+        </p>
       </div>
       <div className="flex gap-4">
         {[0, 1, 2, 3].map((i) => (
@@ -75,27 +84,35 @@ const PasscodeGate = ({ onUnlock }: { onUnlock: () => void }) => {
 };
 
 const tabs = [
-  { id: "session", label: "Roster", icon: Settings },
-  { id: "checkin", label: "Check-In", icon: UserCheck },
-  { id: "courts", label: "Courts", icon: Monitor },
-  { id: "standings", label: "Standings & Playoffs", icon: BarChart3 },
+  { id: "session", label: "Roster", icon: Settings, locked: true },
+  { id: "checkin", label: "Check-In", icon: UserCheck, locked: false },
+  { id: "courts", label: "Courts", icon: Monitor, locked: false },
+  { id: "standings", label: "Standings & Playoffs", icon: BarChart3, locked: true },
 ] as const;
 
 type Tab = (typeof tabs)[number]["id"];
 
+const LOCKED_TABS: Tab[] = tabs.filter((t) => t.locked).map((t) => t.id);
+const isLocked = (t: Tab) => LOCKED_TABS.includes(t);
+
 const ManageNext = () => {
-  const [unlocked, setUnlocked] = useState(false);
-  const [tab, setTab] = useState<Tab>("session");
+  // Passcode unlocks the admin tabs (Roster, Standings) for this browser
+  // session; a refresh re-locks them — the open tabs never lock, so helpers
+  // are never blocked, and a curious player who grabs the tablet can't reach
+  // the leaderboard after a reload.
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
+  // Default to the open Check-In tab so opening the app never shows a passcode.
+  const [tab, setTab] = useState<Tab>("checkin");
   const s = useSessionV2();
 
-  // Follow the session: setup → Session tab, rounds → Courts, playoffs → Standings.
+  // Follow the session: rounds → Courts (open), playoffs/done → Standings.
   useEffect(() => {
     if (s.loading) return;
     if (s.session.phase === "rounds") setTab("courts");
     else if (s.session.phase === "playoffs" || s.session.phase === "done") setTab("standings");
   }, [s.loading, s.session.phase]);
 
-  if (!unlocked) return <PasscodeGate onUnlock={() => setUnlocked(true)} />;
+  const gated = isLocked(tab) && !adminUnlocked;
 
   return (
     <div className="min-h-screen bg-dark text-cream">
@@ -103,7 +120,7 @@ const ManageNext = () => {
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <h1 className="font-display text-xl text-accent whitespace-nowrap">PTO Court Manager · Next</h1>
           <nav className="flex gap-1">
-            {tabs.map(({ id, label, icon: Icon }) => (
+            {tabs.map(({ id, label, icon: Icon, locked }) => (
               <button
                 key={id}
                 onClick={() => setTab(id)}
@@ -115,27 +132,34 @@ const ManageNext = () => {
               >
                 <Icon className="w-4 h-4" />
                 <span className="hidden sm:inline">{label}</span>
+                {locked && !adminUnlocked && <Lock className="w-3 h-3 opacity-50" />}
               </button>
             ))}
           </nav>
-          <button
-            onClick={() => {
-              if (window.confirm("Reset tonight's session? The roster is kept — check-ins, pairs, games, and results are cleared.")) {
-                s.resetSession();
-                setTab("session");
-              }
-            }}
-            className="min-h-[44px] px-3 flex items-center gap-2 text-sm text-muted-foreground hover:text-cream transition-colors"
-          >
-            <RotateCcw className="w-4 h-4" />
-            <span className="hidden sm:inline">Reset</span>
-          </button>
+          {adminUnlocked ? (
+            <button
+              onClick={() => {
+                if (window.confirm("Reset tonight's session? The roster is kept — check-ins, pairs, games, and results are cleared.")) {
+                  s.resetSession();
+                  setTab("session");
+                }
+              }}
+              className="min-h-[44px] px-3 flex items-center gap-2 text-sm text-muted-foreground hover:text-cream transition-colors"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span className="hidden sm:inline">Reset</span>
+            </button>
+          ) : (
+            <div className="w-4" />
+          )}
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6">
         {s.loading ? (
           <div className="py-24 text-center text-muted-foreground animate-pulse">Loading session…</div>
+        ) : gated ? (
+          <PasscodeGate onUnlock={() => setAdminUnlocked(true)} />
         ) : (
           <>
             {tab === "session" && <SessionSetup s={s} />}
@@ -143,7 +167,7 @@ const ManageNext = () => {
             {tab === "courts" &&
               (s.session.phase === "setup" ? (
                 <div className="py-24 text-center text-muted-foreground">
-                  Courts light up once the session starts. Check players in and start from the Check-In tab.
+                  Courts light up once the session starts. Check players in, then start it from the Roster tab.
                 </div>
               ) : (
                 <RoundBoard s={s} />

@@ -1,7 +1,11 @@
-// Court Manager v2 — Setup & Check-In (admin-only, pre-session flow).
-// Renders when s.session.phase === "setup". Tablet-first, winner-tap-only
-// software: no score inputs exist anywhere. Tier badges and VIP mechanics are
-// visible HERE because this is an admin screen (§18 — never player-facing).
+// Court Manager v2 — Setup & Check-In. Two exported surfaces with DIFFERENT
+// audiences:
+//   • SessionSetup (Roster tab) = ADMIN-ONLY (passcode): add/edit players,
+//     assign A/B/C tiers, VIP picks, generate pairs, start the session. Tier
+//     badges + VIP mechanics live here because it is never player-facing (§18).
+//   • CheckIn (Check-In tab) = HELPER-FACING (no passcode): name + one tap to
+//     mark present. NO tiers, NO VIP, NO editing are shown here (§18).
+// Tablet-first, winner-tap-only software: no score inputs exist anywhere.
 
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { SESSION_TEMPLATES, type UseSessionV2 } from "@/court-manager/react/useSessionV2";
@@ -331,6 +335,39 @@ const CheckInRow = ({
     setEditing(false);
   };
 
+  // CHECK-IN tab (helper-facing, no passcode): the whole row is one big tap
+  // target — tap the name to check the person in, tap again to undo. NO tier,
+  // NO VIP, NO edit are shown here (§18 — tiers are admin-eyes-only).
+  if (mode === "checkin") {
+    return (
+      <button
+        onClick={() => s.toggleCheckIn(player.id)}
+        aria-pressed={player.checkedIn}
+        aria-label={player.checkedIn ? `Check out ${player.name}` : `Check in ${player.name}`}
+        className={`w-full flex items-center gap-3 rounded-md border-2 px-3 min-h-[60px] text-left transition-all active:scale-[0.99] touch-manipulation ${
+          player.checkedIn
+            ? "border-gold bg-gold/15"
+            : "border-border bg-dark-elevated hover:border-gold/40"
+        }`}
+      >
+        <span
+          className={`flex items-center justify-center w-10 h-10 rounded-md border-2 flex-shrink-0 transition-colors ${
+            player.checkedIn ? "border-gold bg-gold/25 text-gold" : "border-muted-foreground/40 text-transparent"
+          }`}
+        >
+          <Check className="w-5 h-5" />
+        </span>
+        <span className="flex-1 min-w-0 truncate text-lg text-cream font-body leading-tight">
+          {player.name}
+          {player.lastName && <span className="text-muted-foreground font-normal"> {player.lastName}</span>}
+        </span>
+        {player.checkedIn && (
+          <span className="text-[10px] uppercase tracking-widest text-gold flex-shrink-0">In</span>
+        )}
+      </button>
+    );
+  }
+
   if (editing) {
     return (
       <div className="flex items-center gap-2 rounded-md border-2 border-gold/50 bg-dark-elevated px-2 py-1.5 flex-wrap">
@@ -364,27 +401,14 @@ const CheckInRow = ({
     );
   }
 
-  const highlighted = mode === "checkin" ? player.checkedIn : player.attending;
+  // Roster row (admin): tier switch + Add-to-today toggle + edit. (Check-in
+  // mode returned above with just a name + check button — no tiers there.)
   return (
     <div
       className={`flex items-center gap-2 rounded-md border px-2 py-1.5 transition-colors ${
-        highlighted ? "border-gold/40 bg-gold/[0.06]" : "border-border bg-dark-elevated"
+        player.attending ? "border-gold/40 bg-gold/[0.06]" : "border-border bg-dark-elevated"
       }`}
     >
-      {mode === "checkin" && (
-        <button
-          onClick={() => s.toggleCheckIn(player.id)}
-          aria-pressed={player.checkedIn}
-          aria-label={player.checkedIn ? `Check out ${player.name}` : `Check in ${player.name}`}
-          className={`flex items-center justify-center w-12 h-11 rounded-md border-2 flex-shrink-0 transition-all active:scale-[0.97] ${
-            player.checkedIn
-              ? "border-gold bg-gold/20 text-gold"
-              : "border-border bg-dark-surface text-muted-foreground hover:border-gold/40"
-          }`}
-        >
-          <Check className={`w-5 h-5 ${player.checkedIn ? "opacity-100" : "opacity-30"}`} />
-        </button>
-      )}
       <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
         <span className="text-cream font-body text-base leading-tight truncate">
           {player.name}
@@ -393,19 +417,17 @@ const CheckInRow = ({
         {player.isVip && <span className="text-[10px] text-gold flex-shrink-0">VIP</span>}
       </div>
       <TierSwitch player={player} s={s} />
-      {mode === "roster" && (
-        <button
-          onClick={() => s.setAttending(player.id, !player.attending)}
-          aria-pressed={!!player.attending}
-          className={`h-11 px-3 rounded-md border-2 text-xs uppercase tracking-wider flex-shrink-0 transition-all active:scale-95 ${
-            player.attending
-              ? "border-gold bg-gold/15 text-gold"
-              : "border-border bg-dark-surface text-muted-foreground hover:border-gold/40"
-          }`}
-        >
-          {player.attending ? "✓ Today" : "+ Today"}
-        </button>
-      )}
+      <button
+        onClick={() => s.setAttending(player.id, !player.attending)}
+        aria-pressed={!!player.attending}
+        className={`h-11 px-3 rounded-md border-2 text-xs uppercase tracking-wider flex-shrink-0 transition-all active:scale-95 ${
+          player.attending
+            ? "border-gold bg-gold/15 text-gold"
+            : "border-border bg-dark-surface text-muted-foreground hover:border-gold/40"
+        }`}
+      >
+        {player.attending ? "✓ Today" : "+ Today"}
+      </button>
       <button
         onClick={() => {
           setDraftName(player.name);
@@ -698,6 +720,8 @@ const BalanceWarnings = ({ s }: { s: UseSessionV2 }) => {
 
 export function SessionSetup({ s }: { s: UseSessionV2 }) {
   const [search, setSearch] = useState("");
+  const isSetup = s.session.phase === "setup";
+  const canStart = s.session.pairs.length >= 4;
 
   const sortedPlayers = useMemo(
     () => [...s.session.players].sort((a, b) => a.name.localeCompare(b.name)),
@@ -759,6 +783,70 @@ export function SessionSetup({ s }: { s: UseSessionV2 }) {
           </div>
         )}
       </Section>
+
+      {/* ── Build the play (admin-only): VIP picks → pairs → start ─── */}
+      <VipPicks s={s} />
+
+      {isSetup ? (
+        <>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              onClick={s.buildPairs}
+              disabled={s.countSummary.checkedIn < 2}
+              className="flex-1 min-h-[64px] rounded-lg border-2 border-gold/60 text-gold font-display text-lg uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-[0.99] hover:bg-gold/10 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            >
+              <Users className="w-6 h-6" />
+              Generate Pairs
+            </button>
+            {s.session.pairs.length > 0 && (
+              <button
+                onClick={s.reshufflePairs}
+                className="min-h-[64px] px-6 rounded-lg border-2 border-border text-cream font-display text-base uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.99] hover:border-gold/40"
+              >
+                <Shuffle className="w-5 h-5" />
+                Reshuffle
+              </button>
+            )}
+          </div>
+
+          {s.countSummary.checkedIn < 2 && (
+            <p className="text-sm text-muted-foreground text-center">
+              Check players in first (Check-In tab), then generate pairs here.
+            </p>
+          )}
+
+          <PairsPanel s={s} />
+
+          <BalanceWarnings s={s} />
+
+          <div className="space-y-2 pb-8">
+            <button
+              onClick={s.startSession}
+              disabled={!canStart}
+              className={`w-full min-h-[72px] rounded-lg font-display text-xl uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-[0.99] ${
+                canStart
+                  ? "bg-gold text-dark hover:bg-gold/90"
+                  : "bg-dark-elevated border border-border text-muted-foreground/60 cursor-not-allowed"
+              }`}
+            >
+              <Play className="w-6 h-6" />
+              Start Session
+            </button>
+            {!canStart && (
+              <p className="text-sm text-muted-foreground text-center">
+                Generate at least 4 pairs to start — {s.session.pairs.length} so far.
+              </p>
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="rounded-lg border border-gold/30 bg-gold/5 p-5 text-center space-y-1 mb-8">
+          <p className="font-display text-lg text-gold">Session is live</p>
+          <p className="text-sm text-muted-foreground">
+            Run the games from the Courts tab. Re-pairing is locked so tonight&apos;s results stay safe.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -778,9 +866,6 @@ export function CheckIn({ s }: { s: UseSessionV2 }) {
     () => (q ? todaysPlayers.filter((p) => `${p.name} ${p.lastName ?? ""}`.toLowerCase().includes(q)) : todaysPlayers),
     [todaysPlayers, q],
   );
-
-  const isSetup = s.session.phase === "setup";
-  const canStart = s.session.pairs.length >= 4;
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -826,60 +911,11 @@ export function CheckIn({ s }: { s: UseSessionV2 }) {
         )}
       </Section>
 
-      <VipPicks s={s} />
-
-      {isSetup ? (
-        <>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <button
-              onClick={s.buildPairs}
-              disabled={s.countSummary.checkedIn < 2}
-              className="flex-1 min-h-[64px] rounded-lg border-2 border-gold/60 text-gold font-display text-lg uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-[0.99] hover:bg-gold/10 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-            >
-              <Users className="w-6 h-6" />
-              Generate Pairs
-            </button>
-            {s.session.pairs.length > 0 && (
-              <button
-                onClick={s.reshufflePairs}
-                className="min-h-[64px] px-6 rounded-lg border-2 border-border text-cream font-display text-base uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.99] hover:border-gold/40"
-              >
-                <Shuffle className="w-5 h-5" />
-                Reshuffle
-              </button>
-            )}
-          </div>
-
-          <PairsPanel s={s} />
-
-          <BalanceWarnings s={s} />
-
-          <div className="space-y-2 pb-8">
-            <button
-              onClick={s.startSession}
-              disabled={!canStart}
-              className={`w-full min-h-[72px] rounded-lg font-display text-xl uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-[0.99] ${
-                canStart
-                  ? "bg-gold text-dark hover:bg-gold/90"
-                  : "bg-dark-elevated border border-border text-muted-foreground/60 cursor-not-allowed"
-              }`}
-            >
-              <Play className="w-6 h-6" />
-              Start Session
-            </button>
-            {!canStart && (
-              <p className="text-sm text-muted-foreground text-center">
-                Generate at least 4 pairs to start — {s.session.pairs.length} so far.
-              </p>
-            )}
-          </div>
-        </>
-      ) : (
-        <div className="rounded-lg border border-gold/30 bg-gold/5 p-5 text-center space-y-1 mb-8">
+      {s.session.phase !== "setup" && (
+        <div className="rounded-lg border border-gold/30 bg-gold/5 p-5 text-center space-y-1">
           <p className="font-display text-lg text-gold">Session is live</p>
           <p className="text-sm text-muted-foreground">
-            Run the games from the Courts tab. You can still check people in and move tiers here;
-            re-pairing is locked so tonight&apos;s results stay safe.
+            Keep checking people in here — late arrivals get slotted into the games from the Courts tab.
           </p>
         </div>
       )}
