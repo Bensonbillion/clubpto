@@ -635,8 +635,14 @@ export function useSessionV2(): UseSessionV2 {
       if (nextOnCourt && !next.gameStarts[nextOnCourt.id]) {
         next = { ...next, gameStarts: { ...next.gameStarts, [nextOnCourt.id]: now } };
       }
+      // Same boundary rule as recordWinner: auto-advance only past early
+      // boundaries, and never into an empty/absent round (would hard-stall).
       const complete = roundGames(next, next.currentRound).every((g) => done.has(g.id));
-      if (complete && next.currentRound < next.config.targetRounds - 1) {
+      if (
+        complete &&
+        next.currentRound < next.config.targetRounds - 1 &&
+        canAdvanceToNextRound(next.schedule?.rounds, next.currentRound)
+      ) {
         next = advanceRound(next, now);
       }
       return next;

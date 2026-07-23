@@ -23,13 +23,30 @@ function fullKey(first: string, last: string | undefined | null): string {
   return `${norm(first)}|${norm(last)}`;
 }
 
-/** Fill only a missing last name; never blank out data the existing row already has. */
+/**
+ * Merge two rows for the same person. Preference rules make the result
+ * order-independent: keep the STABLE (non-csv_) id and the REAL (non-default-B)
+ * tier so a classic member never loses their identity or skill tier to a CSV
+ * row, whichever is imported first. Fill a missing last name; never blank data.
+ */
 function attach(existing: Player, incoming: Player): Player {
+  const preferIncomingId = existing.id.startsWith("csv_") && !incoming.id.startsWith("csv_");
   return {
     ...existing,
+    id: preferIncomingId ? incoming.id : existing.id,
+    tier: existing.tier !== "B" ? existing.tier : incoming.tier,
     name: incoming.name.trim() || existing.name,
     lastName: existing.lastName ?? incoming.lastName,
   };
+}
+
+function firstNameCounts(players: Player[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const p of players) {
+    const k = norm(p.name);
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  return counts;
 }
 
 export function mergeRoster(existing: Player[], incoming: Player[]): RosterMergeResult {
@@ -38,12 +55,12 @@ export function mergeRoster(existing: Player[], incoming: Player[]): RosterMerge
   let added = 0;
   let updated = 0;
 
-  // Count first-name occurrences so a first-name-only match is used only when unambiguous.
-  const firstNameCounts = new Map<string, number>();
-  for (const p of players) {
-    const k = norm(p.name);
-    firstNameCounts.set(k, (firstNameCounts.get(k) ?? 0) + 1);
-  }
+  // A bare first name is matched ONLY when it is unambiguous on BOTH sides —
+  // exactly one such person in the existing roster AND exactly one in the
+  // incoming batch. Otherwise we'd either staple an arbitrary surname on the
+  // wrong person or collapse two distinct people who happen to share a name.
+  const existingFirst = firstNameCounts(existing);
+  const incomingFirst = firstNameCounts(incoming);
 
   for (const inc of incoming) {
     let idx = players.findIndex((p, i) => !usedIdx.has(i) && p.id === inc.id);
@@ -54,8 +71,13 @@ export function mergeRoster(existing: Player[], incoming: Player[]): RosterMerge
     }
     if (idx === -1) {
       const k = norm(inc.name);
-      if ((firstNameCounts.get(k) ?? 0) === 1) {
-        idx = players.findIndex((p, i) => !usedIdx.has(i) && norm(p.name) === k);
+      if ((existingFirst.get(k) ?? 0) === 1 && (incomingFirst.get(k) ?? 0) === 1) {
+        // Known-distinct when BOTH carry a last name (the equal-full-name case
+        // was already consumed above, so two surnames here means they differ).
+        const incHasLast = norm(inc.lastName) !== "";
+        idx = players.findIndex(
+          (p, i) => !usedIdx.has(i) && norm(p.name) === k && !(incHasLast && norm(p.lastName) !== ""),
+        );
       }
     }
     if (idx !== -1) {
