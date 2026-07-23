@@ -282,9 +282,18 @@ const TierSwitch = ({ player, s }: { player: Player; s: UseSessionV2 }) => (
   </div>
 );
 
-/* ── Check-in row — compact, one line, iPad-first ────────────────── */
+/* ── Player row — compact, one line, iPad-first. Used in the Check-In tab
+   (with the check toggle) and the Roster tab (showCheckIn=false: manage only). */
 
-const CheckInRow = ({ player, s }: { player: Player; s: UseSessionV2 }) => {
+const CheckInRow = ({
+  player,
+  s,
+  showCheckIn = true,
+}: {
+  player: Player;
+  s: UseSessionV2;
+  showCheckIn?: boolean;
+}) => {
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState(player.name);
 
@@ -335,21 +344,23 @@ const CheckInRow = ({ player, s }: { player: Player; s: UseSessionV2 }) => {
   return (
     <div
       className={`flex items-center gap-2 rounded-md border px-2 py-1.5 transition-colors ${
-        player.checkedIn ? "border-gold/40 bg-gold/[0.06]" : "border-border bg-dark-elevated"
+        showCheckIn && player.checkedIn ? "border-gold/40 bg-gold/[0.06]" : "border-border bg-dark-elevated"
       }`}
     >
-      <button
-        onClick={() => s.toggleCheckIn(player.id)}
-        aria-pressed={player.checkedIn}
-        aria-label={player.checkedIn ? `Check out ${player.name}` : `Check in ${player.name}`}
-        className={`flex items-center justify-center w-12 h-11 rounded-md border-2 flex-shrink-0 transition-all active:scale-[0.97] ${
-          player.checkedIn
-            ? "border-gold bg-gold/20 text-gold"
-            : "border-border bg-dark-surface text-muted-foreground hover:border-gold/40"
-        }`}
-      >
-        <Check className={`w-5 h-5 ${player.checkedIn ? "opacity-100" : "opacity-30"}`} />
-      </button>
+      {showCheckIn && (
+        <button
+          onClick={() => s.toggleCheckIn(player.id)}
+          aria-pressed={player.checkedIn}
+          aria-label={player.checkedIn ? `Check out ${player.name}` : `Check in ${player.name}`}
+          className={`flex items-center justify-center w-12 h-11 rounded-md border-2 flex-shrink-0 transition-all active:scale-[0.97] ${
+            player.checkedIn
+              ? "border-gold bg-gold/20 text-gold"
+              : "border-border bg-dark-surface text-muted-foreground hover:border-gold/40"
+          }`}
+        >
+          <Check className={`w-5 h-5 ${player.checkedIn ? "opacity-100" : "opacity-30"}`} />
+        </button>
+      )}
       <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
         <span className="text-cream font-body text-base leading-tight truncate">
           {player.name}
@@ -646,31 +657,23 @@ const BalanceWarnings = ({ s }: { s: UseSessionV2 }) => {
 
 /* ── Main component ──────────────────────────────────────────────── */
 
-export default function SetupCheckIn({ s }: { s: UseSessionV2 }) {
+/* ── Session tab: config + roster (the searchable name database) ──── */
+
+export function SessionSetup({ s }: { s: UseSessionV2 }) {
   const [search, setSearch] = useState("");
-  // Default to the CHECKED-IN working set so the admin isn't scrolling 400+
-  // names. Searching always spans the whole roster; "All" browses everyone.
-  const [rosterView, setRosterView] = useState<"in" | "all">("in");
 
   const sortedPlayers = useMemo(
     () => [...s.session.players].sort((a, b) => a.name.localeCompare(b.name)),
     [s.session.players],
   );
-
   const q = search.trim().toLowerCase();
-  const searching = q.length > 0;
-
-  // Search spans first AND last name so duplicate first names (5 "Tosin"s)
-  // stay findable. When not searching, show only the current filter's set.
-  const visiblePlayers = useMemo(() => {
-    if (searching) {
-      return sortedPlayers.filter((p) => `${p.name} ${p.lastName ?? ""}`.toLowerCase().includes(q));
-    }
-    return rosterView === "in" ? sortedPlayers.filter((p) => p.checkedIn) : sortedPlayers;
-  }, [sortedPlayers, q, searching, rosterView]);
-
-  const isSetup = s.session.phase === "setup";
-  const canStart = s.session.pairs.length >= 4;
+  const matches = useMemo(
+    () =>
+      q
+        ? sortedPlayers.filter((p) => `${p.name} ${p.lastName ?? ""}`.toLowerCase().includes(q))
+        : [],
+    [sortedPlayers, q],
+  );
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -689,20 +692,80 @@ export default function SetupCheckIn({ s }: { s: UseSessionV2 }) {
       </Section>
 
       <Section
+        title="Find a player"
+        aside={
+          <span className="text-sm text-muted-foreground">
+            <span className="font-display text-lg text-cream">{s.countSummary.total}</span> in roster
+          </span>
+        }
+      >
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by name to edit tier, rename, or remove…"
+            aria-label="Search roster"
+            className="w-full min-h-[48px] rounded-md border border-border bg-dark-elevated pl-11 pr-4 text-base text-cream placeholder:text-muted-foreground/60 focus:outline-none focus:border-gold/60"
+          />
+        </div>
+        {!q ? (
+          <p className="text-muted-foreground text-sm py-4 text-center">
+            Search to find anyone in the roster. Check players in from the Check-In tab.
+          </p>
+        ) : matches.length === 0 ? (
+          <p className="text-muted-foreground text-base py-6 text-center">No players match “{search.trim()}”.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5">
+            {matches.map((p) => (
+              <CheckInRow key={p.id} player={p} s={s} showCheckIn={false} />
+            ))}
+          </div>
+        )}
+      </Section>
+    </div>
+  );
+}
+
+/* ── Check-In tab: attendance (search → tap in) + pairs + start ───── */
+
+export function CheckIn({ s }: { s: UseSessionV2 }) {
+  const [search, setSearch] = useState("");
+  // Default to the CHECKED-IN working set so the admin isn't scrolling 400+
+  // names. Searching always spans the whole roster; "All" browses everyone.
+  const [rosterView, setRosterView] = useState<"in" | "all">("in");
+
+  const sortedPlayers = useMemo(
+    () => [...s.session.players].sort((a, b) => a.name.localeCompare(b.name)),
+    [s.session.players],
+  );
+  const q = search.trim().toLowerCase();
+  const searching = q.length > 0;
+  const visiblePlayers = useMemo(() => {
+    if (searching) {
+      return sortedPlayers.filter((p) => `${p.name} ${p.lastName ?? ""}`.toLowerCase().includes(q));
+    }
+    return rosterView === "in" ? sortedPlayers.filter((p) => p.checkedIn) : sortedPlayers;
+  }, [sortedPlayers, q, searching, rosterView]);
+
+  const isSetup = s.session.phase === "setup";
+  const canStart = s.session.pairs.length >= 4;
+
+  return (
+    <div className="space-y-6 animate-fade-up">
+      <Section
         title="Check-In"
         aside={
           <span className="text-base text-cream">
             <span className="font-display text-xl text-gold">{s.countSummary.checkedIn}</span>
-            <span className="text-muted-foreground">
-              {" "}
-              of {s.countSummary.total} checked in
-            </span>
+            <span className="text-muted-foreground"> of {s.countSummary.total} checked in</span>
           </span>
         }
       >
         {sortedPlayers.length === 0 ? (
           <p className="text-muted-foreground text-base py-6 text-center">
-            No players yet — add them above, import contacts CSV, or import the classic roster.
+            No players in the roster yet — add or import them from the Session tab.
           </p>
         ) : (
           <>
@@ -713,12 +776,11 @@ export default function SetupCheckIn({ s }: { s: UseSessionV2 }) {
                   type="search"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search to check anyone in…"
+                  placeholder="Search a name to check them in…"
                   aria-label="Search players"
                   className="w-full min-h-[48px] rounded-md border border-border bg-dark-elevated pl-11 pr-4 text-base text-cream placeholder:text-muted-foreground/60 focus:outline-none focus:border-gold/60"
                 />
               </div>
-              {/* Working-set filter — keeps the door low-scroll (§14). Hidden while searching. */}
               {!searching && (
                 <div className="flex rounded-md border border-border overflow-hidden flex-shrink-0">
                   <button
@@ -791,12 +853,10 @@ export default function SetupCheckIn({ s }: { s: UseSessionV2 }) {
           </div>
         </>
       ) : (
-        // Session is live: re-pairing / restarting would wipe results, so those
-        // controls are gone. Roster edits above still work for add-later needs.
         <div className="rounded-lg border border-gold/30 bg-gold/5 p-5 text-center space-y-1 mb-8">
           <p className="font-display text-lg text-gold">Session is live</p>
           <p className="text-sm text-muted-foreground">
-            Run the games from the Courts tab. You can still add or edit players here;
+            Run the games from the Courts tab. You can still check people in and move tiers here;
             re-pairing is locked so tonight&apos;s results stay safe.
           </p>
         </div>
@@ -804,3 +864,5 @@ export default function SetupCheckIn({ s }: { s: UseSessionV2 }) {
     </div>
   );
 }
+
+export default SessionSetup;

@@ -3,9 +3,9 @@
 // The legacy /manage and /manage2 are untouched and remain the live systems.
 
 import { useEffect, useState } from "react";
-import { Lock, Delete, Settings, Monitor, BarChart3, RotateCcw } from "lucide-react";
+import { Lock, Delete, Settings, UserCheck, Monitor, BarChart3, RotateCcw } from "lucide-react";
 import { useSessionV2 } from "@/court-manager/react/useSessionV2";
-import SetupCheckIn from "@/components/manage-next/SetupCheckIn";
+import { SessionSetup, CheckIn } from "@/components/manage-next/SetupCheckIn";
 import RoundBoard from "@/components/manage-next/RoundBoard";
 import StandingsPlayoffs from "@/components/manage-next/StandingsPlayoffs";
 
@@ -76,6 +76,7 @@ const PasscodeGate = ({ onUnlock }: { onUnlock: () => void }) => {
 
 const tabs = [
   { id: "session", label: "Session", icon: Settings },
+  { id: "checkin", label: "Check-In", icon: UserCheck },
   { id: "courts", label: "Courts", icon: Monitor },
   { id: "standings", label: "Standings & Playoffs", icon: BarChart3 },
 ] as const;
@@ -137,11 +138,12 @@ const ManageNext = () => {
           <div className="py-24 text-center text-muted-foreground animate-pulse">Loading session…</div>
         ) : (
           <>
-            {tab === "session" && <SetupCheckIn s={s} />}
+            {tab === "session" && <SessionSetup s={s} />}
+            {tab === "checkin" && <CheckIn s={s} />}
             {tab === "courts" &&
               (s.session.phase === "setup" ? (
                 <div className="py-24 text-center text-muted-foreground">
-                  Courts light up once the session starts. Set up and check in from the Session tab.
+                  Courts light up once the session starts. Check players in and start from the Check-In tab.
                 </div>
               ) : (
                 <RoundBoard s={s} />
