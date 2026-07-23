@@ -75,7 +75,7 @@ const PasscodeGate = ({ onUnlock }: { onUnlock: () => void }) => {
 };
 
 const tabs = [
-  { id: "session", label: "Session", icon: Settings },
+  { id: "session", label: "Roster", icon: Settings },
   { id: "checkin", label: "Check-In", icon: UserCheck },
   { id: "courts", label: "Courts", icon: Monitor },
   { id: "standings", label: "Standings & Playoffs", icon: BarChart3 },

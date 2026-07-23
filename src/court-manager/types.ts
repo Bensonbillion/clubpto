@@ -14,16 +14,20 @@ export interface Player {
   vipPartnerId?: string;
   /** Coaches get a widened minimum rest (3 slots) on round-robin courts. */
   isCoach: boolean;
+  /** Picked for TODAY's session (on the check-in list). Distinct from checkedIn. */
+  attending?: boolean;
+  /** Physically present — checked in at the facility. Implies attending. */
   checkedIn: boolean;
   checkInTime?: number; // epoch ms
-  /**
-   * Last name — used only to disambiguate duplicate first names at check-in.
-   * NOTE: email/phone are deliberately NOT stored here. Session state syncs to
-   * the game_state Supabase row, which is world-readable (public RLS, no auth),
-   * so contact PII must never live in it. Contacts stay in the source CSV until
-   * the backend has real authentication + a locked-down table.
-   */
+  /** Last name — disambiguates duplicate first names. */
   lastName?: string;
+  /**
+   * Optional email, entered by the admin when adding a person. SECURITY: session
+   * state syncs to the world-readable game_state row (public RLS, no auth), so
+   * this is only as private as that DB. Add authentication before relying on it
+   * for real contact data (see SECURITY-REMEDIATION.md).
+   */
+  email?: string;
 }
 
 export interface Pair {

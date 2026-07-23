@@ -131,7 +131,7 @@ export const SESSION_TEMPLATES: Record<string, { label: string; note?: string; p
 // state pulls the loss-proof roster from Supabase on next load instead of
 // resuming a broken/empty local session.
 const STORAGE_KEY = "cm_v3_session";
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 /**
  * Schema migration — NEVER discard older state on a version bump (the v3 bump
@@ -148,7 +148,10 @@ function migrateSession(oldState: unknown, _oldVersion: number): SessionV2 | nul
     ...old,
     config: { ...base.config, ...(old.config ?? {}) },
     unpaired: { ...base.unpaired, ...(old.unpaired ?? {}) },
-    players: old.players,
+    // `attending` (picked-for-today) was added after the earliest builds. A
+    // player already checked in is by definition attending — normalize so they
+    // don't vanish from the Check-In tab (which filters on attending).
+    players: old.players.map((p) => ({ ...p, attending: p.attending ?? p.checkedIn ?? false })),
     pairs: old.pairs ?? [],
     results: old.results ?? [],
     voidedGames: old.voidedGames ?? [],
@@ -232,8 +235,14 @@ export interface UseSessionV2 {
   syncStatus: SyncStatus;
 
   // Setup & check-in
-  addPlayer(name: string, tier: Tier, opts?: { isVip?: boolean; isCoach?: boolean }): void;
+  addPlayer(
+    name: string,
+    tier: Tier,
+    opts?: { isVip?: boolean; isCoach?: boolean; checkIn?: boolean; attending?: boolean; email?: string },
+  ): void;
   removePlayer(playerId: string): void;
+  /** Pick / un-pick a player for TODAY's session (adds them to the check-in list). */
+  setAttending(playerId: string, on: boolean): void;
   toggleCheckIn(playerId: string): void;
   setVipPick(vipId: string, partnerId: string | null): void;
   setFlag(playerId: string, flag: "isVip" | "isCoach", value: boolean): void;
@@ -256,7 +265,8 @@ export interface UseSessionV2 {
 
   // Rounds
   courts: CourtView[];
-  countSummary: { checkedIn: number; total: number };
+  /** checkedIn = present · attending = picked for today · total = whole roster. */
+  countSummary: { checkedIn: number; attending: number; total: number };
   roundComplete: boolean;
   /** True only at the boundary before the final round — a manual play/jump choice. */
   atDecisionPoint: boolean;
@@ -344,6 +354,7 @@ export function useSessionV2(): UseSessionV2 {
   const addPlayer = useCallback<UseSessionV2["addPlayer"]>((name, tier, opts) => {
     const trimmed = name.trim();
     if (!trimmed) return;
+    const checkedIn = opts?.checkIn ?? false;
     commit((s) => ({
       ...s,
       players: [
@@ -354,7 +365,12 @@ export function useSessionV2(): UseSessionV2 {
           tier,
           isVip: opts?.isVip ?? false,
           isCoach: opts?.isCoach ?? false,
-          checkedIn: false,
+          email: opts?.email?.trim() || undefined,
+          // A newly-added person is picked for TODAY by default (attending).
+          // A walk-in is also checked in immediately.
+          attending: opts?.attending ?? true,
+          checkedIn,
+          checkInTime: checkedIn ? Date.now() : undefined,
         },
       ],
     }));
@@ -364,12 +380,31 @@ export function useSessionV2(): UseSessionV2 {
     commit((s) => ({ ...s, players: s.players.filter((p) => p.id !== playerId) }));
   }, [commit]);
 
+  // Pick / un-pick a player for TODAY's session (the check-in list). Removing
+  // from today also clears their check-in.
+  const setAttending = useCallback((playerId: string, on: boolean) => {
+    commit((s) => ({
+      ...s,
+      players: s.players.map((p) =>
+        p.id === playerId
+          ? { ...p, attending: on, checkedIn: on ? p.checkedIn : false, checkInTime: on ? p.checkInTime : undefined }
+          : p,
+      ),
+    }));
+  }, [commit]);
+
   const toggleCheckIn = useCallback((playerId: string) => {
     commit((s) => ({
       ...s,
       players: s.players.map((p) =>
         p.id === playerId
-          ? { ...p, checkedIn: !p.checkedIn, checkInTime: !p.checkedIn ? Date.now() : undefined }
+          ? {
+              ...p,
+              checkedIn: !p.checkedIn,
+              checkInTime: !p.checkedIn ? Date.now() : undefined,
+              // Checking someone in implies they're on today's list.
+              attending: !p.checkedIn ? true : p.attending,
+            }
           : p,
       ),
     }));
@@ -462,6 +497,7 @@ export function useSessionV2(): UseSessionV2 {
       sessionStartedAt: null,
       players: s.players.map((p) => ({
         ...p,
+        attending: false,
         checkedIn: false,
         checkInTime: undefined,
         vipPartnerId: undefined,
@@ -728,7 +764,13 @@ export function useSessionV2(): UseSessionV2 {
   // --- derived -------------------------------------------------------------
 
   const courts = useMemo(() => courtViews(session), [session]);
-  const countSummary = useMemo(() => publicCountSummary(session.players), [session.players]);
+  const countSummary = useMemo(
+    () => ({
+      ...publicCountSummary(session.players),
+      attending: session.players.filter((p) => p.attending).length,
+    }),
+    [session.players],
+  );
   const isPaused = session.pauses.some((p) => p.end === null);
   const roundComplete = useMemo(
     () => isRoundComplete(session, session.currentRound),
@@ -780,6 +822,7 @@ export function useSessionV2(): UseSessionV2 {
     syncStatus,
     addPlayer,
     removePlayer,
+    setAttending,
     toggleCheckIn,
     setVipPick,
     setFlag,
