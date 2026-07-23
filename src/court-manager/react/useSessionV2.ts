@@ -23,7 +23,8 @@ import { validateRoundSchedule } from "../scheduler/validate";
 import { correctResult } from "../edge";
 import { avgGameMs, pausedOverlapMs, type PauseInterval } from "../pace";
 import type { CompletedRRGame } from "../playoffs";
-import { playerStandings, seedWednesdayTop8, sortSeeding, wednesdayBracket } from "../playoffs";
+import { buildPairH2h, pairStandings, seedWednesdayTop8, sortSeeding, wednesdayBracket } from "../playoffs";
+import { buildDisplayNames } from "../displayNames";
 import { createSessionStore, type SessionStore, type SyncStatus } from "../persistence";
 import { fetchClassicRoster, supabaseRemote } from "../supabase";
 import { canAdvanceToNextRound, canMutateSetup, clearTwoCourtSchedule } from "../sessionSafety";
@@ -900,16 +901,34 @@ export function useSessionV2(): UseSessionV2 {
     return [...session.schedule.disclosures, ...violations.map((v) => v.message)];
   }, [session.schedule, session.pairs]);
 
-  const standings = useMemo(() => {
-    const checkedIn = session.players.filter((p) => p.checkedIn);
-    const rows = playerStandings(checkedIn, session.pairs, rrGames(session));
-    return sortSeeding(rows, () => 0);
-  }, [session]);
+  // Unambiguous names everywhere (shared first names get a last-name initial).
+  const displayNames = useMemo(() => buildDisplayNames(session.players), [session.players]);
 
   const playerName = useCallback(
-    (playerId: string) => session.players.find((p) => p.id === playerId)?.name ?? playerId,
-    [session.players],
+    (playerId: string) =>
+      displayNames.get(playerId) ?? session.players.find((p) => p.id === playerId)?.name ?? playerId,
+    [displayNames, session.players],
   );
+
+  // Standings are per PAIR, not per player: the night is played in fixed pairs
+  // and the playoffs seed pairs, so the pair IS the unit that has a record.
+  // (Listing individuals also made every partner tie with their own partner,
+  // which pushed the coin-flip tiebreaker into almost every row.)
+  const standings = useMemo(() => {
+    const games = rrGames(session);
+    const rows = pairStandings(session.pairs, games).map((r) => {
+      const pair = session.pairs.find((p) => p.id === r.id);
+      return {
+        ...r,
+        name: pair
+          ? pair.playerIds
+              .map((id) => displayNames.get(id) ?? session.players.find((p) => p.id === id)?.name ?? id)
+              .join(" & ")
+          : r.id,
+      };
+    });
+    return sortSeeding(rows, buildPairH2h(games));
+  }, [session, displayNames]);
   const pairName = useCallback(
     (pairId: string) => {
       const pair = session.pairs.find((p) => p.id === pairId);

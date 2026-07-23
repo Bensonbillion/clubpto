@@ -7,6 +7,7 @@
 // 4W-0L). Eligibility floor: ≥2 games played to qualify (admin-overridable).
 
 import type { Pair, Player, PlayoffMatch, StandingRow, Tier } from "./types";
+import { buildDisplayNames } from "./displayNames";
 
 export interface CompletedRRGame {
   pairIds: [string, string];
@@ -18,7 +19,7 @@ function h2hKey(a: string, b: string): string {
 }
 
 /** wins of `a` over `b` minus wins of `b` over `a`, at pair level. */
-function buildPairH2h(games: CompletedRRGame[]): (a: string, b: string) => number {
+export function buildPairH2h(games: CompletedRRGame[]): (a: string, b: string) => number {
   const wins = new Map<string, number>(); // key → net wins for the lexicographically smaller id
   for (const g of games) {
     const [p, q] = g.pairIds;
@@ -178,7 +179,9 @@ export function seedWednesdayTop8(
   // so the knockout is pair vs pair (seed 1 PLAYS seed 8). Head-to-head is
   // therefore already at the right granularity.
   const h2h = buildPairH2h(games);
-  const playerNameOf = new Map(players.map((p) => [p.id, p.name] as const));
+  // Same disambiguated names the rest of the app shows (shared first names get
+  // a last-name initial), so a seed reads the same as the court card.
+  const playerNameOf = buildDisplayNames(players);
   const labelled = pairStandings(pairs, games).map((r) => {
     const pair = pairs.find((p) => p.id === r.id);
     return {

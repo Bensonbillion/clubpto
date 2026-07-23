@@ -8,6 +8,7 @@
 
 import type { Pair, RoundGame, Tier } from "../types";
 import { generatePairs, pairLatecomers, publicCountSummary, publicRoster, resolveVipPicks, swapPairMembers } from "../checkin";
+import { buildDisplayNames } from "../displayNames";
 import { generateRoundSchedule, regenerateFromRound } from "../scheduler/rounds";
 import { validateRoundSchedule } from "../scheduler/validate";
 import { addLpfPair, createLpfCourt, nextLpfSlot, removeLpfPair } from "../scheduler/lpf";
@@ -937,6 +938,33 @@ section("Manual swap: trade two players between pairs, tier-safe, VIP-aware (§5
   // Every player still appears exactly once after a valid swap (no dupes/drops).
   const ids = swapped.flatMap((p) => p.playerIds).sort().join(",");
   assert(ids === "a1,a2,a3,a4,b1,b2", "swap conserves the full player set");
+}
+
+section("Display names: shared first names get the shortest distinguishing suffix (Law #2)");
+{
+  const P = (id: string, name: string, lastName?: string): Player =>
+    ({ id, name, tier: "B", isVip: false, isCoach: false, checkedIn: true, lastName });
+  const roster: Player[] = [
+    P("u1", "Benson", "Billions"),   // unique first name
+    P("d1", "Timi", "Adeyemi"),      // 3 Timis, two share initial "A"
+    P("d2", "Timi", "Akande"),
+    P("d3", "Timi", "Bello"),
+    P("n1", "Chidi"),                // duplicate first name, NO last name
+    P("n2", "Chidi"),
+    P("t1", "Sam", "Smith"),         // true twins: identical first AND last
+    P("t2", "Sam", "Smith"),
+  ];
+  const d = buildDisplayNames(roster);
+  assert(d.get("u1") === "Benson", "unique first name shows bare (no suffix noise)");
+  assert(d.get("d3") === "Timi B.", "a distinct initial is enough");
+  assert(d.get("d1") === "Timi Ad." && d.get("d2") === "Timi Ak.",
+    `clashing initials extend to two letters (got "${d.get("d1")}" / "${d.get("d2")}")`);
+  assert(d.get("n1") === "Chidi" && d.get("n2") === "Chidi",
+    "duplicate with no last name stays bare rather than inventing a suffix");
+  assert(d.get("t1") === "Sam Smith." && d.get("t2") === "Sam Smith.",
+    "true twins fall back to the full last name instead of looping forever");
+  // Everyone in the roster gets an entry.
+  assert(roster.every((p) => typeof d.get(p.id) === "string"), "every player resolves to a display name");
 }
 
 // ---------------------------------------------------------------------------

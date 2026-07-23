@@ -358,9 +358,10 @@ const CheckInRow = ({
         >
           <Check className="w-5 h-5" />
         </span>
+        {/* Disambiguated name: shared first names carry a last-name initial
+            ("Timi A.") so a helper can tell two Timis apart at a glance. */}
         <span className="flex-1 min-w-0 truncate text-lg text-cream font-body leading-tight">
-          {player.name}
-          {player.lastName && <span className="text-muted-foreground font-normal"> {player.lastName}</span>}
+          {s.playerName(player.id)}
         </span>
         {player.checkedIn && (
           <span className="text-[10px] uppercase tracking-widest text-gold flex-shrink-0">In</span>
@@ -410,6 +411,8 @@ const CheckInRow = ({
         player.attending ? "border-gold/40 bg-gold/[0.06]" : "border-border bg-dark-elevated"
       }`}
     >
+      {/* Admin row keeps the FULL last name — this is the screen where you
+          identify and fix people; the short form is for the live screens. */}
       <div className="flex-1 min-w-0 flex items-baseline gap-1.5">
         <span className="text-cream font-body text-base leading-tight truncate">
           {player.name}

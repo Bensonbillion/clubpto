@@ -65,7 +65,7 @@ const StandingsTable = ({ rows }: { rows: StandingRow[] }) => {
         <thead>
           <tr className="border-b border-border text-xs uppercase tracking-widest text-muted-foreground">
             <th className="px-4 py-3 w-12 font-normal">#</th>
-            <th className="px-4 py-3 font-normal">Player</th>
+            <th className="px-4 py-3 font-normal">Pair</th>
             <th className="px-4 py-3 w-16 font-normal text-center">Tier</th>
             <th className="px-4 py-3 w-20 font-normal text-center">W–L</th>
             <th className="px-4 py-3 w-20 font-normal text-center">Win%</th>
