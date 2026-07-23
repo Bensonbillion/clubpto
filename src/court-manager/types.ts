@@ -6,6 +6,7 @@ export type Tier = "A" | "B" | "C";
 
 export interface Player {
   id: string;
+  /** Display label — the player's preferred (first) name. */
   name: string;
   tier: Tier;
   isVip: boolean;
@@ -15,6 +16,10 @@ export interface Player {
   isCoach: boolean;
   checkedIn: boolean;
   checkInTime?: number; // epoch ms
+  // Contact details (admin-only; never shown player-facing). Imported from CSV.
+  lastName?: string;
+  email?: string;
+  phone?: string;
 }
 
 export interface Pair {

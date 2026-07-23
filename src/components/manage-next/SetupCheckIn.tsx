@@ -3,7 +3,7 @@
 // software: no score inputs exist anywhere. Tier badges and VIP mechanics are
 // visible HERE because this is an admin screen (§18 — never player-facing).
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { SESSION_TEMPLATES, type UseSessionV2 } from "@/court-manager/react/useSessionV2";
 import type { Pair, Player, Tier } from "@/court-manager/types";
 import {
@@ -24,6 +24,7 @@ import {
   Plus,
   Search,
   Trash2,
+  Upload,
   Users,
 } from "lucide-react";
 
@@ -330,7 +331,12 @@ const CheckInRow = ({ player, s }: { player: Player; s: UseSessionV2 }) => {
       </button>
       <TierBadge tier={player.tier} />
       <div className="flex-1 min-w-0">
-        <p className="text-cream font-body text-lg leading-tight truncate">{player.name}</p>
+        <p className="text-cream font-body text-lg leading-tight truncate">
+          {player.name}
+          {player.lastName && (
+            <span className="text-muted-foreground font-normal"> {player.lastName}</span>
+          )}
+        </p>
         {(player.isVip || player.isCoach) && (
           <div className="flex gap-1.5 mt-1">
             {player.isVip && <Chip>VIP</Chip>}
@@ -361,15 +367,19 @@ const CheckInRow = ({ player, s }: { player: Player; s: UseSessionV2 }) => {
 
 /* ── Classic roster import (Supabase, read-only source) ──────────── */
 
+const summarize = (r: { added: number; updated: number }) =>
+  r.added === 0 && r.updated === 0
+    ? "Roster up to date"
+    : [r.added ? `added ${r.added}` : "", r.updated ? `updated ${r.updated}` : ""].filter(Boolean).join(", ");
+
 const ImportClassicButton = ({ s }: { s: UseSessionV2 }) => {
   const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
-  const [added, setAdded] = useState(0);
+  const [msg, setMsg] = useState("");
 
   const run = async () => {
     setState("loading");
     try {
-      const count = await s.importClassicRoster();
-      setAdded(count);
+      setMsg(summarize(await s.importClassicRoster()));
       setState("done");
     } catch {
       setState("error");
@@ -385,9 +395,44 @@ const ImportClassicButton = ({ s }: { s: UseSessionV2 }) => {
       <Users className="w-4 h-4" />
       {state === "idle" && "Import classic roster"}
       {state === "loading" && "Importing…"}
-      {state === "done" && (added > 0 ? `Added ${added} players` : "Roster up to date")}
+      {state === "done" && msg}
       {state === "error" && "Import failed — check wifi, tap to retry"}
     </button>
+  );
+};
+
+/* ── CSV contacts import (browser file picker — reads a user-selected file) ── */
+
+const ImportCsvButton = ({ s }: { s: UseSessionV2 }) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [msg, setMsg] = useState("");
+
+  const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-picking the same file
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        setMsg(summarize(s.importCsv(String(reader.result ?? ""))));
+      } catch {
+        setMsg("Could not read that CSV");
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => inputRef.current?.click()}
+        className="h-11 px-4 rounded-md border-2 border-gold/60 text-gold text-sm hover:bg-gold/10 transition-colors flex items-center gap-2"
+      >
+        <Upload className="w-4 h-4" />
+        {msg || "Import contacts CSV"}
+      </button>
+      <input ref={inputRef} type="file" accept=".csv,text/csv" onChange={onFile} className="hidden" />
+    </>
   );
 };
 
@@ -601,14 +646,18 @@ export default function SetupCheckIn({ s }: { s: UseSessionV2 }) {
     [s.session.players],
   );
 
-  // Client-side filter keeps a 100+ player door tap-tap-tap (§14).
+  // Client-side filter keeps a 400+ player door tap-tap-tap (§14). Search spans
+  // first AND last name so duplicate first names (5 "Tosin"s) stay findable.
   // Alphabetical order is preserved: we filter the already-sorted list.
   const visiblePlayers = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return sortedPlayers;
-    return sortedPlayers.filter((p) => p.name.toLowerCase().includes(q));
+    return sortedPlayers.filter((p) =>
+      `${p.name} ${p.lastName ?? ""}`.toLowerCase().includes(q),
+    );
   }, [sortedPlayers, search]);
 
+  const isSetup = s.session.phase === "setup";
   const canStart = s.session.pairs.length >= 4;
 
   return (
@@ -619,13 +668,8 @@ export default function SetupCheckIn({ s }: { s: UseSessionV2 }) {
         title="Roster"
         aside={
           <div className="flex items-center gap-2 flex-wrap">
+            <ImportCsvButton s={s} />
             <ImportClassicButton s={s} />
-            <button
-              onClick={s.loadDemoRoster}
-              className="h-11 px-4 rounded-md border border-border text-muted-foreground text-sm hover:text-cream hover:border-gold/40 transition-colors"
-            >
-              Load demo roster
-            </button>
           </div>
         }
       >
@@ -646,7 +690,7 @@ export default function SetupCheckIn({ s }: { s: UseSessionV2 }) {
       >
         {sortedPlayers.length === 0 ? (
           <p className="text-muted-foreground text-base py-6 text-center">
-            No players yet — add them above, or load the demo roster.
+            No players yet — add them above, import contacts CSV, or import the classic roster.
           </p>
         ) : (
           <>
@@ -678,38 +722,52 @@ export default function SetupCheckIn({ s }: { s: UseSessionV2 }) {
 
       <VipPicks s={s} />
 
-      <button
-        onClick={s.buildPairs}
-        disabled={s.countSummary.checkedIn < 2}
-        className="w-full min-h-[64px] rounded-lg border-2 border-gold/60 text-gold font-display text-lg uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-[0.99] hover:bg-gold/10 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-      >
-        <Users className="w-6 h-6" />
-        Generate Pairs
-      </button>
+      {isSetup ? (
+        <>
+          <button
+            onClick={s.buildPairs}
+            disabled={s.countSummary.checkedIn < 2}
+            className="w-full min-h-[64px] rounded-lg border-2 border-gold/60 text-gold font-display text-lg uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-[0.99] hover:bg-gold/10 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+          >
+            <Users className="w-6 h-6" />
+            Generate Pairs
+          </button>
 
-      <PairsPanel s={s} />
+          <PairsPanel s={s} />
 
-      <BalanceWarnings s={s} />
+          <BalanceWarnings s={s} />
 
-      <div className="space-y-2 pb-8">
-        <button
-          onClick={s.startSession}
-          disabled={!canStart}
-          className={`w-full min-h-[72px] rounded-lg font-display text-xl uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-[0.99] ${
-            canStart
-              ? "bg-gold text-dark hover:bg-gold/90"
-              : "bg-dark-elevated border border-border text-muted-foreground/60 cursor-not-allowed"
-          }`}
-        >
-          <Play className="w-6 h-6" />
-          Start Session
-        </button>
-        {!canStart && (
-          <p className="text-sm text-muted-foreground text-center">
-            Generate at least 4 pairs to start — {s.session.pairs.length} so far.
+          <div className="space-y-2 pb-8">
+            <button
+              onClick={s.startSession}
+              disabled={!canStart}
+              className={`w-full min-h-[72px] rounded-lg font-display text-xl uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-[0.99] ${
+                canStart
+                  ? "bg-gold text-dark hover:bg-gold/90"
+                  : "bg-dark-elevated border border-border text-muted-foreground/60 cursor-not-allowed"
+              }`}
+            >
+              <Play className="w-6 h-6" />
+              Start Session
+            </button>
+            {!canStart && (
+              <p className="text-sm text-muted-foreground text-center">
+                Generate at least 4 pairs to start — {s.session.pairs.length} so far.
+              </p>
+            )}
+          </div>
+        </>
+      ) : (
+        // Session is live: re-pairing / restarting would wipe results, so those
+        // controls are gone. Roster edits above still work for add-later needs.
+        <div className="rounded-lg border border-gold/30 bg-gold/5 p-5 text-center space-y-1 mb-8">
+          <p className="font-display text-lg text-gold">Session is live</p>
+          <p className="text-sm text-muted-foreground">
+            Run the games from the Courts tab. You can still add or edit players here;
+            re-pairing is locked so tonight&apos;s results stay safe.
           </p>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -16,6 +16,8 @@ import type {
   Tier,
 } from "../types";
 import { generatePairs, publicCountSummary } from "../checkin";
+import { parseRosterCsv } from "../rosterCsv";
+import { mergeRoster } from "../rosterMerge";
 import { generateRoundSchedule } from "../scheduler/rounds";
 import { validateRoundSchedule } from "../scheduler/validate";
 import { correctResult } from "../edge";
@@ -24,6 +26,12 @@ import type { CompletedRRGame } from "../playoffs";
 import { playerStandings, seedWednesdayTop8, sortSeeding, wednesdayBracket } from "../playoffs";
 import { createSessionStore, type SessionStore, type SyncStatus } from "../persistence";
 import { fetchClassicRoster, supabaseRemote } from "../supabase";
+import {
+  canAdvanceToNextRound,
+  canMutateSetup,
+  clearTwoCourtSchedule,
+  resolveSameDayHardStop,
+} from "../sessionSafety";
 
 // ---------------------------------------------------------------------------
 // Session state (the persisted envelope)
@@ -120,7 +128,10 @@ export const SESSION_TEMPLATES: Record<string, { label: string; note?: string; p
   },
 };
 
-const STORAGE_KEY = "cm_v2_session";
+// New key (was "cm_v2_session"): a fresh key means a tablet with stale local
+// state pulls the loss-proof roster from Supabase on next load instead of
+// resuming a broken/empty local session.
+const STORAGE_KEY = "cm_v3_session";
 const SCHEMA_VERSION = 4;
 
 /**
@@ -235,8 +246,10 @@ export interface UseSessionV2 {
   setFlag(playerId: string, flag: "isVip" | "isCoach", value: boolean): void;
   /** Edit a player's name or tier (admin, any time — stable IDs never change). */
   updatePlayer(playerId: string, patch: { name?: string; tier?: Tier }): void;
-  /** Pull the classic manager's shared roster (read-only) into this roster. Returns players added. */
-  importClassicRoster(): Promise<number>;
+  /** Pull the classic manager's shared roster (read-only) into this roster. */
+  importClassicRoster(): Promise<{ added: number; updated: number }>;
+  /** Import a contacts CSV (preferred name = first name; phone/email attached). */
+  importCsv(csvText: string): { added: number; updated: number };
   /** Full roster wipe — separate from resetSession, which keeps the roster. */
   clearRoster(): void;
   updateConfig(patch: Partial<SessionV2Config>): void;
@@ -244,7 +257,6 @@ export interface UseSessionV2 {
   applyTemplate(key: string): void;
   /** Practice flag (§5) — locked once the first result exists. */
   setPractice(on: boolean): void;
-  loadDemoRoster(): void;
   buildPairs(): void;
   startSession(): void;
   resetSession(): void;
@@ -287,12 +299,9 @@ function freshId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${idCounter}`;
 }
 
+/** Same-day hard stop; falls back to a 22:00 default if the string is unparseable. */
 function resolveHardStop(hhmm: string, nowMs: number): number {
-  const [h, m] = hhmm.split(":").map(Number);
-  const d = new Date(nowMs);
-  d.setHours(h ?? 22, m ?? 0, 0, 0);
-  if (d.getTime() < nowMs) d.setDate(d.getDate() + 1); // sessions can cross midnight
-  return d.getTime();
+  return resolveSameDayHardStop(hhmm, nowMs) ?? resolveSameDayHardStop("22:00", nowMs) ?? nowMs;
 }
 
 export function useSessionV2(): UseSessionV2 {
@@ -300,6 +309,10 @@ export function useSessionV2(): UseSessionV2 {
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("synced");
   const storeRef = useRef<SessionStore<SessionV2> | null>(null);
+  // Always-current snapshot so import helpers can report accurate counts
+  // without depending on React's async setState timing.
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
 
   useEffect(() => {
     const store = createSessionStore<SessionV2>({
@@ -388,7 +401,8 @@ export function useSessionV2(): UseSessionV2 {
   }, [commit]);
 
   const updateConfig = useCallback((patch: Partial<SessionV2Config>) => {
-    commit((s) => ({ ...s, config: { ...s.config, ...patch } }));
+    // Court count / round targets / format reshape the schedule — setup only.
+    commit((s) => (canMutateSetup(s.phase) ? { ...s, config: { ...s.config, ...patch } } : s));
   }, [commit]);
 
   const applyTemplate = useCallback((key: string) => {
@@ -404,23 +418,9 @@ export function useSessionV2(): UseSessionV2 {
     });
   }, [commit]);
 
-  const loadDemoRoster = useCallback(() => {
-    const first = ["Maya", "Leo", "Ana", "Owen", "Zara", "Kai", "Nina", "Theo", "Iris", "Finn", "Lila", "Ezra",
-      "Ruby", "Jude", "Vera", "Sam", "Tess", "Remy", "Cleo", "Nash", "Faye", "Cruz", "Wren", "Beck"];
-    const players: Player[] = first.map((name, i) => ({
-      id: `demo-${i + 1}`,
-      name,
-      tier: (["A", "B", "C"] as Tier[])[Math.floor(i / 8)],
-      isVip: false,
-      isCoach: i === 8, // one coach in B
-      checkedIn: true,
-      checkInTime: Date.now() - (24 - i) * 1000,
-    }));
-    commit((s) => ({ ...s, players, pairs: [], unpaired: { A: [], B: [], C: [] } }));
-  }, [commit]);
-
   const buildPairs = useCallback(() => {
     commit((s) => {
+      if (!canMutateSetup(s.phase)) return s; // re-pairing mid-session orphans the schedule
       const gen = generatePairs(s.players, s.config.seed);
       return { ...s, pairs: gen.pairs, unpaired: gen.unpaired, vipRejected: gen.vip.rejected };
     });
@@ -428,7 +428,8 @@ export function useSessionV2(): UseSessionV2 {
 
   const startSession = useCallback(() => {
     commit((s) => {
-      if (s.pairs.length < 4) return s;
+      // Setup only — a mid-session tap here would wipe every recorded result.
+      if (!canMutateSetup(s.phase) || s.pairs.length < 4) return s;
       const now = Date.now();
       const schedule = generateRoundSchedule(s.pairs, {
         rounds: s.config.targetRounds,
@@ -460,10 +461,18 @@ export function useSessionV2(): UseSessionV2 {
 
   const resetSession = useCallback(() => {
     // End-of-night reset: the ROSTER survives (it's the multi-week asset);
-    // check-ins, pairs, games, and results are tonight's data and clear.
+    // the schedule and all of tonight's derived data clear via the single
+    // clearTwoCourtSchedule source of truth. Check-ins reset too.
     commit((s) => ({
-      ...DEFAULTS(),
-      config: s.config,
+      ...s,
+      ...clearTwoCourtSchedule(s),
+      phase: "setup",
+      pauses: [],
+      paceSamples: [],
+      vipRejected: [],
+      unpaired: { A: [], B: [], C: [] },
+      sessionStartedAt: null,
+      hardStopAt: null,
       players: s.players.map((p) => ({
         ...p,
         checkedIn: false,
@@ -488,17 +497,32 @@ export function useSessionV2(): UseSessionV2 {
     }));
   }, [commit]);
 
-  const importClassicRoster = useCallback(async (): Promise<number> => {
+  const importClassicRoster = useCallback(async (): Promise<{ added: number; updated: number }> => {
     const imported = await fetchClassicRoster();
-    let added = 0;
-    commit((s) => {
-      const byId = new Set(s.players.map((p) => p.id));
-      const byName = new Set(s.players.map((p) => p.name.toLowerCase()));
-      const fresh = imported.filter((p) => !byId.has(p.id) && !byName.has(p.name.toLowerCase()));
-      added = fresh.length;
-      return { ...s, players: [...s.players, ...fresh] };
-    });
-    return added;
+    const merged = mergeRoster(sessionRef.current.players, imported);
+    commit((s) => ({ ...s, players: mergeRoster(s.players, imported).players }));
+    return { added: merged.added, updated: merged.updated };
+  }, [commit]);
+
+  const importCsv = useCallback((csvText: string): { added: number; updated: number } => {
+    // Preferred (display) name = first name, by owner's instruction. Contacts
+    // ride along on the Player (admin-only). New CSV people default to tier B —
+    // the admin assigns real tiers at check-in.
+    const parsed = parseRosterCsv(csvText);
+    const incoming: Player[] = parsed.map((c) => ({
+      id: c.sourceKey,
+      name: c.preferredName,
+      tier: "B" as Tier,
+      isVip: false,
+      isCoach: false,
+      checkedIn: false,
+      lastName: c.lastName ?? undefined,
+      email: c.email ?? undefined,
+      phone: c.phone ?? undefined,
+    }));
+    const merged = mergeRoster(sessionRef.current.players, incoming);
+    commit((s) => ({ ...s, players: mergeRoster(s.players, incoming).players }));
+    return { added: merged.added, updated: merged.updated };
   }, [commit]);
 
   // --- rounds --------------------------------------------------------------
@@ -530,8 +554,15 @@ export function useSessionV2(): UseSessionV2 {
 
       // Round boundary handling (§6): auto-advance early boundaries; hold at
       // the decision point (before the final round) and after the last round.
+      // Auto-advance only PAST early boundaries and only if the next round
+      // really exists; hold at the decision point (before the final round) and
+      // at the end. Never advance into an empty/absent round.
       const complete = roundGames(next, next.currentRound).every((g) => done.has(g.id));
-      if (complete && next.currentRound < next.config.targetRounds - 1) {
+      if (
+        complete &&
+        next.currentRound < next.config.targetRounds - 1 &&
+        canAdvanceToNextRound(next.schedule?.rounds, next.currentRound)
+      ) {
         next = advanceRound(next, now);
       }
       return next;
@@ -541,7 +572,9 @@ export function useSessionV2(): UseSessionV2 {
   const playNextRound = useCallback(() => {
     commit((s) => {
       if (!isRoundComplete(s, s.currentRound)) return s; // rounds are atomic
-      if (s.currentRound >= s.config.targetRounds) return s;
+      // Bound against the ACTUAL generated schedule, not the config target —
+      // advancing into a round the scheduler never produced hard-stalls the board.
+      if (!canAdvanceToNextRound(s.schedule?.rounds, s.currentRound)) return s;
       return advanceRound(s, Date.now());
     });
   }, [commit]);
@@ -611,11 +644,16 @@ export function useSessionV2(): UseSessionV2 {
   }, [commit]);
 
   const setHardStopLive = useCallback((hhmm: string) => {
-    commit((s) => ({
-      ...s,
-      config: { ...s.config, hardStopTime: hhmm },
-      hardStopAt: s.sessionStartedAt !== null ? resolveHardStop(hhmm, Date.now()) : s.hardStopAt,
-    }));
+    commit((s) => {
+      // Same-day resolution; a cleared/invalid field keeps the existing stop
+      // rather than snapping to a default or jumping to tomorrow.
+      const resolved = s.sessionStartedAt !== null ? resolveSameDayHardStop(hhmm, Date.now()) : null;
+      return {
+        ...s,
+        config: { ...s.config, hardStopTime: hhmm },
+        hardStopAt: resolved ?? s.hardStopAt,
+      };
+    });
   }, [commit]);
 
   // --- playoffs ------------------------------------------------------------
@@ -751,11 +789,11 @@ export function useSessionV2(): UseSessionV2 {
     setFlag,
     updatePlayer,
     importClassicRoster,
+    importCsv,
     clearRoster,
     updateConfig,
     applyTemplate,
     setPractice,
-    loadDemoRoster,
     buildPairs,
     startSession,
     resetSession,
