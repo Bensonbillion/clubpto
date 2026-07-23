@@ -5,7 +5,7 @@
 
 import { useMemo, useState } from "react";
 import type { UseSessionV2, CourtView } from "@/court-manager/react/useSessionV2";
-import type { RoundGame } from "@/court-manager/types";
+import type { PlayoffMatch, RoundGame } from "@/court-manager/types";
 import {
   AlertTriangle,
   ArrowRightLeft,
@@ -14,6 +14,7 @@ import {
   ChevronUp,
   Pause,
   Play,
+  RotateCcw,
   Trophy,
   UserPlus,
 } from "lucide-react";
@@ -461,10 +462,147 @@ const GameHistory = ({ s }: { s: UseSessionV2 }) => {
   );
 };
 
+/* ── playoff courts (phase "playoffs" / "done") ───────────────────────
+   The playoff games are still COURT games, so helpers run them from this open
+   screen exactly like the round-robin: tap who won. Names only — no seed
+   numbers and no tier labels (§18); the seeded bracket and the leaderboard
+   stay on the passcode-locked Standings tab. */
+
+const PlayoffMatchCard = ({
+  s,
+  match,
+  decidedSide,
+}: {
+  s: UseSessionV2;
+  match: PlayoffMatch;
+  decidedSide?: "a" | "b";
+}) => {
+  const decided = decidedSide !== undefined;
+  const stage = match.stage === "final" ? "Final" : match.stage === "semi" ? "Semi-final" : "Playoff";
+  const teamNames = (team: PlayoffMatch["a"]) => team.ids.map(s.playerName).join(" & ");
+
+  const side = (key: "a" | "b") => {
+    const team = key === "a" ? match.a : match.b;
+    const isWinner = decidedSide === key;
+    return (
+      <button
+        key={key}
+        onClick={() => !decided && s.recordPlayoffWinner(match.id, key)}
+        disabled={decided}
+        className={`w-full min-h-[72px] rounded-lg border-2 px-5 py-4 flex items-center justify-between gap-3 text-left transition-all touch-manipulation ${
+          isWinner
+            ? "border-accent bg-accent/15"
+            : decided
+              ? "border-border bg-muted/40 opacity-60"
+              : "border-border bg-muted hover:border-accent hover:bg-accent/10 active:border-accent active:bg-accent/20 active:scale-[0.98]"
+        }`}
+      >
+        <span
+          className={`font-display text-xl md:text-2xl truncate min-w-0 ${
+            isWinner ? "text-accent" : "text-foreground"
+          }`}
+        >
+          {teamNames(team)}
+        </span>
+        {isWinner ? (
+          <Trophy className="w-5 h-5 shrink-0 text-accent" />
+        ) : (
+          !decided && <Trophy className="w-5 h-5 shrink-0 text-muted-foreground/50" />
+        )}
+      </button>
+    );
+  };
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4 md:p-5 space-y-4 min-w-0">
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-display text-2xl md:text-3xl text-accent">Court {match.court}</h3>
+        <span className="text-xs uppercase tracking-widest text-muted-foreground">{stage}</span>
+      </div>
+      <p className="text-xs uppercase tracking-widest text-muted-foreground">
+        {decided ? "Result recorded" : "Now playing — tap who won"}
+      </p>
+      <div className="space-y-3">
+        {side("a")}
+        {side("b")}
+      </div>
+    </div>
+  );
+};
+
+const PlayoffBoard = ({ s }: { s: UseSessionV2 }) => {
+  const { playoffs, champion } = s.session;
+  const matches = playoffs?.matches ?? [];
+  const winners = playoffs?.winners ?? {};
+  const live = matches.filter((m) => !winners[m.id]);
+  const settled = matches.filter((m) => winners[m.id]);
+
+  return (
+    <div className="space-y-5 md:space-y-6 animate-fade-up">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-3xl md:text-4xl text-foreground">Playoffs</h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <SyncPill status={s.syncStatus} />
+          {s.canUndoPlayoff && (
+            <button
+              onClick={s.undoPlayoffWinner}
+              className="min-h-[44px] inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm text-muted-foreground hover:text-foreground hover:border-accent/50 transition-colors touch-manipulation"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Undo last result
+            </button>
+          )}
+        </div>
+      </div>
+
+      {champion && (
+        <div className="rounded-lg border-2 border-accent bg-accent/10 p-6 md:p-8 text-center space-y-3">
+          <Trophy className="w-10 h-10 text-accent mx-auto" />
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">Champions of the week</p>
+          <h3 className="font-display text-3xl md:text-4xl text-accent">
+            {champion.map(s.playerName).join(" & ")}
+          </h3>
+          <p className="text-base text-muted-foreground">Well played. See you next week.</p>
+        </div>
+      )}
+
+      {live.length > 0 && (
+        <div className={`grid gap-4 md:gap-5 ${live.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+          {live.map((m) => (
+            <PlayoffMatchCard key={m.id} s={s} match={m} />
+          ))}
+        </div>
+      )}
+
+      {live.length === 0 && !champion && (
+        <div className="rounded-lg border border-dashed border-border bg-dark-surface/40 py-12 text-center space-y-1">
+          <p className="font-display text-lg text-muted-foreground">Waiting on the next match</p>
+          <p className="text-sm text-muted-foreground/70">
+            The bracket is on the Standings &amp; Playoffs tab.
+          </p>
+        </div>
+      )}
+
+      {settled.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">Done</p>
+          <div className="grid gap-4 md:gap-5 grid-cols-1 md:grid-cols-2">
+            {settled.map((m) => (
+              <PlayoffMatchCard key={m.id} s={s} match={m} decidedSide={winners[m.id]} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 /* ── the board ────────────────────────────────────────────────────── */
 
 export default function RoundBoard({ s }: { s: UseSessionV2 }) {
   const { session } = s;
+  // Playoff games still run on the courts — keep this open screen useful.
+  if (session.phase === "playoffs" || session.phase === "done") return <PlayoffBoard s={s} />;
   if (session.phase !== "rounds") return null;
 
   const { currentRound } = session;

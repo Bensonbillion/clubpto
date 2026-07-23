@@ -175,16 +175,10 @@ const ManageNextInner = () => {
                 <div className="py-24 text-center text-muted-foreground">
                   Courts light up once the session starts. Check players in, then start it from the Roster tab.
                 </div>
-              ) : s.session.phase === "rounds" ? (
-                <RoundBoard s={s} />
               ) : (
-                <div className="py-24 text-center space-y-2">
-                  <p className="font-display text-2xl text-accent">Playoffs are underway</p>
-                  <p className="text-muted-foreground">
-                    The round-robin is done. The bracket and champion are on the{" "}
-                    <span className="text-cream">Standings &amp; Playoffs</span> tab.
-                  </p>
-                </div>
+                // Rounds AND playoffs both render here — RoundBoard switches to the
+                // playoff courts itself, so helpers keep running games either way.
+                <RoundBoard s={s} />
               ))}
             {tab === "standings" && <StandingsPlayoffs s={s} />}
           </>
