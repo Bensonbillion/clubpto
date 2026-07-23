@@ -22,6 +22,7 @@ import {
   Play,
   Plus,
   Search,
+  Shuffle,
   Trash2,
   Upload,
   UserPlus,
@@ -829,14 +830,25 @@ export function CheckIn({ s }: { s: UseSessionV2 }) {
 
       {isSetup ? (
         <>
-          <button
-            onClick={s.buildPairs}
-            disabled={s.countSummary.checkedIn < 2}
-            className="w-full min-h-[64px] rounded-lg border-2 border-gold/60 text-gold font-display text-lg uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-[0.99] hover:bg-gold/10 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
-          >
-            <Users className="w-6 h-6" />
-            Generate Pairs
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              onClick={s.buildPairs}
+              disabled={s.countSummary.checkedIn < 2}
+              className="flex-1 min-h-[64px] rounded-lg border-2 border-gold/60 text-gold font-display text-lg uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-[0.99] hover:bg-gold/10 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+            >
+              <Users className="w-6 h-6" />
+              Generate Pairs
+            </button>
+            {s.session.pairs.length > 0 && (
+              <button
+                onClick={s.reshufflePairs}
+                className="min-h-[64px] px-6 rounded-lg border-2 border-border text-cream font-display text-base uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.99] hover:border-gold/40"
+              >
+                <Shuffle className="w-5 h-5" />
+                Reshuffle
+              </button>
+            )}
+          </div>
 
           <PairsPanel s={s} />
 

@@ -70,6 +70,8 @@ export interface SessionV2 {
   pairs: Pair[];
   unpaired: Record<Tier, string[]>;
   vipRejected: { vipId: string; partnerId: string; reason: string }[];
+  /** Seed for pair randomization — bumped by Reshuffle to re-randomize. */
+  pairSeed: number;
   schedule: RoundScheduleResult | null;
   currentRound: number;
   results: GameResult[];
@@ -102,6 +104,7 @@ const DEFAULTS = (): SessionV2 => ({
   pairs: [],
   unpaired: { A: [], B: [], C: [] },
   vipRejected: [],
+  pairSeed: 1,
   schedule: null,
   currentRound: 0,
   results: [],
@@ -260,6 +263,8 @@ export interface UseSessionV2 {
   /** Practice flag (§5) — locked once the first result exists. */
   setPractice(on: boolean): void;
   buildPairs(): void;
+  /** Re-randomize the pairs (VIP locks stay). Setup phase only. */
+  reshufflePairs(): void;
   startSession(): void;
   resetSession(): void;
 
@@ -449,8 +454,19 @@ export function useSessionV2(): UseSessionV2 {
   const buildPairs = useCallback(() => {
     commit((s) => {
       if (!canMutateSetup(s.phase)) return s; // re-pairing mid-session orphans the schedule
-      const gen = generatePairs(s.players, s.config.seed);
+      const gen = generatePairs(s.players, s.pairSeed ?? s.config.seed);
       return { ...s, pairs: gen.pairs, unpaired: gen.unpaired, vipRejected: gen.vip.rejected };
+    });
+  }, [commit]);
+
+  // Re-randomize the pairs — bump the seed so the non-VIP players shuffle into
+  // new partners (VIP locks are hard constraints and stay put).
+  const reshufflePairs = useCallback(() => {
+    commit((s) => {
+      if (!canMutateSetup(s.phase)) return s;
+      const pairSeed = (s.pairSeed ?? s.config.seed) + 1;
+      const gen = generatePairs(s.players, pairSeed);
+      return { ...s, pairSeed, pairs: gen.pairs, unpaired: gen.unpaired, vipRejected: gen.vip.rejected };
     });
   }, [commit]);
 
@@ -497,6 +513,7 @@ export function useSessionV2(): UseSessionV2 {
       pauses: [],
       paceSamples: [],
       vipRejected: [],
+      pairSeed: 1,
       unpaired: { A: [], B: [], C: [] },
       sessionStartedAt: null,
       players: s.players.map((p) => ({
@@ -876,6 +893,7 @@ export function useSessionV2(): UseSessionV2 {
     applyTemplate,
     setPractice,
     buildPairs,
+    reshufflePairs,
     startSession,
     resetSession,
     courts,
