@@ -50,12 +50,22 @@ export interface SessionV2Config {
   seed: number;
 }
 
+/** Snapshot taken before each playoff winner tap, so a mis-tap can be undone. */
+export interface PlayoffUndoEntry {
+  matches: PlayoffMatch[];
+  winners: Record<string, "a" | "b">;
+  champion: string[] | null;
+  phase: SessionPhase;
+}
+
 export interface PlayoffsState {
   seeds: StandingRow[];
   notes: string[];
   matches: PlayoffMatch[];
   /** matchId → winning side. The final is created when both semis resolve. */
   winners: Record<string, "a" | "b">;
+  /** Pre-tap snapshots; undo pops the most recent (courtside mis-taps happen). */
+  undoStack: PlayoffUndoEntry[];
 }
 
 export interface SessionV2 {
@@ -287,6 +297,10 @@ export interface UseSessionV2 {
   standings: StandingRow[];
   startPlayoffs(): void;
   recordPlayoffWinner(matchId: string, side: "a" | "b"): void;
+  /** Reverse the last playoff winner tap (mis-taps happen courtside). */
+  undoPlayoffWinner(): void;
+  /** True when there is a playoff result to undo. */
+  canUndoPlayoff: boolean;
 
   // Lookups for rendering
   pairName(pairId: string): string;
@@ -679,7 +693,7 @@ export function useSessionV2(): UseSessionV2 {
       } else {
         return s;
       }
-      return { ...s, phase: "playoffs", playoffs: { seeds, notes, matches, winners: {} } };
+      return { ...s, phase: "playoffs", playoffs: { seeds, notes, matches, winners: {}, undoStack: [] } };
     });
   }, [commit]);
 
@@ -688,6 +702,15 @@ export function useSessionV2(): UseSessionV2 {
       if (!s.playoffs) return s;
       const match = s.playoffs.matches.find((m) => m.id === matchId);
       if (!match || s.playoffs.winners[matchId]) return s;
+
+      // Snapshot BEFORE mutating so a mis-tap is one tap to reverse.
+      const snapshot: PlayoffUndoEntry = {
+        matches: s.playoffs.matches,
+        winners: s.playoffs.winners,
+        champion: s.champion,
+        phase: s.phase,
+      };
+
       const winners = { ...s.playoffs.winners, [matchId]: side };
       let matches = s.playoffs.matches;
       let champion = s.champion;
@@ -708,7 +731,32 @@ export function useSessionV2(): UseSessionV2 {
         champion = (winners[final.id] === "a" ? final.a : final.b).ids;
         phase = "done";
       }
-      return { ...s, phase, champion, playoffs: { ...s.playoffs, matches, winners } };
+      return {
+        ...s,
+        phase,
+        champion,
+        playoffs: { ...s.playoffs, matches, winners, undoStack: [...(s.playoffs.undoStack ?? []), snapshot] },
+      };
+    });
+  }, [commit]);
+
+  const undoPlayoffWinner = useCallback(() => {
+    commit((s) => {
+      if (!s.playoffs) return s;
+      const stack = s.playoffs.undoStack ?? [];
+      const prev = stack[stack.length - 1];
+      if (!prev) return s;
+      return {
+        ...s,
+        phase: prev.phase,
+        champion: prev.champion,
+        playoffs: {
+          ...s.playoffs,
+          matches: prev.matches,
+          winners: prev.winners,
+          undoStack: stack.slice(0, -1),
+        },
+      };
     });
   }, [commit]);
 
@@ -815,6 +863,8 @@ export function useSessionV2(): UseSessionV2 {
     standings,
     startPlayoffs,
     recordPlayoffWinner,
+    undoPlayoffWinner,
+    canUndoPlayoff: (session.playoffs?.undoStack.length ?? 0) > 0,
     pairName,
     playerName,
   };

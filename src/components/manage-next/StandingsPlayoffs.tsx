@@ -4,7 +4,7 @@
 
 import type { UseSessionV2 } from "@/court-manager/react/useSessionV2";
 import type { PlayoffMatch, StandingRow, Tier } from "@/court-manager/types";
-import { Info, Trophy } from "lucide-react";
+import { Info, Trophy, Undo2 } from "lucide-react";
 
 /* ── Tier badge (admin-only styling: A gold, B silver, C bronze) ──── */
 const TIER_BADGE: Record<Tier, string> = {
@@ -270,6 +270,17 @@ const Bracket = ({ s }: { s: UseSessionV2 }) => {
 
   return (
     <div className="space-y-4">
+      {s.canUndoPlayoff && (
+        <div className="flex justify-end">
+          <button
+            onClick={s.undoPlayoffWinner}
+            className="min-h-[44px] px-4 rounded-md border border-border text-muted-foreground text-sm flex items-center gap-2 hover:text-cream hover:border-gold/40 transition-colors"
+          >
+            <Undo2 className="w-4 h-4" />
+            Undo last result
+          </button>
+        </div>
+      )}
       {quarters.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {quarters.map((m, i) => (
