@@ -33,12 +33,25 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Basic allowlist: DML + DDL for schema management
+    // SECURITY: this endpoint is unauthenticated (verify_jwt = false), so the
+    // command allowlist is the only guard. DDL is DENIED — no CREATE/ALTER/DROP
+    // — so a caller can never drop or restructure the database. Runtime only
+    // needs DML; schema changes must go through the Turso CLI, never this proxy.
+    // (Full fix still required: put this behind auth — see SECURITY-REMEDIATION.md.)
     const command = sql.trim().split(/\s+/)[0].toUpperCase();
-    if (!["SELECT", "INSERT", "UPDATE", "DELETE", "WITH", "CREATE", "ALTER", "DROP"].includes(command)) {
+    const ALLOWED = ["SELECT", "INSERT", "UPDATE", "DELETE", "WITH"];
+    if (!ALLOWED.includes(command)) {
       return new Response(
         JSON.stringify({ error: `Disallowed SQL command: ${command}` }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    // Block stacked statements (e.g. "SELECT 1; DROP TABLE x") — one statement only.
+    const withoutTrailing = sql.trim().replace(/;\s*$/, "");
+    if (withoutTrailing.includes(";")) {
+      return new Response(
+        JSON.stringify({ error: "Multiple SQL statements are not allowed" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
