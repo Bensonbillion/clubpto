@@ -388,7 +388,18 @@ export function useSessionV2(): UseSessionV2 {
   }, [commit]);
 
   const removePlayer = useCallback((playerId: string) => {
-    commit((s) => ({ ...s, players: s.players.filter((p) => p.id !== playerId) }));
+    commit((s) => {
+      // Setup only. Removing a player mid-session would leave a "ghost pair" in
+      // the live schedule (a pair referencing someone who no longer exists),
+      // which renders half-blank and still gets scheduled games. Blocked.
+      if (!canMutateSetup(s.phase)) return s;
+      return {
+        ...s,
+        players: s.players.filter((p) => p.id !== playerId),
+        // Drop any pair they were in so a stale pairing can't reach the schedule.
+        pairs: s.pairs.filter((pr) => !pr.playerIds.includes(playerId)),
+      };
+    });
   }, [commit]);
 
   // Pick / un-pick a player for TODAY's session (the check-in list). Removing
@@ -478,7 +489,17 @@ export function useSessionV2(): UseSessionV2 {
   const swapPlayers = useCallback((idA: string, idB: string) => {
     commit((s) => {
       if (!canMutateSetup(s.phase)) return s;
-      return { ...s, pairs: swapPairMembers(s.pairs, idA, idB) };
+      const pairs = swapPairMembers(s.pairs, idA, idB);
+      if (pairs === s.pairs) return s; // invalid swap → no-op, leave everything alone
+      // A hand-swap overrides any VIP pick involving the two moved players. Clear
+      // vipPartnerId on them AND on anyone who picked them, so a later Reshuffle
+      // (which honors VIP picks) can't silently snap the old pairing back.
+      const players = s.players.map((p) =>
+        p.id === idA || p.id === idB || p.vipPartnerId === idA || p.vipPartnerId === idB
+          ? { ...p, vipPartnerId: undefined }
+          : p,
+      );
+      return { ...s, pairs, players };
     });
   }, [commit]);
 
@@ -862,8 +883,15 @@ export function useSessionV2(): UseSessionV2 {
 
   const scheduleWarnings = useMemo(() => {
     if (!session.schedule) return [];
+    // Late-joiner pairs (added mid-session) legitimately play fewer games than
+    // the pairs that started in round 1. Exempt them from the even-count check
+    // so slotting someone in doesn't spray false "uneven counts" alarms across
+    // the helper-facing board.
+    const earlyPairs = new Set((session.schedule.rounds[0] ?? []).flatMap((g) => g.pairIds));
+    const spreadExempt = session.pairs.map((p) => p.id).filter((id) => !earlyPairs.has(id));
     const violations = validateRoundSchedule(session.pairs, session.schedule, {
       maxSpread: Object.keys(session.schedule.byes).length > 0 ? 1 : 0,
+      spreadExempt,
     });
     return [...session.schedule.disclosures, ...violations.map((v) => v.message)];
   }, [session.schedule, session.pairs]);

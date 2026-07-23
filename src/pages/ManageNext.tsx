@@ -106,12 +106,17 @@ const ManageNextInner = () => {
   const [tab, setTab] = useState<Tab>("checkin");
   const s = useSessionV2();
 
-  // Follow the session: rounds → Courts (open), playoffs/done → Standings.
+  // Follow the session: rounds → Courts (open). At playoffs/done, only send the
+  // admin to the locked Standings tab — a no-passcode helper stays on the open
+  // Courts tab (which shows a playoffs pointer) instead of being trapped at the
+  // passcode gate the instant someone taps JUMP TO PLAYOFFS.
   useEffect(() => {
     if (s.loading) return;
     if (s.session.phase === "rounds") setTab("courts");
-    else if (s.session.phase === "playoffs" || s.session.phase === "done") setTab("standings");
-  }, [s.loading, s.session.phase]);
+    else if (s.session.phase === "playoffs" || s.session.phase === "done") {
+      setTab(adminUnlocked ? "standings" : "courts");
+    }
+  }, [s.loading, s.session.phase, adminUnlocked]);
 
   const gated = isLocked(tab) && !adminUnlocked;
 
@@ -170,8 +175,16 @@ const ManageNextInner = () => {
                 <div className="py-24 text-center text-muted-foreground">
                   Courts light up once the session starts. Check players in, then start it from the Roster tab.
                 </div>
-              ) : (
+              ) : s.session.phase === "rounds" ? (
                 <RoundBoard s={s} />
+              ) : (
+                <div className="py-24 text-center space-y-2">
+                  <p className="font-display text-2xl text-accent">Playoffs are underway</p>
+                  <p className="text-muted-foreground">
+                    The round-robin is done. The bracket and champion are on the{" "}
+                    <span className="text-cream">Standings &amp; Playoffs</span> tab.
+                  </p>
+                </div>
               ))}
             {tab === "standings" && <StandingsPlayoffs s={s} />}
           </>

@@ -921,16 +921,27 @@ export function SessionSetup({ s }: { s: UseSessionV2 }) {
 export function CheckIn({ s }: { s: UseSessionV2 }) {
   const [search, setSearch] = useState("");
 
-  // Only TODAY's picked players (attending) show here — this page is attendance.
+  // Default view = TODAY's picked players (attending). But a SEARCH falls
+  // through to the WHOLE system, so a helper (no passcode) can find and check
+  // in anyone who wasn't pre-marked "+ Today" — tapping them checks them in AND
+  // adds them to today's list (toggleCheckIn sets attending). No tiers shown.
   const todaysPlayers = useMemo(
     () => s.session.players.filter((p) => p.attending).sort((a, b) => a.name.localeCompare(b.name)),
     [s.session.players],
   );
+  const allPlayers = useMemo(
+    () => [...s.session.players].sort((a, b) => a.name.localeCompare(b.name)),
+    [s.session.players],
+  );
   const q = search.trim().toLowerCase();
   const visiblePlayers = useMemo(
-    () => (q ? todaysPlayers.filter((p) => `${p.name} ${p.lastName ?? ""}`.toLowerCase().includes(q)) : todaysPlayers),
-    [todaysPlayers, q],
+    () =>
+      q
+        ? allPlayers.filter((p) => `${p.name} ${p.lastName ?? ""}`.toLowerCase().includes(q))
+        : todaysPlayers,
+    [allPlayers, todaysPlayers, q],
   );
+  const hasRoster = s.session.players.length > 0;
 
   return (
     <div className="space-y-6 animate-fade-up">
@@ -943,36 +954,43 @@ export function CheckIn({ s }: { s: UseSessionV2 }) {
           </span>
         }
       >
-        {todaysPlayers.length === 0 ? (
+        {hasRoster && (
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search any name to check them in…"
+              aria-label="Search to check someone in"
+              className="w-full min-h-[48px] rounded-md border border-border bg-dark-elevated pl-11 pr-4 text-base text-cream placeholder:text-muted-foreground/60 focus:outline-none focus:border-gold/60"
+            />
+          </div>
+        )}
+        {q ? (
+          visiblePlayers.length === 0 ? (
+            <p className="text-muted-foreground text-base py-6 text-center">
+              No one in the system matches “{search.trim()}”. New face? Add them on the{" "}
+              <span className="text-gold">Roster</span> tab.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5">
+              {visiblePlayers.map((p) => (
+                <CheckInRow key={p.id} player={p} s={s} mode="checkin" />
+              ))}
+            </div>
+          )
+        ) : todaysPlayers.length === 0 ? (
           <p className="text-muted-foreground text-base py-8 text-center">
-            No one picked for today yet. Go to the <span className="text-gold">Roster</span> tab, search a name, and
-            tap <span className="text-gold">+ Today</span> to add them here.
+            No one picked for today yet — search a name above to check someone in, or pick players on the{" "}
+            <span className="text-gold">Roster</span> tab.
           </p>
         ) : (
-          <>
-            {todaysPlayers.length > 8 && (
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
-                <input
-                  type="search"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search today's players…"
-                  aria-label="Search today's players"
-                  className="w-full min-h-[48px] rounded-md border border-border bg-dark-elevated pl-11 pr-4 text-base text-cream placeholder:text-muted-foreground/60 focus:outline-none focus:border-gold/60"
-                />
-              </div>
-            )}
-            {visiblePlayers.length === 0 ? (
-              <p className="text-muted-foreground text-base py-6 text-center">No one matches “{search.trim()}”.</p>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5">
-                {visiblePlayers.map((p) => (
-                  <CheckInRow key={p.id} player={p} s={s} mode="checkin" />
-                ))}
-              </div>
-            )}
-          </>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5">
+            {todaysPlayers.map((p) => (
+              <CheckInRow key={p.id} player={p} s={s} mode="checkin" />
+            ))}
+          </div>
         )}
       </Section>
 
