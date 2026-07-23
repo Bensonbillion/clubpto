@@ -516,6 +516,47 @@ section("Wednesday top-8 player bracket + C-beat-B override (§10)");
   assert(bracket[1].a.seedLabel === "2 & 7" && bracket[1].b.seedLabel === "3 & 6", "semi 2 is 2&7 vs 3&6");
 }
 
+section("Playoff leapfrog: a B who beat an A seeds above that A (§11)");
+{
+  // 4 A pairs + 4 B pairs (8 players each tier). B1 beat A4 head-to-head with an
+  // equal-or-better record → B1's players must seed ABOVE A4's players. A B who
+  // did NOT beat an A stays behind all A's.
+  const players: Player[] = [];
+  const pairs: import("../types").Pair[] = [];
+  (["A", "B"] as const).forEach((tier) => {
+    for (let i = 1; i <= 4; i++) {
+      const pid = `${tier}${i}`;
+      pairs.push({ id: pid, playerIds: [`${pid}a`, `${pid}b`], tier });
+      for (const suffix of ["a", "b"]) {
+        players.push({ id: `${pid}${suffix}`, name: `${pid}${suffix}`, tier, isVip: false, isCoach: false, checkedIn: true });
+      }
+    }
+  });
+  // Records: A1 strong; A4 mediocre; B1 strong and beat A4 head-to-head.
+  const games: CompletedRRGame[] = [
+    { pairIds: ["A1", "A2"], winnerPairId: "A1" },
+    { pairIds: ["A1", "A3"], winnerPairId: "A1" }, // A1 2-0
+    { pairIds: ["A2", "A3"], winnerPairId: "A2" },
+    { pairIds: ["A2", "A4"], winnerPairId: "A4" },
+    { pairIds: ["A3", "A4"], winnerPairId: "A3" }, // A4 1-2 (33%)
+    { pairIds: ["B1", "B2"], winnerPairId: "B1" },
+    { pairIds: ["B1", "B3"], winnerPairId: "B1" }, // B1 2-0 then beats A4 → 3-0
+    { pairIds: ["B1", "A4"], winnerPairId: "B1" }, // the leapfrog game (B1 100% >= A4 33%)
+    { pairIds: ["B2", "B3"], winnerPairId: "B2" },
+    { pairIds: ["B2", "B4"], winnerPairId: "B2" },
+    { pairIds: ["B3", "B4"], winnerPairId: "B3" },
+  ];
+  const { seeds, notes } = seedWednesdayTop8(players, pairs, games);
+  const seedIndex = (pairId: string) => seeds.findIndex((s) => s.id.startsWith(pairId));
+  const maxAIdx = Math.max(...seeds.map((s, i) => (s.tier === "A" ? i : -1)));
+  assert(seedIndex("B1") !== -1, "B1 (beat an A) is seeded into the bracket");
+  assert(seedIndex("B1") < seedIndex("A4"), "B1 seeds ABOVE the A4 it beat head-to-head");
+  assert(seedIndex("A1") < seedIndex("B1"), "an A that B1 did NOT beat still outranks B1");
+  // B2 beat no A, so it must never seed above an A (out of the bracket, or below every A).
+  assert(seedIndex("B2") === -1 || seedIndex("B2") > maxAIdx, "a B that beat no A never seeds above an A");
+  assert(notes.some((n) => n.includes("beat") && n.includes("head-to-head")), "leapfrog is disclosed");
+}
+
 section("Sunday per-court brackets (§11)");
 {
   const mk = (id: string): import("../types").Pair => ({ id, playerIds: [`${id}a`, `${id}b`], tier: "B" });

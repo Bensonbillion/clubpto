@@ -191,7 +191,7 @@ Manual trigger only; preview screen before committing; on Wednesday the trigger 
 
 **Tiebreaker chain (winner-only era):** **Win% → head-to-head → strength of schedule (combined Win% of opponents faced) → coin flip.** SOS answers "who had the harder road" from winner-only data and keeps the admin out of choosing between friends; the coin flip is visible and animated — honest, and nobody argues with a coin. The applied tiebreaker is always displayed ("wins H2H"). Never raw win totals (historical bug: 7W-13L once seeded above 4W-0L). Point differential is dead — no scores exist.
 
-**Wednesday (/manage 2-court) — unified top-8-player bracket:** all A players first, then B by Win% (C enters only via the override). **C-beat-B override:** a C player who beat a B player head-to-head takes that B player's spot and seeds above them — an H2H fact, fully supported by winner-only data. **The override exists only in 2-court mode; it is structurally impossible on Sunday's isolated courts** (C never plays B there). Bracket: seeds 1&8 vs 4&5, 2&7 vs 3&6 as doubles teams; simultaneous semis, then the final — the natural gathering moment.
+**Wednesday (/manage 2-court) — unified top-8-player bracket:** tier priority — A players seed first, then B, then C, each ordered by the chain. **Leapfrog exception (the only priority override):** a lower-tier player who beat a higher-tier player head-to-head **with an equal-or-better win %** seeds ABOVE that specific higher player. So a B who beat an A takes priority over that A; a C who beat a B takes priority over that B. A never plays C in 2-court mode, so C-beat-A cannot occur. The leapfrog only reorders a player past the specific opponent they beat — an A a B did *not* beat still outranks that B. The top 8 of the resulting order make the bracket; a lower player rising can push the weakest higher-tier player out. **This is structurally impossible on Sunday's isolated courts** (tiers never cross). Bracket: seeds 1&8 vs 4&5, 2&7 vs 3&6 as doubles teams; simultaneous semis, then the final — the natural gathering moment.
 
 **Sunday (/manage 3-court) — per-court brackets:** one button, three parallel playoffs. RR courts: top 4 pairs by Win% (same chain), #1v#4 / #2v#3, then final; <4 pairs → straight final. WSO court: **Final Challenge** (top 2 by wins, one decider) or "crown current leader." A late-started court still in RR is skipped and offered its playoff when ready. Champions: "PTO Champion" (A), "B Champion," "C Champion."
 
@@ -297,7 +297,7 @@ Shared roster, isolated session state — both run simultaneously with zero inte
 7. **Multi-court + 3-court isolation + independent start.**
 8. **Winner Stays On:** queue, streaks, undo.
 9. **Edge-case suite:** late arrivals (boundary-join / LPF-insertion), sub rotation (human-confirmed), removal, court move.
-10. **Playoffs:** eligibility floor; Win% → H2H → SOS → visible coin flip; C-beat-B override (2-court only); per-court brackets + Final Challenge (Sunday).
+10. **Playoffs:** eligibility floor; Win% → H2H → SOS → visible coin flip; tier priority with the beat-a-higher-tier leapfrog (2-court only); per-court brackets + Final Challenge (Sunday).
 11. **Practice mode flag + summary + WhatsApp export + archive** (with measured durations).
 12. **/manage2 fork:** copy, strip tier enforcement, separate session state, shared roster.
 

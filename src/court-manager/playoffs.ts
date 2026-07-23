@@ -157,10 +157,16 @@ function applyFloor(rows: StandingRow[], minGames: number, notes?: string[]): St
   return rows.filter((r) => r.gamesPlayed >= minGames);
 }
 
+const tierRank = (t: Tier): number => (t === "A" ? 0 : t === "B" ? 1 : 2);
+
 /**
- * Selection: all A players first, then B by the chain. C players don't enter —
- * except the C-beat-B override: a C player whose pair beat a B player's pair in
- * round robin takes that B player's spot and seeds at their position.
+ * Selection: tier priority — A players seed first, then B, then C, each ordered
+ * by the seeding chain. THE LEAPFROG EXCEPTION (owner's rule): a lower-tier
+ * player who BEAT a higher-tier player head-to-head, with an equal-or-better
+ * win %, seeds ABOVE that specific higher player. So a B who beat an A takes
+ * priority over that A; a C who beat a B takes priority over that B. (A never
+ * plays C in 2-court mode, so C-beat-A cannot occur.) The top 8 of the
+ * resulting order make the bracket.
  */
 export function seedWednesdayTop8(
   players: Player[],
@@ -180,32 +186,54 @@ export function seedWednesdayTop8(
 
   const notes: string[] = [];
   const rows = applyFloor(playerStandings(players, pairs, games), minGames, notes);
-  const byTier = (t: Tier) => sortSeeding(rows.filter((r) => r.tier === t), h2h);
 
-  const selection = [...byTier("A"), ...byTier("B")].slice(0, 8);
+  // Default order: tier priority, each tier sorted by the chain.
+  const full = (["A", "B", "C"] as Tier[]).flatMap((t) =>
+    sortSeeding(rows.filter((r) => r.tier === t), h2h),
+  );
 
-  // C-beat-B override (2-court only — structurally impossible in 3-court).
-  for (const c of byTier("C")) {
-    const cPair = pairOf.get(c.id);
-    if (!cPair) continue;
-    // Lowest-seeded B in the selection whose pair lost the head-to-head to C's pair.
-    for (let i = selection.length - 1; i >= 0; i--) {
-      const b = selection[i];
-      if (b.tier !== "B") continue;
-      const bPair = pairOf.get(b.id);
-      if (!bPair || h2hPairs(cPair, bPair) <= 0) continue;
-      notes.push(`${c.name} (C) beat ${b.name} (B) head-to-head — takes their playoff spot at seed ${i + 1}.`);
-      selection[i] = { ...c, tiebreakApplied: "C-beat-B override" };
-      break;
+  // Leapfrog pairs: L (strictly lower tier) beat H head-to-head with >= win%.
+  const leapfrogs: { L: string; H: string }[] = [];
+  for (const L of rows) {
+    for (const H of rows) {
+      if (tierRank(L.tier) <= tierRank(H.tier)) continue;
+      if (h2h(L.id, H.id) <= 0) continue; // L must have won the head-to-head
+      if (L.winPct < H.winPct) continue; // with an equal-or-better win %
+      leapfrogs.push({ L: L.id, H: H.id });
     }
   }
 
-  for (const s of selection) {
-    if (s.tiebreakApplied && s.tiebreakApplied !== "C-beat-B override") {
-      notes.push(`Seed ${selection.indexOf(s) + 1} (${s.name}): ${s.tiebreakApplied}.`);
+  // Move each leapfrogger to immediately above the higher player they beat;
+  // iterate until stable (small N; the guard is a safety cap).
+  const nameOf = new Map(rows.map((r) => [r.id, r] as const));
+  const noted = new Set<string>();
+  let guard = full.length * full.length + 1;
+  let moved = true;
+  while (moved && guard-- > 0) {
+    moved = false;
+    for (const { L, H } of leapfrogs) {
+      const li = full.findIndex((r) => r.id === L);
+      const hi = full.findIndex((r) => r.id === H);
+      if (li === -1 || hi === -1 || li < hi) continue; // already above / missing
+      const [row] = full.splice(li, 1);
+      full.splice(full.findIndex((r) => r.id === H), 0, row);
+      moved = true;
+      const key = `${L}>${H}`;
+      if (!noted.has(key)) {
+        noted.add(key);
+        const l = nameOf.get(L);
+        const hh = nameOf.get(H);
+        if (l && hh) {
+          notes.push(
+            `${l.name} (${l.tier}) beat ${hh.name} (${hh.tier}) head-to-head with an equal-or-better record — seeds above them.`,
+          );
+          row.tiebreakApplied = `beat ${hh.name} (${hh.tier}) head-to-head`;
+        }
+      }
     }
   }
-  return { seeds: selection, notes };
+
+  return { seeds: full.slice(0, 8), notes };
 }
 
 /** Seeds 1&8 vs 4&5, 2&7 vs 3&6 as doubles teams; semis simultaneous, then the final. */
