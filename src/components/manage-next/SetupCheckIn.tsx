@@ -193,15 +193,13 @@ const AddPlayerRow = ({ s }: { s: UseSessionV2 }) => {
   const [name, setName] = useState("");
   const [tier, setTier] = useState<Tier>("B");
   const [isVip, setIsVip] = useState(false);
-  const [isCoach, setIsCoach] = useState(false);
 
   const add = () => {
     const trimmed = name.trim();
     if (!trimmed) return;
-    s.addPlayer(trimmed, tier, { isVip, isCoach });
+    s.addPlayer(trimmed, tier, { isVip });
     setName("");
     setIsVip(false);
-    setIsCoach(false);
   };
 
   return (
@@ -229,25 +227,17 @@ const AddPlayerRow = ({ s }: { s: UseSessionV2 }) => {
           </button>
         ))}
       </div>
-      {(
-        [
-          ["VIP", isVip, setIsVip],
-          ["Coach", isCoach, setIsCoach],
-        ] as const
-      ).map(([label, on, set]) => (
-        <button
-          key={label}
-          onClick={() => set(!on)}
-          aria-pressed={on}
-          className={`h-12 px-4 rounded-md border-2 text-xs uppercase tracking-widest transition-all active:scale-95 ${
-            on
-              ? "border-gold bg-gold/15 text-gold"
-              : "border-border bg-dark-elevated text-muted-foreground hover:border-gold/40"
-          }`}
-        >
-          {label}
-        </button>
-      ))}
+      <button
+        onClick={() => setIsVip((v) => !v)}
+        aria-pressed={isVip}
+        className={`h-12 px-4 rounded-md border-2 text-xs uppercase tracking-widest transition-all active:scale-95 ${
+          isVip
+            ? "border-gold bg-gold/15 text-gold"
+            : "border-border bg-dark-elevated text-muted-foreground hover:border-gold/40"
+        }`}
+      >
+        VIP
+      </button>
       <button
         onClick={add}
         disabled={!name.trim()}
@@ -319,12 +309,6 @@ const CheckInRow = ({
           VIP
         </button>
         <button
-          onClick={() => s.setFlag(player.id, "isCoach", !player.isCoach)}
-          className={`h-11 px-3 rounded-md border text-xs uppercase tracking-wider transition-all active:scale-95 ${player.isCoach ? "border-gold bg-gold/15 text-gold" : "border-border text-muted-foreground"}`}
-        >
-          Coach
-        </button>
-        <button
           onClick={() => s.removePlayer(player.id)}
           aria-label={`Remove ${player.name}`}
           className="w-11 h-11 flex items-center justify-center rounded-md border border-border text-muted-foreground hover:text-red-400 hover:border-red-400/40 transition-colors"
@@ -367,7 +351,6 @@ const CheckInRow = ({
           {player.lastName && <span className="text-muted-foreground font-normal"> {player.lastName}</span>}
         </span>
         {player.isVip && <span className="text-[10px] text-gold flex-shrink-0">VIP</span>}
-        {player.isCoach && <span className="text-[10px] text-gold flex-shrink-0">◆</span>}
       </div>
       <TierSwitch player={player} s={s} />
       <button
