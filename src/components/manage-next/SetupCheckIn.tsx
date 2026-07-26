@@ -547,7 +547,9 @@ const VipPicks = ({ s }: { s: UseSessionV2 }) => {
               className="flex items-center gap-3 rounded-lg border border-border bg-dark-elevated p-3"
             >
               <TierBadge tier={vip.tier} />
-              <p className="text-cream font-body text-base min-w-0 truncate">{vip.name}</p>
+              {/* Disambiguated: with six players called "Temi", raw first names
+                  would let the admin lock a VIP to the wrong person. */}
+              <p className="text-cream font-body text-base min-w-0 truncate">{s.playerName(vip.id)}</p>
               <div className="ml-auto w-[200px] flex-shrink-0">
                 <Select
                   value={vip.vipPartnerId ?? NO_PICK}
@@ -560,7 +562,7 @@ const VipPicks = ({ s }: { s: UseSessionV2 }) => {
                     <SelectItem value={NO_PICK}>No pick</SelectItem>
                     {candidates.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
-                        {c.name}
+                        {s.playerName(c.id)}
                         {c.checkedIn ? "" : " (not checked in)"}
                       </SelectItem>
                     ))}

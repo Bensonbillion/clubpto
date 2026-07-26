@@ -8,7 +8,7 @@
 // can check people in and run both courts with no passcode. Tier labels are
 // never shown on the open surfaces (§18).
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Lock, Delete, Settings, UserCheck, Monitor, BarChart3, RotateCcw } from "lucide-react";
 import { useSessionV2 } from "@/court-manager/react/useSessionV2";
 import { SessionSetup, CheckIn } from "@/components/manage-next/SetupCheckIn";
@@ -110,13 +110,18 @@ const ManageNextInner = () => {
   // admin to the locked Standings tab — a no-passcode helper stays on the open
   // Courts tab (which shows a playoffs pointer) instead of being trapped at the
   // passcode gate the instant someone taps JUMP TO PLAYOFFS.
+  // Fire ONLY when the phase actually changes. Keying this on adminUnlocked too
+  // meant that entering the passcode mid-session re-ran the effect and yanked
+  // the admin straight back off the tab they had just unlocked.
+  const lastPhase = useRef<string | null>(null);
   useEffect(() => {
     if (s.loading) return;
-    if (s.session.phase === "rounds") setTab("courts");
-    else if (s.session.phase === "playoffs" || s.session.phase === "done") {
-      setTab(adminUnlocked ? "standings" : "courts");
-    }
-  }, [s.loading, s.session.phase, adminUnlocked]);
+    const phase = s.session.phase;
+    if (lastPhase.current === phase) return;
+    lastPhase.current = phase;
+    if (phase === "rounds") setTab("courts");
+    else if (phase === "playoffs" || phase === "done") setTab("courts");
+  }, [s.loading, s.session.phase]);
 
   const gated = isLocked(tab) && !adminUnlocked;
 

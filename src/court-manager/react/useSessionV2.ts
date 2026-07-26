@@ -394,11 +394,32 @@ export function useSessionV2(): UseSessionV2 {
       // the live schedule (a pair referencing someone who no longer exists),
       // which renders half-blank and still gets scheduled games. Blocked.
       if (!canMutateSetup(s.phase)) return s;
+      // Their pair has to go, but the PARTNER must not vanish with it: put them
+      // back on the waitlist so they're visibly awaiting a new partner instead
+      // of silently dropping out of the night with zero games.
+      const brokenPair = s.pairs.find((pr) => pr.playerIds.includes(playerId));
+      const partnerId = brokenPair?.playerIds.find((id) => id !== playerId);
+      const unpaired = { ...s.unpaired };
+      if (brokenPair && partnerId) {
+        const tier = brokenPair.tier;
+        if (!unpaired[tier].includes(partnerId)) unpaired[tier] = [...unpaired[tier], partnerId];
+      }
       return {
         ...s,
-        players: s.players.filter((p) => p.id !== playerId),
+        players: s.players
+          .filter((p) => p.id !== playerId)
+          // Anyone who had picked them as a VIP partner loses that dangling
+          // pick (it would otherwise resolve to a raw internal id).
+          .map((p) => (p.vipPartnerId === playerId ? { ...p, vipPartnerId: undefined } : p)),
         // Drop any pair they were in so a stale pairing can't reach the schedule.
         pairs: s.pairs.filter((pr) => !pr.playerIds.includes(playerId)),
+        // Never leave a removed player's id lingering on the waitlist or as
+        // someone else's VIP pick — both render raw internal ids on screen.
+        unpaired: {
+          A: unpaired.A.filter((id) => id !== playerId),
+          B: unpaired.B.filter((id) => id !== playerId),
+          C: unpaired.C.filter((id) => id !== playerId),
+        },
       };
     });
   }, [commit]);
@@ -548,6 +569,9 @@ export function useSessionV2(): UseSessionV2 {
       paceSamples: [],
       vipRejected: [],
       pairSeed: 1,
+      // A practice night must not silently carry into the next real session —
+      // its results are excluded from records, which would be invisible here.
+      practice: false,
       unpaired: { A: [], B: [], C: [] },
       sessionStartedAt: null,
       players: s.players.map((p) => ({
@@ -762,9 +786,12 @@ export function useSessionV2(): UseSessionV2 {
   const startPlayoffs = useCallback(() => {
     commit((s) => {
       if (s.phase !== "rounds" || !isRoundComplete(s, s.currentRound)) return s; // §6: boundary-only
-      const checkedIn = s.players.filter((p) => p.checkedIn);
       const games = rrGames(s);
-      const { seeds, notes } = seedWednesdayTop8(checkedIn, s.pairs, games);
+      // Pass the FULL roster: seeding is driven by s.pairs (who actually played),
+      // while `players` is used only to resolve display names. Passing just the
+      // checked-in subset made names disagree with the Courts cards, and a
+      // paired player who got un-checked-in by a stray tap rendered as a raw id.
+      const { seeds, notes } = seedWednesdayTop8(s.players, s.pairs, games);
       // Standard knockout, pair vs pair: 1v8, 4v5, 2v7, 3v6 → semis → final.
       // Short fields degrade inside wednesdayBracket; too few eligible → no-op.
       const matches = wednesdayBracket(seeds, s.pairs);

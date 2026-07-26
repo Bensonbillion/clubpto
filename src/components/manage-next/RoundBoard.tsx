@@ -318,7 +318,8 @@ const FinalRoundPanel = ({ s }: { s: UseSessionV2 }) => {
 const LatecomerPanel = ({ s }: { s: UseSessionV2 }) => {
   const late = s.latecomers;
   if (late.length === 0) return null;
-  const names = late.map((p) => p.name).join(", ");
+  // Disambiguated, like every other live surface — "Timi" alone is ambiguous.
+  const names = late.map((p) => s.playerName(p.id)).join(", ");
   const nextRound = s.session.currentRound + 1;
   const finalRound = s.session.currentRound >= s.session.config.targetRounds;
   // Can we pair anyone? A tier needs at least two waiting players.
@@ -541,8 +542,17 @@ const PlayoffBoard = ({ s }: { s: UseSessionV2 }) => {
   const { playoffs, champion } = s.session;
   const matches = playoffs?.matches ?? [];
   const winners = playoffs?.winners ?? {};
-  const live = matches.filter((m) => !winners[m.id]);
+  const pending = matches.filter((m) => !winners[m.id]);
   const settled = matches.filter((m) => winners[m.id]);
+  // Only as many games as there are physical courts can be ON right now. With 8
+  // seeds the quarters are FOUR games on TWO courts, so they run in two waves —
+  // showing all four as "now playing" (two of them labelled Court 1) is exactly
+  // how a helper ends up recording a result for the wrong match.
+  const courtCount = Math.max(1, s.session.config.courts);
+  const live = pending.slice(0, courtCount);
+  const upNext = pending.slice(courtCount);
+  // Re-label to the real court each game is actually on in this wave.
+  const onCourt = (m: PlayoffMatch, i: number) => ({ ...m, court: i + 1 });
 
   return (
     <div className="space-y-5 md:space-y-6 animate-fade-up">
@@ -575,8 +585,23 @@ const PlayoffBoard = ({ s }: { s: UseSessionV2 }) => {
 
       {live.length > 0 && (
         <div className={`grid gap-4 md:gap-5 ${live.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
-          {live.map((m) => (
-            <PlayoffMatchCard key={m.id} s={s} match={m} />
+          {live.map((m, i) => (
+            <PlayoffMatchCard key={m.id} s={s} match={onCourt(m, i)} />
+          ))}
+        </div>
+      )}
+
+      {upNext.length > 0 && (
+        <div className="rounded-lg border border-border bg-card p-4 space-y-2">
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">
+            Up next — starts when a court frees up
+          </p>
+          {upNext.map((m) => (
+            <p key={m.id} className="text-base text-muted-foreground flex flex-wrap items-center gap-x-2">
+              <span className="text-foreground">{m.a.ids.map(s.playerName).join(" & ")}</span>
+              <span className="text-sm">vs</span>
+              <span className="text-foreground">{m.b.ids.map(s.playerName).join(" & ")}</span>
+            </p>
           ))}
         </div>
       )}

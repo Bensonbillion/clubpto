@@ -137,7 +137,16 @@ export function createSessionStore<T>(config: SessionStoreConfig<T>): SessionSto
         try {
           const remote = upgrade(await config.remote.pull());
           if (remote) {
-            config.storage.setItem(config.storageKey, JSON.stringify(remote));
+            // Mirroring to local is best-effort: if storage is blocked (private
+            // mode / quota) we must still RETURN the healthy remote session.
+            // Letting that write throw here would discard a good session and
+            // fall through to empty defaults — which the next tap would then
+            // push over the shared row, wiping the night for everyone.
+            try {
+              config.storage.setItem(config.storageKey, JSON.stringify(remote));
+            } catch {
+              setStatus("error");
+            }
             latest = remote;
             return { state: remote.state, source: "remote" as const };
           }
