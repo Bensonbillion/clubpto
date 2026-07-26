@@ -7,7 +7,7 @@
 //     mark present. NO tiers, NO VIP, NO editing are shown here (§18).
 // Tablet-first, winner-tap-only software: no score inputs exist anywhere.
 
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { SESSION_TEMPLATES, type UseSessionV2 } from "@/court-manager/react/useSessionV2";
 import type { Pair, Player, Tier } from "@/court-manager/types";
 import {
@@ -386,13 +386,17 @@ const CheckInRow = ({
         >
           VIP
         </button>
-        <button
-          onClick={() => s.removePlayer(player.id)}
-          aria-label={`Remove ${player.name}`}
-          className="w-11 h-11 flex items-center justify-center rounded-md border border-border text-muted-foreground hover:text-red-400 hover:border-red-400/40 transition-colors"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+        {/* Removal is setup-only (it would orphan a live pair). Hide the button
+            once the session starts rather than showing one that does nothing. */}
+        {s.session.phase === "setup" && (
+          <button
+            onClick={() => s.removePlayer(player.id)}
+            aria-label={`Remove ${player.name}`}
+            className="w-11 h-11 flex items-center justify-center rounded-md border border-border text-muted-foreground hover:text-red-400 hover:border-red-400/40 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
         <button
           onClick={saveEdit}
           className="h-11 px-4 rounded-md border-2 border-gold bg-gold/15 text-gold text-xs uppercase tracking-wider transition-all active:scale-95"
@@ -610,6 +614,12 @@ const PairsPanel = ({ s }: { s: UseSessionV2 }) => {
     () => (swapSel ? s.session.pairs.find((p) => p.playerIds.includes(swapSel))?.tier ?? null : null),
     [swapSel, s.session.pairs],
   );
+  // If the pairs change underneath a live selection (Reshuffle / Generate Pairs
+  // can move the selected player onto the waitlist), drop the selection —
+  // otherwise every following tap is silently ignored and the panel looks dead.
+  useEffect(() => {
+    if (swapSel && selTier === null) setSwapSel(null);
+  }, [swapSel, selTier]);
 
   const hasUnpaired = TIERS.some((t) => s.session.unpaired[t].length > 0);
 
