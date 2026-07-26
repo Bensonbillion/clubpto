@@ -560,6 +560,18 @@ const PlayoffBoard = ({ s }: { s: UseSessionV2 }) => {
         <h2 className="font-display text-3xl md:text-4xl text-foreground">Playoffs</h2>
         <div className="flex flex-wrap items-center gap-3">
           <SyncPill status={s.syncStatus} />
+          {/* Escape hatch for a premature jump: the trigger is on this open tab,
+              so an accidental tap must not cost the night. Disappears the moment
+              a playoff game is decided. */}
+          {s.canReturnToRounds && (
+            <button
+              onClick={s.returnToRounds}
+              className="min-h-[44px] inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 text-sm text-muted-foreground hover:text-foreground hover:border-accent/50 transition-colors touch-manipulation"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Not yet — back to the games
+            </button>
+          )}
           {s.canUndoPlayoff && (
             <button
               onClick={s.undoPlayoffWinner}

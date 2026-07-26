@@ -298,6 +298,10 @@ export interface UseSessionV2 {
   // Playoffs
   standings: StandingRow[];
   startPlayoffs(): void;
+  /** Undo a premature jump to playoffs (only before any playoff game is decided). */
+  returnToRounds(): void;
+  /** True while the jump to playoffs can still be reversed. */
+  canReturnToRounds: boolean;
   recordPlayoffWinner(matchId: string, side: "a" | "b"): void;
   /** Reverse the last playoff winner tap (mis-taps happen courtside). */
   undoPlayoffWinner(): void;
@@ -800,6 +804,20 @@ export function useSessionV2(): UseSessionV2 {
     });
   }, [commit]);
 
+  // Back out of a premature "jump to playoffs". The trigger lives on the OPEN
+  // Courts tab, so a helper can end the round-robin with two taps; without this
+  // the only way back was Reset, which wipes the entire night's results. Safe
+  // because it only clears the (as-yet unplayed) bracket — the schedule, the
+  // recorded results and the round pointer are untouched.
+  const returnToRounds = useCallback(() => {
+    commit((s) => {
+      if (s.phase !== "playoffs") return s;
+      // Once a playoff game has been decided, the bracket is real history.
+      if (Object.keys(s.playoffs?.winners ?? {}).length > 0) return s;
+      return { ...s, phase: "rounds", playoffs: null, champion: null };
+    });
+  }, [commit]);
+
   const recordPlayoffWinner = useCallback((matchId: string, side: "a" | "b") => {
     commit((s) => {
       if (!s.playoffs) return s;
@@ -1004,6 +1022,9 @@ export function useSessionV2(): UseSessionV2 {
     resumeSession,
     standings,
     startPlayoffs,
+    returnToRounds,
+    canReturnToRounds:
+      session.phase === "playoffs" && Object.keys(session.playoffs?.winners ?? {}).length === 0,
     recordPlayoffWinner,
     undoPlayoffWinner,
     // Optional-chain undoStack too: a stale playoffs object (loaded from an

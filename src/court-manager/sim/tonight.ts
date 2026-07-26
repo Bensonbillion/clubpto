@@ -113,13 +113,22 @@ for (const checkedIn of [20, 21, 22, 23, 24, 25, 26]) {
   const { seeds, notes } = seedWednesdayTop8(players, gen.pairs, games);
   assert(seeds.length >= 4, `enough eligible seeds for a playoff (got ${seeds.length})`);
   try {
+    // Standard knockout, pair vs pair: 8 seeds → four quarters (1v8, 4v5, 2v7,
+    // 3v6); 4-7 seeds → two semis; 2-3 → a straight final.
+    const bracket = wednesdayBracket(seeds, gen.pairs);
     if (seeds.length >= 8) {
-      const bracket = wednesdayBracket(seeds.slice(0, 8));
-      assert(bracket.length === 2, "top-8 bracket: two semis");
+      assert(bracket.length === 4, `top-8 bracket: four quarters (got ${bracket.length})`);
+      assert(
+        bracket[0].a.seedLabel === "1" && bracket[0].b.seedLabel === "8",
+        "quarter 1 is seed 1 vs seed 8",
+      );
     } else {
-      // Hook fallback: single final, seeds 1&4 vs 2&3 — must not throw.
-      assert(seeds.length >= 4, "fallback final has 4 seeds");
+      assert(bracket.length >= 1, `short field still produces a bracket (got ${bracket.length})`);
     }
+    assert(
+      bracket.every((m) => m.a.ids.length === 2 && m.b.ids.length === 2),
+      "every bracket side carries a pair's two players",
+    );
   } catch (e) {
     assert(false, `bracket construction threw: ${(e as Error).message}`);
   }
