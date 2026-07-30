@@ -817,34 +817,30 @@ export function useSessionV2(): UseSessionV2 {
       let champion = s.champion;
       let phase = s.phase;
 
-      // Playoff games run in waves of `config.courts`. Court labels must be
-      // STABLE: a game already in play keeps its court, and the game promoted
-      // into the live window takes the court the just-finished game freed.
-      // (Relabeling by list position renamed a mid-play game and pointed the
-      // promoted one at the occupied court.)
-      const courtCount = Math.max(1, s.config.courts);
-      const pendingBefore = matches.filter((m) => !s.playoffs!.winners[m.id]);
-      const pendingAfter = pendingBefore.filter((m) => m.id !== matchId);
-      const promoted = pendingAfter[courtCount - 1];
-      if (promoted && match.court !== undefined && pendingBefore.indexOf(promoted) >= courtCount) {
-        const freedCourt = match.court;
-        matches = matches.map((m) => (m.id === promoted.id ? { ...m, court: freedCourt } : m));
-      }
-
       const winTeam = (m: PlayoffMatch) => (winners[m.id] === "a" ? m.a : m.b);
 
-      // All four quarters in → build the semis. Bracket order is preserved, so
-      // quarters[0..1] are the top half (1v8, 4v5) and [2..3] the bottom half
-      // (2v7, 3v6): their winners meet on each side, keeping 1 and 2 apart
-      // until the final.
+      // Each semi is created the MOMENT its half of the bracket is decided —
+      // quarters[0..1] (1v8, 4v5) feed semi 1, quarters[2..3] (2v7, 3v6) feed
+      // semi 2. Waiting for all four quarters left a freed court idle for a
+      // whole game while semi 1's players stood beside it; creating the semi
+      // early puts it in the queue (its matchup visible under "Up next"), and
+      // the court normalization below sends it straight onto a free court.
       const quarters = matches.filter((m) => m.stage === "quarter");
-      const allQuartersDone = quarters.length === 4 && quarters.every((m) => winners[m.id]);
-      if (allQuartersDone && !matches.some((m) => m.stage === "semi")) {
-        matches = [
-          ...matches,
-          { id: "semi1", stage: "semi", court: 1, a: winTeam(quarters[0]), b: winTeam(quarters[1]) },
-          { id: "semi2", stage: "semi", court: 2, a: winTeam(quarters[2]), b: winTeam(quarters[3]) },
-        ];
+      if (quarters.length === 4) {
+        const halfDone = (i: number, j: number) =>
+          Boolean(winners[quarters[i].id] && winners[quarters[j].id]);
+        if (halfDone(0, 1) && !matches.some((m) => m.id === "semi1")) {
+          matches = [
+            ...matches,
+            { id: "semi1", stage: "semi", court: 1, a: winTeam(quarters[0]), b: winTeam(quarters[1]) },
+          ];
+        }
+        if (halfDone(2, 3) && !matches.some((m) => m.id === "semi2")) {
+          matches = [
+            ...matches,
+            { id: "semi2", stage: "semi", court: 2, a: winTeam(quarters[2]), b: winTeam(quarters[3]) },
+          ];
+        }
       }
 
       const semis = matches.filter((m) => m.stage === "semi");
@@ -855,6 +851,31 @@ export function useSessionV2(): UseSessionV2 {
           ...matches,
           { id: "final", stage: "final", court: 1, a: winTeam(semis[0]), b: winTeam(semis[1]) },
         ];
+      }
+
+      // Court assignment for the live window (games run in waves of
+      // `config.courts`): a game already IN PLAY never changes courts; a game
+      // entering the window — promoted from the queue, or a semi/final created
+      // while a court stands free — takes an unclaimed court. This keeps every
+      // label truthful and puts the next game on the court that actually freed.
+      const courtCount = Math.max(1, s.config.courts);
+      const wasLive = new Set(
+        s.playoffs.matches
+          .filter((m) => !s.playoffs!.winners[m.id])
+          .slice(0, courtCount)
+          .map((m) => m.id),
+      );
+      const liveNow = matches.filter((m) => !winners[m.id]).slice(0, courtCount);
+      const claimed = new Set(liveNow.filter((m) => wasLive.has(m.id)).map((m) => m.court));
+      const freeCourts: number[] = [];
+      for (let c = 1; c <= courtCount; c++) if (!claimed.has(c)) freeCourts.push(c);
+      const entering = new Set(liveNow.filter((m) => !wasLive.has(m.id)).map((m) => m.id));
+      if (entering.size > 0) {
+        matches = matches.map((m) => {
+          if (!entering.has(m.id)) return m;
+          const court = freeCourts.shift();
+          return court !== undefined && m.court !== court ? { ...m, court } : m;
+        });
       }
       const final = matches.find((m) => m.stage === "final");
       if (final && winners[final.id]) {

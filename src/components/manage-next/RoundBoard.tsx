@@ -239,9 +239,19 @@ const CourtCard = ({ view, s }: { view: CourtView; s: UseSessionV2 }) => {
           <p className="font-display text-lg text-muted-foreground">Court done</p>
           {view.nextRound.length > 0 ? (
             <div className="space-y-1.5">
+              {/* "Up next" is reserved for games startable within THIS round —
+                  these are next-round games, and at the decision point they're
+                  conditional on the admin choosing to play that round at all. */}
               <p className="text-xs uppercase tracking-widest text-muted-foreground/80">
-                Up next on this court — get ready
+                {s.atDecisionPoint
+                  ? `If round ${s.session.currentRound + 1} is played — up next here`
+                  : "Next round on this court — get ready"}
               </p>
+              {!s.roundComplete && (
+                <p className="text-[11px] text-muted-foreground/60">
+                  Starts once the other court wraps this round
+                </p>
+              )}
               {view.nextRound.slice(0, 2).map((g) => (
                 <p key={g.id} className="text-base flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
                   <PairLine pairId={g.pairIds[0]} s={s} />
@@ -251,7 +261,9 @@ const CourtCard = ({ view, s }: { view: CourtView; s: UseSessionV2 }) => {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground/70">Waiting on the other court</p>
+            <p className="text-sm text-muted-foreground/70">
+              {s.roundComplete ? "Round robin complete — playoffs are next" : "Waiting on the other court"}
+            </p>
           )}
         </div>
       )}

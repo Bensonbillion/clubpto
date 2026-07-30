@@ -974,8 +974,10 @@ section("Court views: the next two games on each court stay visible (day-of flow
     ({ id, round, court, slot, pairIds: [a, b], type: "AA" });
   const schedule = {
     rounds: [
-      [g("r1c1s1", 1, 1, 1, "P1", "P2"), g("r1c1s2", 1, 1, 2, "P3", "P4"), g("r1c2s1", 1, 2, 1, "P5", "P6")],
-      [g("r2c1s1", 2, 1, 1, "P1", "P3"), g("r2c2s1", 2, 2, 1, "P2", "P5"), g("r2c2s2", 2, 2, 2, "P4", "P6")],
+      // Deliberately OUT of slot order within each round so the slot-order
+      // assertions below actually exercise the sort in buildCourtViews.
+      [g("r1c1s2", 1, 1, 2, "P3", "P4"), g("r1c2s1", 1, 2, 1, "P5", "P6"), g("r1c1s1", 1, 1, 1, "P1", "P2")],
+      [g("r2c2s2", 2, 2, 2, "P4", "P6"), g("r2c1s1", 2, 1, 1, "P1", "P3"), g("r2c2s1", 2, 2, 1, "P2", "P5")],
     ],
     byes: {},
     disclosures: [],
