@@ -817,6 +817,20 @@ export function useSessionV2(): UseSessionV2 {
       let champion = s.champion;
       let phase = s.phase;
 
+      // Playoff games run in waves of `config.courts`. Court labels must be
+      // STABLE: a game already in play keeps its court, and the game promoted
+      // into the live window takes the court the just-finished game freed.
+      // (Relabeling by list position renamed a mid-play game and pointed the
+      // promoted one at the occupied court.)
+      const courtCount = Math.max(1, s.config.courts);
+      const pendingBefore = matches.filter((m) => !s.playoffs!.winners[m.id]);
+      const pendingAfter = pendingBefore.filter((m) => m.id !== matchId);
+      const promoted = pendingAfter[courtCount - 1];
+      if (promoted && match.court !== undefined && pendingBefore.indexOf(promoted) >= courtCount) {
+        const freedCourt = match.court;
+        matches = matches.map((m) => (m.id === promoted.id ? { ...m, court: freedCourt } : m));
+      }
+
       const winTeam = (m: PlayoffMatch) => (winners[m.id] === "a" ? m.a : m.b);
 
       // All four quarters in → build the semis. Bracket order is preserved, so

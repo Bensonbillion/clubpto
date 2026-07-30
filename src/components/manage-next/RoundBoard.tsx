@@ -589,8 +589,6 @@ const PlayoffBoard = ({ s }: { s: UseSessionV2 }) => {
   const courtCount = Math.max(1, s.session.config.courts);
   const live = pending.slice(0, courtCount);
   const upNext = pending.slice(courtCount);
-  // Re-label to the real court each game is actually on in this wave.
-  const onCourt = (m: PlayoffMatch, i: number) => ({ ...m, court: i + 1 });
 
   return (
     <div className="space-y-5 md:space-y-6 animate-fade-up">
@@ -635,8 +633,10 @@ const PlayoffBoard = ({ s }: { s: UseSessionV2 }) => {
 
       {live.length > 0 && (
         <div className={`grid gap-4 md:gap-5 ${live.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
-          {live.map((m, i) => (
-            <PlayoffMatchCard key={m.id} s={s} match={onCourt(m, i)} />
+          {/* Courts are stable: recordPlayoffWinner assigns a promoted game the
+              court that actually freed, so a mid-play game never gets renamed. */}
+          {live.map((m) => (
+            <PlayoffMatchCard key={m.id} s={s} match={m} />
           ))}
         </div>
       )}
