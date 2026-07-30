@@ -9,6 +9,7 @@
 import type { Pair, RoundGame, Tier } from "../types";
 import { generatePairs, pairLatecomers, publicCountSummary, publicRoster, resolveVipPicks, swapPairMembers } from "../checkin";
 import { buildDisplayNames } from "../displayNames";
+import { buildCourtViews } from "../courtViews";
 import { generateRoundSchedule, regenerateFromRound } from "../scheduler/rounds";
 import { validateRoundSchedule } from "../scheduler/validate";
 import { addLpfPair, createLpfCourt, nextLpfSlot, removeLpfPair } from "../scheduler/lpf";
@@ -965,6 +966,48 @@ section("Display names: shared first names get the shortest distinguishing suffi
     "true twins fall back to the full last name instead of looping forever");
   // Everyone in the roster gets an entry.
   assert(roster.every((p) => typeof d.get(p.id) === "string"), "every player resolves to a display name");
+}
+
+section("Court views: the next two games on each court stay visible (day-of flow)");
+{
+  const g = (id: string, round: number, court: number, slot: number, a: string, b: string): RoundGame =>
+    ({ id, round, court, slot, pairIds: [a, b], type: "AA" });
+  const schedule = {
+    rounds: [
+      [g("r1c1s1", 1, 1, 1, "P1", "P2"), g("r1c1s2", 1, 1, 2, "P3", "P4"), g("r1c2s1", 1, 2, 1, "P5", "P6")],
+      [g("r2c1s1", 2, 1, 1, "P1", "P3"), g("r2c2s1", 2, 2, 1, "P2", "P5"), g("r2c2s2", 2, 2, 2, "P4", "P6")],
+    ],
+    byes: {},
+    disclosures: [],
+  };
+  const mk = (settled: string[], currentRound = 1) => ({
+    config: { courts: 2 },
+    schedule,
+    currentRound,
+    results: settled.map((gameId) => ({ gameId, winnerPairId: "P1", loserPairId: "P2", startedAt: 0, completedAt: 1 })),
+    voidedGames: [] as string[],
+  });
+
+  // Mid-round: court 1 has two pending games of its own; court 2 has only one,
+  // so its second visible matchup must come from the NEXT round.
+  let v = buildCourtViews(mk([]));
+  assert(v[0].nowPlaying?.id === "r1c1s1" && v[0].onDeck?.id === "r1c1s2", "court 1: now playing + on deck from this round");
+  assert(v[0].nextRound[0]?.id === "r2c1s1", "court 1: next round's game exposed for the lookahead");
+  assert(v[1].nowPlaying?.id === "r1c2s1" && v[1].onDeck === null, "court 2: single pending game this round");
+  assert(v[1].nextRound.length === 2 && v[1].nextRound[0].id === "r2c2s1", "court 2: next two come from round 2, slot order");
+
+  // Court 2 finishes first: the DONE court must still show who's up next there
+  // — this is the boundary moment where players need to be at the gate.
+  v = buildCourtViews(mk(["r1c2s1"]));
+  assert(v[1].nowPlaying === null && v[1].nextRound.length === 2, "a done court still shows its next two games");
+
+  // Final round: no phantom preview past the end of the schedule.
+  v = buildCourtViews(mk([], 2));
+  assert(v[0].nextRound.length === 0 && v[1].nextRound.length === 0, "no lookahead past the final round");
+
+  // Voided games count as settled for the queue.
+  v = buildCourtViews({ ...mk([]), voidedGames: ["r1c1s1"] });
+  assert(v[0].nowPlaying?.id === "r1c1s2", "a voided game frees the court for the next slot");
 }
 
 // ---------------------------------------------------------------------------

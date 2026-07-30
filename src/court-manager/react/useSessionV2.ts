@@ -16,6 +16,7 @@ import type {
   Tier,
 } from "../types";
 import { generatePairs, pairLatecomers, publicCountSummary, swapPairMembers } from "../checkin";
+import { buildCourtViews, type CourtView } from "../courtViews";
 import { parseRosterCsv } from "../rosterCsv";
 import { mergeRoster } from "../rosterMerge";
 import { generateRoundSchedule, regenerateFromRound } from "../scheduler/rounds";
@@ -204,30 +205,9 @@ function isRoundComplete(s: SessionV2, round: number): boolean {
   return games.length > 0 && games.every((g) => done.has(g.id));
 }
 
-export interface CourtView {
-  court: number;
-  nowPlaying: RoundGame | null;
-  onDeck: RoundGame | null;
-  /** Remaining games on this court in the current round, in slot order. */
-  upcoming: RoundGame[];
-}
-
-function courtViews(s: SessionV2): CourtView[] {
-  const done = settledIds(s);
-  const views: CourtView[] = [];
-  for (let court = 1; court <= s.config.courts; court++) {
-    const pending = roundGames(s, s.currentRound)
-      .filter((g) => g.court === court && !done.has(g.id))
-      .sort((a, b) => a.slot - b.slot);
-    views.push({
-      court,
-      nowPlaying: pending[0] ?? null,
-      onDeck: pending[1] ?? null,
-      upcoming: pending.slice(2),
-    });
-  }
-  return views;
-}
+// Per-court queues (now playing / on deck / next round) live in the pure
+// courtViews module so the sim suite can exercise them headlessly.
+export type { CourtView };
 
 // ---------------------------------------------------------------------------
 // The hook
@@ -898,7 +878,7 @@ export function useSessionV2(): UseSessionV2 {
 
   // --- derived -------------------------------------------------------------
 
-  const courts = useMemo(() => courtViews(session), [session]);
+  const courts = useMemo(() => buildCourtViews(session), [session]);
   const countSummary = useMemo(
     () => ({
       ...publicCountSummary(session.players),

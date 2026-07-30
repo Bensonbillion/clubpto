@@ -110,6 +110,11 @@ const CourtCard = ({ view, s }: { view: CourtView; s: UseSessionV2 }) => {
   // Which game has the abandon choice open — keyed by id so a settled game
   // closing the panel never carries it over to the next game on this court.
   const [abandoning, setAbandoning] = useState<string | null>(null);
+  // The court must ALWAYS show its next two matchups: when the current round
+  // has fewer than two games left here, fill the lookahead from the next round
+  // so the right players are warming up before the boundary hits.
+  const pendingHere = (game ? 1 : 0) + (view.onDeck ? 1 : 0) + view.upcoming.length;
+  const nextRoundPreview = view.nextRound.slice(0, Math.max(0, 2 - pendingHere));
   return (
     <div className="rounded-lg border border-border bg-card p-4 md:p-5 space-y-4 min-w-0">
       <div className="flex items-center justify-between">
@@ -210,11 +215,44 @@ const CourtCard = ({ view, s }: { view: CourtView; s: UseSessionV2 }) => {
               ))}
             </div>
           )}
+
+          {nextRoundPreview.length > 0 && (
+            <div className="pt-2 border-t border-border space-y-1.5">
+              <p className="text-xs uppercase tracking-widest text-muted-foreground">
+                Next round on this court — get ready
+              </p>
+              {nextRoundPreview.map((g) => (
+                <p
+                  key={g.id}
+                  className="text-base flex flex-wrap items-center gap-x-2 gap-y-1"
+                >
+                  <PairLine pairId={g.pairIds[0]} s={s} />
+                  <span className="text-muted-foreground text-sm">vs</span>
+                  <PairLine pairId={g.pairIds[1]} s={s} />
+                </p>
+              ))}
+            </div>
+          )}
         </>
       ) : (
-        <div className="min-h-[180px] flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-dark-surface/40 text-center px-4">
+        <div className="min-h-[180px] flex flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-dark-surface/40 text-center px-4 py-6">
           <p className="font-display text-lg text-muted-foreground">Court done</p>
-          <p className="text-sm text-muted-foreground/70">Waiting on the other court</p>
+          {view.nextRound.length > 0 ? (
+            <div className="space-y-1.5">
+              <p className="text-xs uppercase tracking-widest text-muted-foreground/80">
+                Up next on this court — get ready
+              </p>
+              {view.nextRound.slice(0, 2).map((g) => (
+                <p key={g.id} className="text-base flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+                  <PairLine pairId={g.pairIds[0]} s={s} />
+                  <span className="text-muted-foreground text-sm">vs</span>
+                  <PairLine pairId={g.pairIds[1]} s={s} />
+                </p>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground/70">Waiting on the other court</p>
+          )}
         </div>
       )}
     </div>
