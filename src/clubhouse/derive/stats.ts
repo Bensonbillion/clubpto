@@ -202,8 +202,26 @@ export function playerTotals(bundles: PublishBundle[]): Map<string, PlayerTotals
         }
       }
     }
+    // Finalists earn points, never a championship (LB-4 half-rule).
+    for (const finalist of bundle.finalists) {
+      for (const ref of finalist.pair.players) {
+        if (ref.id) ensure(ref.id).ptoPoints += finalist.points;
+      }
+    }
   }
   return totals;
+}
+
+/** Win% board qualifier (LB-1 owner decision): 8 games minimum. */
+export const WINPCT_MIN_GAMES = 8;
+
+export function winPct(t: PlayerTotals): number {
+  return t.games === 0 ? 0 : t.wins / t.games;
+}
+
+/** Players eligible for the Win% board. Per-player opt-out applies upstream (LB-3). */
+export function winPctEligible(totals: PlayerTotals[]): PlayerTotals[] {
+  return totals.filter((t) => t.games >= WINPCT_MIN_GAMES);
 }
 
 /** Top-N by a metric — the ONLY ranked view the site may build (LB-1). */

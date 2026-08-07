@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { assertNoTierLeak, buildPublishBundle } from "./transform";
+import { finalistPoints, PTO_POINTS_V1, TITLES } from "./types";
 import type { PublishOptions, PublishSessionInput } from "./types";
 
 const POINTS = {
@@ -112,6 +113,36 @@ describe("buildPublishBundle", () => {
     expect(bundle.results).toHaveLength(0);
     expect(bundle.champions).toHaveLength(0);
     expect(bundle.session.attendanceCount).toBe(4);
+  });
+
+  it("locks the canonical v1 point values (owner decision 2026-08-07)", () => {
+    expect(PTO_POINTS_V1[TITLES.CHAMPION_OF_THE_WEEK]).toBe(100);
+    expect(PTO_POINTS_V1[TITLES.PTO_CHAMPION_OF_THE_WEEK]).toBe(100);
+    expect(PTO_POINTS_V1[TITLES.COURT_2_CHAMPIONS]).toBe(60);
+    expect(PTO_POINTS_V1[TITLES.COURT_1_CHAMPIONS]).toBe(40);
+    // Half the title, the whole finalist system in three words:
+    expect(finalistPoints(100)).toBe(50);
+    expect(finalistPoints(60)).toBe(30);
+    expect(finalistPoints(40)).toBe(20);
+  });
+
+  it("publishes finalists at half the title's points", () => {
+    const withFinalists = {
+      ...fixture(),
+      finalists: [{ title: "Champion of the Week", pairId: "pairB" }],
+    };
+    const bundle = buildPublishBundle(withFinalists, baseOptions);
+    expect(bundle.finalists).toHaveLength(1);
+    expect(bundle.finalists[0].points).toBe(50);
+    expect(bundle.finalists[0].title).toBe("Champion of the Week");
+  });
+
+  it("withholds finalists for practice sessions too", () => {
+    const bundle = buildPublishBundle(
+      { ...fixture(), isPractice: true, finalists: [{ title: "Champion of the Week", pairId: "pairB" }] },
+      baseOptions
+    );
+    expect(bundle.finalists).toHaveLength(0);
   });
 
   it("carries the human recap note and shout-outs", () => {

@@ -8,6 +8,7 @@ import {
   topN,
   weeklyStreaks,
 } from "./stats";
+import { winPct, winPctEligible, WINPCT_MIN_GAMES } from "./stats";
 import { buildPublishBundle } from "../publish/transform";
 import type { PublishSessionInput } from "../publish/types";
 
@@ -98,6 +99,29 @@ describe("rivalries and totals", () => {
   it("topN never returns more than the cap (the only ranked view allowed)", () => {
     const totals = [...playerTotals(bundles).values()];
     expect(topN(totals, (t) => t.wins, 2)).toHaveLength(2);
+  });
+
+  it("finalists earn half points but never a championship", () => {
+    const withFinalist = buildPublishBundle(
+      { ...session("s5", "2026-08-12", "pairA"), finalists: [{ title: "Champion of the Week", pairId: "pairB" }] },
+      { pointsConfig: POINTS }
+    );
+    const totals = playerTotals([withFinalist]);
+    const maya = totals.get("p3")!;
+    expect(maya.ptoPoints).toBe(50);
+    expect(maya.championships).toBe(0);
+    const benson = totals.get("p1")!;
+    expect(benson.ptoPoints).toBe(100);
+    expect(benson.championships).toBe(1);
+  });
+
+  it("Win% board requires the 8-game qualifier", () => {
+    const totals = [...playerTotals(bundles).values()];
+    expect(WINPCT_MIN_GAMES).toBe(8);
+    expect(winPctEligible(totals)).toHaveLength(0); // only 3 games each in fixture
+    const qualified = { ...totals[0], games: 8, wins: 6 };
+    expect(winPctEligible([qualified])).toHaveLength(1);
+    expect(winPct(qualified)).toBeCloseTo(0.75);
   });
 
   it("ignores practice sessions for results but counts attendance", () => {

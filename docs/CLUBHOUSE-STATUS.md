@@ -30,15 +30,24 @@ This file tracks what exists in-repo and what gates the next waves.
   that surface is owned by the engine track; it should call
   `buildPublishBundle` from here.
 
-## Gating decisions (Benson, before anything publishes)
-1. ~~Division names~~ RESOLVED: no divisions ever; court/title naming +
-   PTO Points carry the hierarchy. Remaining follow-on: set the point
-   VALUES per title (one-time pointsConfig) and confirm whether the Win%
-   board ships alongside the points board or moves to profiles only.
-2. Consent + privacy-note language (PRIV-1/5).
-3. Minors check (PRIV-4) — default-hidden policy if any.
-4. Transactional email provider for auth (AUTH-2) — account + keys needed.
-5. Founding-24 status for the join page (PUB-4).
+## Gating decisions — scoreboard (updated 2026-08-07)
+1. RESOLVED — no divisions; titles + PTO Points. Point values are canon in
+   code as `PTO_POINTS_V1` (100/100/60/40, finalists = half the title,
+   per player, floor on halves). Sunday winner-stays-on edge: leader is
+   champion (full), runner-up-by-wins goes in `finalists` (half).
+   No semifinal/appearance points in v1 (season-2 refresh lever).
+2. RESOLVED — Win% board ships beside the points board; 8-game qualifier
+   (`WINPCT_MIN_GAMES`); LB-3 opt-out stands.
+3. RESOLVED (drafted) — consent checkbox + privacy note live in the
+   requirements doc Appendix A (owner's copy); implement at Wave 5.
+4. DECIDED — Resend for transactional email (free tier: 3k/mo but
+   100/day cap — stagger launch announcement or pay $20 for launch
+   month). BLOCKED on Benson: create account, verify domain, paste SMTP
+   creds into Supabase Auth. Postmark is the fallback provider.
+5. OPEN — minors question: has anyone under 18 ever attended? If no:
+   one line ("Club PTO is an 18+ community") closes PRIV-4. If yes:
+   default-hidden. One-word answer unblocks.
+6. OPEN — founding-24 status for the join page (PUB-4).
 
 ## Wave order (per requirements §20)
 1. ✅ Publish transform + derived stats (this commit) → 2. Auth (blocked on

@@ -3,8 +3,11 @@
 // Tier data enters on input types (engine reality) and is never read; champions
 // carry court/title names with openly-published event points (LB-4).
 
+import { finalistPoints } from "./types";
 import type {
   PublishBundle,
+  PublishChampionInput,
+  PublishedChampion,
   PublishedPair,
   PublishedPlayerRef,
   PublishOptions,
@@ -60,24 +63,30 @@ export function buildPublishBundle(
         }))
         .sort((a, b) => a.completedAt - b.completedAt || a.gameId.localeCompare(b.gameId));
 
+  const honor = (c: PublishChampionInput, points: number): PublishedChampion => {
+    const pair = pairById.get(c.pairId);
+    const base: PublishedPair = pair ?? {
+      pairId: c.pairId,
+      players: [{ displayName: HIDDEN_DISPLAY }, { displayName: HIDDEN_DISPLAY }],
+    };
+    // Champion naming opt-out (PRIV-2): the opted-out half is unnamed even
+    // though they appear normally elsewhere inside the clubhouse.
+    const players = base.players.map((ref) =>
+      ref.id && championOptOut.has(ref.id) ? { displayName: HIDDEN_DISPLAY } : ref
+    ) as [PublishedPlayerRef, PublishedPlayerRef];
+    return { title: c.title, points, pair: { ...base, players } };
+  };
+
+  // Event-weighted points, identical for every player (LB-4): the value
+  // depends only on the title, never on who won it. Finalists: half the title.
   const champions = practiceOnly
     ? []
-    : input.champions.map((c) => {
-        const pair = pairById.get(c.pairId);
-        const base: PublishedPair = pair ?? {
-          pairId: c.pairId,
-          players: [{ displayName: HIDDEN_DISPLAY }, { displayName: HIDDEN_DISPLAY }],
-        };
-        // Champion naming opt-out (PRIV-2): the opted-out half is unnamed even
-        // though they appear normally elsewhere inside the clubhouse.
-        const players = base.players.map((ref) =>
-          ref.id && championOptOut.has(ref.id) ? { displayName: HIDDEN_DISPLAY } : ref
-        ) as [PublishedPlayerRef, PublishedPlayerRef];
-        // Event-weighted points, identical for every player (LB-4):
-        // the value depends only on the title, never on who won it.
-        const points = options.pointsConfig[c.title] ?? 0;
-        return { title: c.title, points, pair: { ...base, players } };
-      });
+    : input.champions.map((c) => honor(c, options.pointsConfig[c.title] ?? 0));
+  const finalists = practiceOnly
+    ? []
+    : (input.finalists ?? []).map((c) =>
+        honor(c, finalistPoints(options.pointsConfig[c.title] ?? 0))
+      );
 
   const visiblePlayers = input.players
     .filter((p) => !hidden.has(p.id))
@@ -97,6 +106,7 @@ export function buildPublishBundle(
     pairs: publishedPairs,
     results,
     champions,
+    finalists,
     practiceOnly,
   };
 }
@@ -109,9 +119,9 @@ export function assertNoTierLeak(bundle: PublishBundle): void {
   const json = JSON.stringify(bundle);
   if (json.includes('"tier"')) throw new Error("tier key leaked into publish bundle");
   if (json.includes('"division"')) throw new Error("division key leaked into publish bundle");
-  for (const champ of bundle.champions) {
-    if (/^[ABC]$/.test(champ.title.trim())) {
-      throw new Error(`champion title looks like a tier label: ${champ.title}`);
+  for (const entry of [...bundle.champions, ...bundle.finalists]) {
+    if (/^[ABC]$/.test(entry.title.trim())) {
+      throw new Error(`honor title looks like a tier label: ${entry.title}`);
     }
   }
 }

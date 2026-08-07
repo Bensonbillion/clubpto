@@ -24,11 +24,28 @@ export const TITLES = {
 } as const;
 
 /**
- * Openly-published point value per title — identical for every player.
- * Owner-set once as publish config (LB-4). Hidden per-player or per-tier
- * multipliers are prohibited by design; there is nowhere to put one.
+ * Openly-published CHAMPION point value per title — identical for every
+ * player. Owner-set once as publish config (LB-4). Hidden per-player or
+ * per-tier multipliers are prohibited by design; there is nowhere to put one.
  */
 export type PointsConfig = Record<string, number>;
+
+/**
+ * Canonical v1 values (owner decision, 2026-08-07). Premier titles at parity;
+ * the slope down to Court 1 is deliberate. Per player, never split across
+ * the pair.
+ */
+export const PTO_POINTS_V1: PointsConfig = {
+  [TITLES.CHAMPION_OF_THE_WEEK]: 100,
+  [TITLES.PTO_CHAMPION_OF_THE_WEEK]: 100,
+  [TITLES.COURT_2_CHAMPIONS]: 60,
+  [TITLES.COURT_1_CHAMPIONS]: 40,
+};
+
+/** The whole finalist system in three words: half the title. */
+export function finalistPoints(championPoints: number): number {
+  return Math.floor(championPoints / 2);
+}
 
 // ---------------------------------------------------------------------------
 // Input side (from Court Manager at publish time)
@@ -72,6 +89,11 @@ export interface PublishSessionInput {
   pairs: PublishPairInput[];
   results: PublishResultInput[];
   champions: PublishChampionInput[];
+  /**
+   * Runners-up per title (half points). Covers the Sunday winner-stays-on
+   * edge: crown the leader as champion and the runner-up by wins here.
+   */
+  finalists?: PublishChampionInput[];
 }
 
 /** Per-player privacy controls, applied at copy time (PROF-3 / PRIV-3). */
@@ -140,6 +162,8 @@ export interface PublishBundle {
   pairs: PublishedPair[];
   results: PublishedResult[];
   champions: PublishedChampion[];
+  /** Finalist honors: same shape, half the title's points (LB-4 one-rule). */
+  finalists: PublishedChampion[];
   /** True when results/champions were withheld (practice session). */
   practiceOnly: boolean;
 }

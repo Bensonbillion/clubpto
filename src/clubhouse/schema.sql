@@ -53,6 +53,15 @@ create table if not exists clubhouse_champions (
   primary key (session_id, title)
 );
 
+create table if not exists clubhouse_finalists (
+  session_id text not null references clubhouse_sessions(session_id) on delete cascade,
+  title text not null,      -- the title contested; points = half the champion value
+  points int not null default 0,
+  pair jsonb not null,
+  primary key (session_id, title)
+);
+alter table if exists clubhouse_finalists enable row level security;
+
 -- Derived tables, recomputed and replaced at each publish (PIPE-6):
 create table if not exists clubhouse_totals (
   player_id text primary key,
