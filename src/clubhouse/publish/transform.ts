@@ -1,5 +1,7 @@
-// Clubhouse publish transform (PIPE-1..PIPE-4).
+// Clubhouse publish transform (PIPE-1..PIPE-4, PRIV-6 resolved).
 // Pure and deterministic: same input, same bundle — republish is a clean upsert.
+// Tier data enters on input types (engine reality) and is never read; champions
+// carry court/title names with openly-published event points (LB-4).
 
 import type {
   PublishBundle,
@@ -71,7 +73,10 @@ export function buildPublishBundle(
         const players = base.players.map((ref) =>
           ref.id && championOptOut.has(ref.id) ? { displayName: HIDDEN_DISPLAY } : ref
         ) as [PublishedPlayerRef, PublishedPlayerRef];
-        return { division: options.divisionNames[c.tier], pair: { ...base, players } };
+        // Event-weighted points, identical for every player (LB-4):
+        // the value depends only on the title, never on who won it.
+        const points = options.pointsConfig[c.title] ?? 0;
+        return { title: c.title, points, pair: { ...base, players } };
       });
 
   const visiblePlayers = input.players
@@ -98,15 +103,15 @@ export function buildPublishBundle(
 
 /**
  * Structural leak guard, callable from tests and the pipeline itself:
- * asserts the serialized bundle carries no tier key and no raw tier letter
- * standing alone as a division value.
+ * asserts the serialized bundle carries no tier or division data of any form.
  */
-export function assertNoTierLeak(bundle: PublishBundle, divisionNames: string[]): void {
+export function assertNoTierLeak(bundle: PublishBundle): void {
   const json = JSON.stringify(bundle);
   if (json.includes('"tier"')) throw new Error("tier key leaked into publish bundle");
+  if (json.includes('"division"')) throw new Error("division key leaked into publish bundle");
   for (const champ of bundle.champions) {
-    if (!divisionNames.includes(champ.division) || /^[ABC]$/.test(champ.division)) {
-      throw new Error(`unexpected division value: ${champ.division}`);
+    if (/^[ABC]$/.test(champ.title.trim())) {
+      throw new Error(`champion title looks like a tier label: ${champ.title}`);
     }
   }
 }

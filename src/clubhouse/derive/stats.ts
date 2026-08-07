@@ -145,6 +145,8 @@ export interface PlayerTotals {
   wins: number;
   losses: number;
   championships: number;
+  /** LB-4: sum of openly-published event points from titles won. */
+  ptoPoints: number;
   longestWinStreak: number; // consecutive games won, all-time
 }
 
@@ -153,7 +155,7 @@ export function playerTotals(bundles: PublishBundle[]): Map<string, PlayerTotals
   const ensure = (id: string): PlayerTotals => {
     let t = totals.get(id);
     if (!t) {
-      t = { playerId: id, sessions: 0, games: 0, wins: 0, losses: 0, championships: 0, longestWinStreak: 0 };
+      t = { playerId: id, sessions: 0, games: 0, wins: 0, losses: 0, championships: 0, ptoPoints: 0, longestWinStreak: 0 };
       totals.set(id, t);
     }
     return t;
@@ -193,7 +195,11 @@ export function playerTotals(bundles: PublishBundle[]): Map<string, PlayerTotals
     }
     for (const champ of bundle.champions) {
       for (const ref of champ.pair.players) {
-        if (ref.id) ensure(ref.id).championships++;
+        if (ref.id) {
+          const t = ensure(ref.id);
+          t.championships++;
+          t.ptoPoints += champ.points;
+        }
       }
     }
   }

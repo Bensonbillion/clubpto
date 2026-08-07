@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { assertNoTierLeak, buildPublishBundle } from "./transform";
 import type { PublishOptions, PublishSessionInput } from "./types";
 
-const DIVISIONS = { A: "Headliners", B: "The Lineup", C: "Soundcheck" };
+const POINTS = {
+  "Champion of the Week": 100,
+  "PTO Champion of the Week": 100,
+  "Court 1 Champions": 40,
+  "Court 2 Champions": 60,
+};
 
 function fixture(): PublishSessionInput {
   return {
@@ -24,24 +29,42 @@ function fixture(): PublishSessionInput {
       { gameId: "g2", winnerPairId: "pairB", loserPairId: "pairA", completedAt: 200 },
     ],
     champions: [
-      { tier: "A", pairId: "pairA" },
-      { tier: "B", pairId: "pairB" },
+      { title: "Champion of the Week", pairId: "pairA" },
+      { title: "Court 2 Champions", pairId: "pairB" },
     ],
   };
 }
 
-const baseOptions: PublishOptions = { divisionNames: DIVISIONS };
+const baseOptions: PublishOptions = { pointsConfig: POINTS };
 
 describe("buildPublishBundle", () => {
-  it("never leaks tier data in any output shape", () => {
+  it("never leaks tier or division data in any output shape", () => {
     const bundle = buildPublishBundle(fixture(), baseOptions);
-    expect(() => assertNoTierLeak(bundle, Object.values(DIVISIONS))).not.toThrow();
-    expect(JSON.stringify(bundle)).not.toContain('"tier"');
+    expect(() => assertNoTierLeak(bundle)).not.toThrow();
+    const json = JSON.stringify(bundle);
+    expect(json).not.toContain('"tier"');
+    expect(json).not.toContain('"division"');
   });
 
-  it("maps champions to division display names at publish time", () => {
+  it("publishes champions by court/title name with event-weighted points", () => {
     const bundle = buildPublishBundle(fixture(), baseOptions);
-    expect(bundle.champions.map((c) => c.division)).toEqual(["Headliners", "The Lineup"]);
+    expect(bundle.champions.map((c) => [c.title, c.points])).toEqual([
+      ["Champion of the Week", 100],
+      ["Court 2 Champions", 60],
+    ]);
+  });
+
+  it("points depend only on the title, never on who won it (LB-4)", () => {
+    const base = fixture();
+    const swapped = { ...base, champions: [{ title: "Champion of the Week", pairId: "pairB" }] };
+    const a = buildPublishBundle(base, baseOptions).champions[0];
+    const b = buildPublishBundle(swapped, baseOptions).champions[0];
+    expect(a.points).toBe(b.points);
+  });
+
+  it("unconfigured titles publish with zero points, never a guess", () => {
+    const special = { ...fixture(), champions: [{ title: "Holiday Cup", pairId: "pairA" }] };
+    expect(buildPublishBundle(special, baseOptions).champions[0].points).toBe(0);
   });
 
   it("is deterministic: same input produces a deep-equal bundle (republish idempotence)", () => {
@@ -78,7 +101,7 @@ describe("buildPublishBundle", () => {
       ...baseOptions,
       privacy: { championOptOutIds: ["p1"] },
     });
-    const champA = bundle.champions.find((c) => c.division === "Headliners")!;
+    const champA = bundle.champions.find((c) => c.title === "Champion of the Week")!;
     expect(champA.pair.players.some((ref) => ref.displayName === "Club member")).toBe(true);
     expect(bundle.players.some((p) => p.id === "p1")).toBe(true);
   });

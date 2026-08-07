@@ -47,9 +47,10 @@ create table if not exists clubhouse_results (
 
 create table if not exists clubhouse_champions (
   session_id text not null references clubhouse_sessions(session_id) on delete cascade,
-  division text not null,   -- display name only, mapped at publish time
+  title text not null,      -- court/title name only (PRIV-6): never a division
+  points int not null default 0,  -- openly-published event value (LB-4)
   pair jsonb not null,
-  primary key (session_id, division)
+  primary key (session_id, title)
 );
 
 -- Derived tables, recomputed and replaced at each publish (PIPE-6):
@@ -60,6 +61,7 @@ create table if not exists clubhouse_totals (
   wins int not null default 0,
   losses int not null default 0,
   championships int not null default 0,
+  pto_points int not null default 0,     -- LB-4 prestige board
   longest_win_streak int not null default 0,
   current_week_streak int not null default 0,
   best_week_streak int not null default 0,

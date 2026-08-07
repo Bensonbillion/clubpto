@@ -4,10 +4,14 @@ Requirements: Benson's "Digital Clubhouse Requirements v1.0" (2026-08-07 session
 This file tracks what exists in-repo and what gates the next waves.
 
 ## Built (Wave 1 core, pure + tested)
-- `src/clubhouse/publish/` — publish transform (PIPE-1..4): tier structurally
-  excluded from all output types, division names injected at publish time,
-  hide/pseudonym/champion-opt-out handling, practice-session guard,
-  deterministic output (republish idempotent). Leak guard: `assertNoTierLeak`.
+- `src/clubhouse/publish/` — publish transform (PIPE-1..4, PRIV-6 RESOLVED):
+  tier structurally excluded from all output types and never read; champions
+  carry court/title names (Champion of the Week, PTO Champion of the Week,
+  Court 1/2 Champions) with openly-published event points from a pointsConfig
+  (LB-4: weight events, never players; hidden multipliers impossible by
+  construction). Hide/pseudonym/champion-opt-out handling, practice-session
+  guard, deterministic output (republish idempotent). Leak guard:
+  `assertNoTierLeak` rejects tier AND division keys.
 - `src/clubhouse/derive/stats.ts` — milestone clubs (10/25/50/100, Parkrun
   model), weekly ISO streaks (current + best, no shame states), rivalry
   detection (3+ meetings), player totals + longest win streak, `topN` capped
@@ -27,8 +31,10 @@ This file tracks what exists in-repo and what gates the next waves.
   `buildPublishBundle` from here.
 
 ## Gating decisions (Benson, before anything publishes)
-1. Division names (PRIV-6) — Headliners/The Lineup/Soundcheck or truly
-   parallel names. Transform takes them as config; nothing hardcoded.
+1. ~~Division names~~ RESOLVED: no divisions ever; court/title naming +
+   PTO Points carry the hierarchy. Remaining follow-on: set the point
+   VALUES per title (one-time pointsConfig) and confirm whether the Win%
+   board ships alongside the points board or moves to profiles only.
 2. Consent + privacy-note language (PRIV-1/5).
 3. Minors check (PRIV-4) — default-hidden policy if any.
 4. Transactional email provider for auth (AUTH-2) — account + keys needed.

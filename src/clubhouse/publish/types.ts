@@ -1,19 +1,34 @@
-// Clubhouse publish pipeline — domain types.
+// Clubhouse publish pipeline — domain types (requirements v1.0, PRIV-6 resolved).
 // Pure data, no React, no Supabase (same law as the court-manager engine).
 //
-// PRIVACY ARCHITECTURE (PIPE-1): tier exists ONLY on the input side.
-// Every output type in this file is structurally incapable of carrying
-// tier or skill data. Divisions are display names mapped at publish time;
-// the site reads only output shapes, so it cannot leak what they cannot hold.
+// PRIVACY ARCHITECTURE (PIPE-1): tier exists ONLY on the input side, and the
+// transform never reads it. No divisions are published, ever. Champions carry
+// court/title names; season hierarchy lives in PTO Points where TITLES openly
+// carry different values — events are weighted, players never are (LB-4).
+// Every output type is structurally incapable of carrying tier or skill data.
 
 export type Tier = "A" | "B" | "C";
 
-/** Division display names, decided by the club (PRIV-6 open decision). */
-export interface DivisionNames {
-  A: string;
-  B: string;
-  C: string;
-}
+// ---------------------------------------------------------------------------
+// Champion titles & PTO Points (LB-4 / CHW-1 / PRIV-6)
+// ---------------------------------------------------------------------------
+
+/** The standing title vocabulary. Free strings are allowed for special events. */
+export const TITLES = {
+  /** Wednesday's unified bracket winner. */
+  CHAMPION_OF_THE_WEEK: "Champion of the Week",
+  /** Sunday Court 3 — the premier Sunday title. */
+  PTO_CHAMPION_OF_THE_WEEK: "PTO Champion of the Week",
+  COURT_1_CHAMPIONS: "Court 1 Champions",
+  COURT_2_CHAMPIONS: "Court 2 Champions",
+} as const;
+
+/**
+ * Openly-published point value per title — identical for every player.
+ * Owner-set once as publish config (LB-4). Hidden per-player or per-tier
+ * multipliers are prohibited by design; there is nowhere to put one.
+ */
+export type PointsConfig = Record<string, number>;
 
 // ---------------------------------------------------------------------------
 // Input side (from Court Manager at publish time)
@@ -23,13 +38,14 @@ export interface PublishPlayerInput {
   id: string;
   name: string;
   lastName?: string;
-  tier: Tier;
+  /** Present because engine data carries it; the transform NEVER reads it. */
+  tier?: Tier;
 }
 
 export interface PublishPairInput {
   id: string;
   playerIds: [string, string];
-  tier: Tier;
+  tier?: Tier; // ignored by the transform, see above
 }
 
 export interface PublishResultInput {
@@ -40,7 +56,8 @@ export interface PublishResultInput {
 }
 
 export interface PublishChampionInput {
-  tier: Tier;
+  /** Court/title name, e.g. TITLES.CHAMPION_OF_THE_WEEK. Never a division. */
+  title: string;
   pairId: string;
 }
 
@@ -68,7 +85,8 @@ export interface PrivacyOptions {
 }
 
 export interface PublishOptions {
-  divisionNames: DivisionNames;
+  /** Title → points. Titles missing from the config publish with 0 points. */
+  pointsConfig: PointsConfig;
   privacy?: PrivacyOptions;
   /** Admin-authored 3-4 sentence note (REC-3). */
   recapNote?: string;
@@ -77,7 +95,7 @@ export interface PublishOptions {
 }
 
 // ---------------------------------------------------------------------------
-// Output side (the only shapes the site ever reads) — NO TIER FIELDS.
+// Output side (the only shapes the site ever reads) — NO TIER, NO DIVISIONS.
 // ---------------------------------------------------------------------------
 
 /** A player reference as it may appear on the site. Hidden players carry no id. */
@@ -99,7 +117,10 @@ export interface PublishedResult {
 }
 
 export interface PublishedChampion {
-  division: string; // display name only
+  /** Court/title name only. */
+  title: string;
+  /** Openly-published event value (LB-4). Same for whoever wins it. */
+  points: number;
   pair: PublishedPair;
 }
 

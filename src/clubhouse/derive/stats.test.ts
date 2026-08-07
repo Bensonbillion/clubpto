@@ -11,7 +11,7 @@ import {
 import { buildPublishBundle } from "../publish/transform";
 import type { PublishSessionInput } from "../publish/types";
 
-const DIVISIONS = { A: "Headliners", B: "The Lineup", C: "Soundcheck" };
+const POINTS = { "Champion of the Week": 100 };
 
 function session(id: string, date: string, winner: "pairA" | "pairB", games = 1): PublishSessionInput {
   return {
@@ -34,7 +34,7 @@ function session(id: string, date: string, winner: "pairA" | "pairB", games = 1)
       loserPairId: winner === "pairA" ? "pairB" : "pairA",
       completedAt: i,
     })),
-    champions: [],
+    champions: winner === "pairA" ? [{ title: "Champion of the Week", pairId: "pairA" }] : [],
   };
 }
 
@@ -70,9 +70,9 @@ describe("weekly streaks", () => {
 
 describe("rivalries and totals", () => {
   const bundles = [
-    buildPublishBundle(session("s1", "2026-07-22", "pairA"), { divisionNames: DIVISIONS }),
-    buildPublishBundle(session("s2", "2026-07-29", "pairB"), { divisionNames: DIVISIONS }),
-    buildPublishBundle(session("s3", "2026-08-05", "pairA"), { divisionNames: DIVISIONS }),
+    buildPublishBundle(session("s1", "2026-07-22", "pairA"), { pointsConfig: POINTS }),
+    buildPublishBundle(session("s2", "2026-07-29", "pairB"), { pointsConfig: POINTS }),
+    buildPublishBundle(session("s3", "2026-08-05", "pairA"), { pointsConfig: POINTS }),
   ];
 
   it("detects a series after three meetings with correct head-to-head", () => {
@@ -88,6 +88,7 @@ describe("rivalries and totals", () => {
     expect(benson.games).toBe(3);
     expect(benson.wins).toBe(2);
     expect(benson.longestWinStreak).toBe(1); // won s1, lost s2, won s3
+    expect(benson.ptoPoints).toBe(200); // two Champion of the Week titles
 
     const maya = totals.get("p3")!;
     expect(maya.wins).toBe(1);
@@ -102,7 +103,7 @@ describe("rivalries and totals", () => {
   it("ignores practice sessions for results but counts attendance", () => {
     const practice = buildPublishBundle(
       { ...session("s4", "2026-08-09", "pairA"), isPractice: true },
-      { divisionNames: DIVISIONS }
+      { pointsConfig: POINTS }
     );
     const totals = playerTotals([...bundles, practice]);
     expect(totals.get("p1")!.sessions).toBe(4);
