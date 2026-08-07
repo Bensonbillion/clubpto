@@ -67,7 +67,7 @@ const Install = () => {
                 <Smartphone className="w-8 h-8 text-accent" />
               </div>
               <h2 className="font-display text-3xl text-accent">Install Club PTO</h2>
-              <p className="text-muted-foreground text-lg">Add to your home screen for the best experience — launches full screen, no browser bar.</p>
+              <p className="text-muted-foreground text-lg">Add to your home screen for the best experience: full screen, no browser bar.</p>
             </div>
 
             {/* Native install prompt (Android Chrome) */}
