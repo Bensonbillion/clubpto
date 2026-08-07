@@ -1,11 +1,11 @@
-import { courtsideII, weeklyMeets, isCourtsideUpcoming } from "@/lib/constants";
+import { weeklyMeets } from "@/lib/constants";
 
 const items = [
-  `${courtsideII.name} · ${courtsideII.dateLabel}`,
-  courtsideII.venue,
-  isCourtsideUpcoming() ? "Tickets live" : "Just played · Recap soon",
-  `Weekly meets · ${weeklyMeets.days}`,
+  `Weekly sessions · ${weeklyMeets.days}`,
+  "CA$20 · no membership",
+  "Summer Series · wrapped",
   "A padel social club in Toronto",
+  "Est. 2025",
 ];
 
 const Half = ({ hidden }: { hidden?: boolean }) => (

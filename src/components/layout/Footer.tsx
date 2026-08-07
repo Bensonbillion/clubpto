@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { navItems, socialLinks, clubInfo, courtsideII, weeklyMeets, isCourtsideUpcoming } from "@/lib/constants";
+import { navItems, socialLinks, clubInfo, weeklyMeets } from "@/lib/constants";
 import logoWordmarkCream from "@/assets/logo-wordmark-cream.png";
 
 const Footer = () => {
@@ -57,21 +57,16 @@ const Footer = () => {
         {/* On court */}
         <div>
           <h4 className="rly-footer__heading">On court</h4>
-          <span className="rly-footer__fact">Weekly meets · {weeklyMeets.days}</span>
-          {isCourtsideUpcoming() ? (
-            <a
-              href={courtsideII.ticketsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rly-footer__link"
-            >
-              {courtsideII.name} · {courtsideII.dateLabel} ↗
-            </a>
-          ) : (
-            <span className="rly-footer__fact">
-              {courtsideII.name} · {courtsideII.dateLabel} · Just played
-            </span>
-          )}
+          <span className="rly-footer__fact">Weekly sessions · {weeklyMeets.days}</span>
+          <a
+            href={weeklyMeets.bookingUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rly-footer__link"
+          >
+            Book a session ↗
+          </a>
+          <span className="rly-footer__fact">Summer Series · wrapped</span>
         </div>
       </div>
 

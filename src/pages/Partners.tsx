@@ -45,10 +45,13 @@ const Partners = () => {
           <motion.div variants={fadeUp} className="rly-prose" style={{ marginTop: "2rem" }}>
             <p>
               Courtside brings tournament padel, DJ sets, and a room that shows
-              up. Set 01 sold out in advance. Weekly meets run{" "}
-              {weeklyMeets.days}, every week.
+              up. Series I sold out in advance. Weekly sessions run{" "}
+              {weeklyMeets.days}, every week, all year.
             </p>
-            <p>If your brand belongs in that room, tell us about it.</p>
+            <p>
+              Past partners include CELSIUS. If your brand belongs in that
+              room, tell us about it.
+            </p>
           </motion.div>
         </motion.section>
 
