@@ -1,75 +1,65 @@
 import { useLayoutEffect, useRef } from "react";
 import gsap from "gsap";
-import heroGridStyle from "@/assets/hero-grid-style.jpg";
-import heroGridPoint from "@/assets/hero-grid-point.jpg";
-import heroSocial from "@/assets/hero-s2-social.jpg";
-import { courtsideII, weeklyMeets, isCourtsideUpcoming } from "@/lib/constants";
+import heroWide from "@/assets/wall/grid_rally.jpg";
+import heroTall from "@/assets/wall/s2_net.jpg";
+import { weeklyMeets } from "@/lib/constants";
 import "./heroRally.css";
 
+// Full-bleed real photography: landscape rally shot on desktop,
+// the net-handshake frame on phones.
 const Hero = () => {
   const sectionRef = useRef<HTMLElement>(null);
 
-  // Entrance choreography and idle float, as authored in hero-c
   useLayoutEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
     const ctx = gsap.context(() => {
-      gsap.from(".f1", { y: 60, rotate: 12, autoAlpha: 0, duration: 0.9, ease: "expo.out", delay: 0.2 });
-      gsap.from(".f2", { y: 60, rotate: -14, autoAlpha: 0, duration: 0.9, ease: "expo.out", delay: 0.38 });
-      gsap.from(".f3", { y: 60, rotate: 10, autoAlpha: 0, duration: 0.9, ease: "expo.out", delay: 0.56 });
-      gsap.from(".stamp", { scale: 0.4, rotate: 14, autoAlpha: 0, duration: 0.8, ease: "elastic.out(1,0.5)", delay: 0.9 });
-      gsap.to(".f1", { y: -7, duration: 3.2, yoyo: true, repeat: -1, ease: "sine.inOut" });
-      gsap.to(".f2", { y: 6, duration: 3.8, yoyo: true, repeat: -1, ease: "sine.inOut" });
-      gsap.to(".f3", { y: -5, duration: 3.5, yoyo: true, repeat: -1, ease: "sine.inOut" });
+      gsap.fromTo(
+        ".hero-cine__photo",
+        { scale: 1.07 },
+        { scale: 1, duration: 2.4, ease: "power2.out" }
+      );
+      gsap.from(".hero-cine__content > *", {
+        y: 40,
+        autoAlpha: 0,
+        duration: 1.1,
+        stagger: 0.13,
+        ease: "power3.out",
+        delay: 0.15,
+      });
     }, sectionRef);
 
     return () => ctx.revert();
   }, []);
 
   return (
-    <section ref={sectionRef} className="hero-rally">
-      <div className="stage">
-        <h1 className="type">
-          More
-          <br />
-          than
-          <br />
-          a
-          <br />
-          <span className="script">game.</span>
-        </h1>
-        <figure className="frame f1">
-          <img src={heroGridStyle} alt="Style in the room at Set 01" />
-        </figure>
-        <figure className="frame f2">
-          <img src={heroGridPoint} alt="Match point at golden hour" loading="lazy" />
-        </figure>
-        <figure className="frame f3">
-          <img src={heroSocial} alt="Two friends in the room" loading="lazy" />
-        </figure>
-        <span className="stamp mono">
-          Set 01 sold out
-          <br />
-          in advance
-        </span>
-      </div>
-      <div className="foot">
-        <p className="eyebrow mono">
-          <span className="dot" /> A Padel Social Club in Toronto
+    <section ref={sectionRef} className="hero-cine">
+      <picture>
+        <source media="(max-width: 640px)" srcSet={heroTall} />
+        <img className="hero-cine__photo" src={heroWide} alt="A rally at golden hour in front of the Club PTO crowd" />
+      </picture>
+      <div className="hero-cine__scrim" />
+      <div className="hero-cine__content">
+        <p className="hero-cine__kicker">
+          <span className="dot" /> A padel social club in Toronto
         </p>
-        {isCourtsideUpcoming() ? (
-          <a className="cta" href={courtsideII.ticketsUrl} target="_blank" rel="noopener noreferrer">
-            Courtside II · {courtsideII.dateLabel} · Tickets ↗
+        <h1 className="hero-cine__title">
+          More than a <span className="script">game.</span>
+        </h1>
+        <div className="hero-cine__ctas">
+          <a
+            className="rly-pill"
+            href={weeklyMeets.bookingUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Book a session ↗
           </a>
-        ) : (
-          <a className="cta" href={weeklyMeets.bookingUrl} target="_blank" rel="noopener noreferrer">
-            Book a weekly spot ↗
-          </a>
-        )}
-        <div className="meta mono">
-          <span>Toronto</span>
-          <span>Wed + Sun weekly</span>
         </div>
+        <p className="hero-cine__meta">
+          <span>{weeklyMeets.days} · every week</span>
+          <span>{weeklyMeets.city}</span>
+        </p>
       </div>
     </section>
   );

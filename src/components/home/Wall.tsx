@@ -1,24 +1,24 @@
 import { useRef } from "react";
 import { motion } from "framer-motion";
 import { fadeUp } from "@/lib/animations";
-import gallery1 from "@/assets/gallery-1.jpg";
-import gallery2 from "@/assets/gallery-2.jpg";
-import gallery3 from "@/assets/gallery-3.jpg";
-import gallery4 from "@/assets/gallery-4.jpg";
-import playersDuo from "@/assets/players-duo.jpg";
-import courtAction from "@/assets/court-action.jpg";
+import gridCrowd from "@/assets/wall/grid_crowd.jpg";
+import gridCrowd2 from "@/assets/wall/grid_crowd2.jpg";
+import gridMic from "@/assets/wall/grid_mic.jpg";
+import s2Dj from "@/assets/wall/s2_dj.jpg";
+import goldenhour from "@/assets/wall/hero_goldenhour.jpg";
+import s2HeroCourt from "@/assets/wall/s2_hero_court.jpg";
+import gnCouple from "@/assets/wall/gn_strip_couple.jpg";
 import groupPhoto from "@/assets/group-photo.jpg";
-import padelDetail from "@/assets/padel-detail.jpg";
 
 const photos = [
-  gallery1,
-  playersDuo,
-  courtAction,
-  gallery2,
+  gridCrowd2,
+  gridMic,
+  goldenhour,
+  s2Dj,
+  gridCrowd,
+  gnCouple,
+  s2HeroCourt,
   groupPhoto,
-  gallery3,
-  padelDetail,
-  gallery4,
 ];
 
 const Wall = () => {
