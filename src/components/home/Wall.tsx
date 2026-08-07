@@ -1,14 +1,14 @@
 import { useRef } from "react";
 import { motion } from "framer-motion";
 import { fadeUp } from "@/lib/animations";
-import gridCrowd from "@/assets/wall/grid_crowd.jpg";
-import gridCrowd2 from "@/assets/wall/grid_crowd2.jpg";
-import gridMic from "@/assets/wall/grid_mic.jpg";
-import s2Dj from "@/assets/wall/s2_dj.jpg";
-import goldenhour from "@/assets/wall/hero_goldenhour.jpg";
-import s2HeroCourt from "@/assets/wall/s2_hero_court.jpg";
-import gnCouple from "@/assets/wall/gn_strip_couple.jpg";
-import groupPhoto from "@/assets/group-photo.jpg";
+import gridCrowd from "@/assets/featured/grid_crowd.jpg";
+import gridCrowd2 from "@/assets/featured/grid_crowd2.jpg";
+import gridMic from "@/assets/featured/grid_mic.jpg";
+import s2Dj from "@/assets/featured/s2_dj.jpg";
+import goldenhour from "@/assets/featured/hero_goldenhour.jpg";
+import s2HeroCourt from "@/assets/featured/s2_hero_court.jpg";
+import gnCouple from "@/assets/featured/gn_strip_couple.jpg";
+import groupPhoto from "@/assets/featured/group-photo.jpg";
 
 const photos = [
   gridCrowd2,

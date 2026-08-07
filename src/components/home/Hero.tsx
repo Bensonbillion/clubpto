@@ -1,12 +1,13 @@
 import { useLayoutEffect, useRef } from "react";
 import gsap from "gsap";
-import heroWide from "@/assets/wall/grid_rally.jpg";
-import heroTall from "@/assets/wall/s2_net.jpg";
 import { weeklyMeets } from "@/lib/constants";
 import "./heroRally.css";
 
 // Full-bleed real photography: landscape rally shot on desktop,
 // the net-handshake frame on phones.
+const heroWide = `${import.meta.env.BASE_URL}hero-wide.jpg`;
+const heroTall = `${import.meta.env.BASE_URL}hero-tall.jpg`;
+
 const Hero = () => {
   const sectionRef = useRef<HTMLElement>(null);
 

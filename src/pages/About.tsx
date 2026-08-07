@@ -30,10 +30,18 @@ const About = () => (
             compete Wednesday, unwind Sunday.
           </p>
           <p>
-            Courtside is the flagship. Tournament padel, DJ sets, and a room
-            that shows up. Set 01 sold out in advance.
+            Wednesdays are for the game: fixed pairs, a round robin, live
+            standings, playoffs before the night ends. Sundays close the week
+            the softer way.
           </p>
-          <p>Once you're in, you're in.</p>
+          <p>
+            Courtside is the flagship. Tournament padel at The Pad, DJ sets,
+            and a room that shows up. Set 01 sold out in advance.
+          </p>
+          <p>
+            No trials, no tiers, no fine print. Book a session, bring your
+            game, meet the room. Once you're in, you're in.
+          </p>
         </motion.div>
         <motion.div variants={fadeUp} className="rly-facts-row">
           <span>{weeklyMeets.days} · every week</span>

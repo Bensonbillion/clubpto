@@ -1,8 +1,8 @@
 import { motion } from "framer-motion";
 import { fadeUp, staggerContainer } from "@/lib/animations";
-import photoCompete from "@/assets/hero-grid-point.jpg";
-import photoConnect from "@/assets/hero-grid-style.jpg";
-import photoAfter from "@/assets/hero-s2-social.jpg";
+import photoCompete from "@/assets/featured/hero-grid-point.jpg";
+import photoConnect from "@/assets/featured/hero-grid-style.jpg";
+import photoAfter from "@/assets/featured/hero-s2-social.jpg";
 
 // The experience, numbered. Compete / Connect / the after -
 // the book's own words, with the room's own faces.
@@ -11,7 +11,7 @@ const rows = [
     num: "01",
     title: "Compete",
     script: null,
-    text: "Tournament padel, every Wednesday. Real matches, real standings.",
+    text: "Tournament padel, every Wednesday at District Padel Club. Fixed pairs, a round robin, live standings, and playoffs to close the night.",
     photo: photoCompete,
     alt: "Arms up after winning the point",
   },
@@ -19,7 +19,7 @@ const rows = [
     num: "02",
     title: "Connect",
     script: null,
-    text: "The room between matches. Once you're in, you're in.",
+    text: "The room between matches is the point. New partners, new rivals, a crew that keeps showing up. Once you're in, you're in.",
     photo: photoConnect,
     alt: "Friends courtside at golden hour",
   },
@@ -27,7 +27,7 @@ const rows = [
     num: "03",
     title: "The",
     script: "after.",
-    text: "DJ sets and golden hour. The game is half of it.",
+    text: "Courtside is the flagship: tournament padel at The Pad, DJ sets, golden hour until the lights come on. The game is half of it.",
     photo: photoAfter,
     alt: "Laughing at the DJ booth",
   },
