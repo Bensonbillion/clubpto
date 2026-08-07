@@ -4,7 +4,7 @@ import { fadeUp } from "@/lib/animations";
 import gridCrowd from "@/assets/featured/grid_crowd.jpg";
 import gridCrowd2 from "@/assets/featured/grid_crowd2.jpg";
 import gridMic from "@/assets/featured/grid_mic.jpg";
-import s2Dj from "@/assets/featured/s2_dj.jpg";
+import s2Lounge from "@/assets/featured/s2_lounge.jpg";
 import goldenhour from "@/assets/featured/hero_goldenhour.jpg";
 import s2HeroCourt from "@/assets/featured/s2_hero_court.jpg";
 import gnCouple from "@/assets/featured/gn_strip_couple.jpg";
@@ -14,7 +14,7 @@ const photos = [
   gridCrowd2,
   gridMic,
   goldenhour,
-  s2Dj,
+  s2Lounge,
   gridCrowd,
   gnCouple,
   s2HeroCourt,

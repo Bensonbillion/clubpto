@@ -1,15 +1,17 @@
 /*
-  Club PTO hero: full-bleed real photography, clean type over a forest
-  scrim. Brand Book v2 tokens. The faces are the hero; the type stays
-  out of their way.
+  Club PTO hero: the hero-c collage-poster layout on the Brand Book v2
+  night system. Forest ground, cream Bricolage statement, Yellowtail
+  script landing last in lime, VT323 facts. Tokens scoped to .hero-rally.
 */
-.hero-cine {
+.hero-rally {
   --night: #0a1810;
   --deep: #0e2418;
   --cream: #f4ede0;
   --muted: #b5ae9e;
   --lime: #d9e270;
   --lime-bright: #e8f088;
+  --sage: #9faf9b;
+  --clay: #7b5136;
   --f-display: "Bricolage Grotesque", system-ui, sans-serif;
   --f-body: "DM Sans", system-ui, sans-serif;
   --f-mono: "VT323", ui-monospace, monospace;
@@ -17,90 +19,55 @@
   --e-out: cubic-bezier(0.22, 1, 0.36, 1);
 
   position: relative;
-  min-height: 100svh;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  min-height: 100svh;
   overflow: clip;
   background: var(--night);
   color: var(--cream);
   font-family: var(--f-body);
   -webkit-font-smoothing: antialiased;
+  /* clearance for the fixed site header */
+  padding-top: 4rem;
 }
 
-.hero-cine__photo {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: 68% 30%;
-  filter: saturate(1.06) contrast(1.03);
-  transform-origin: center;
-}
-
-/* forest scrim: legible type, photo still glows */
-.hero-cine__scrim {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(to bottom, rgba(10, 24, 16, 0.42) 0%, rgba(10, 24, 16, 0.08) 34%, rgba(10, 24, 16, 0.16) 58%, rgba(10, 24, 16, 0.9) 100%);
-}
-
-/* grain, part of the brand surface */
-.hero-cine::after {
+/* grain overlay */
+.hero-rally::after {
   content: "";
   position: absolute;
   inset: 0;
-  z-index: 4;
+  z-index: 60;
   pointer-events: none;
   opacity: 0.05;
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
-.hero-cine__content {
-  position: relative;
-  z-index: 2;
-  padding: 0 clamp(1.2rem, 4.5vw, 4rem) clamp(2.2rem, 6vh, 4rem);
-  max-width: 1340px;
-}
-
-.hero-cine__kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.7em;
+.hero-rally .mono {
   font-family: var(--f-mono);
-  font-size: 15px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--lime);
-  margin-bottom: 1.1rem;
-}
-.hero-cine__kicker .dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--lime);
-  animation: hero-cine-pulse 1.6s ease-in-out infinite;
-}
-@keyframes hero-cine-pulse {
-  50% {
-    opacity: 0.25;
-    transform: scale(0.8);
-  }
 }
 
-.hero-cine__title {
+.hero-rally .stage {
+  position: relative;
+  flex: 1;
+  min-height: 520px;
+}
+
+.hero-rally .type {
+  position: absolute;
+  left: clamp(1rem, 4vw, 4rem);
+  top: 1.4rem;
+  z-index: 1;
   font-family: var(--f-display);
   font-weight: 800;
   text-transform: uppercase;
-  line-height: 0.92;
+  line-height: 0.9;
   letter-spacing: -0.01em;
-  font-size: clamp(3.4rem, 11.5vw, 8.5rem);
+  font-size: clamp(4.4rem, 19vw, 9rem);
   color: var(--cream);
-  max-width: 12ch;
 }
-.hero-cine__title .script {
+.hero-rally .type .script {
   font-family: var(--f-script);
   font-weight: 400;
   text-transform: none;
@@ -109,38 +76,215 @@
   color: var(--lime);
 }
 
-.hero-cine__ctas {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  margin-top: 2rem;
+.hero-rally .frame {
+  position: absolute;
+  margin: 0;
+  border: 1px solid rgba(244, 237, 224, 0.28);
+}
+.hero-rally .frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(1.08) contrast(1.04);
+}
+.hero-rally .f1 {
+  right: -1.2rem;
+  top: 6.5rem;
+  z-index: 2;
+  width: clamp(210px, 59vw, 250px);
+  height: clamp(250px, 69vw, 290px);
+  transform: rotate(4deg);
+  box-shadow: 12px 12px 0 var(--clay);
+}
+.hero-rally .f2 {
+  left: -0.9rem;
+  top: 19.5rem;
+  z-index: 3;
+  width: clamp(185px, 51vw, 220px);
+  height: clamp(220px, 62vw, 265px);
+  transform: rotate(-5deg);
+  box-shadow: 10px 10px 0 var(--lime);
+}
+.hero-rally .f3 {
+  right: 0.6rem;
+  top: 26rem;
+  z-index: 4;
+  width: clamp(170px, 47vw, 205px);
+  height: clamp(200px, 55vw, 240px);
+  transform: rotate(2.5deg);
+  box-shadow: 10px 10px 0 var(--sage);
 }
 
-.hero-cine__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6em 2em;
-  margin-top: 2rem;
+.hero-rally .stamp {
+  position: absolute;
+  left: clamp(1rem, 4vw, 4rem);
+  top: 24.4rem;
+  z-index: 5;
   font-family: var(--f-mono);
-  font-size: 14px;
-  letter-spacing: 0.12em;
+  font-size: 13px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(244, 237, 224, 0.85);
+  border: 2px solid var(--night);
+  color: var(--night);
+  background: var(--lime);
+  padding: 0.5em 0.8em;
+  transform: rotate(-7deg);
+  text-align: center;
+}
+
+.hero-rally .foot {
+  position: relative;
+  z-index: 6;
+  padding: 0 clamp(1.1rem, 4vw, 3.5rem) 1.2rem;
+}
+
+.hero-rally .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  color: var(--cream);
+  margin-bottom: 0.9rem;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  /* forest chip so it stays readable when the collage runs behind the foot */
+  background: rgba(14, 36, 24, 0.92);
+  width: fit-content;
+  padding: 0.45em 0.8em;
+}
+.hero-rally .eyebrow .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lime);
+  animation: hero-rally-pulse 1.6s ease-in-out infinite;
+}
+@keyframes hero-rally-pulse {
+  50% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+}
+
+/* square lime button, VT323 caps, glow on hover (book rules) */
+.hero-rally .cta {
+  display: flex;
+  justify-content: center;
+  font-family: var(--f-mono);
+  font-size: 17px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.9em 1.8em;
+  border-radius: 0;
+  background: var(--lime);
+  color: var(--night);
+  text-decoration: none;
+  transition: transform 0.18s var(--e-out), background 0.18s, box-shadow 0.18s;
+}
+.hero-rally .cta:hover {
+  background: var(--lime-bright);
+  box-shadow: 0 0 28px rgba(217, 226, 112, 0.5);
+}
+.hero-rally .cta:active {
+  transform: scale(0.965);
+  transition-duration: 34ms;
+}
+
+.hero-rally .meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.9rem;
+  color: var(--cream);
+  font-size: 12px;
+}
+.hero-rally .meta span {
+  background: rgba(14, 36, 24, 0.92);
+  padding: 0.45em 0.7em;
+}
+
+/* mid-size band (large phones / small tablets): keep the collage from
+   swallowing the type before the desktop composition kicks in */
+@media (min-width: 560px) and (max-width: 767px) {
+  .hero-rally .stage {
+    min-height: 48rem;
+  }
+  .hero-rally .type {
+    font-size: 5.6rem;
+  }
+  .hero-rally .f2 {
+    top: 24rem;
+  }
+  .hero-rally .stamp {
+    top: 28.5rem;
+  }
+  .hero-rally .f3 {
+    top: 30rem;
+  }
 }
 
 @media (min-width: 768px) {
-  .hero-cine {
-    justify-content: flex-end;
+  .hero-rally {
+    padding-top: 5rem;
   }
-  .hero-cine__content {
-    padding-bottom: 4.5rem;
+  .hero-rally .stage {
+    min-height: 0;
+  }
+  .hero-rally .type {
+    left: 5vw;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: clamp(4.6rem, 9.5vw, 9.5rem);
+  }
+  .hero-rally .f1 {
+    right: 7vw;
+    top: 6vh;
+    width: min(24vw, 340px);
+    height: min(28vw, 400px);
+  }
+  .hero-rally .f2 {
+    left: auto;
+    right: 29vw;
+    top: 38vh;
+    width: min(19vw, 270px);
+    height: min(23vw, 325px);
+  }
+  .hero-rally .f3 {
+    right: 5vw;
+    top: 58vh;
+    width: min(17vw, 245px);
+    height: min(20vw, 285px);
+  }
+  .hero-rally .stamp {
+    left: auto;
+    right: 24vw;
+    top: 24vh;
+    font-size: 15px;
+  }
+  .hero-rally .foot {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: end;
+    gap: 1.2rem 2.5rem;
+    padding-bottom: 2rem;
+  }
+  .hero-rally .eyebrow {
+    grid-column: 1 / -1;
+    margin-bottom: 0;
+  }
+  .hero-rally .cta {
+    justify-self: start;
+  }
+  .hero-rally .meta {
+    margin-top: 0;
+    justify-content: flex-end;
+    gap: 2.5rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-cine *,
-  .hero-cine *::before,
-  .hero-cine *::after {
+  .hero-rally *,
+  .hero-rally *::before,
+  .hero-rally *::after {
     animation-duration: 0.001s !important;
     transition-duration: 0.001s !important;
   }
