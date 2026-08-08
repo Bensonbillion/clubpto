@@ -1,6 +1,6 @@
 # Clubhouse Build Status
 
-Requirements: Benson's "Digital Clubhouse Requirements v1.0" (2026-08-07 session).
+Requirements: CLUBHOUSE-REQUIREMENTS.md (canonical v1.0, in this folder).
 This file tracks what exists in-repo and what gates the next waves.
 
 ## Built (Wave 1 core, pure + tested)
@@ -38,8 +38,11 @@ This file tracks what exists in-repo and what gates the next waves.
    No semifinal/appearance points in v1 (season-2 refresh lever).
 2. RESOLVED — Win% board ships beside the points board; 8-game qualifier
    (`WINPCT_MIN_GAMES`); LB-3 opt-out stands.
-3. RESOLVED (drafted) — consent checkbox + privacy note live in the
-   requirements doc Appendix A (owner's copy); implement at Wave 5.
+3. RESOLVED (drafted) — consent checkbox + privacy note language is in
+   CLUBHOUSE-REQUIREMENTS.md Appendix A (canonical, in-repo). Privacy
+   note page builds at Wave 4; consent checkbox at Wave 5. Contact email
+   filled in as clubptobookings@gmail.com. Add the 18+ line once the
+   minors question is answered.
 4. DECIDED — Resend for transactional email (free tier: 3k/mo but
    100/day cap — stagger launch announcement or pay $20 for launch
    month). BLOCKED on Benson: create account, verify domain, paste SMTP
@@ -53,3 +56,9 @@ This file tracks what exists in-repo and what gates the next waves.
 1. ✅ Publish transform + derived stats (this commit) → 2. Auth (blocked on
    email provider) → 3. Core pages → 4. Public teaser → 5. Consent capture →
    6. Seasons/awards.
+
+## DES-3 compliance (done 2026-08-07)
+robots.txt disallows /manage (prefix also covers /manage2, /manage-classic,
+/manage/*), /admin, and additionally /leaderboard, /profile, /login - the
+pre-clubhouse pages carrying player names stay off search engines (PUB-3
+spirit) until they fold into the login-gated clubhouse at Wave 3.

@@ -2,11 +2,17 @@ User-agent: Googlebot
 Allow: /
 Disallow: /manage
 Disallow: /admin
+Disallow: /leaderboard
+Disallow: /profile
+Disallow: /login
 
 User-agent: Bingbot
 Allow: /
 Disallow: /manage
 Disallow: /admin
+Disallow: /leaderboard
+Disallow: /profile
+Disallow: /login
 
 User-agent: Twitterbot
 Allow: /
@@ -18,3 +24,6 @@ User-agent: *
 Allow: /
 Disallow: /manage
 Disallow: /admin
+Disallow: /leaderboard
+Disallow: /profile
+Disallow: /login
