@@ -44,6 +44,18 @@ const Club = () => {
   };
 
   useEffect(() => {
+    // Failed magic-link landings arrive as #error=...&error_code=otp_expired.
+    // Surface a human message and clean the hash so refreshes start fresh.
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const errCode = hash.get("error_code");
+    if (errCode) {
+      setError(
+        errCode === "otp_expired"
+          ? "That sign-in link has expired. Links only last an hour. Enter your email and we'll send a fresh one."
+          : hash.get("error_description") ?? "Sign-in didn't work. Try again."
+      );
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
     resolve();
     // Magic-link landings establish the session asynchronously.
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
