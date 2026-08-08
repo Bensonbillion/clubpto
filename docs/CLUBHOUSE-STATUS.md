@@ -47,8 +47,9 @@ This file tracks what exists in-repo and what gates the next waves.
    100/day cap — stagger launch announcement or pay $20 for launch
    month). BLOCKED on Benson: create account, verify domain, paste SMTP
    creds into Supabase Auth. Postmark is the fallback provider.
-5. RESOLVED (2026-08-07) — 18+ community, no minors ever attended.
-   PRIV-4 closed; 18+ line lives in Appendix A2 and the public FAQ.
+5. RESOLVED (2026-08-07) — no minors have ever attended; PRIV-4 closed.
+   Owner's call: internal fact only, no 18+ messaging on any public
+   surface (removed from FAQ same day).
 6. OPEN — founding-24 status for the join page (PUB-4).
 
 ## Wave order (per requirements §20)
