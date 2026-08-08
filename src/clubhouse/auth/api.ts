@@ -2,7 +2,7 @@
 // One email sends BOTH a magic link and a 6-digit code; either works.
 // No passwords exist anywhere, ever.
 
-import { supabase } from "@/integrations/supabase/client";
+import { clubhouse as supabase } from "@/clubhouse/supabaseClient";
 
 export interface ClubIdentity {
   email: string;

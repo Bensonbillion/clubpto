@@ -63,15 +63,27 @@ This file tracks what exists in-repo and what gates the next waves.
 - /club (src/pages/Club.tsx) — the door: email -> code/link -> claim (with the
   Appendix A1 consent checkbox gating the button) -> landing. Own shell,
   lazy chunk, robots-blocked during soft launch.
-Benson dashboard steps to make it fully live:
-  1. Paste + run migrations/001_clubhouse.sql (SQL editor).
-  2. Auth > Email template "Magic Link": add the code line, e.g.
-     "Your code: {{ .Token }}" so one email carries link + OTP (AUTH-1).
-  3. Auth settings: session/refresh token lifetime to 90 days (AUTH-3).
-  4. Later: Resend SMTP creds (AUTH-2) replace the built-in sender
-     (built-in works now for testing, ~few emails/hour limit).
+ARCHITECTURE DECISION (2026-08-26): the clubhouse database is Benson's OWN
+Supabase project (org "CLUB PTO", ref flahcijysipymafazhxq) - not the
+Lovable-managed engine project (ikfbtktofcfkpqxwlfku, which Benson's
+dashboard login cannot access). Migration 001 is APPLIED there (all 9
+clubhouse tables verified). The site uses a dedicated client
+(src/clubhouse/supabaseClient.ts, storageKey "clubhouse-auth"). Publish
+pipeline will write cross-project with the clubhouse service key from the
+admin context. One more step off Lovable.
+
+Remaining dashboard steps:
+  1. DONE - migration applied to flahcijysipymafazhxq (verified 2026-08-26).
+  2. BLOCKED BEHIND SMTP: this project locks template editing until custom
+     SMTP is configured. So Resend (AUTH-2) also unlocks the
+     "Your code: {{ .Token }}" template line - unless the default template
+     already includes the code (E2E email sent 2026-08-26 to check).
+  3. Sessions: free-tier default = no time-box, refresh tokens keep
+     sessions alive indefinitely; AUTH-3 satisfied without changes.
+  4. Resend SMTP creds (AUTH-2): Auth > Emails > SMTP Settings.
   5. Roster seed: fill clubhouse_roster (publish pipeline or CSV insert)
-     so the claim picker has names.
+     so the claim picker has names. Claim flow shows a friendly empty
+     state until then.
 
 ## Wave order (per requirements §20)
 1. ✅ Publish transform + derived stats (this commit) → 2. Auth (blocked on

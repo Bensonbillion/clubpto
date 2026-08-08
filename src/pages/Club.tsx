@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { clubhouse as supabase } from "@/clubhouse/supabaseClient";
 import logoWordmarkCream from "@/assets/logo-wordmark-cream.png";
 import {
   claimPlayer,
