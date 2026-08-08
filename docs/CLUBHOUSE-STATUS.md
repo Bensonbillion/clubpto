@@ -52,7 +52,21 @@ This file tracks what exists in-repo and what gates the next waves.
    surface (removed from FAQ same day).
 6. OPEN — founding-24 status for the join page (PUB-4).
 
-## Wave 2 (auth) — built 2026-08-07, pending two dashboard steps
+## Wave 2 (auth) — COMPLETE 2026-08-08: first member signed in and claimed
+Proven end to end on production (bensonbillion.github.io/clubpto/club):
+email -> magic link -> session -> roster claim ("You're in, Benson").
+Roster seeded same day: 002_roster_seed.sql, 66 real players derived from
+the engine's pair_history (NATO-named test data excluded — all confined to
+the 2026-03-01 simulation day; lookalike spellings that co-occurred on the
+same session date kept separate as distinct people). Hardening shipped the
+same night: main.tsx routes any Supabase auth hash (#access_token/#error)
+landing on ANY page to /club, where the clubhouse client consumes it —
+without this, Site-URL-fallback landings silently dropped the session
+(root cause of the first failed sign-ins, confirmed by a 17-agent audit).
+GOTCHA: clubpto.lovable.app is a STALE build until Share -> Publish in
+Lovable; never test auth there. Resend remains open (deliverability + the
+{{ .Token }} code line in the template, which is SMTP-gated).
+
 - src/clubhouse/migrations/001_clubhouse.sql — ONE paste in the Supabase SQL
   editor creates all clubhouse tables (content + roster + links) with RLS:
   authenticated read, own-link claim with claimable guard + unique conflict
