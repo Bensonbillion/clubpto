@@ -73,6 +73,11 @@ pipeline will write cross-project with the clubhouse service key from the
 admin context. One more step off Lovable.
 
 Remaining dashboard steps:
+  0. DONE - URL configuration fixed after first real link redirected to
+     localhost and expired: Site URL = https://bensonbillion.github.io/clubpto,
+     redirect allow-list = prod/* + clubpto.lovable.app/* + localhost:8080/*.
+     /club now explains expired links (#error_code=otp_expired) with the
+     email form ready for a fresh request.
   1. DONE - migration applied to flahcijysipymafazhxq (verified 2026-08-26).
   2. BLOCKED BEHIND SMTP: this project locks template editing until custom
      SMTP is configured. So Resend (AUTH-2) also unlocks the
