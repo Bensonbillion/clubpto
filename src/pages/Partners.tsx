@@ -55,16 +55,8 @@ const Partners = () => {
           </motion.div>
         </motion.section>
 
-        <div className="rly-page__body" style={{ display: "grid", gap: "3rem" }}>
-          <div
-            style={{
-              display: "grid",
-              gap: "3rem",
-              gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-              alignItems: "start",
-              maxWidth: 1100,
-            }}
-          >
+        <div className="rly-page__body">
+          <div className="rly-partner-grid">
             <motion.form
               variants={fadeUp}
               initial="initial"
@@ -116,18 +108,9 @@ const Partners = () => {
               initial="initial"
               whileInView="animate"
               viewport={{ once: true, margin: "-80px" }}
-              style={{ margin: 0 }}
+              className="rly-partner-photo"
             >
-              <img
-                src={photoDj}
-                alt=""
-                loading="lazy"
-                style={{
-                  width: "100%",
-                  border: "1px solid rgba(244, 237, 224, 0.28)",
-                  boxShadow: "10px 10px 0 var(--volt)",
-                }}
-              />
+              <img src={photoDj} alt="" loading="lazy" />
             </motion.figure>
           </div>
         </div>

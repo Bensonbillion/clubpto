@@ -944,6 +944,36 @@
   color: var(--volt);
 }
 
+/* ---------- partners layout ---------- */
+
+/* Form leads; the photo is an accent, not an equal column. */
+.rly-partner-grid {
+  display: grid;
+  gap: 3.5rem;
+  align-items: start;
+}
+@media (min-width: 900px) {
+  .rly-partner-grid {
+    grid-template-columns: minmax(0, 560px) minmax(260px, 400px);
+    gap: clamp(4rem, 8vw, 7rem);
+  }
+}
+.rly-partner-photo {
+  margin: 0;
+  max-width: 420px;
+}
+.rly-partner-photo img {
+  width: 100%;
+  border: 1px solid rgba(244, 237, 224, 0.28);
+  box-shadow: 10px 10px 0 var(--volt);
+  filter: saturate(1.06) contrast(1.03);
+}
+
+/* Cards carrying a stamp get headroom so it never touches the kicker. */
+.rly-card:has(.rly-card__stamp) {
+  padding-top: 2.6rem;
+}
+
 /* ---------- reduced motion ---------- */
 
 @media (prefers-reduced-motion: reduce) {
