@@ -43,13 +43,12 @@ This file tracks what exists in-repo and what gates the next waves.
    note page builds at Wave 4; consent checkbox at Wave 5. Contact email
    filled in as clubptobookings@gmail.com. Add the 18+ line once the
    minors question is answered.
-4. DECIDED — Resend for transactional email (free tier: 3k/mo but
+4. DECIDED, SOLE REMAINING WAVE-2 BLOCKER — Resend for transactional email (free tier: 3k/mo but
    100/day cap — stagger launch announcement or pay $20 for launch
    month). BLOCKED on Benson: create account, verify domain, paste SMTP
    creds into Supabase Auth. Postmark is the fallback provider.
-5. OPEN — minors question: has anyone under 18 ever attended? If no:
-   one line ("Club PTO is an 18+ community") closes PRIV-4. If yes:
-   default-hidden. One-word answer unblocks.
+5. RESOLVED (2026-08-07) — 18+ community, no minors ever attended.
+   PRIV-4 closed; 18+ line lives in Appendix A2 and the public FAQ.
 6. OPEN — founding-24 status for the join page (PUB-4).
 
 ## Wave order (per requirements §20)

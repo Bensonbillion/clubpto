@@ -206,7 +206,7 @@ A paid-membership club is commercial activity under PIPEDA; publishing names/res
 
 **PRIV-3 (MUST):** Genuine opt-out anytime: pseudonym or fully hidden profile (PROF-3), honored across all surfaces including historical recaps at next publish.
 
-**PRIV-4 (MUST):** Minors policy before launch: confirm whether any attendees are under 18; parental consent required under 13 and cautious handling under 18. If minors exist, default them to hidden.
+**PRIV-4 (MUST) — RESOLVED (owner, 2026-08-07):** No one under 18 has ever attended; Club PTO is an 18+ community. Policy: the 18+ line appears in the privacy note (Appendix A2) and at signup/claim. No minor-handling machinery needed in v1; if that ever changes, minors default to hidden.
 
 **PRIV-5 (MUST):** A plain-language privacy note page: what's shown, to whom (login-gated), how to opt out, contact.
 
@@ -239,7 +239,7 @@ Research-derived thresholds that change the plan:
 
 1. **~~Division names + point values~~ — RESOLVED:** no divisions published; court/title naming + PTO Points carry the hierarchy (PRIV-6, LB-4, values set). Win% board confirmed: stays beside the points board with the 8-game qualifier.
 2. **~~Consent + privacy note language~~ — DRAFTED:** see Appendix A (plain-language draft; not legal advice — optional lawyer review before launch).
-3. **Minors check** — yes/no, and default-hidden policy if yes.
+3. **~~Minors check~~ — RESOLVED:** 18+ community, no minors ever attended (PRIV-4). The 18+ line ships in the privacy note and signup.
 4. **Season 1 definition** — start date, length, award slate (can trail v1 launch).
 5. **Founding-24 status** — how many claimed, what the join page says today.
 
@@ -258,7 +258,7 @@ Acceptance test for v1: publish one real session end-to-end; a player receives t
 
 ## Appendix A — Consent & Privacy Language (plain-language drafts)
 
-*Drafts for PRIV-1, PRIV-2, and PRIV-5. Written to be human and on-brand, not legalese. Not legal advice; a lawyer review before launch is optional but sensible. Pending the minors decision (§19.3), add the 18+ line if confirmed.*
+*Drafts for PRIV-1, PRIV-2, and PRIV-5. Written to be human and on-brand, not legalese. Not legal advice; a lawyer review before launch is optional but sensible. Minors decision confirmed 18+ (§19.3); the line is included below.*
 
 ### A1. Consent checkbox (shown at profile claim and membership signup)
 
@@ -267,6 +267,8 @@ Acceptance test for v1: publish one real session end-to-end; a player receives t
 ### A2. Privacy note page (linked from footer and from the consent checkbox)
 
 **Your info at Club PTO — the short version**
+
+**Who this is for.** Club PTO is an 18+ community.
 
 **What we have.** Your name, your email (for login and club messages), and what happens at sessions: check-ins, games, results, championships. That's it. We don't collect your birthday, address, or payment details — membership billing is handled by Stripe on their systems.
 

@@ -17,6 +17,10 @@ const faqs = [
       "No. There's no membership and no commitment. Book a session, come play.",
   },
   {
+    question: "Is there an age requirement?",
+    answer: "Yes. Club PTO is an 18+ community.",
+  },
+  {
     question: "What level do I need to be?",
     answer:
       "All levels. First time holding a padel racket? Perfect. Come as you are.",
