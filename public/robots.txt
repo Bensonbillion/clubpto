@@ -5,6 +5,7 @@ Disallow: /admin
 Disallow: /leaderboard
 Disallow: /profile
 Disallow: /login
+Disallow: /club
 
 User-agent: Bingbot
 Allow: /
@@ -13,6 +14,7 @@ Disallow: /admin
 Disallow: /leaderboard
 Disallow: /profile
 Disallow: /login
+Disallow: /club
 
 User-agent: Twitterbot
 Allow: /
@@ -27,3 +29,4 @@ Disallow: /admin
 Disallow: /leaderboard
 Disallow: /profile
 Disallow: /login
+Disallow: /club

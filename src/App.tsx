@@ -30,6 +30,7 @@ const Set01Tournament = lazy(() => import("./pages/admin/Set01Tournament"));
 const Login = lazy(() => import("./pages/Login"));
 const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const Club = lazy(() => import("./pages/Club"));
 
 const queryClient = new QueryClient();
 
@@ -62,7 +63,10 @@ const App = () => (
               <Route path="/install" element={<Install />} />
             </Route>
 
-            {/* Manage routes — completely isolated, no public layout.
+            {/* Clubhouse door (Wave 2): own shell, soft-launch (unlinked) */}
+          <Route path="/club" element={<Club />} />
+
+          {/* Manage routes — completely isolated, no public layout.
                 /manage now serves Court Manager v3 (games-first rebuild).
                 /manage-classic keeps the legacy manager as the courtside
                 escape hatch until the rebuild reaches full parity. */}

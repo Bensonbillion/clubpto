@@ -52,6 +52,27 @@ This file tracks what exists in-repo and what gates the next waves.
    surface (removed from FAQ same day).
 6. OPEN — founding-24 status for the join page (PUB-4).
 
+## Wave 2 (auth) — built 2026-08-07, pending two dashboard steps
+- src/clubhouse/migrations/001_clubhouse.sql — ONE paste in the Supabase SQL
+  editor creates all clubhouse tables (content + roster + links) with RLS:
+  authenticated read, own-link claim with claimable guard + unique conflict
+  (AUTH-6), latest-session champions public for the teaser (PRIV-2).
+- src/clubhouse/auth/api.ts — signInWithOtp (magic link + code in one email),
+  verifyOtp, identity resolution, find-your-name claim stamping PRIV-1
+  consent, friendly errors.
+- /club (src/pages/Club.tsx) — the door: email -> code/link -> claim (with the
+  Appendix A1 consent checkbox gating the button) -> landing. Own shell,
+  lazy chunk, robots-blocked during soft launch.
+Benson dashboard steps to make it fully live:
+  1. Paste + run migrations/001_clubhouse.sql (SQL editor).
+  2. Auth > Email template "Magic Link": add the code line, e.g.
+     "Your code: {{ .Token }}" so one email carries link + OTP (AUTH-1).
+  3. Auth settings: session/refresh token lifetime to 90 days (AUTH-3).
+  4. Later: Resend SMTP creds (AUTH-2) replace the built-in sender
+     (built-in works now for testing, ~few emails/hour limit).
+  5. Roster seed: fill clubhouse_roster (publish pipeline or CSV insert)
+     so the claim picker has names.
+
 ## Wave order (per requirements §20)
 1. ✅ Publish transform + derived stats (this commit) → 2. Auth (blocked on
    email provider) → 3. Core pages → 4. Public teaser → 5. Consent capture →
