@@ -114,3 +114,15 @@ robots.txt disallows /manage (prefix also covers /manage2, /manage-classic,
 /manage/*), /admin, and additionally /leaderboard, /profile, /login - the
 pre-clubhouse pages carrying player names stay off search engines (PUB-3
 spirit) until they fold into the login-gated clubhouse at Wave 3.
+
+## Court Manager v4 — pre-live-night checklist (added 2026-08-12, Step 6.2)
+Before the first live Wednesday on /manage4:
+- [ ] **Two-device check of the coin-flip decline.** Open a tied group's flip
+  overlay on device A; on device B, correct or void a result that breaks that
+  tie while the ~2s animation runs. Device A must show "Standings changed — no
+  flip recorded" and record nothing — it must never crown a name it did not
+  store. This is a HUMAN task: agent tool latency exceeds the animation window,
+  so it could not be reproduced in automation. The logic is covered
+  deterministically by tests (attemptCoinFlip refusals + flipPhase in
+  src/lib/americano/__tests__/), but one real-device confirmation is wanted
+  before the system decides a real standings position.

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 8,
+  "savedAt": "1767225600000",
+  "state": {
+    "id": "night-2026-01-01",
+    "date": "2026-01-01",
+    "sessionName": "",
+    "players": [],
+    "pools": [
+      {
+        "id": "court-2",
+        "label": "Court 2",
+        "playerIds": [],
+        "targetMatches": 4,
+        "playoffMode": "undecided",
+        "status": "setup",
+        "matches": []
+      },
+      {
+        "id": "court-1",
+        "label": "Court 1",
+        "playerIds": [],
+        "targetMatches": 4,
+        "playoffMode": "undecided",
+        "status": "setup",
+        "matches": []
+      }
+    ],
+    "isPractice": false,
+    "status": "setup"
+  }
+}

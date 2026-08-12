@@ -20,6 +20,13 @@
 //        envelope loads unchanged, its in-flight matches simply carry no
 //        receipt (worst case: one exemption not refunded, exactly today's
 //        behaviour).
+//   v8 — AmericanoPool.groupFlipResolutions REPLACES coinFlipResolutions
+//        (Step 6.2): a coin-decided TOTAL ORDER over an exact tied set,
+//        instead of a bag of pairwise verdicts that computeStandings could
+//        only read between adjacent rows. Each legacy pairwise resolution
+//        becomes a two-member group record — order [winner, loser], the coin
+//        preserved in the audit trail — which reproduces exactly what the old
+//        model did for a healthy two-player tie.
 //   v7 — AmericanoPool.coinFlipResolutions (Step 6): the visible coin flips
 //        run tonight. The ONLY standings-related state ever persisted — the
 //        table itself is always recomputed. Optional and additive; a v6
@@ -27,10 +34,47 @@
 //        a night where none were run.
 
 import type {
-  AmericanoPlayer, AmericanoPool, AmericanoSession,
+  AmericanoPlayer, AmericanoPool, AmericanoSession, GroupFlipRecord,
 } from "@/types/americano";
+import { computeRecords, strengthOfSchedule } from "./standings";
 
-export const AMERICANO_SCHEMA_VERSION = 7;
+/**
+ * Legacy pairwise coin flips → two-member group records. The order is
+ * [winner, loser] and the coin itself is kept in the trail, so a tie that was
+ * healthy under the old model reads identically under the new one. The line
+ * is taken from the pool as it stands: if the pair is no longer tied, the
+ * record is stale and liveness drops it on the next read — exactly what the
+ * old staleness rule did.
+ */
+function convertLegacyFlips(pool: AmericanoPool): AmericanoPool {
+  const legacy = pool.coinFlipResolutions;
+  if (!legacy || legacy.length === 0) {
+    if (!("coinFlipResolutions" in pool)) return pool;
+    const cleaned = { ...pool };
+    delete cleaned.coinFlipResolutions;
+    return cleaned;
+  }
+  const records = computeRecords(pool);
+  const EMPTY = { matchesPlayed: 0, wins: 0, losses: 0, gameDiff: 0 };
+  const converted: GroupFlipRecord[] = legacy.map((f) => {
+    const loser = f.winner === f.a ? f.b : f.a;
+    const r = records.get(f.winner) ?? EMPTY;
+    return {
+      members: [f.a, f.b].sort(),
+      line: {
+        w: r.wins, l: r.losses, diff: r.gameDiff,
+        sos: strengthOfSchedule(pool, f.winner),
+      },
+      order: [f.winner, loser],
+      flips: [{ a: f.a, b: f.b, winner: f.winner, at: f.at }],
+    };
+  });
+  const next = { ...pool, groupFlipResolutions: [...(pool.groupFlipResolutions ?? []), ...converted] };
+  delete next.coinFlipResolutions;
+  return next;
+}
+
+export const AMERICANO_SCHEMA_VERSION = 8;
 
 export function emptyPool(id: string, label: "Court 1" | "Court 2"): AmericanoPool {
   return {
@@ -101,8 +145,8 @@ export function migrateAmericanoSession(
   }
 
   const pools: AmericanoPool[] = [
-    { ...court2, playerIds: [...court2.playerIds, ...orphans2] },
-    { ...court1, playerIds: [...court1.playerIds, ...orphans1] },
+    convertLegacyFlips({ ...court2, playerIds: [...court2.playerIds, ...orphans2] }),
+    convertLegacyFlips({ ...court1, playerIds: [...court1.playerIds, ...orphans1] }),
   ];
   const date = typeof old.date === "string" && old.date ? old.date : today;
   const healed: AmericanoSession = {

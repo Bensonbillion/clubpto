@@ -5,7 +5,8 @@
 
 import { describe, expect, it } from "vitest";
 import type {
-  AmericanoMatch, AmericanoPlayer, AmericanoPool, AmericanoScore, AmericanoTier,
+  AmericanoMatch, AmericanoPlayer, AmericanoPool, AmericanoScore, AmericanoSession,
+  AmericanoTier,
 } from "@/types/americano";
 import { validTargets, courtMatchesNeeded } from "../config";
 import {
@@ -13,6 +14,7 @@ import {
   type GeneratedMatch,
 } from "../generator";
 import { computeStandings, earlyCutSummary, playoffEligible, strengthOfSchedule } from "../standings";
+import { applyCoinFlip, pendingFlips, poolStandings } from "../flips";
 
 /* ── driver ──────────────────────────────────────────────────────── */
 
@@ -184,18 +186,23 @@ describe("Scenario 1 — normal night", () => {
     }
     expect(table.some((r) => r.tiebreakApplied === "sos")).toBe(true); // SOS is doing real work
     if (flagged.length > 0) {
-      const resolutions: Record<string, string> = {};
-      let resolved = table;
-      for (let step = 0; step < 32; step++) {
-        const idx = resolved.findIndex(
-          (r, i) => i < resolved.length - 1 && r.requiresCoinFlip && resolved[i + 1].requiresCoinFlip &&
-            resolutions[pairKey(r.playerId, resolved[i + 1].playerId)] === undefined,
-        );
-        if (idx === -1) break;
-        const a = resolved[idx].playerId, b = resolved[idx + 1].playerId;
-        resolutions[pairKey(a, b)] = hash(pairKey(a, b)) % 2 === 0 ? a : b;
-        resolved = computeStandings(n.pool, n.players, resolutions);
+      // Resolve exactly the way the room does (STEP 6.2): one visible coin at
+      // a time, each answer deciding what is asked next, until every tied
+      // group carries a complete order.
+      let live: AmericanoSession = {
+        id: "sim", date: "2026-08-12", sessionName: "", players: n.players,
+        pools: [n.pool], isPractice: true, status: "active",
+      };
+      for (let step = 0; step < 64; step++) {
+        const pend = pendingFlips(live.pools[0], live.players);
+        if (pend.length === 0) break;
+        const { a, b } = pend[0];
+        const winner = hash(pairKey(a, b)) % 2 === 0 ? a : b;
+        const next = applyCoinFlip(live, live.pools[0].id, a, b, winner, 1_000 + step);
+        expect(next, `coin ${a}/${b} must be recordable`).not.toBe(live);
+        live = next;
       }
+      const resolved = poolStandings(live.pools[0], live.players);
       expect(resolved.some((r) => r.requiresCoinFlip)).toBe(false);
       expect(resolved.filter((r) => r.tiebreakApplied === "coinflip").length).toBeGreaterThan(0);
     }

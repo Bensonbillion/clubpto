@@ -22,7 +22,7 @@ import {
   canMarkNotHere, markArrived, markLeft, markNotHere, restoreLeft,
 } from "@/lib/americano/people";
 import {
-  attemptCoinFlip, pendingFlipPairs, pickFlipWinner, poolStandings, pruneStaleFlips,
+  attemptCoinFlip, pendingFlips, pickFlipWinner, poolStandings, pruneStaleFlips,
 } from "@/lib/americano/flips";
 import { strengthOfSchedule } from "@/lib/americano/standings";
 import { poolPace, type PoolPace } from "@/lib/americano/pace";
@@ -598,9 +598,14 @@ export function useAmericanoSession(): UseAmericanoSession {
             canNotHere: canMarkNotHere(session, p.playerId),
           }))
           .sort((a, b) => a.name.localeCompare(b.name)),
-        pendingFlips: pendingFlipPairs(pool, session.players).length,
+        // Coins still to toss before every group on this court is ordered —
+        // the honest count, not flagged-rows halved.
+        pendingFlips: pendingFlips(pool, session.players)
+          .reduce((n, f) => n + f.remaining, 0),
         standings: (() => {
-          const pending = pendingFlipPairs(pool, session.players);
+          const pending = pendingFlips(pool, session.players);
+          // Only the NEXT flip of each group is offerable: the procedure is an
+          // insertion, so each answer decides what is asked next.
           const partner = new Map<string, string>();
           for (const { a, b } of pending) { partner.set(a, b); partner.set(b, a); }
           return poolStandings(pool, session.players).map((r) => ({

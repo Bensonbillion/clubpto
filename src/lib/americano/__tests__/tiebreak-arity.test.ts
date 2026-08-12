@@ -18,7 +18,7 @@ import type {
 import {
   computeStandings, h2hSeparates, strengthOfSchedule, tiedGroup,
 } from "../standings";
-import { pendingFlipPairs, stillTiedPreFlip, unresolvedFlipsAffecting } from "../flips";
+import { flipGroupOf, pendingFlips, unresolvedFlipsAffecting } from "../flips";
 
 const IDS = ["a", "b", "c", "d", "e", "f", "g", "h"];
 
@@ -101,42 +101,42 @@ describe("consumer 1 — computeStandings", () => {
   });
 });
 
-describe("consumer 2 — stillTiedPreFlip", () => {
-  it("a pair separated by H2H is NOT flip-tied", () => {
-    expect(stillTiedPreFlip(PAIR, "a", "d")).toBe(false);
+describe("consumer 2 — flipGroupOf (who a coin must order)", () => {
+  it("a pair separated by H2H shares no flip group", () => {
+    expect(flipGroupOf(PAIR, "a", players)).not.toContain("d");
   });
 
-  it("the same meeting inside a trio leaves the pair flip-tied", () => {
-    expect(stillTiedPreFlip(TRIO, "a", "d")).toBe(true);
+  it("the same meeting inside a trio leaves the pair needing a coin", () => {
+    expect(flipGroupOf(TRIO, "a", players)).toContain("d");
   });
 });
 
-describe("consumers 3 and 4 — pendingFlipPairs and unresolvedFlipsAffecting", () => {
-  it("no flip is offered for an H2H-separated pair", () => {
-    const offered = pendingFlipPairs(PAIR, players);
-    expect(offered.some((p) => [p.a, p.b].sort().join() === "a,d")).toBe(false);
+describe("consumers 3 and 4 — pendingFlips and unresolvedFlipsAffecting", () => {
+  it("no coin is offered for an H2H-separated pair", () => {
+    const offered = pendingFlips(PAIR, players);
+    expect(offered.some((f) => [f.a, f.b].sort().join() === "a,d")).toBe(false);
     expect(unresolvedFlipsAffecting(PAIR, players, 8)
-      .some((f) => [f.a, f.b].sort().join() === "a,d")).toBe(false);
+      .some((g) => g.members.includes("a") && g.members.includes("d"))).toBe(false);
   });
 
-  it("the trio's members are offered a flip, and the gate sees it", () => {
-    const offered = pendingFlipPairs(TRIO, players);
+  it("the trio's members are offered a coin, and the gate sees the group", () => {
+    const offered = pendingFlips(TRIO, players);
     expect(offered.length).toBeGreaterThan(0);
     const trio = new Set(["a", "d", "e"]);
-    expect(offered.some((p) => trio.has(p.a) && trio.has(p.b))).toBe(true);
-    // Cut at 8 seats everyone, so every unresolved tie orders the bracket.
+    expect(offered.some((f) => trio.has(f.a) && trio.has(f.b))).toBe(true);
+    // Cut at 8 seats everyone, so every unordered group seeds the bracket.
     expect(unresolvedFlipsAffecting(TRIO, players, 8).length).toBeGreaterThan(0);
   });
 
-  it("the whole chain agrees: a table row flagged for a flip is a flip-tied pair", () => {
+  it("the whole chain agrees: an offered coin is inside one real tied group", () => {
     for (const pool of [PAIR, TRIO]) {
-      for (const { a, b } of pendingFlipPairs(pool, players)) {
-        expect(stillTiedPreFlip(pool, a, b)).toBe(true);
-        const group = tiedGroup(pool, a);
+      for (const { a, b } of pendingFlips(pool, players)) {
+        const group = tiedGroup(pool, a, undefined, players);
         expect(group).toContain(b);
         expect(h2hSeparates(pool, group.length, a, b)).toBe(false);
+        expect(flipGroupOf(pool, a, players)).toContain(b);
       }
-      expect(sess(pool).pools[0].coinFlipResolutions).toBeUndefined();
+      expect(sess(pool).pools[0].groupFlipResolutions).toBeUndefined();
     }
   });
 });

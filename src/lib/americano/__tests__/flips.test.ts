@@ -1,7 +1,11 @@
-// STEP 6 — the visible coin flip: resolution storage, the staleness rule, and
-// the playoff gate. Driven by the REAL Scenario 1 night (same seed as the sim
-// suite) so the flips under test are the ones a real night produces, not
-// synthetic ties chosen to be convenient.
+// STEP 6 / 6.2 — the visible coin flip against a REAL night. Driven by the
+// Scenario 1 seed (same as the sim suite) so the ties under test are the ones
+// a real night produces, not synthetic ones chosen to be convenient.
+//
+// The group model's own machinery — the procedure, liveness, the gate, the
+// 6.1 regressions, migration, the sweep — lives in groupflips.test.ts. This
+// file owns the real-night behaviour: panel/printout agreement, staleness
+// across a correction, and the honest decline.
 
 import { describe, expect, it } from "vitest";
 import type {
@@ -11,9 +15,8 @@ import type {
 import { generateNextMatch, pairKey } from "../generator";
 import { computeStandings, strengthOfSchedule } from "../standings";
 import {
-  applyCoinFlip, attemptCoinFlip, flipPhase, flipResolutionMap, liveFlips,
-  pendingFlipPairs, pickFlipWinner, poolStandings, pruneStaleFlips,
-  stillTiedPreFlip, unresolvedFlipsAffecting,
+  applyCoinFlip, attemptCoinFlip, flipGroupOf, flipPhase, liveGroupRecords,
+  pendingFlips, pickFlipWinner, poolStandings, pruneStaleFlips,
 } from "../flips";
 
 /* ── the Scenario 1 seed, verbatim from simulate.test.ts ─────────── */
@@ -94,174 +97,76 @@ const printLine = (
   return `${String(r.rank).padStart(2)}. ${name}  ${r.wins}W-${r.losses}L  diff ${r.gameDiff >= 0 ? "+" : ""}${r.gameDiff}  sos ${strengthOfSchedule(pool, r.playerId)}${r.tiebreakApplied ? `  (${r.tiebreakApplied})` : ""}${r.requiresCoinFlip ? "  [flip]" : ""}`;
 };
 
-describe("the Scenario 1 night produces real, flaggable flips (STEP 6)", () => {
-  it("flags true W-L-diff-SOS twins and nothing else", () => {
+
+const nextFlip = (s: AmericanoSession) => pendingFlips(pool0(s), s.players)[0];
+
+describe("the Scenario 1 night produces real, flaggable ties (STEP 6)", () => {
+  it("flags true W-L-diff-SOS groups and nothing else", () => {
     const { session } = scenarioOne();
     const pool = pool0(session);
     expect(pool.matches).toHaveLength(12);
-    const pending = pendingFlipPairs(pool, session.players);
+    const pending = pendingFlips(pool, session.players);
     expect(pending.length).toBeGreaterThan(0);
-    for (const { a, b } of pending) expect(stillTiedPreFlip(pool, a, b)).toBe(true);
+    for (const f of pending) {
+      // Every offered coin is between members of one genuine tied group.
+      expect(flipGroupOf(pool, f.a, session.players)).toContain(f.b);
+    }
 
     // The panel's data IS the printout's data — same rows, same annotations.
     const rows = poolStandings(pool, session.players);
     expect(rows).toHaveLength(16);
     expect(rows.map((r) => printLine(pool, session.players, r)).join("\n"))
-      .toBe(computeStandings(pool, session.players, {})
+      .toBe(computeStandings(pool, session.players)
         .map((r) => printLine(pool, session.players, r)).join("\n"));
   });
 });
 
-describe("resolution storage + injection (STEP 6)", () => {
-  it("a recorded flip reorders the table and annotates the row COIN", () => {
+describe("recording a coin on a real night (STEP 6.2)", () => {
+  it("a completed group order reorders the table and annotates COIN", () => {
     const { session } = scenarioOne();
-    const [{ a, b }] = pendingFlipPairs(pool0(session), session.players);
+    const f = nextFlip(session);
     const before = poolStandings(pool0(session), session.players);
-    const beforeIdx = before.findIndex((r) => r.playerId === a);
-    expect(before[beforeIdx].requiresCoinFlip).toBe(true);
+    const idx = before.findIndex((r) => r.playerId === f.a);
+    expect(before[idx].requiresCoinFlip).toBe(true);
 
-    // Land the flip on the player the provisional order put SECOND.
-    const next = applyCoinFlip(session, "court-2", a, b, b, 1_000);
-    expect(pool0(next).coinFlipResolutions).toEqual([{ a, b, winner: b, at: 1_000 }]);
+    // Scenario 1's groups are pairs, so one coin settles this one.
+    const next = applyCoinFlip(session, "court-2", f.a, f.b, f.b, 1_000);
+    const rec = pool0(next).groupFlipResolutions!;
+    expect(rec).toHaveLength(1);
+    expect(rec[0].members).toEqual([f.a, f.b].sort());
+    expect(rec[0].order).toEqual([f.b, f.a]);
 
     const after = poolStandings(pool0(next), next.players);
-    expect(after[beforeIdx].playerId).toBe(b); // the flip actually moved them
-    expect(after[beforeIdx + 1].playerId).toBe(a);
-    expect(after[beforeIdx].tiebreakApplied).toBe("coinflip");
-    expect(after[beforeIdx].requiresCoinFlip).toBe(false);
-    expect(after[beforeIdx + 1].requiresCoinFlip).toBe(false);
-
-    // Ranks stay a clean 1..n after the swap.
+    expect(after.findIndex((r) => r.playerId === f.b))
+      .toBeLessThan(after.findIndex((r) => r.playerId === f.a));
+    expect(after.find((r) => r.playerId === f.b)!.tiebreakApplied).toBe("coinflip");
+    expect(after.find((r) => r.playerId === f.b)!.requiresCoinFlip).toBe(false);
+    expect(after.find((r) => r.playerId === f.a)!.requiresCoinFlip).toBe(false);
     expect(after.map((r) => r.rank)).toEqual(after.map((_, i) => i + 1));
-    // Survives persistence byte-for-byte.
     expect(JSON.parse(JSON.stringify(next))).toEqual(next);
   });
 
-  it("landing on the leading name records the flip without moving anyone", () => {
+  it("landing on the leading name records the coin without moving anyone", () => {
     const { session } = scenarioOne();
-    const [{ a, b }] = pendingFlipPairs(pool0(session), session.players);
-    const next = applyCoinFlip(session, "court-2", a, b, a, 1_000);
+    const f = nextFlip(session);
+    const next = applyCoinFlip(session, "court-2", f.a, f.b, f.a, 1_000);
     const after = poolStandings(pool0(next), next.players);
-    const idx = after.findIndex((r) => r.playerId === a);
-    expect(after[idx + 1].playerId).toBe(b);
-    expect(after[idx].tiebreakApplied).toBe("coinflip");
-    expect(after[idx].requiresCoinFlip).toBe(false);
-  });
-
-  it("refuses a re-flip of a live resolution, and refuses untied or bogus pairs", () => {
-    const { session } = scenarioOne();
-    const [{ a, b }] = pendingFlipPairs(pool0(session), session.players);
-    const once = applyCoinFlip(session, "court-2", a, b, a, 1_000);
-
-    // The result is the result: no second flip while the resolution lives.
-    expect(applyCoinFlip(once, "court-2", a, b, b, 2_000)).toBe(once);
-    // A winner who is not in the pair, an unknown pool, and an untied pair.
-    expect(applyCoinFlip(session, "court-2", a, b, "p99", 2_000)).toBe(session);
-    expect(applyCoinFlip(session, "nope", a, b, a, 2_000)).toBe(session);
-    const leader = poolStandings(pool0(session), session.players)[0].playerId;
-    const last = poolStandings(pool0(session), session.players).at(-1)!.playerId;
-    expect(stillTiedPreFlip(pool0(session), leader, last)).toBe(false);
-    expect(applyCoinFlip(session, "court-2", leader, last, leader, 2_000)).toBe(session);
+    const i = after.findIndex((r) => r.playerId === f.a);
+    expect(after[i + 1].playerId).toBe(f.b);
+    expect(after[i].tiebreakApplied).toBe("coinflip");
   });
 });
 
-describe("multi-way ties resolve ONE visible flip at a time (STEP 6)", () => {
-  /** Four players tied on W-L-diff AND SOS — a run of three adjacent pairs. */
-  const fourWayRun = (): { pool: AmericanoPool; players: AmericanoPlayer[] } => {
-    const players = mkPlayers(8, "t").map((p) => ({ ...p, tier: "B" as const }));
-    const ids = players.map((p) => p.playerId);
-    const m = (i: number, tA: [string, string], tB: [string, string]): AmericanoMatch => ({
-      id: `court-2-m${i}`, poolId: "court-2", matchIndex: i, teamA: tA, teamB: tB,
-      result: { winner: "A", score: "2-1" }, status: "completed", phase: "round_robin",
-      startedAt: i * 100, completedAt: i * 100 + 50,
-    });
-    return {
-      pool: {
-        id: "court-2", label: "Court 2", playerIds: ids, targetMatches: 1,
-        playoffMode: "top8", status: "round_robin",
-        matches: [m(1, [ids[0], ids[1]], [ids[2], ids[3]]), m(2, [ids[4], ids[5]], [ids[6], ids[7]])],
-      },
-      players,
-    };
-  };
-
-  it("a resolved pair is NEVER offered again, even when the reorder puts them back side by side", () => {
-    const { pool, players } = fourWayRun();
-    let s: AmericanoSession = {
-      id: "n", date: "2026-08-12", sessionName: "", players, pools: [pool],
-      isPractice: true, status: "active",
-    };
-    // Two runs of four (the winners, then the losers) → three adjacent pairs
-    // each. The winners' middle pair is index 1.
-    const pending0 = pendingFlipPairs(pool, players);
-    expect(pending0.length).toBe(6);
-
-    // Resolve the MIDDLE pair, landing on the lower name so the group reorders
-    // around them — the case where both keep a flag against a new neighbour.
-    const mid = pending0[1];
-    s = applyCoinFlip(s, "court-2", mid.a, mid.b, mid.b, 1_000);
-    expect(liveFlips(pool0(s))).toHaveLength(1);
-
-    const pending1 = pendingFlipPairs(pool0(s), s.players);
-    expect(pending1.some((x) => pairKey(x.a, x.b) === pairKey(mid.a, mid.b))).toBe(false);
-    // …and the flip that WAS run is honoured in the order.
-    const rows = poolStandings(pool0(s), s.players);
-    expect(rows.findIndex((r) => r.playerId === mid.b))
-      .toBeLessThan(rows.findIndex((r) => r.playerId === mid.a));
-
-    // Every pair still offered is one a flip would actually decide.
-    for (const p of pending1) {
-      const before = poolStandings(pool0(s), s.players).map((r) => r.playerId).join();
-      const next = applyCoinFlip(s, "court-2", p.a, p.b, p.b, 2_000);
-      expect(next).not.toBe(s); // never a silent no-op
-      expect(poolStandings(pool0(next), next.players).map((r) => r.playerId).join())
-        .not.toBe(before);
-    }
-  });
-
-  it("the badge counts flips OFFERED, not flagged rows halved (6.1 review finding)", () => {
-    // A run of four flags four rows but offers three flips; the panel used to
-    // show round(4/2) = 2. It now reads pendingFlipPairs, which is the truth.
-    const { pool, players } = fourWayRun();
-    const flagged = poolStandings(pool, players).filter((r) => r.requiresCoinFlip);
-    const offered = pendingFlipPairs(pool, players);
-    expect(flagged.length).toBe(8);   // two runs of four
-    expect(offered.length).toBe(6);   // three adjacent pairs in each run
-    expect(offered.length).not.toBe(Math.round(flagged.length / 2));
-  });
-
-  it("flipping down the run terminates with a fully ordered top group", () => {
-    const { pool, players } = fourWayRun();
-    let s: AmericanoSession = {
-      id: "n", date: "2026-08-12", sessionName: "", players, pools: [pool],
-      isPractice: true, status: "active",
-    };
-    for (let guard = 0; guard < 20; guard++) {
-      const pending = pendingFlipPairs(pool0(s), s.players);
-      if (pending.length === 0) break;
-      const { a, b } = pending[0];
-      const next = applyCoinFlip(s, "court-2", a, b, b, 1_000 + guard);
-      expect(next).not.toBe(s);
-      s = next;
-    }
-    expect(pendingFlipPairs(pool0(s), s.players)).toEqual([]);
-    expect(poolStandings(pool0(s), s.players).some((r) => r.requiresCoinFlip)).toBe(false);
-    expect(unresolvedFlipsAffecting(pool0(s), s.players, 4)).toEqual([]);
-  });
-});
-
-describe("the staleness rule (STEP 6)", () => {
-  it("a correction that breaks the tie DROPS the resolution; undoing it re-flags a FRESH flip", () => {
+describe("the staleness rule on a real night (STEP 6.2)", () => {
+  it("a correction that breaks the tie DROPS the record; undoing it re-flags fresh", () => {
     const { session } = scenarioOne();
     const pool = pool0(session);
-    const [{ a, b }] = pendingFlipPairs(pool, session.players);
-    const flipped = applyCoinFlip(session, "court-2", a, b, b, 1_000);
-    expect(liveFlips(pool0(flipped))).toHaveLength(1);
+    const f = nextFlip(session);
+    const flipped = applyCoinFlip(session, "court-2", f.a, f.b, f.b, 1_000);
+    expect(liveGroupRecords(pool0(flipped), flipped.players)).toHaveLength(1);
 
-    // Find a completed match involving `a` and flip its winner — that changes
-    // a's W-L-diff and breaks the tie the coin was tossed to settle.
     const target = pool.matches.find(
-      (m) => m.teamA.includes(a) || m.teamB.includes(a),
+      (m) => m.teamA.includes(f.a) || m.teamB.includes(f.a),
     )!;
     const corrected: AmericanoSession = {
       ...flipped,
@@ -274,37 +179,32 @@ describe("the staleness rule (STEP 6)", () => {
         ),
       })),
     };
-    expect(stillTiedPreFlip(pool0(corrected), a, b)).toBe(false);
-    expect(liveFlips(pool0(corrected))).toHaveLength(0); // ignored immediately…
-
+    expect(liveGroupRecords(pool0(corrected), corrected.players)).toHaveLength(0);
     const pruned = pruneStaleFlips(corrected);
-    expect(pool0(pruned).coinFlipResolutions).toBeUndefined(); // …and really deleted
-    expect(flipResolutionMap(pool0(pruned))).toEqual({});
+    expect(pool0(pruned).groupFlipResolutions).toBeUndefined();
 
-    // Undo the correction. The identical tie is back — and because the old
-    // resolution was DELETED rather than parked, the pair must flip again.
+    // Undo it. The identical tie is back — and must be flipped AFRESH.
     const restored: AmericanoSession = {
       ...pruned,
       pools: pruned.pools.map((p) => ({
-        ...p,
-        matches: p.matches.map((m) => (m.id === target.id ? target : m)),
+        ...p, matches: p.matches.map((m) => (m.id === target.id ? target : m)),
       })),
     };
-    expect(stillTiedPreFlip(pool0(restored), a, b)).toBe(true);
-    expect(pool0(restored).coinFlipResolutions).toBeUndefined(); // no resurrection
-    const pair = pendingFlipPairs(pool0(restored), restored.players);
-    expect(pair.some((p) => pairKey(p.a, p.b) === pairKey(a, b))).toBe(true);
-    expect(rowOf(restored, a).requiresCoinFlip).toBe(true);
-    expect(rowOf(restored, b).requiresCoinFlip).toBe(true);
+    expect(pool0(restored).groupFlipResolutions).toBeUndefined(); // no resurrection
+    const again = pendingFlips(pool0(restored), restored.players);
+    expect(again.some((x) => [x.a, x.b].sort().join() === [f.a, f.b].sort().join())).toBe(true);
+    const row = poolStandings(pool0(restored), restored.players)
+      .find((r) => r.playerId === f.a)!;
+    expect(row.requiresCoinFlip).toBe(true);
   });
 
-  it("a void that breaks the tie drops it too; an unrelated correction leaves it alone", () => {
+  it("a void that breaks the tie drops it too; an untouched night keeps it", () => {
     const { session } = scenarioOne();
-    const pool = pool0(session);
-    const [{ a, b }] = pendingFlipPairs(pool, session.players);
-    const flipped = applyCoinFlip(session, "court-2", a, b, b, 1_000);
-
-    const played = pool.matches.find((m) => m.teamA.includes(a) || m.teamB.includes(a))!;
+    const f = nextFlip(session);
+    const flipped = applyCoinFlip(session, "court-2", f.a, f.b, f.b, 1_000);
+    const played = pool0(session).matches.find(
+      (m) => m.teamA.includes(f.a) || m.teamB.includes(f.a),
+    )!;
     const voided: AmericanoSession = {
       ...flipped,
       pools: flipped.pools.map((p) => ({
@@ -312,163 +212,43 @@ describe("the staleness rule (STEP 6)", () => {
         matches: p.matches.map((m) => (m.id === played.id ? { ...m, status: "voided" as const } : m)),
       })),
     };
-    expect(pool0(pruneStaleFlips(voided)).coinFlipResolutions).toBeUndefined();
-
-    // A match touching NEITHER of the pair, and no one they played, must not
-    // disturb the resolution. (SOS reaches further than W-L, so this asserts
-    // the honest thing: pruning is driven by the real chain, not by a guess.)
-    const untouched = pruneStaleFlips(flipped);
-    expect(pool0(untouched).coinFlipResolutions).toHaveLength(1);
-    expect(liveFlips(pool0(untouched))).toHaveLength(1);
-    expect(rowOf(untouched, b).tiebreakApplied).toBe("coinflip");
-  });
-
-  it("pruning is idempotent and leaves a clean night completely alone", () => {
-    const { session } = scenarioOne();
-    expect(pruneStaleFlips(session)).toBe(session); // no flips, no copy
-    const [{ a, b }] = pendingFlipPairs(pool0(session), session.players);
-    const flipped = applyCoinFlip(session, "court-2", a, b, a, 1_000);
-    expect(pruneStaleFlips(flipped)).toBe(flipped);
-    expect(pruneStaleFlips(pruneStaleFlips(flipped))).toBe(flipped);
+    expect(pruneStaleFlips(voided).pools[0].groupFlipResolutions).toBeUndefined();
+    expect(pruneStaleFlips(flipped)).toBe(flipped); // nothing moved, nothing dropped
   });
 });
 
 describe("persistence mid-overlay (STEP 6)", () => {
   it("a refresh while the overlay is open records NOTHING and keeps the flags", () => {
     const { session } = scenarioOne();
-    const [{ a, b }] = pendingFlipPairs(pool0(session), session.players);
-    // The overlay is UI state only: opening it never touches the session, so
-    // the persisted envelope is byte-identical to the pre-open one.
+    const f = nextFlip(session);
     const persisted: AmericanoSession = JSON.parse(JSON.stringify(session));
     expect(persisted).toEqual(session);
-    expect(pool0(persisted).coinFlipResolutions).toBeUndefined();
-    expect(rowOf(persisted, a).requiresCoinFlip).toBe(true);
-    expect(rowOf(persisted, b).requiresCoinFlip).toBe(true);
-
-    // And the flip still lands normally after the reload.
-    const after = applyCoinFlip(persisted, "court-2", a, b, b, 5_000);
-    expect(liveFlips(pool0(after))).toHaveLength(1);
-    expect(JSON.parse(JSON.stringify(after))).toEqual(after);
+    expect(pool0(persisted).groupFlipResolutions).toBeUndefined();
+    expect(poolStandings(pool0(persisted), persisted.players)
+      .find((r) => r.playerId === f.a)!.requiresCoinFlip).toBe(true);
+    const after = applyCoinFlip(persisted, "court-2", f.a, f.b, f.b, 5_000);
+    expect(liveGroupRecords(pool0(after), after.players)).toHaveLength(1);
   });
 });
 
-describe("unresolvedFlipsAffecting — Step 7's gate (STEP 6)", () => {
-  /** Build a pool whose standings tie exactly where the test needs. */
-  const tiedNight = (): { pool: AmericanoPool; players: AmericanoPlayer[] } => {
-    const players = mkPlayers(8, "t").map((p) => ({ ...p, tier: "B" as const }));
-    const ids = players.map((p) => p.playerId);
-    const m = (i: number, tA: [string, string], tB: [string, string], winner: "A" | "B"): AmericanoMatch => ({
-      id: `court-2-m${i}`, poolId: "court-2", matchIndex: i, teamA: tA, teamB: tB,
-      result: { winner, score: "2-1" }, status: "completed", phase: "round_robin",
-      startedAt: i * 100, completedAt: i * 100 + 50,
-    });
-    // Everyone plays once; four winners, four losers — a 4/4 split with
-    // identical diffs, so ties sit exactly on a cutSize-4 line.
-    const pool: AmericanoPool = {
-      id: "court-2", label: "Court 2", playerIds: ids, targetMatches: 1,
-      playoffMode: "top8", status: "round_robin",
-      matches: [
-        m(1, [ids[0], ids[1]], [ids[2], ids[3]], "A"),
-        m(2, [ids[4], ids[5]], [ids[6], ids[7]], "A"),
-      ],
-    };
-    return { pool, players };
-  };
-
-  it("a tie inside the top group blocks as seed_order; the same tie below the line does not block", () => {
-    const { pool, players } = tiedNight();
-    const rows = poolStandings(pool, players);
-    // Winners (1W-0L, +1) occupy 1-4; losers (0W-1L, −1) occupy 5-8.
-    expect(rows.slice(0, 4).every((r) => r.wins === 1)).toBe(true);
-    expect(rows.slice(4).every((r) => r.wins === 0)).toBe(true);
-
-    // Cut at 4: every unresolved flip among the winners decides seeding; the
-    // losers' ties decide nothing a bracket reads.
-    const atFour = unresolvedFlipsAffecting(pool, players, 4);
-    expect(atFour.length).toBeGreaterThan(0);
-    expect(atFour.every((f) => f.reason === "seed_order")).toBe(true);
-    const winners = new Set(rows.slice(0, 4).map((r) => r.playerId));
-    for (const f of atFour) {
-      expect(winners.has(f.a) && winners.has(f.b)).toBe(true);
-    }
-
-    // Cut at 8 (everyone in): the losers' ties now decide seeding too.
-    expect(unresolvedFlipsAffecting(pool, players, 8).length)
-      .toBeGreaterThan(atFour.length);
-  });
-
-  it("a tie straddling the cut blocks as cut_line", () => {
-    const { pool, players } = tiedNight();
-    // Cut at 2 puts ranks 2 and 3 — tied winners — on opposite sides.
-    const atTwo = unresolvedFlipsAffecting(pool, players, 2);
-    expect(atTwo.some((f) => f.reason === "cut_line")).toBe(true);
-    const rows = poolStandings(pool, players);
-    const rank = new Map(rows.map((r) => [r.playerId, r.rank] as const));
-    for (const f of atTwo.filter((x) => x.reason === "cut_line")) {
-      const inside = [rank.get(f.a)!, rank.get(f.b)!].filter((r) => r <= 2).length;
-      expect(inside).toBe(1); // exactly one side of the line
-    }
-  });
-
-  it("mid-table ties alone return none, and resolving a blocker clears the gate", () => {
-    const { pool, players } = tiedNight();
-    // cutSize 0 — nothing is seeded, so nothing can be blocked.
-    expect(unresolvedFlipsAffecting(pool, players, 0)).toEqual([]);
-
-    // Resolve every blocking flip at cut 4; the gate empties.
-    let s: AmericanoSession = {
-      id: "n", date: "2026-08-12", sessionName: "", players,
-      pools: [pool], isPractice: true, status: "active",
-    };
-    for (let guard = 0; guard < 16; guard++) {
-      const blocking = unresolvedFlipsAffecting(pool0(s), s.players, 4);
-      if (blocking.length === 0) break;
-      const { a, b } = blocking[0];
-      s = applyCoinFlip(s, "court-2", a, b, a, 1_000 + guard);
-    }
-    expect(unresolvedFlipsAffecting(pool0(s), s.players, 4)).toEqual([]);
-    expect(poolStandings(pool0(s), s.players).slice(0, 4).some((r) => r.requiresCoinFlip)).toBe(false);
-  });
-});
-
-describe("the coin itself (STEP 6)", () => {
-  it("is an even, unbiased split over the injected entropy", () => {
-    // Deterministic sweep: every parity lands where it should, and neither
-    // name is favoured by position.
-    expect(pickFlipWinner("x", "y", () => 0)).toBe("x");
-    expect(pickFlipWinner("x", "y", () => 1)).toBe("y");
-    let xs = 0;
-    for (let i = 0; i < 1000; i++) {
-      if (pickFlipWinner("x", "y", () => i) === "x") xs++;
-    }
-    expect(xs).toBe(500);
-  });
-});
-
-describe("the overlay declines honestly (STEP 6.1)", () => {
-  /** Every refusal path, as a value the UI can act on. */
+describe("the overlay declines honestly (STEP 6.1, group reducer)", () => {
   it("names why it refused instead of silently changing nothing", () => {
     const { session } = scenarioOne();
-    const [{ a, b }] = pendingFlipPairs(pool0(session), session.players);
-
-    expect(attemptCoinFlip(session, "court-2", a, b, "nobody", 1).accepted).toBe(false);
-    expect(attemptCoinFlip(session, "court-2", a, b, "nobody", 1))
-      .toMatchObject({ reason: "bad_winner" });
-    expect(attemptCoinFlip(session, "no-such-pool", a, b, a, 1))
+    const f = nextFlip(session);
+    expect(attemptCoinFlip(session, "court-2", f.a, f.b, "nobody", 1))
+      .toMatchObject({ accepted: false, reason: "bad_winner" });
+    expect(attemptCoinFlip(session, "no-such-pool", f.a, f.b, f.a, 1))
       .toMatchObject({ accepted: false, reason: "unknown_pool" });
-
-    const once = applyCoinFlip(session, "court-2", a, b, a, 1_000);
-    expect(attemptCoinFlip(once, "court-2", a, b, b, 2_000))
+    const once = applyCoinFlip(session, "court-2", f.a, f.b, f.a, 1_000);
+    expect(attemptCoinFlip(once, "court-2", f.a, f.b, f.b, 2_000))
       .toMatchObject({ accepted: false, reason: "already_resolved" });
   });
 
-  it("a tie broken DURING the animation is refused as tie_changed, and writes nothing", () => {
+  it("a tie broken DURING the animation is refused, and writes nothing", () => {
     const { session } = scenarioOne();
     const pool = pool0(session);
-    const [{ a, b }] = pendingFlipPairs(pool, session.players);
-
-    // The overlay opened on a live tie… then another tab corrected a result.
-    const target = pool.matches.find((m) => m.teamA.includes(a) || m.teamB.includes(a))!;
+    const f = nextFlip(session);
+    const target = pool.matches.find((m) => m.teamA.includes(f.a) || m.teamB.includes(f.a))!;
     const changed: AmericanoSession = {
       ...session,
       pools: session.pools.map((p) => ({
@@ -480,38 +260,31 @@ describe("the overlay declines honestly (STEP 6.1)", () => {
         ),
       })),
     };
-
-    const attempt = attemptCoinFlip(changed, "court-2", a, b, a, 3_000);
-    expect(attempt).toMatchObject({ accepted: false, reason: "tie_changed" });
-    // Nothing recorded, anywhere.
-    expect(applyCoinFlip(changed, "court-2", a, b, a, 3_000)).toBe(changed);
-    expect(pool0(changed).coinFlipResolutions).toBeUndefined();
+    const attempt = attemptCoinFlip(changed, "court-2", f.a, f.b, f.a, 3_000);
+    expect(attempt.accepted).toBe(false);
+    expect(applyCoinFlip(changed, "court-2", f.a, f.b, f.a, 3_000)).toBe(changed);
+    expect(pool0(changed).groupFlipResolutions).toBeUndefined();
   });
 
   it("the overlay NEVER lands on a winner it did not record", () => {
-    // flipPhase is the whole rule: a winner is shown only in "landed".
     expect(flipPhase({ animationDone: false, outcome: null })).toBe("flipping");
     expect(flipPhase({ animationDone: true, outcome: null })).toBe("recording");
     expect(flipPhase({ animationDone: true, outcome: { accepted: true } })).toBe("landed");
     expect(flipPhase({ animationDone: true, outcome: { accepted: false } })).toBe("declined");
-    // A refused attempt can never produce the phase that crowns someone.
     const { session } = scenarioOne();
-    const [{ a, b }] = pendingFlipPairs(pool0(session), session.players);
-    const refused = attemptCoinFlip(session, "court-2", a, b, "nobody", 1);
+    const f = nextFlip(session);
+    const refused = attemptCoinFlip(session, "court-2", f.a, f.b, "nobody", 1);
     expect(flipPhase({ animationDone: true, outcome: { accepted: refused.accepted } }))
       .toBe("declined");
   });
+});
 
-  it("an accepted attempt returns the session to commit, with the flip recorded once", () => {
-    const { session } = scenarioOne();
-    const [{ a, b }] = pendingFlipPairs(pool0(session), session.players);
-    const attempt = attemptCoinFlip(session, "court-2", a, b, b, 4_000);
-    expect(attempt.accepted).toBe(true);
-    if (!attempt.accepted) return;
-    expect(attempt.winner).toBe(b);
-    expect(attempt.session.pools[0].coinFlipResolutions)
-      .toEqual([{ a, b, winner: b, at: 4_000 }]);
-    expect(attempt.session).not.toBe(session); // the original is untouched
-    expect(pool0(session).coinFlipResolutions).toBeUndefined();
+describe("the coin itself (STEP 6)", () => {
+  it("is an even, unbiased split over the injected entropy", () => {
+    expect(pickFlipWinner("x", "y", () => 0)).toBe("x");
+    expect(pickFlipWinner("x", "y", () => 1)).toBe("y");
+    let xs = 0;
+    for (let i = 0; i < 1000; i++) if (pickFlipWinner("x", "y", () => i) === "x") xs++;
+    expect(xs).toBe(500);
   });
 });

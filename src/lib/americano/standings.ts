@@ -15,7 +15,6 @@
 import type {
   AmericanoMatch, AmericanoPlayer, AmericanoPool, StandingsRow,
 } from "@/types/americano";
-import { pairKey } from "./generator";
 
 export const GAME_DIFF = {
   "2-0": { win: +2, loss: -2 },
@@ -91,11 +90,20 @@ export function tiedGroup(
   pool: AmericanoPool,
   playerId: string,
   records: Map<string, PlayerRecord> = computeRecords(pool),
+  players: AmericanoPlayer[] = [],
 ): string[] {
   const EMPTY = { matchesPlayed: 0, wins: 0, losses: 0, gameDiff: 0 };
   const mine = records.get(playerId) ?? EMPTY;
   const ids = new Set<string>(pool.playerIds);
   for (const id of records.keys()) ids.add(id);
+  // The same roster computeStandings builds: a player who left without ever
+  // playing is in no table, so they are in no tie either. Passing `players`
+  // is what keeps the group size — and therefore the head-to-head arity
+  // rule — identical on both sides.
+  const byId = new Map(players.map((p) => [p.playerId, p] as const));
+  for (const id of [...ids]) {
+    if (byId.get(id)?.status === "left" && !records.has(id)) ids.delete(id);
+  }
   const out: string[] = [];
   for (const id of ids) {
     const r = records.get(id) ?? EMPTY;
@@ -131,13 +139,17 @@ function headToHead(pool: AmericanoPool, a: string, b: string): number {
   return net;
 }
 
-/** pairKey(a,b) → winning playerId, supplied by the UI after a visible flip. */
-export type CoinFlipResolutions = Record<string, string>;
+/**
+ * groupKey (members sorted, joined by "|") → the coin-decided total order for
+ * that exact tied set. Supplied by flips.ts, which only ever hands over
+ * orders that are LIVE and COMPLETE. The library still never rolls a coin.
+ */
+export type GroupOrders = Map<string, string[]>;
 
 export function computeStandings(
   pool: AmericanoPool,
   players: AmericanoPlayer[],
-  coinFlipResolutions: CoinFlipResolutions = {},
+  groupOrders: GroupOrders = new Map(),
 ): StandingsRow[] {
   const records = computeRecords(pool);
   // Every pool member plus anyone who earned a record here (moved/left players
@@ -198,35 +210,35 @@ export function computeStandings(
     }
     if (size >= 2) {
       // Order the tied group by SOS DESC, provisional playerId within equal
-      // SOS, then let injected flips bubble equal-SOS neighbours.
+      // SOS. Each equal-SOS RUN inside it is a flip group: a coin-decided
+      // order is applied WHOLESALE or not at all — never pair by pair, which
+      // is how a resolution used to go inert once a third player sorted
+      // between a flipped pair.
       const group = rows.slice(start, end).sort(
         (a, b) => sos(b.playerId) - sos(a.playerId) || (a.playerId < b.playerId ? -1 : 1),
       );
-      let moved = true;
-      let guard = size * size;
-      while (moved && guard-- > 0) {
-        moved = false;
-        for (let i = 0; i < group.length - 1; i++) {
-          if (sos(group[i].playerId) !== sos(group[i + 1].playerId)) continue;
-          const resolved = coinFlipResolutions[pairKey(group[i].playerId, group[i + 1].playerId)];
-          if (resolved === group[i + 1].playerId) {
-            [group[i], group[i + 1]] = [group[i + 1], group[i]];
-            moved = true;
+      for (let i = 0; i < group.length; ) {
+        let j = i + 1;
+        while (j < group.length && sos(group[j].playerId) === sos(group[i].playerId)) j++;
+        if (j - i >= 2) {
+          const run = group.slice(i, j);
+          const key = run.map((r) => r.playerId).sort().join("|");
+          const order = groupOrders.get(key);
+          if (order && order.length === run.length) {
+            const byId = new Map(run.map((r) => [r.playerId, r] as const));
+            for (let k = 0; k < order.length; k++) group[i + k] = byId.get(order[k])!;
+            for (let k = 0; k < order.length - 1; k++) {
+              group[i + k].tiebreakApplied = group[i + k].tiebreakApplied ?? "coinflip";
+            }
+          } else {
+            for (let k = i; k < j; k++) group[k].requiresCoinFlip = true;
           }
         }
+        i = j;
       }
       for (let i = 0; i < group.length - 1; i++) {
-        const a = group[i], b = group[i + 1];
-        if (sos(a.playerId) > sos(b.playerId)) {
-          a.tiebreakApplied = a.tiebreakApplied ?? "sos";
-        } else {
-          const resolved = coinFlipResolutions[pairKey(a.playerId, b.playerId)];
-          if (resolved === a.playerId || resolved === b.playerId) {
-            a.tiebreakApplied = a.tiebreakApplied ?? "coinflip";
-          } else {
-            a.requiresCoinFlip = true;
-            b.requiresCoinFlip = true;
-          }
+        if (sos(group[i].playerId) > sos(group[i + 1].playerId)) {
+          group[i].tiebreakApplied = group[i].tiebreakApplied ?? "sos";
         }
       }
       for (let i = 0; i < group.length; i++) rows[start + i] = group[i];

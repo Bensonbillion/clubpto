@@ -581,7 +581,7 @@ const StandingsPanel = ({ a, view, onFlip }: {
         <span>Standings</span>
         {flipCount > 0 && (
           <span className="text-[10px] tracking-widest text-gold border border-gold/50 rounded-full px-2">
-            {flipCount} flip{flipCount === 1 ? "" : "s"} pending
+            {flipCount} flip{flipCount === 1 ? "" : "s"} to run
           </span>
         )}
         <span className="ml-auto">{open ? "▴" : "▾"}</span>

@@ -68,14 +68,46 @@ export type AmericanoPlayoffMode = "top8" | "top4" | "none" | "undecided";
 
 export type AmericanoPoolStatus = "setup" | "round_robin" | "playoff" | "complete";
 
-/** One visible coin flip that happened. The ONLY standings-related state
-    that is ever persisted — the table itself is always recomputed. */
+/** One visible coin flip that happened — an entry in a group's audit trail. */
 export interface CoinFlipResolution {
   a: string;
   b: string;
   /** Whichever of a/b the flip landed on. */
   winner: string;
   at: number;
+}
+
+/** The tied signature that justified a group resolution. If any of these
+    move, the circumstances the coins were tossed under are gone. */
+export interface GroupFlipLine {
+  w: number;
+  l: number;
+  diff: number;
+  sos: number;
+}
+
+/**
+ * A coin-decided TOTAL ORDER over an exact set of tied players (STEP 6.2).
+ *
+ * Replaces the pairwise resolutions, which could only be consulted between
+ * adjacent rows: once a third player sorted between a flipped pair, the
+ * verdict went inert and the table contradicted the coin the room watched.
+ * A group record cannot do that — it names its whole membership, so it is
+ * either live and authoritative for the entire group, or it is gone.
+ * Cyclic verdicts (A>B, B>C, C>A) are unrepresentable by construction.
+ *
+ * The ONLY standings-related state that is ever persisted; the table itself
+ * is always recomputed.
+ */
+export interface GroupFlipRecord {
+  /** The exact tied set this order belongs to, canonically sorted. */
+  members: string[];
+  /** The tied signature at creation. */
+  line: GroupFlipLine;
+  /** Placed players, best first. COMPLETE when it holds every member. */
+  order: string[];
+  /** The visible coins, in the sequence they were tossed. */
+  flips: CoinFlipResolution[];
 }
 
 export interface AmericanoPool {
@@ -87,10 +119,14 @@ export interface AmericanoPool {
   playoffMode: AmericanoPlayoffMode;
   status: AmericanoPoolStatus;
   matches: AmericanoMatch[];
-  /** Flips run tonight. A resolution lives only while its pair is still tied
-      on the whole pre-flip chain; a correction that breaks the tie drops it
-      (see lib/americano/flips.ts — old chance never carries into new
+  /** Coin-decided orders for tonight's tied groups. A record lives only while
+      its members are exactly a current tied group AND its line still matches;
+      anything else drops the whole record, partial progress included (see
+      lib/americano/flips.ts — old chance never carries into new
       circumstances). */
+  groupFlipResolutions?: GroupFlipRecord[];
+  /** LEGACY (schema <= 7): pairwise resolutions. Read once by migrate, which
+      converts each into a two-member group record and deletes this. */
   coinFlipResolutions?: CoinFlipResolution[];
 }
 
