@@ -78,6 +78,10 @@ export interface AmericanoSession {
   /** ISO date of the night (e.g. "2026-07-30"). */
   date: string;
   sessionName: string;
+  /** Tonight's players — the AmericanoPlayer records the generator consumes.
+      (Step 3 addition: the Step 1 shape carried only ids inside pools, but a
+      session must round-trip the player statuses and catch-up flags too.) */
+  players: AmericanoPlayer[];
   pools: AmericanoPool[];
   /** Practice sessions run identically and publish nothing. */
   isPractice: boolean;

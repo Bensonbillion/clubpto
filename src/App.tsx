@@ -18,6 +18,7 @@ const Install = lazy(() => import("./pages/Install"));
 const Manage = lazy(() => import("./pages/Manage"));
 const Manage2 = lazy(() => import("./pages/Manage2"));
 const ManageNext = lazy(() => import("./pages/ManageNext"));
+const ManageAmericano = lazy(() => import("./pages/ManageAmericano"));
 const Leaderboard = lazy(() => import("./pages/Leaderboard"));
 const Profile = lazy(() => import("./pages/Profile"));
 const ManualPlayoffs = lazy(() => import("./pages/ManualPlayoffs"));
@@ -71,6 +72,8 @@ const App = () => (
                 /manage-classic keeps the legacy manager as the courtside
                 escape hatch until the rebuild reaches full parity. */}
             <Route path="/manage" element={<ManageNext />} />
+          {/* Court Manager v4 (Americano) — robots-blocked via the /manage prefix */}
+          <Route path="/manage4" element={<ManageAmericano />} />
             <Route path="/manage-classic" element={<Manage />} />
             <Route path="/manage2" element={<Manage2 />} />
             <Route path="/manage/simulate" element={<Simulate />} />

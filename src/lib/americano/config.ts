@@ -26,6 +26,41 @@ export function courtMatchesNeeded(poolSize: number, target: number): number {
   return (poolSize * target) / 4;
 }
 
+/** Setup default (STEP 3): the highest valid target that is ≤ 4; null when
+    the pool can't field a match at all. Every size ≥ 4 has one (4 is valid
+    for all even sizes and for any size divisible by… any size, since s×4 is
+    always divisible by 4). */
+export function setupDefaultTarget(poolSize: number): number | null {
+  const options = validTargets(poolSize).filter((t) => t <= 4);
+  return options.length > 0 ? options[options.length - 1] : null;
+}
+
+export type SetupNoticeLevel = "info" | "warning" | "block";
+
+export interface SetupNotice {
+  level: SetupNoticeLevel;
+  message: string;
+}
+
+/** Live inline notices for a pool column on the setup screen (STEP 3). */
+export function poolSetupNotices(poolSize: number): SetupNotice[] {
+  const out: SetupNotice[] = [];
+  if (poolSize < 4) {
+    out.push({ level: "block", message: `Court needs at least 4 players to run — ${poolSize} assigned.` });
+    return out;
+  }
+  if (poolSize % 2 === 1) {
+    out.push({
+      level: "warning",
+      message: "Odd pool size — exact equality can break; the fill rule will give one or two players an extra match. Consider moving one player.",
+    });
+  }
+  if (poolSize < 8) {
+    out.push({ level: "info", message: "Back-to-back rest relaxes at this size." });
+  }
+  return out;
+}
+
 export interface PoolSplitProposal {
   /** Premier pool (Champion-of-the-Week court, brief §5). */
   court2: string[];

@@ -1,7 +1,7 @@
 // STEP 1 unit tests — the divisibility rule and court-match arithmetic.
 
 import { describe, expect, it } from "vitest";
-import { courtMatchesNeeded, proposePoolSplit, validTargets } from "../config";
+import { courtMatchesNeeded, poolSetupNotices, proposePoolSplit, setupDefaultTarget, validTargets } from "../config";
 import type { AmericanoPlayer, AmericanoTier } from "@/types/americano";
 
 describe("validTargets", () => {
@@ -46,5 +46,33 @@ describe("proposePoolSplit", () => {
     const split = proposePoolSplit(players);
     expect(split.court2.sort()).toEqual(["a1", "a2", "b1", "b2"]);
     expect(split.court1.sort()).toEqual(["c1", "c2", "c3", "c4"]);
+  });
+});
+
+describe("setupDefaultTarget (STEP 3: highest valid ≤ 4)", () => {
+  it("picks 4 for 16, 12 and 14; 3 is never the default", () => {
+    expect(setupDefaultTarget(16)).toBe(4);
+    expect(setupDefaultTarget(12)).toBe(4);
+    expect(setupDefaultTarget(14)).toBe(4);
+  });
+  it("exists for every size ≥ 4 and is null below", () => {
+    for (let size = 4; size <= 24; size++) {
+      const d = setupDefaultTarget(size);
+      expect(d).not.toBeNull();
+      expect(d!).toBeLessThanOrEqual(4);
+      expect(validTargets(size)).toContain(d!);
+    }
+    expect(setupDefaultTarget(3)).toBeNull();
+  });
+});
+
+describe("poolSetupNotices (STEP 3)", () => {
+  it("blocks under 4, informs under 8, warns on odd", () => {
+    expect(poolSetupNotices(3).map((n) => n.level)).toEqual(["block"]);
+    expect(poolSetupNotices(6).map((n) => n.level)).toEqual(["info"]);
+    expect(poolSetupNotices(7).map((n) => n.level)).toEqual(["warning", "info"]);
+    expect(poolSetupNotices(13).map((n) => n.level)).toEqual(["warning"]);
+    expect(poolSetupNotices(16)).toEqual([]);
+    expect(poolSetupNotices(14)).toEqual([]);
   });
 });
