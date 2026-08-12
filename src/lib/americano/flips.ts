@@ -18,28 +18,9 @@ import type {
 } from "@/types/americano";
 import { pairKey } from "./generator";
 import {
-  computeRecords, computeStandings, strengthOfSchedule,
+  computeRecords, computeStandings, h2hSeparates, strengthOfSchedule, tiedGroup,
   type CoinFlipResolutions,
 } from "./standings";
-
-const EMPTY: PlayerRecordLike = { wins: 0, losses: 0, gameDiff: 0 };
-interface PlayerRecordLike { wins: number; losses: number; gameDiff: number }
-
-/** Net wins of `a` over `b` when they faced each other tonight (completed,
-    non-voided). Mirrors standings.ts — kept private there, so recomputed. */
-function headToHeadNet(pool: AmericanoPool, a: string, b: string): number {
-  let net = 0;
-  for (const m of pool.matches) {
-    if (m.status !== "completed" || m.phase !== "round_robin" || !m.result) continue;
-    const aA = m.teamA.includes(a), aB = m.teamB.includes(a);
-    const bA = m.teamA.includes(b), bB = m.teamB.includes(b);
-    if ((aA && bB) || (aB && bA)) {
-      const aWon = (aA && m.result.winner === "A") || (aB && m.result.winner === "B");
-      net += aWon ? 1 : -1;
-    }
-  }
-  return net;
-}
 
 /**
  * Is this pair STILL tied on everything the chain checks before a flip?
@@ -47,30 +28,16 @@ function headToHeadNet(pool: AmericanoPool, a: string, b: string): number {
  * — the moment any earlier link separates them, the flip that once decided
  * them has nothing left to decide.
  *
- * Head-to-head is applied EXACTLY where computeStandings applies it: only when
- * the tied group is a pair. In a three-way tie the engine cannot use H2H (it
- * is not transitive — x beats y beats z beats x is an ordinary Wednesday), so
- * neither may this predicate. Mirroring the engine is the whole point: if the
- * staleness rule and the table ever disagreed about who is tied, resolutions
- * would evaporate off rows the panel still shows as flipped.
+ * The record grouping and the head-to-head arity rule come from
+ * standings.ts (tiedGroup / h2hSeparates) — the SAME functions
+ * computeStandings uses. This module deliberately owns no second opinion
+ * about who is tied.
  */
 export function stillTiedPreFlip(pool: AmericanoPool, a: string, b: string): boolean {
   const records = computeRecords(pool);
-  const ra = records.get(a) ?? EMPTY;
-  const rb = records.get(b) ?? EMPTY;
-  if (ra.wins !== rb.wins || ra.losses !== rb.losses || ra.gameDiff !== rb.gameDiff) return false;
-
-  // The group that shares this exact W-L-diff record, over everyone with a
-  // record here plus every pool member (matching computeStandings' roster).
-  const ids = new Set<string>(pool.playerIds);
-  for (const id of records.keys()) ids.add(id);
-  let groupSize = 0;
-  for (const id of ids) {
-    const r = records.get(id) ?? EMPTY;
-    if (r.wins === ra.wins && r.losses === ra.losses && r.gameDiff === ra.gameDiff) groupSize++;
-  }
-  if (groupSize === 2 && headToHeadNet(pool, a, b) !== 0) return false;
-
+  const group = tiedGroup(pool, a, records);
+  if (!group.includes(b)) return false; // different W-L-diff record entirely
+  if (h2hSeparates(pool, group.length, a, b)) return false;
   return strengthOfSchedule(pool, a) === strengthOfSchedule(pool, b);
 }
 
@@ -124,12 +91,61 @@ export function pruneStaleFlips(s: AmericanoSession): AmericanoSession {
   return changed ? { ...s, pools } : s;
 }
 
+export type FlipRefusal =
+  | "bad_winner"      // the coin landed on someone who is not in the pair
+  | "unknown_pool"
+  | "tie_changed"     // a correction or void separated them while we animated
+  | "already_resolved";
+
+export type FlipAttempt =
+  | { accepted: true; session: AmericanoSession; winner: string }
+  | { accepted: false; reason: FlipRefusal };
+
 /**
- * Record a flip that just happened in the room. Rejected (identity) unless
- * the pair is genuinely tied and unresolved — the result is the result, so
- * there is no re-flipping a live resolution; the only route to a new flip is
- * genuine staleness.
+ * Record a flip that just happened in the room — with an EXPLICIT verdict.
+ *
+ * The overlay needs to know the difference between "recorded" and "declined",
+ * because a visible coin toss that quietly changes nothing is worse than no
+ * toss at all: the room watched a name win and the table disagrees. So the
+ * refusal is a value, not a silently-identical state.
+ *
+ * Refused when the pair is no longer tied (someone corrected or voided a
+ * result underneath us — another tab, a background sync) or when the pair
+ * already holds a live resolution: the result is the result, and the only
+ * route to a new flip is genuine staleness.
  */
+export function attemptCoinFlip(
+  s: AmericanoSession,
+  poolId: string,
+  a: string,
+  b: string,
+  winner: string,
+  at: number,
+): FlipAttempt {
+  if (winner !== a && winner !== b) return { accepted: false, reason: "bad_winner" };
+  const pool = s.pools.find((p) => p.id === poolId);
+  if (!pool) return { accepted: false, reason: "unknown_pool" };
+  if (!stillTiedPreFlip(pool, a, b)) return { accepted: false, reason: "tie_changed" };
+  const k = pairKey(a, b);
+  if (liveFlips(pool).some((r) => pairKey(r.a, r.b) === k)) {
+    return { accepted: false, reason: "already_resolved" };
+  }
+  const resolution: CoinFlipResolution = { a, b, winner, at };
+  return {
+    accepted: true,
+    winner,
+    session: {
+      ...s,
+      pools: s.pools.map((p) =>
+        p.id === poolId
+          ? { ...p, coinFlipResolutions: [...(p.coinFlipResolutions ?? []), resolution] }
+          : p,
+      ),
+    },
+  };
+}
+
+/** The identity-on-refusal form, for callers that only need the new state. */
 export function applyCoinFlip(
   s: AmericanoSession,
   poolId: string,
@@ -138,21 +154,22 @@ export function applyCoinFlip(
   winner: string,
   at: number,
 ): AmericanoSession {
-  if (winner !== a && winner !== b) return s;
-  const pool = s.pools.find((p) => p.id === poolId);
-  if (!pool) return s;
-  if (!stillTiedPreFlip(pool, a, b)) return s;
-  const k = pairKey(a, b);
-  if (liveFlips(pool).some((r) => pairKey(r.a, r.b) === k)) return s;
-  const resolution: CoinFlipResolution = { a, b, winner, at };
-  return {
-    ...s,
-    pools: s.pools.map((p) =>
-      p.id === poolId
-        ? { ...p, coinFlipResolutions: [...(p.coinFlipResolutions ?? []), resolution] }
-        : p,
-    ),
-  };
+  const attempt = attemptCoinFlip(s, poolId, a, b, winner, at);
+  return attempt.accepted ? attempt.session : s;
+}
+
+/** What the flip overlay is showing right now. Pure, so the component holds
+    no logic and the "never land on a winner we did not record" rule is
+    testable without a DOM. */
+export type FlipPhase = "flipping" | "recording" | "landed" | "declined";
+
+export function flipPhase(args: {
+  animationDone: boolean;
+  outcome: { accepted: boolean } | null;
+}): FlipPhase {
+  if (!args.animationDone) return "flipping";
+  if (args.outcome === null) return "recording";
+  return args.outcome.accepted ? "landed" : "declined";
 }
 
 /** Adjacent pairs the table still cannot separate — what [FLIP] badges.

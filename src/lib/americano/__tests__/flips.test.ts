@@ -11,8 +11,9 @@ import type {
 import { generateNextMatch, pairKey } from "../generator";
 import { computeStandings, strengthOfSchedule } from "../standings";
 import {
-  applyCoinFlip, flipResolutionMap, liveFlips, pendingFlipPairs, pickFlipWinner,
-  poolStandings, pruneStaleFlips, stillTiedPreFlip, unresolvedFlipsAffecting,
+  applyCoinFlip, attemptCoinFlip, flipPhase, flipResolutionMap, liveFlips,
+  pendingFlipPairs, pickFlipWinner, poolStandings, pruneStaleFlips,
+  stillTiedPreFlip, unresolvedFlipsAffecting,
 } from "../flips";
 
 /* ── the Scenario 1 seed, verbatim from simulate.test.ts ─────────── */
@@ -216,6 +217,17 @@ describe("multi-way ties resolve ONE visible flip at a time (STEP 6)", () => {
       expect(poolStandings(pool0(next), next.players).map((r) => r.playerId).join())
         .not.toBe(before);
     }
+  });
+
+  it("the badge counts flips OFFERED, not flagged rows halved (6.1 review finding)", () => {
+    // A run of four flags four rows but offers three flips; the panel used to
+    // show round(4/2) = 2. It now reads pendingFlipPairs, which is the truth.
+    const { pool, players } = fourWayRun();
+    const flagged = poolStandings(pool, players).filter((r) => r.requiresCoinFlip);
+    const offered = pendingFlipPairs(pool, players);
+    expect(flagged.length).toBe(8);   // two runs of four
+    expect(offered.length).toBe(6);   // three adjacent pairs in each run
+    expect(offered.length).not.toBe(Math.round(flagged.length / 2));
   });
 
   it("flipping down the run terminates with a fully ordered top group", () => {
@@ -430,5 +442,76 @@ describe("the coin itself (STEP 6)", () => {
       if (pickFlipWinner("x", "y", () => i) === "x") xs++;
     }
     expect(xs).toBe(500);
+  });
+});
+
+describe("the overlay declines honestly (STEP 6.1)", () => {
+  /** Every refusal path, as a value the UI can act on. */
+  it("names why it refused instead of silently changing nothing", () => {
+    const { session } = scenarioOne();
+    const [{ a, b }] = pendingFlipPairs(pool0(session), session.players);
+
+    expect(attemptCoinFlip(session, "court-2", a, b, "nobody", 1).accepted).toBe(false);
+    expect(attemptCoinFlip(session, "court-2", a, b, "nobody", 1))
+      .toMatchObject({ reason: "bad_winner" });
+    expect(attemptCoinFlip(session, "no-such-pool", a, b, a, 1))
+      .toMatchObject({ accepted: false, reason: "unknown_pool" });
+
+    const once = applyCoinFlip(session, "court-2", a, b, a, 1_000);
+    expect(attemptCoinFlip(once, "court-2", a, b, b, 2_000))
+      .toMatchObject({ accepted: false, reason: "already_resolved" });
+  });
+
+  it("a tie broken DURING the animation is refused as tie_changed, and writes nothing", () => {
+    const { session } = scenarioOne();
+    const pool = pool0(session);
+    const [{ a, b }] = pendingFlipPairs(pool, session.players);
+
+    // The overlay opened on a live tie… then another tab corrected a result.
+    const target = pool.matches.find((m) => m.teamA.includes(a) || m.teamB.includes(a))!;
+    const changed: AmericanoSession = {
+      ...session,
+      pools: session.pools.map((p) => ({
+        ...p,
+        matches: p.matches.map((m) =>
+          m.id === target.id
+            ? { ...m, result: { winner: m.result!.winner === "A" ? "B" as const : "A" as const, score: m.result!.score } }
+            : m,
+        ),
+      })),
+    };
+
+    const attempt = attemptCoinFlip(changed, "court-2", a, b, a, 3_000);
+    expect(attempt).toMatchObject({ accepted: false, reason: "tie_changed" });
+    // Nothing recorded, anywhere.
+    expect(applyCoinFlip(changed, "court-2", a, b, a, 3_000)).toBe(changed);
+    expect(pool0(changed).coinFlipResolutions).toBeUndefined();
+  });
+
+  it("the overlay NEVER lands on a winner it did not record", () => {
+    // flipPhase is the whole rule: a winner is shown only in "landed".
+    expect(flipPhase({ animationDone: false, outcome: null })).toBe("flipping");
+    expect(flipPhase({ animationDone: true, outcome: null })).toBe("recording");
+    expect(flipPhase({ animationDone: true, outcome: { accepted: true } })).toBe("landed");
+    expect(flipPhase({ animationDone: true, outcome: { accepted: false } })).toBe("declined");
+    // A refused attempt can never produce the phase that crowns someone.
+    const { session } = scenarioOne();
+    const [{ a, b }] = pendingFlipPairs(pool0(session), session.players);
+    const refused = attemptCoinFlip(session, "court-2", a, b, "nobody", 1);
+    expect(flipPhase({ animationDone: true, outcome: { accepted: refused.accepted } }))
+      .toBe("declined");
+  });
+
+  it("an accepted attempt returns the session to commit, with the flip recorded once", () => {
+    const { session } = scenarioOne();
+    const [{ a, b }] = pendingFlipPairs(pool0(session), session.players);
+    const attempt = attemptCoinFlip(session, "court-2", a, b, b, 4_000);
+    expect(attempt.accepted).toBe(true);
+    if (!attempt.accepted) return;
+    expect(attempt.winner).toBe(b);
+    expect(attempt.session.pools[0].coinFlipResolutions)
+      .toEqual([{ a, b, winner: b, at: 4_000 }]);
+    expect(attempt.session).not.toBe(session); // the original is untouched
+    expect(pool0(session).coinFlipResolutions).toBeUndefined();
   });
 });

@@ -13,7 +13,7 @@ import {
   type SetupNotice,
 } from "@/lib/americano/config";
 import {
-  activeMatch, generateNextMatch, matchesPlayed, nextSelectionPreview,
+  activeMatch, generateNextMatch, matchesPlayed, nextSelectionPreview, pairKey,
 } from "@/lib/americano/generator";
 import {
   applyCorrection, applyResult, applyVoid, ensureLive, type GenerationEvent,
@@ -22,7 +22,7 @@ import {
   canMarkNotHere, markArrived, markLeft, markNotHere, restoreLeft,
 } from "@/lib/americano/people";
 import {
-  applyCoinFlip, pendingFlipPairs, pickFlipWinner, poolStandings, pruneStaleFlips,
+  attemptCoinFlip, pendingFlipPairs, pickFlipWinner, poolStandings, pruneStaleFlips,
 } from "@/lib/americano/flips";
 import { strengthOfSchedule } from "@/lib/americano/standings";
 import { poolPace, type PoolPace } from "@/lib/americano/pace";
@@ -134,6 +134,9 @@ export interface PoolLiveView {
   people: PersonRow[];
   /** Standings, recomputed every render — never stored (STEP 6). */
   standings: StandingsRowView[];
+  /** How many flips are actually offered. NOT flagged-rows/2: a run of four
+      tied players shows four flags but offers three flips. */
+  pendingFlips: number;
 }
 
 export interface PoolSetupView {
@@ -187,8 +190,11 @@ export interface UseAmericanoSession {
   dismissNotices(poolId: string): void;
 
   // People logistics (STEP 5)
-  /** Record a flip the room just watched land (STEP 6). */
+  /** Record a flip the room just watched land (STEP 6). The verdict comes
+      back on `flipOutcome` — a flip either records or visibly declines. */
   recordCoinFlip(poolId: string, a: string, b: string, winner: string): void;
+  /** Verdict of the most recent recordCoinFlip, keyed by pair (STEP 6.1). */
+  flipOutcome: { pairKey: string; accepted: boolean; nonce: number } | null;
   /** The coin: real entropy, injected here so the lib stays deterministic. */
   tossCoin(a: string, b: string): string;
 
@@ -209,6 +215,10 @@ export function useAmericanoSession(): UseAmericanoSession {
   const [rosterLoading, setRosterLoading] = useState(false);
   const [quickAddBusy, setQuickAddBusy] = useState(false);
   const storeRef = useRef<SessionStore<AmericanoSession> | null>(null);
+  // The committed session, readable outside a state updater. Timers (the flip
+  // overlay lands on one) need the current truth synchronously.
+  const sessionRef = useRef(session);
+  useEffect(() => { sessionRef.current = session; });
 
   useEffect(() => {
     const store = createAmericanoStore({ defaults: DEFAULTS, onSyncStatusChange: setSyncStatus });
@@ -471,8 +481,26 @@ export function useAmericanoSession(): UseAmericanoSession {
     return pickFlipWinner(a, b, rand);
   }, []);
 
+  const [flipOutcome, setFlipOutcome] =
+    useState<{ pairKey: string; accepted: boolean; nonce: number } | null>(null);
+  const flipNonceRef = useRef(0);
+
+  /**
+   * The verdict is decided EAGERLY, against the current session, and published
+   * on its own state — deliberately not through the updater-plus-drain-effect
+   * road the generation events take.
+   *
+   * A refusal is a no-op state change: the updater would hand React the very
+   * same object, React would bail out without running effects, and the drain
+   * would never fire — leaving the overlay stuck mid-flip instead of
+   * declining. The one outcome that MUST reach the screen is the one that
+   * changes nothing, so it cannot ride on a state change.
+   */
   const recordCoinFlip = useCallback((poolId: string, a: string, b: string, winner: string) => {
-    commitLive((s) => applyCoinFlip(s, poolId, a, b, winner, Date.now()));
+    const attempt = attemptCoinFlip(sessionRef.current, poolId, a, b, winner, Date.now());
+    flipNonceRef.current += 1;
+    setFlipOutcome({ pairKey: pairKey(a, b), accepted: attempt.accepted, nonce: flipNonceRef.current });
+    if (attempt.accepted) commitLive(() => attempt.session);
   }, [commitLive]);
 
   /* ── people logistics (STEP 5) ─────────────────────────────────── */
@@ -570,6 +598,7 @@ export function useAmericanoSession(): UseAmericanoSession {
             canNotHere: canMarkNotHere(session, p.playerId),
           }))
           .sort((a, b) => a.name.localeCompare(b.name)),
+        pendingFlips: pendingFlipPairs(pool, session.players).length,
         standings: (() => {
           const pending = pendingFlipPairs(pool, session.players);
           const partner = new Map<string, string>();
@@ -595,6 +624,7 @@ export function useAmericanoSession(): UseAmericanoSession {
     // Ephemera must not leak into the next session: pool ids are constant,
     // so stale notices would render on next week's fresh courts.
     setNotices({});
+    setFlipOutcome(null);
     setFreshMatchIds(new Set());
     pendingEventsRef.current = [];
     pendingPeopleNoticesRef.current = [];
@@ -608,7 +638,7 @@ export function useAmericanoSession(): UseAmericanoSession {
     togglePlayer, isPicked,
     poolViews, movePlayer, setTarget, canStart, startSession, resetNight,
     liveViews, playerName, enterResult, correctResult, voidMatch,
-    freshMatchIds, notices, dismissNotices, recordCoinFlip, tossCoin,
+    freshMatchIds, notices, dismissNotices, recordCoinFlip, tossCoin, flipOutcome,
     playerNotHere, playerArrived, playerLeft, playerRestore, canNotHere, notArrived,
   };
 }

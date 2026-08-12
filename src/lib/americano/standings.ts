@@ -70,6 +70,52 @@ export function strengthOfSchedule(pool: AmericanoPool, playerId: string): numbe
   return sos;
 }
 
+/**
+ * THE definition of "tied", in one place.
+ *
+ * Two players are tied when they share a W-L-diff record. Head-to-head then
+ * separates them — but ONLY when the tied group is exactly a pair. H2H is not
+ * transitive (x beats y beats z beats x is an ordinary Wednesday), so a group
+ * of three or more cannot be ordered by it, and the chain falls through to
+ * SOS and then the coin.
+ *
+ * computeStandings, stillTiedPreFlip, pendingFlipPairs and
+ * unresolvedFlipsAffecting all consume these two functions. Nothing
+ * reimplements the arity rule locally: when the panel and the staleness rule
+ * disagreed about who was tied, resolutions evaporated off rows the table
+ * still showed as flipped, so this is the bug class that refactor closes.
+ */
+
+/** Everyone carrying this exact W-L-diff record, over the pool's full roster. */
+export function tiedGroup(
+  pool: AmericanoPool,
+  playerId: string,
+  records: Map<string, PlayerRecord> = computeRecords(pool),
+): string[] {
+  const EMPTY = { matchesPlayed: 0, wins: 0, losses: 0, gameDiff: 0 };
+  const mine = records.get(playerId) ?? EMPTY;
+  const ids = new Set<string>(pool.playerIds);
+  for (const id of records.keys()) ids.add(id);
+  const out: string[] = [];
+  for (const id of ids) {
+    const r = records.get(id) ?? EMPTY;
+    if (r.wins === mine.wins && r.losses === mine.losses && r.gameDiff === mine.gameDiff) {
+      out.push(id);
+    }
+  }
+  return out;
+}
+
+/** Does head-to-head separate this pair? The arity rule lives HERE, once. */
+export function h2hSeparates(
+  pool: AmericanoPool,
+  groupSize: number,
+  a: string,
+  b: string,
+): boolean {
+  return groupSize === 2 && headToHead(pool, a, b) !== 0;
+}
+
 /** Net wins of `a` over `b` when they were on opposing teams tonight. */
 function headToHead(pool: AmericanoPool, a: string, b: string): number {
   let net = 0;
@@ -139,15 +185,16 @@ export function computeStandings(
     let end = start + 1;
     while (end < rows.length && key(rows[end]) === key(rows[start])) end++;
     const size = end - start;
-    if (size === 2) {
+    // size >= 2 guards the neighbour read; h2hSeparates owns the arity rule.
+    if (size >= 2 && h2hSeparates(pool, size, rows[start].playerId, rows[start + 1].playerId)) {
       const [a, b] = [rows[start], rows[start + 1]];
-      const net = headToHead(pool, a.playerId, b.playerId);
-      if (net !== 0) {
-        if (net < 0) { rows[start] = b; rows[start + 1] = a; }
-        rows[start].tiebreakApplied = "h2h";
-        start = end;
-        continue;
+      if (headToHead(pool, a.playerId, b.playerId) < 0) {
+        rows[start] = b;
+        rows[start + 1] = a;
       }
+      rows[start].tiebreakApplied = "h2h";
+      start = end;
+      continue;
     }
     if (size >= 2) {
       // Order the tied group by SOS DESC, provisional playerId within equal

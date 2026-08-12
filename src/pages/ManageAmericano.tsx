@@ -10,6 +10,7 @@ import type { AmericanoTier } from "@/types/americano";
 import {
   useAmericanoSession, type PoolLiveView, type PoolSetupView, type UseAmericanoSession,
 } from "@/hooks/useAmericanoSession";
+import { flipPhase } from "@/lib/americano/flips";
 
 const ADMIN_PASSCODE = "9999";
 
@@ -457,14 +458,24 @@ const FlipOverlay = ({ a, poolId, pair, onClose }: {
   pair: { a: string; b: string };
   onClose: () => void;
 }) => {
-  const [landed, setLanded] = useState<string | null>(null);
+  const [animationDone, setAnimationDone] = useState(false);
   const [highlight, setHighlight] = useState(pair.a);
-  const winnerRef = useRef<string | null>(null);
+  const [tossed, setTossed] = useState<string | null>(null);
   const recordedRef = useRef(false);
+  const startNonce = useRef(a.flipOutcome?.nonce ?? 0);
+  const key = pair.a < pair.b ? `${pair.a}|${pair.b}` : `${pair.b}|${pair.a}`;
+
+  // Our verdict, and only ours: a later flip on another pair must not be
+  // mistaken for an answer to this one.
+  const outcome =
+    a.flipOutcome && a.flipOutcome.pairKey === key && a.flipOutcome.nonce > startNonce.current
+      ? { accepted: a.flipOutcome.accepted }
+      : null;
+  const phase = flipPhase({ animationDone, outcome });
 
   useEffect(() => {
     const winner = a.tossCoin(pair.a, pair.b);
-    winnerRef.current = winner;
+    setTossed(winner);
     // ~2s of alternating emphasis, decelerating into the answer.
     const steps = [90, 90, 110, 130, 150, 170, 200, 230, 260, 290, 320];
     const timers: number[] = [];
@@ -477,7 +488,7 @@ const FlipOverlay = ({ a, poolId, pair, onClose }: {
     });
     timers.push(window.setTimeout(() => {
       setHighlight(winner);
-      setLanded(winner);
+      setAnimationDone(true);
       if (!recordedRef.current) {
         recordedRef.current = true;
         a.recordCoinFlip(poolId, pair.a, pair.b, winner);
@@ -488,11 +499,22 @@ const FlipOverlay = ({ a, poolId, pair, onClose }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // A declined flip is not a result to sit and admire — say so, then leave.
+  useEffect(() => {
+    if (phase !== "declined") return;
+    const t = window.setTimeout(onClose, 2600);
+    return () => window.clearTimeout(t);
+  }, [phase, onClose]);
+
   const name = (id: string) => a.playerName(id);
+  // The winner is shown ONLY once it is recorded. Until then — and forever, if
+  // the flip is declined — nobody is crowned.
+  const landedId = phase === "landed" ? tossed : null;
   const side = (id: string) => (
     <div className={`w-full rounded-lg border-2 px-5 py-6 text-center font-display text-3xl md:text-4xl transition-all duration-150 ${
-      landed === id ? "border-gold bg-gold/20 text-gold scale-105"
-      : landed && landed !== id ? "border-border text-muted-foreground/50"
+      landedId === id ? "border-gold bg-gold/20 text-gold scale-105"
+      : landedId && landedId !== id ? "border-border text-muted-foreground/50"
+      : phase === "declined" ? "border-border text-muted-foreground/60"
       : highlight === id ? "border-gold/70 bg-gold/10 text-cream" : "border-border text-cream"}`}>
       {name(id)}
     </div>
@@ -502,23 +524,40 @@ const FlipOverlay = ({ a, poolId, pair, onClose }: {
     <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-5">
       <div className="w-full max-w-md space-y-4">
         <p className="text-center text-xs uppercase tracking-widest text-muted-foreground">
-          {landed ? "The coin has landed" : "Coin flip — everything else was level"}
+          {phase === "landed" ? "The coin has landed"
+            : phase === "declined" ? "No flip recorded"
+            : "Coin flip — everything else was level"}
         </p>
         {side(pair.a)}
         <p className="text-center text-muted-foreground text-sm">vs</p>
         {side(pair.b)}
-        {landed ? (
+        {phase === "landed" && landedId ? (
           <div className="space-y-2 pt-1">
             <p className="text-center text-lg text-cream">
-              <span className="text-gold font-display text-2xl">{name(landed)}</span> takes the higher rank.
+              <span className="text-gold font-display text-2xl">{name(landedId)}</span> takes the higher rank.
             </p>
             <button onClick={onClose}
               className="w-full min-h-[56px] rounded-lg bg-gold text-dark font-display text-lg transition-all active:scale-[0.99] hover:bg-gold/90">
               Done
             </button>
           </div>
+        ) : phase === "declined" ? (
+          <div className="space-y-2 pt-1">
+            <p className="text-center text-base text-amber-400">
+              Standings changed — no flip recorded.
+            </p>
+            <p className="text-center text-sm text-muted-foreground">
+              These two are no longer tied, so there was nothing for the coin to decide.
+            </p>
+            <button onClick={onClose}
+              className="w-full min-h-[56px] rounded-lg border-2 border-border text-cream font-display text-lg transition-all active:scale-[0.99] hover:border-gold/40">
+              Close
+            </button>
+          </div>
         ) : (
-          <p className="text-center text-sm text-muted-foreground animate-pulse pt-1">flipping…</p>
+          <p className="text-center text-sm text-muted-foreground animate-pulse pt-1">
+            {phase === "recording" ? "recording…" : "flipping…"}
+          </p>
         )}
       </div>
     </div>
@@ -534,7 +573,7 @@ const StandingsPanel = ({ a, view, onFlip }: {
 }) => {
   const [open, setOpen] = useState(false);
   const rows = view.standings;
-  const flipCount = rows.filter((r) => r.requiresCoinFlip).length;
+  const flipCount = view.pendingFlips;
   return (
     <div className="rounded-lg border border-border bg-dark-elevated/50">
       <button onClick={() => setOpen((o) => !o)}
@@ -542,7 +581,7 @@ const StandingsPanel = ({ a, view, onFlip }: {
         <span>Standings</span>
         {flipCount > 0 && (
           <span className="text-[10px] tracking-widest text-gold border border-gold/50 rounded-full px-2">
-            {flipCount / 2 >= 1 ? `${Math.round(flipCount / 2)} flip${flipCount > 2 ? "s" : ""} pending` : "flip pending"}
+            {flipCount} flip{flipCount === 1 ? "" : "s"} pending
           </span>
         )}
         <span className="ml-auto">{open ? "▴" : "▾"}</span>
