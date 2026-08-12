@@ -4,6 +4,7 @@
 // refresh at every step: JSON round-trip → ensureLive → deep-equal.
 
 import { describe, expect, it } from "vitest";
+import { DEFAULT_FORMAT } from "../format";
 import type {
   AmericanoMatch, AmericanoPlayer, AmericanoPool, AmericanoSession, AmericanoTier,
 } from "@/types/americano";
@@ -24,12 +25,12 @@ const mkPlayers = (n: number, prefix = "p"): AmericanoPlayer[] =>
 
 const mkSession = (pools: AmericanoPool[], players: AmericanoPlayer[]): AmericanoSession => ({
   id: "night-loop", date: "2026-08-12", sessionName: "liveloop",
-  players, pools, isPractice: true, status: "active",
+  players, pools, defaultMatchFormat: DEFAULT_FORMAT, isPractice: true, status: "active",
 });
 
 const court2 = (players: AmericanoPlayer[], target: number): AmericanoPool => ({
   id: "court-2", label: "Court 2", playerIds: players.map((p) => p.playerId),
-  targetMatches: target, playoffMode: "top8", status: "round_robin", matches: [],
+  targetMatches: target, playoffMode: "top8", status: "round_robin", matches: [], matchFormat: DEFAULT_FORMAT,
 });
 
 const pool2 = (s: AmericanoSession) => s.pools.find((p) => p.id === "court-2")!;
@@ -52,7 +53,7 @@ describe("liveloop (STEP 4): the production path, refresh-simulated at every ste
     const c1Players = mkPlayers(3, "r").map((p) => ({ ...p, tier: "C" as const }));
     const c1: AmericanoPool = {
       id: "court-1", label: "Court 1", playerIds: c1Players.map((p) => p.playerId),
-      targetMatches: 4, playoffMode: "undecided", status: "round_robin", matches: [],
+      targetMatches: 4, playoffMode: "undecided", status: "round_robin", matches: [], matchFormat: DEFAULT_FORMAT,
     };
     let state = mkSession([court2(c2Players, 3), c1], [...c2Players, ...c1Players]);
     let clock = 1_000_000;
@@ -71,14 +72,15 @@ describe("liveloop (STEP 4): the production path, refresh-simulated at every ste
       if (steps === 6) {
         // Mid-night correction: flip an earlier winner. Nothing breaks —
         // counts are result-blind and the refresh invariant still holds.
-        state = applyCorrection(state, "court-2-m2", "B", "2-0");
+        state = applyCorrection(state, "court-2-m2", { winner: "B", setsLost: 0 });
         expect(pool2(state).matches.find((m) => m.id === "court-2-m2")!.result)
-          .toEqual({ winner: "B", score: "2-0" });
+          .toEqual({ winner: "B", setsLost: 0 });
         expect(refresh(state, clock)).toEqual(state);
       }
 
       state = applyResult(
-        state, live[0].id, steps % 2 ? "A" : "B", steps % 3 ? "2-1" : "2-0",
+        state, live[0].id,
+        { winner: steps % 2 ? "A" : "B", setsLost: steps % 3 ? 1 : 0 },
         clock + 7 * 60_000,
       );
       clock += 8 * 60_000;
@@ -113,12 +115,12 @@ describe("liveloop (STEP 4): the production path, refresh-simulated at every ste
       const done = (i: number, four: string[]): AmericanoMatch => ({
         id: `court-2-m${i}`, poolId: "court-2", matchIndex: i,
         teamA: [four[0], four[1]], teamB: [four[2], four[3]],
-        result: { winner: "A", score: "2-0" }, status: "completed",
+        result: { winner: "A", setsLost: 0 }, status: "completed",
         phase: "round_robin", startedAt: i * 100, completedAt: i * 100 + 50,
       });
       const pool: AmericanoPool = {
         id: "court-2", label: "Court 2", playerIds: [...ids, "pLate"],
-        targetMatches: 3, playoffMode: "top8", status: "round_robin",
+        targetMatches: 3, playoffMode: "top8", status: "round_robin", matchFormat: DEFAULT_FORMAT,
         matches: [
           done(1, ["p1", "p2", "p3", "p4"]),
           done(2, ["p5", "p6", "p7", "p1"]),
@@ -154,7 +156,7 @@ describe("liveloop (STEP 4): the production path, refresh-simulated at every ste
     let clock = 0;
     for (let i = 0; i < 4; i++) {
       state = ensureLive(state, clock);
-      state = applyResult(state, active2(state)[0].id, "A", "2-0", clock + 60_000);
+      state = applyResult(state, active2(state)[0].id, { winner: "A", setsLost: 0 }, clock + 60_000);
       clock += 60_000;
     }
     state = ensureLive(state, clock); // court-2-m5 goes on court
@@ -170,7 +172,7 @@ describe("liveloop (STEP 4): the production path, refresh-simulated at every ste
 
     // The court frees; the next generation seats every affected player who
     // is not already on court (they now hold the strict-minimum counts).
-    state = applyResult(state, "court-2-m5", "B", "2-1", clock + 60_000);
+    state = applyResult(state, "court-2-m5", { winner: "B", setsLost: 1 }, clock + 60_000);
     const events: GenerationEvent[] = [];
     state = ensureLive(state, clock + 120_000, (e) => events.push(e));
     expect(events[0].matchId).toBe("court-2-m6"); // length-based index → no collision

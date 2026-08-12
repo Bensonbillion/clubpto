@@ -25,7 +25,34 @@ export interface AmericanoPlayer {
   catchUpUsed: boolean;
 }
 
-export type AmericanoScore = "2-0" | "2-1";
+/**
+ * How a pool's matches are played (STEP F). Chosen at setup, per pool, and
+ * locked the moment that pool records a result.
+ *
+ * Nothing hard-codes a score alphabet: a best-of-N win needs ⌈N/2⌉ games, so
+ * the entry buttons and the log notation are GENERATED from `sets`.
+ */
+export type MatchFormat =
+  | { kind: "bestOf"; sets: 3 | 5 }
+  | { kind: "singleGame"; targetPoints: number };
+
+/** Best-of-N: only the games the LOSERS took are recorded — the winner's
+    total is implied by the format (⌈N/2⌉). Differential = won − lost. */
+export interface BestOfResult {
+  winner: "A" | "B";
+  setsLost: number;
+}
+
+/** Single game to T: the loser's score. Differential = ±(T − loserPoints). */
+export interface SingleGameResult {
+  winner: "A" | "B";
+  loserPoints: number;
+}
+
+export type AmericanoResult = BestOfResult | SingleGameResult;
+
+export const isSingleGameResult = (r: AmericanoResult): r is SingleGameResult =>
+  "loserPoints" in r;
 
 export type AmericanoMatchStatus = "pending" | "active" | "completed" | "voided";
 
@@ -42,7 +69,11 @@ export interface AmericanoMatch {
   matchIndex: number;
   teamA: [string, string];
   teamB: [string, string];
-  result: null | { winner: "A" | "B"; score: AmericanoScore };
+  result: null | AmericanoResult;
+  /** Set only when this match is played in a format OTHER than its pool's —
+      a playoff bracket may override the format it was created with, and the
+      log must keep rendering it in the notation it was recorded in. */
+  format?: MatchFormat;
   /**
    * Voided matches count for NOTHING — not standings, not matches-played,
    * not partnership history. Players return to the queue as if the match
@@ -119,6 +150,9 @@ export interface AmericanoPool {
   playoffMode: AmericanoPlayoffMode;
   status: AmericanoPoolStatus;
   matches: AmericanoMatch[];
+  /** How this pool's matches are played (STEP F). Locked once a result is
+      recorded — a format mistake caught later means void, change, replay. */
+  matchFormat: MatchFormat;
   /** Coin-decided orders for tonight's tied groups. A record lives only while
       its members are exactly a current tied group AND its line still matches;
       anything else drops the whole record, partial progress included (see
@@ -142,6 +176,9 @@ export interface AmericanoSession {
       session must round-trip the player statuses and catch-up flags too.) */
   players: AmericanoPlayer[];
   pools: AmericanoPool[];
+  /** Applied to pools as they are created; each pool can override it at
+      setup, so the two courts may run different formats on the same night. */
+  defaultMatchFormat: MatchFormat;
   /** Practice sessions run identically and publish nothing. */
   isPractice: boolean;
   status: AmericanoSessionStatus;
@@ -157,7 +194,8 @@ export interface StandingsRow {
   matchesPlayed: number;
   wins: number;
   losses: number;
-  /** +2 for a 2-0 win, +1 for 2-1, −1 for 1-2, −2 for 0-2. */
+  /** Format-defined: best-of-N is games won − games lost; a single game to
+      T is ±(T − the loser's score). Never summed across formats. */
   gameDiff: number;
   /** 1-based position after the full chain. */
   rank: number;

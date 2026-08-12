@@ -18,6 +18,7 @@ import v5 from "../__fixtures__/session.v5.json";
 import v6 from "../__fixtures__/session.v6.json";
 import v7 from "../__fixtures__/session.v7.json";
 import v8 from "../__fixtures__/session.v8.json";
+import v9 from "../__fixtures__/session.v9.json";
 
 const TODAY = "2026-09-01";
 
@@ -33,20 +34,20 @@ function assertValid(healed: AmericanoSession | null): AmericanoSession {
 
 describe("schema-version guard", () => {
   it("the current fixture matches the live canonical serialization AND version", () => {
-    expect(v8.schemaVersion).toBe(AMERICANO_SCHEMA_VERSION);
-    expect(v8.state).toEqual(JSON.parse(JSON.stringify(canonicalSession())));
+    expect(v9.schemaVersion).toBe(AMERICANO_SCHEMA_VERSION);
+    expect(v9.state).toEqual(JSON.parse(JSON.stringify(canonicalSession())));
   });
 
   it("a current-version fixture named for an older version cannot exist", () => {
     // The naming convention IS the guard: session.vN.json ↔ version N.
-    for (const [fixture, version] of [[v2, 2], [v3, 3], [v4, 4], [v5, 5], [v6, 6], [v7, 7], [v8, 8]] as const) {
+    for (const [fixture, version] of [[v2, 2], [v3, 3], [v4, 4], [v5, 5], [v6, 6], [v7, 7], [v8, 8], [v9, 9]] as const) {
       expect(fixture.schemaVersion).toBe(version);
     }
-    expect(AMERICANO_SCHEMA_VERSION).toBe(8);
+    expect(AMERICANO_SCHEMA_VERSION).toBe(9);
   });
 
   it("every historical fixture round-trips through migrate, healed and valid", () => {
-    for (const fixture of [v2, v3, v4, v5, v6, v7]) {
+    for (const fixture of [v2, v3, v4, v5, v6, v7, v8]) {
       const healed = assertValid(migrateAmericanoSession(fixture.state, TODAY));
       // A second pass is a no-op — healing is idempotent.
       expect(migrateAmericanoSession(healed, TODAY)).toEqual(healed);
@@ -69,7 +70,7 @@ describe("phase-aware healing (STEP 4 addendum)", () => {
   });
   const M = (teamA: [string, string], teamB: [string, string]): AmericanoMatch => ({
     id: "hm1", poolId: "court-2", matchIndex: 1, teamA, teamB,
-    result: { winner: "A", score: "2-0" }, status: "completed",
+    result: { winner: "A", setsLost: 0 }, status: "completed",
     phase: "round_robin", startedAt: 10, completedAt: 20,
   });
   const activeSession = (players: AmericanoPlayer[], court2Ids: string[], matches: AmericanoMatch[]) => ({

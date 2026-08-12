@@ -11,6 +11,13 @@ import {
   useAmericanoSession, type PoolLiveView, type PoolSetupView, type UseAmericanoSession,
 } from "@/hooks/useAmericanoSession";
 import { flipPhase } from "@/lib/americano/flips";
+import {
+  DEFAULT_TARGET_POINTS, entryOptions, formatLabel, resultNotation, validTargetPoints,
+} from "@/lib/americano/format";
+
+/** Stable identity of a format, for React keys. */
+const formatKey = (f: import("@/types/americano").MatchFormat) =>
+  f.kind === "bestOf" ? `bo${f.sets}` : `g${f.targetPoints}`;
 
 const ADMIN_PASSCODE = "9999";
 
@@ -97,11 +104,62 @@ const SessionStage = ({ a }: { a: UseAmericanoSession }) => (
         {a.session.isPractice ? "Practice on" : "Practice off"}
       </button>
     </div>
+    <div className="flex flex-wrap items-end gap-4 pt-1 border-t border-border/50">
+      <FormatPicker value={a.session.defaultMatchFormat} locked={false}
+        onChange={a.setDefaultFormat} />
+      <p className="text-sm text-muted-foreground flex-1 min-w-[220px]">
+        Both courts take this until one is changed on its own below.
+      </p>
+    </div>
     {a.session.isPractice && (
       <p className="text-sm text-muted-foreground">Practice night — nothing publishes to the leaderboard or clubhouse.</p>
     )}
   </section>
 );
+
+/** Format picker — the session default sits above the courts, a per-pool
+    override beside each target selector. Once a pool records a result the
+    format is locked, and the picker says so plainly rather than going
+    missing. */
+const FormatPicker = ({ value, locked, onChange, compact }: {
+  value: import("@/types/americano").MatchFormat;
+  locked: boolean;
+  onChange: (f: import("@/types/americano").MatchFormat) => void;
+  compact?: boolean;
+}) => {
+  const isBo = (n: 3 | 5) => value.kind === "bestOf" && value.sets === n;
+  const isGame = value.kind === "singleGame";
+  const target = isGame ? value.targetPoints : DEFAULT_TARGET_POINTS;
+  const btn = (active: boolean) =>
+    `min-h-[44px] px-3 rounded-md border-2 text-xs uppercase tracking-widest transition-all active:scale-95 ${
+      active ? "border-gold bg-gold/15 text-gold" : "border-border bg-dark-elevated text-muted-foreground hover:border-gold/40"
+    } ${locked ? "opacity-60 cursor-not-allowed" : ""}`;
+  return (
+    <div className={`space-y-1.5 ${compact ? "" : "flex-1 min-w-[280px]"}`}>
+      <span className="block text-xs uppercase tracking-widest text-muted-foreground">
+        Match format
+      </span>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button disabled={locked} onClick={() => onChange({ kind: "bestOf", sets: 3 })}
+          aria-pressed={isBo(3)} className={btn(isBo(3))}>Best of 3</button>
+        <button disabled={locked} onClick={() => onChange({ kind: "bestOf", sets: 5 })}
+          aria-pressed={isBo(5)} className={btn(isBo(5))}>Best of 5</button>
+        <button disabled={locked} onClick={() => onChange({ kind: "singleGame", targetPoints: target })}
+          aria-pressed={isGame} className={btn(isGame)}>Game to</button>
+        <select disabled={locked || !isGame} value={target}
+          aria-label="Points to win the game"
+          onChange={(e) => onChange({ kind: "singleGame", targetPoints: Number(e.target.value) })}
+          className={`min-h-[44px] rounded-md border-2 px-2 text-sm ${
+            isGame ? "border-gold/60 bg-dark-elevated text-cream" : "border-border bg-dark-elevated text-muted-foreground/50"}`}>
+          {validTargetPoints().map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+      </div>
+      {locked && (
+        <p className="text-xs text-amber-400">Format locked — results recorded.</p>
+      )}
+    </div>
+  );
+};
 
 /* ── stage 2: tonight's roster ────────────────────────────────────── */
 
@@ -252,6 +310,9 @@ const PoolsStage = ({ a }: { a: UseAmericanoSession }) => {
           {view.options.length === 0 && <span className="text-sm text-muted-foreground">—</span>}
         </div>
 
+        <FormatPicker compact value={view.format} locked={view.formatLocked}
+          onChange={(f) => a.setPoolFormat(view.pool.id, f)} />
+
         {view.notices.map((n, i) => (
           <p key={i} className={`text-sm rounded-md border px-3 py-2 ${
             n.level === "block" ? "border-red-500/50 bg-red-500/10 text-red-300"
@@ -318,9 +379,10 @@ const fmtDur = (ms: number) => {
 /** Two taps: the winning pair, then 2–0 or 2–1. No confirm — corrections exist.
     Each NAME is its own tap target (STEP 5): it opens the player sheet instead
     of selecting the winner, so "not here"/"left" live right on the court. */
-const ResultEntry = ({ a, match, onPlayerTap }: {
+const ResultEntry = ({ a, match, format, onPlayerTap }: {
   a: UseAmericanoSession;
   match: import("@/types/americano").AmericanoMatch;
+  format: import("@/types/americano").MatchFormat;
   onPlayerTap: (playerId: string) => void;
 }) => {
   const [winner, setWinner] = useState<"A" | "B" | null>(null);
@@ -360,14 +422,22 @@ const ResultEntry = ({ a, match, onPlayerTap }: {
       <p className="text-center text-muted-foreground text-sm">vs</p>
       {side("B")}
       {winner && (
-        <div className="flex gap-2 pt-1">
-          {(["2-0", "2-1"] as const).map((score) => (
-            <button key={score} onClick={() => { a.enterResult(match.id, winner, score); setWinner(null); }}
-              className="flex-1 min-h-[56px] rounded-lg bg-gold text-dark font-display text-xl transition-all active:scale-[0.98] hover:bg-gold/90">
-              {score.replace("-", "–")}
-            </button>
-          ))}
-        </div>
+        <>
+          {format.kind === "singleGame" && (
+            <p className="text-xs text-muted-foreground pt-1">
+              Game to {format.targetPoints} — tap the losers&apos; score
+            </p>
+          )}
+          <div className={`gap-2 pt-1 ${format.kind === "bestOf" ? "flex" : "grid grid-cols-4 sm:grid-cols-7"}`}>
+            {entryOptions(format).map((opt) => (
+              <button key={opt.label}
+                onClick={() => { a.enterResult(match.id, { winner, ...opt.value }); setWinner(null); }}
+                className="flex-1 min-h-[56px] min-w-[44px] rounded-lg bg-gold text-dark font-display text-xl transition-all active:scale-[0.98] hover:bg-gold/90">
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
@@ -398,7 +468,7 @@ const MatchLog = ({ a, view }: { a: UseAmericanoSession; view: PoolLiveView }) =
                     {m.result && winIds && loseIds ? (
                       <>
                         <span className="text-cream">{winIds.map(a.playerName).join(" + ")}</span>
-                        <span className="text-gold mx-1">{m.result.score.replace("-", "–")}</span>
+                        <span className="text-gold mx-1">{resultNotation(a.formatOfMatch(view.pool.id, m), m.result)}</span>
                         <span className="text-muted-foreground">{loseIds.map(a.playerName).join(" + ")}</span>
                       </>
                     ) : (
@@ -419,11 +489,11 @@ const MatchLog = ({ a, view }: { a: UseAmericanoSession; view: PoolLiveView }) =
                 {editing === m.id && m.status === "completed" && (
                   <div className="flex gap-1.5 mt-2 flex-wrap">
                     {(["A", "B"] as const).flatMap((w) =>
-                      (["2-0", "2-1"] as const).map((score) => (
-                        <button key={`${w}${score}`}
-                          onClick={() => { a.correctResult(m.id, w, score); setEditing(null); }}
+                      entryOptions(a.formatOfMatch(view.pool.id, m)).map((opt) => (
+                        <button key={`${w}${opt.label}`}
+                          onClick={() => { a.correctResult(m.id, { winner: w, ...opt.value }); setEditing(null); }}
                           className="min-h-[44px] px-2 rounded border border-border text-xs text-muted-foreground hover:text-gold hover:border-gold/50 transition-colors">
-                          {(w === "A" ? m.teamA : m.teamB).map(a.playerName).join("+")} {score.replace("-", "–")}
+                          {(w === "A" ? m.teamA : m.teamB).map(a.playerName).join("+")} {opt.label}
                         </button>
                       )),
                     )}
@@ -804,12 +874,13 @@ const PoolColumn = ({ a, view, onPlayerTap, onFlip }: {
           {fresh && (
             <p className="text-xs uppercase tracking-widest text-gold">Now on court — call the names</p>
           )}
-          {/* Keyed by WHO is on court, not just the match id: a discard
-              (Step 5) reuses the freed id, so an id-only key would keep a
-              half-tapped winner selected over a different four. */}
+          {/* Keyed by WHO is on court AND the format, not just the match id:
+              a discard (Step 5) reuses the freed id, so an id-only key would
+              keep a half-tapped winner selected over a different four — and a
+              format change must never leave a stale button row behind. */}
           <ResultEntry
-            key={`${view.active.id}:${view.active.teamA.join()}:${view.active.teamB.join()}`}
-            a={a} match={view.active} onPlayerTap={onPlayerTap}
+            key={`${view.active.id}:${view.active.teamA.join()}:${view.active.teamB.join()}:${formatKey(view.format)}`}
+            a={a} match={view.active} format={view.format} onPlayerTap={onPlayerTap}
           />
         </div>
       ) : view.blocked === "all_at_target" ? (

@@ -20,6 +20,13 @@
 //        envelope loads unchanged, its in-flight matches simply carry no
 //        receipt (worst case: one exemption not refunded, exactly today's
 //        behaviour).
+//   v9 — Configurable match format (Step F): AmericanoPool.matchFormat and
+//        AmericanoSession.defaultMatchFormat, and the result shape
+//        generalizes from a hard-coded "2-0"/"2-1" alphabet to
+//        { winner, setsLost } (best of N) | { winner, loserPoints } (a single
+//        game to T). Legacy scores convert by their loser's game count, which
+//        is BEHAVIOURALLY identical: at best of 3, games won − games lost is
+//        the original +2 / +1.
 //   v8 — AmericanoPool.groupFlipResolutions REPLACES coinFlipResolutions
 //        (Step 6.2): a coin-decided TOTAL ORDER over an exact tied set,
 //        instead of a bag of pairwise verdicts that computeStandings could
@@ -37,6 +44,7 @@ import type {
   AmericanoPlayer, AmericanoPool, AmericanoSession, GroupFlipRecord,
 } from "@/types/americano";
 import { computeRecords, strengthOfSchedule } from "./standings";
+import { DEFAULT_FORMAT } from "./format";
 
 /**
  * Legacy pairwise coin flips → two-member group records. The order is
@@ -74,13 +82,33 @@ function convertLegacyFlips(pool: AmericanoPool): AmericanoPool {
   return next;
 }
 
-export const AMERICANO_SCHEMA_VERSION = 8;
+export const AMERICANO_SCHEMA_VERSION = 9;
 
 export function emptyPool(id: string, label: "Court 1" | "Court 2"): AmericanoPool {
   return {
     id, label, playerIds: [], targetMatches: 4, playoffMode: "undecided",
-    status: "setup", matches: [],
+    status: "setup", matches: [], matchFormat: DEFAULT_FORMAT,
   };
+}
+
+/** Legacy results carried the winner's score as a string ("2-0"/"2-1"); the
+    generalized shape records only what the LOSERS took, so the winner's total
+    is implied by the format. Same match, same differential. */
+function convertLegacyResults(pool: AmericanoPool): AmericanoPool {
+  let touched = false;
+  const matches = pool.matches.map((m) => {
+    const legacy = m.result as { winner: "A" | "B"; score?: string } | null;
+    if (!legacy || typeof legacy.score !== "string") return m;
+    touched = true;
+    const setsLost = Number(legacy.score.split("-")[1] ?? 0);
+    return { ...m, result: { winner: legacy.winner, setsLost } };
+  });
+  return touched ? { ...pool, matches } : pool;
+}
+
+/** A pool with no recorded format predates Step F, so it played best of 3. */
+function ensureFormat(pool: AmericanoPool): AmericanoPool {
+  return pool.matchFormat ? pool : { ...pool, matchFormat: DEFAULT_FORMAT };
 }
 
 /** The canonical default session at the CURRENT schema version. The fixture
@@ -93,6 +121,7 @@ export function canonicalSession(date = "2026-01-01"): AmericanoSession {
     sessionName: "",
     players: [],
     pools: [emptyPool("court-2", "Court 2"), emptyPool("court-1", "Court 1")],
+    defaultMatchFormat: DEFAULT_FORMAT,
     isPractice: false,
     status: "setup",
   };
@@ -144,9 +173,11 @@ export function migrateAmericanoSession(
     (p.tier === "C" ? orphans1 : orphans2).push(p.playerId);
   }
 
+  const heal = (p: AmericanoPool) =>
+    convertLegacyResults(ensureFormat(convertLegacyFlips(p)));
   const pools: AmericanoPool[] = [
-    convertLegacyFlips({ ...court2, playerIds: [...court2.playerIds, ...orphans2] }),
-    convertLegacyFlips({ ...court1, playerIds: [...court1.playerIds, ...orphans1] }),
+    heal({ ...court2, playerIds: [...court2.playerIds, ...orphans2] }),
+    heal({ ...court1, playerIds: [...court1.playerIds, ...orphans1] }),
   ];
   const date = typeof old.date === "string" && old.date ? old.date : today;
   const healed: AmericanoSession = {
@@ -155,6 +186,7 @@ export function migrateAmericanoSession(
     date,
     players,
     pools,
+    defaultMatchFormat: old.defaultMatchFormat ?? DEFAULT_FORMAT,
   };
   // Dedupe so re-migrating an already-healed state is idempotent — the same
   // unresolved orphan must not stack a new copy of its error on every load.

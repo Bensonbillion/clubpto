@@ -1,8 +1,9 @@
 // STEP 4 — the live-screen lib helpers: nextSelectionPreview and poolPace.
 
 import { describe, expect, it } from "vitest";
+import { DEFAULT_FORMAT } from "../format";
 import type {
-  AmericanoMatch, AmericanoPlayer, AmericanoPool, AmericanoScore, AmericanoTier,
+  AmericanoMatch, AmericanoPlayer, AmericanoPool, AmericanoTier,
 } from "@/types/americano";
 import { generateNextMatch, nextSelectionPreview, type GeneratedMatch } from "../generator";
 import { poolPace } from "../pace";
@@ -19,7 +20,7 @@ const mkPlayers = (n: number): AmericanoPlayer[] =>
 
 const mkPool = (players: AmericanoPlayer[], target: number): AmericanoPool => ({
   id: "court-2", label: "Court 2", playerIds: players.map((p) => p.playerId),
-  targetMatches: target, playoffMode: "top8", status: "round_robin", matches: [],
+  targetMatches: target, playoffMode: "top8", status: "round_robin", matches: [], matchFormat: DEFAULT_FORMAT,
 });
 
 describe("nextSelectionPreview (STEP 4)", () => {
@@ -47,12 +48,12 @@ describe("nextSelectionPreview (STEP 4)", () => {
 
       // Complete the active match BOTH ways on clones; the actual selection
       // must match the preview regardless of who won.
-      for (const [winner, score] of [["A", "2-0"], ["B", "2-1"]] as ["A" | "B", AmericanoScore][]) {
+      for (const [winner, setsLost] of [["A", 0], ["B", 1]] as ["A" | "B", number][]) {
         const clone: AmericanoPool = {
           ...pool,
           matches: pool.matches.map((m) =>
             m.id === active.id
-              ? { ...m, status: "completed" as const, result: { winner, score }, completedAt: clock + 1 }
+              ? { ...m, status: "completed" as const, result: { winner, setsLost }, completedAt: clock + 1 }
               : m,
           ),
         };
@@ -67,7 +68,7 @@ describe("nextSelectionPreview (STEP 4)", () => {
 
       // Commit one real result and roll on.
       active.status = "completed";
-      active.result = { winner: "A", score: "2-1" };
+      active.result = { winner: "A", setsLost: 1 };
       active.completedAt = clock + 1;
       clock += 10;
     }
@@ -97,7 +98,7 @@ describe("poolPace (STEP 4)", () => {
     const [a, b, c, d] = four(players);
     return {
       id, poolId: "court-2", matchIndex: 0, teamA: [a, b], teamB: [c, d],
-      result: { winner: "A", score: "2-1" }, status: "completed",
+      result: { winner: "A", setsLost: 1 }, status: "completed",
       phase: "round_robin", startedAt, completedAt,
     };
   };

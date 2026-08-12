@@ -5,7 +5,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
-  AmericanoMatch, AmericanoPlayer, AmericanoPool, AmericanoScore, AmericanoSession,
+  AmericanoMatch, AmericanoPlayer, AmericanoPool, AmericanoResult, AmericanoSession,
+  MatchFormat,
   AmericanoTier, StandingsRow,
 } from "@/types/americano";
 import {
@@ -25,6 +26,10 @@ import {
   attemptCoinFlip, pendingFlips, pickFlipWinner, poolStandings, pruneStaleFlips,
 } from "@/lib/americano/flips";
 import { strengthOfSchedule } from "@/lib/americano/standings";
+import {
+  DEFAULT_FORMAT, isFormatLocked, matchFormatOf,
+  setDefaultFormat as setDefaultFormatLib, setPoolFormat as setPoolFormatLib,
+} from "@/lib/americano/format";
 import { poolPace, type PoolPace } from "@/lib/americano/pace";
 import {
   appendSharedRosterEntry, createAmericanoStore, fetchSharedRoster,
@@ -38,7 +43,7 @@ const isoToday = () => new Date().toISOString().slice(0, 10);
 
 const emptyPool = (id: string, label: "Court 1" | "Court 2"): AmericanoPool => ({
   id, label, playerIds: [], targetMatches: 4, playoffMode: "undecided",
-  status: "setup", matches: [],
+  status: "setup", matches: [], matchFormat: DEFAULT_FORMAT,
 });
 
 const DEFAULTS = (): AmericanoSession => ({
@@ -47,6 +52,7 @@ const DEFAULTS = (): AmericanoSession => ({
   sessionName: "",
   players: [],
   pools: [emptyPool(COURT2, "Court 2"), emptyPool(COURT1, "Court 1")],
+  defaultMatchFormat: DEFAULT_FORMAT,
   isPractice: false,
   status: "setup",
 });
@@ -134,6 +140,9 @@ export interface PoolLiveView {
   people: PersonRow[];
   /** Standings, recomputed every render — never stored (STEP 6). */
   standings: StandingsRowView[];
+  /** This pool's match format, and whether play has locked it (STEP F). */
+  format: MatchFormat;
+  formatLocked: boolean;
   /** How many flips are actually offered. NOT flagged-rows/2: a run of four
       tied players shows four flags but offers three flips. */
   pendingFlips: number;
@@ -142,6 +151,8 @@ export interface PoolLiveView {
 export interface PoolSetupView {
   pool: AmericanoPool;
   size: number;
+  format: MatchFormat;
+  formatLocked: boolean;
   options: { target: number; label: string }[];
   notices: SetupNotice[];
   courtMatches: number;
@@ -180,8 +191,14 @@ export interface UseAmericanoSession {
   // The rolling court loop (STEP 4)
   liveViews: PoolLiveView[];
   playerName(id: string): string;
-  enterResult(matchId: string, winner: "A" | "B", score: AmericanoScore): void;
-  correctResult(matchId: string, winner: "A" | "B", score: AmericanoScore): void;
+  /** The format a given match was recorded in (its own override, else its
+      pool's) — the log must render every result in its own notation. */
+  formatOfMatch(poolId: string, match: AmericanoMatch): MatchFormat;
+  enterResult(matchId: string, result: AmericanoResult): void;
+  correctResult(matchId: string, result: AmericanoResult): void;
+  /** Match format per pool (STEP F) — setup-time, locked once play starts. */
+  setPoolFormat(poolId: string, format: MatchFormat): void;
+  setDefaultFormat(format: MatchFormat): void;
   voidMatch(matchId: string): void;
   /** Freshly generated match ids — the "now on court" emphasis. */
   freshMatchIds: Set<string>;
@@ -340,6 +357,8 @@ export function useAmericanoSession(): UseAmericanoSession {
         return {
           pool,
           size,
+          format: pool.matchFormat ?? DEFAULT_FORMAT,
+          formatLocked: isFormatLocked(pool),
           options: validTargets(size).map((target) => ({
             target,
             label: `${target} each · ${courtMatchesNeeded(size, target)} matches`,
@@ -451,13 +470,21 @@ export function useAmericanoSession(): UseAmericanoSession {
     });
   }, [commitLive]);
 
-  const enterResult = useCallback((matchId: string, winner: "A" | "B", score: AmericanoScore) => {
-    commitLive((s) => applyResult(s, matchId, winner, score, Date.now()));
+  const enterResult = useCallback((matchId: string, result: AmericanoResult) => {
+    commitLive((s) => applyResult(s, matchId, result, Date.now()));
   }, [commitLive]);
 
-  const correctResult = useCallback((matchId: string, winner: "A" | "B", score: AmericanoScore) => {
-    commitLive((s) => applyCorrection(s, matchId, winner, score));
+  const correctResult = useCallback((matchId: string, result: AmericanoResult) => {
+    commitLive((s) => applyCorrection(s, matchId, result));
   }, [commitLive]);
+
+  const setPoolFormatAction = useCallback((poolId: string, format: MatchFormat) => {
+    commit((s) => setPoolFormatLib(s, poolId, format));
+  }, [commit]);
+
+  const setDefaultFormatAction = useCallback((format: MatchFormat) => {
+    commit((s) => setDefaultFormatLib(s, format));
+  }, [commit]);
 
   const voidMatch = useCallback((matchId: string) => {
     commitLive((s) => applyVoid(s, matchId));
@@ -567,6 +594,11 @@ export function useAmericanoSession(): UseAmericanoSession {
     [session.players],
   );
 
+  const formatOfMatch = useCallback((poolId: string, match: AmericanoMatch) => {
+    const pool = session.pools.find((p) => p.id === poolId);
+    return pool ? matchFormatOf(pool, match) : DEFAULT_FORMAT;
+  }, [session.pools]);
+
   const liveViews = useMemo<PoolLiveView[]>(() => {
     if (session.status === "setup") return [];
     return session.pools.map((pool) => {
@@ -598,6 +630,8 @@ export function useAmericanoSession(): UseAmericanoSession {
             canNotHere: canMarkNotHere(session, p.playerId),
           }))
           .sort((a, b) => a.name.localeCompare(b.name)),
+        format: pool.matchFormat ?? DEFAULT_FORMAT,
+        formatLocked: isFormatLocked(pool),
         // Coins still to toss before every group on this court is ordered —
         // the honest count, not flagged-rows halved.
         pendingFlips: pendingFlips(pool, session.players)
@@ -642,7 +676,8 @@ export function useAmericanoSession(): UseAmericanoSession {
     setDate, setSessionName, setPractice,
     togglePlayer, isPicked,
     poolViews, movePlayer, setTarget, canStart, startSession, resetNight,
-    liveViews, playerName, enterResult, correctResult, voidMatch,
+    liveViews, playerName, formatOfMatch, enterResult, correctResult, voidMatch,
+    setPoolFormat: setPoolFormatAction, setDefaultFormat: setDefaultFormatAction,
     freshMatchIds, notices, dismissNotices, recordCoinFlip, tossCoin, flipOutcome,
     playerNotHere, playerArrived, playerLeft, playerRestore, canNotHere, notArrived,
   };

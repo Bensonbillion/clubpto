@@ -19,7 +19,12 @@ import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 
-const SRC = join(process.cwd(), "src");
+// The tsconfig has no node types, so reach the working directory through a
+// narrow structural cast rather than the global `process` declaration.
+const ROOT = (globalThis as unknown as { process: { cwd(): string } }).process.cwd();
+const SRC = join(ROOT, "src");
+
+
 const CODE = new Set([".ts", ".tsx", ".js", ".jsx", ".css", ".html"]);
 
 /** This file quotes the dead strings by construction, so it excludes itself. */
@@ -34,7 +39,7 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-const files = () => [...sourceFiles(SRC), join(process.cwd(), "index.html")];
+const files = () => [...sourceFiles(SRC), join(ROOT, "index.html")];
 
 describe("the retired public site stays retired", () => {
   // Split so this test file's own source cannot match the grep it performs.
@@ -46,7 +51,7 @@ describe("the retired public site stays retired", () => {
 
   it.each(GHOST)("%s appears nowhere in the source", (needle) => {
     const hits = files().filter((f) => readFileSync(f, "utf8").includes(needle));
-    expect(hits.map((f) => f.replace(process.cwd() + "/", ""))).toEqual([]);
+    expect(hits.map((f) => f.replace(ROOT + "/", ""))).toEqual([]);
   });
 
   it("no deleted old-design asset is referenced again", () => {
@@ -64,7 +69,7 @@ describe("the retired public site stays retired", () => {
         // distinct from logo-wordmark.png and logo.jpg, so the boundary
         // before the name matters as much as the name.
         if (new RegExp(`(^|[^-\\w/])${asset.replace(".", "\\.")}`).test(src)) {
-          offenders.push(`${f.replace(process.cwd() + "/", "")} → ${asset}`);
+          offenders.push(`${f.replace(ROOT + "/", "")} → ${asset}`);
         }
       }
     }
@@ -82,7 +87,7 @@ describe("the retired public site stays retired", () => {
         src.includes("VitePWA")
       );
     });
-    expect(offenders.map((f) => f.replace(process.cwd() + "/", ""))).toEqual([]);
+    expect(offenders.map((f) => f.replace(ROOT + "/", ""))).toEqual([]);
   });
 
   it("the kill-switch is still wired into app boot", () => {

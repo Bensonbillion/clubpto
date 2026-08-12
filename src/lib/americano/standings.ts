@@ -15,11 +15,11 @@
 import type {
   AmericanoMatch, AmericanoPlayer, AmericanoPool, StandingsRow,
 } from "@/types/americano";
+import { matchFormatOf, resultDiff } from "./format";
 
-export const GAME_DIFF = {
-  "2-0": { win: +2, loss: -2 },
-  "2-1": { win: +1, loss: -1 },
-} as const;
+// Differential is FORMAT-DEFINED (STEP F): lib/americano/format.ts owns the
+// arithmetic, this file only banks the number. At best of 3 it reduces to the
+// original +2 / +1, which is why nothing else in the chain had to change.
 
 const counted = (pool: AmericanoPool): AmericanoMatch[] =>
   pool.matches.filter((m) => m.status === "completed" && m.phase === "round_robin");
@@ -41,7 +41,7 @@ export function computeRecords(pool: AmericanoPool): Map<string, PlayerRecord> {
   };
   for (const m of counted(pool)) {
     if (!m.result) continue;
-    const d = GAME_DIFF[m.result.score];
+    const d = resultDiff(matchFormatOf(pool, m), m.result);
     const winners = m.result.winner === "A" ? m.teamA : m.teamB;
     const losers = m.result.winner === "A" ? m.teamB : m.teamA;
     for (const id of winners) { const r = get(id); r.matchesPlayed++; r.wins++; r.gameDiff += d.win; }

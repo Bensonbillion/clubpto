@@ -12,8 +12,9 @@
 // altering the predicate in its one home fails every consumer together.
 
 import { describe, expect, it } from "vitest";
+import { DEFAULT_FORMAT } from "../format";
 import type {
-  AmericanoMatch, AmericanoPlayer, AmericanoPool, AmericanoScore, AmericanoSession,
+  AmericanoMatch, AmericanoPlayer, AmericanoPool, AmericanoSession,
 } from "@/types/americano";
 import {
   computeStandings, h2hSeparates, strengthOfSchedule, tiedGroup,
@@ -27,14 +28,14 @@ const players: AmericanoPlayer[] = IDS.map((id) => ({
   status: "present", joinedAtMatchIndex: null, catchUpUsed: false,
 }));
 
-type Spec = { a: [string, string]; b: [string, string]; w: "A" | "B"; s: AmericanoScore };
+type Spec = { a: [string, string]; b: [string, string]; w: "A" | "B"; s: number };
 
 const mkPool = (specs: Spec[]): AmericanoPool => ({
   id: "court-2", label: "Court 2", playerIds: IDS, targetMatches: 2,
-  playoffMode: "top8", status: "round_robin",
+  playoffMode: "top8", status: "round_robin", matchFormat: DEFAULT_FORMAT,
   matches: specs.map((m, i): AmericanoMatch => ({
     id: `court-2-m${i + 1}`, poolId: "court-2", matchIndex: i + 1,
-    teamA: m.a, teamB: m.b, result: { winner: m.w, score: m.s },
+    teamA: m.a, teamB: m.b, result: { winner: m.w, setsLost: m.s },
     status: "completed", phase: "round_robin",
     startedAt: i * 100, completedAt: i * 100 + 50,
   })),
@@ -42,26 +43,26 @@ const mkPool = (specs: Spec[]): AmericanoPool => ({
 
 const sess = (pool: AmericanoPool): AmericanoSession => ({
   id: "n", date: "2026-08-12", sessionName: "", players, pools: [pool],
-  isPractice: true, status: "active",
+  defaultMatchFormat: DEFAULT_FORMAT, isPractice: true, status: "active",
 });
 
 /* ── fixture 1: a PAIR, separated by head-to-head ────────────────── */
 // a and d both finish 1W-1L +0 with equal SOS (6). They met once, in m1,
 // and a won — so H2H applies and there is nothing left for a coin to decide.
 const PAIR = mkPool([
-  { a: ["d", "f"], b: ["a", "e"], w: "B", s: "2-0" }, // a beats d
-  { a: ["b", "e"], b: ["f", "h"], w: "A", s: "2-1" },
-  { a: ["a", "b"], b: ["e", "f"], w: "B", s: "2-0" },
-  { a: ["b", "f"], b: ["d", "h"], w: "B", s: "2-0" },
+  { a: ["d", "f"], b: ["a", "e"], w: "B", s: 0 }, // a beats d
+  { a: ["b", "e"], b: ["f", "h"], w: "A", s: 1 },
+  { a: ["a", "b"], b: ["e", "f"], w: "B", s: 0 },
+  { a: ["b", "f"], b: ["d", "h"], w: "B", s: 0 },
 ]);
 
 /* ── fixture 2: a TRIO, where head-to-head must stay silent ──────── */
 // a, d and e all finish 1W-1L +0. a beat d in m1 and their SOS is equal (4),
 // but the group is three, so H2H cannot order it: the pair stays flip-tied.
 const TRIO = mkPool([
-  { a: ["a", "f"], b: ["d", "g"], w: "A", s: "2-1" }, // a beats d
-  { a: ["c", "d"], b: ["b", "e"], w: "A", s: "2-1" },
-  { a: ["e", "f"], b: ["a", "b"], w: "A", s: "2-1" },
+  { a: ["a", "f"], b: ["d", "g"], w: "A", s: 1 }, // a beats d
+  { a: ["c", "d"], b: ["b", "e"], w: "A", s: 1 },
+  { a: ["e", "f"], b: ["a", "b"], w: "A", s: 1 },
 ]);
 
 describe("the fixtures really are what the tests assume", () => {

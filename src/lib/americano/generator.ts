@@ -308,7 +308,9 @@ export function nextSelectionPreview(
           ? {
               ...m,
               status: "completed" as const,
-              result: m.result ?? { winner: "A" as const, score: "2-1" as const },
+              // The probe only needs the match to COUNT as completed —
+              // selection is result-blind — so any well-formed result does.
+              result: m.result ?? { winner: "A" as const, setsLost: 1 },
               completedAt: m.completedAt ?? lastCompleted + 1,
             }
           : m,

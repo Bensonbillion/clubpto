@@ -4,8 +4,9 @@
 // exists. Pure throughout: injected clock, zero randomness.
 
 import { describe, expect, it } from "vitest";
+import { DEFAULT_FORMAT } from "../format";
 import type {
-  AmericanoMatch, AmericanoPlayer, AmericanoPool, AmericanoScore, AmericanoSession,
+  AmericanoMatch, AmericanoPlayer, AmericanoPool, AmericanoSession,
   AmericanoTier,
 } from "@/types/americano";
 import { validTargets, courtMatchesNeeded } from "../config";
@@ -46,6 +47,7 @@ function mkPool(players: AmericanoPlayer[], target: number): AmericanoPool {
     targetMatches: target,
     playoffMode: "top8",
     status: "round_robin",
+    matchFormat: DEFAULT_FORMAT,
     matches: [],
   };
 }
@@ -88,14 +90,13 @@ function playOne(n: Night): boolean {
   const key = teamA.join() + "|" + teamB.join() + RESULT_SALT;
   const winner = hash(key) % (a + b) < a ? "A" : "B";
   const margin = winner === "A" ? a - b : b - a;
-  const score: AmericanoScore =
-    (hash(key + "s") % 24) < 8 + Math.max(-6, Math.min(12, margin)) ? "2-0" : "2-1";
+  const setsLost = (hash(key + "s") % 24) < 8 + Math.max(-6, Math.min(12, margin)) ? 0 : 1;
   const match: AmericanoMatch = {
     id: `m${n.pool.matches.length + 1}`,
     poolId: n.pool.id,
     matchIndex: n.pool.matches.length + 1,
     teamA, teamB,
-    result: { winner, score },
+    result: { winner, setsLost },
     status: "completed",
     phase: "round_robin",
     startedAt: n.clock,
@@ -191,7 +192,7 @@ describe("Scenario 1 — normal night", () => {
       // group carries a complete order.
       let live: AmericanoSession = {
         id: "sim", date: "2026-08-12", sessionName: "", players: n.players,
-        pools: [n.pool], isPractice: true, status: "active",
+        pools: [n.pool], defaultMatchFormat: DEFAULT_FORMAT, isPractice: true, status: "active",
       };
       for (let step = 0; step < 64; step++) {
         const pend = pendingFlips(live.pools[0], live.players);
@@ -210,7 +211,7 @@ describe("Scenario 1 — normal night", () => {
     // Human-readable printout (the DONE-WHEN artifact).
     const name = (id: string) => n.players.find((p) => p.playerId === id)!.displayName;
     const lines = n.pool.matches.map((m) =>
-      `  #${String(m.matchIndex).padStart(2)} ${name(m.teamA[0])}+${name(m.teamA[1])} vs ${name(m.teamB[0])}+${name(m.teamB[1])} → ${m.result!.winner} ${m.result!.score}`);
+      `  #${String(m.matchIndex).padStart(2)} ${name(m.teamA[0])}+${name(m.teamA[1])} vs ${name(m.teamB[0])}+${name(m.teamB[1])} → ${m.result!.winner} ${(m.result as { setsLost: number }).setsLost}`);
     const standingsLines = table.map((r) =>
       `  ${String(r.rank).padStart(2)}. ${name(r.playerId)}  ${r.wins}W-${r.losses}L  diff ${r.gameDiff >= 0 ? "+" : ""}${r.gameDiff}  sos ${strengthOfSchedule(n.pool, r.playerId)}${r.tiebreakApplied ? `  (${r.tiebreakApplied})` : ""}${r.requiresCoinFlip ? "  [flip]" : ""}`);
     const encounterLine = `encounters: min ${Math.min(...encounterCounts)}, avg ${avgEncounters.toFixed(1)} of 15 possible · flips flagged: ${flagged.length}`;
@@ -393,19 +394,19 @@ describe("Strength of schedule", () => {
     });
     const players = ["t1", "t2", "x1", "x2", "o1", "o2", "o3", "o4", "o5", "o6"].map(P);
     let seq = 0;
-    const M = (teamA: [string, string], teamB: [string, string], winner: "A" | "B", score: AmericanoScore): AmericanoMatch => ({
+    const M = (teamA: [string, string], teamB: [string, string], winner: "A" | "B", setsLost: number): AmericanoMatch => ({
       id: `s${++seq}`, poolId: "px", matchIndex: seq, teamA, teamB,
-      result: { winner, score }, status: "completed", phase: "round_robin",
+      result: { winner, setsLost }, status: "completed", phase: "round_robin",
       startedAt: seq * 10, completedAt: seq * 10 + 5,
     });
     const pool: AmericanoPool = {
       id: "px", label: "Court 2", playerIds: players.map((p) => p.playerId),
-      targetMatches: 3, playoffMode: "top8", status: "round_robin",
+      targetMatches: 3, playoffMode: "top8", status: "round_robin", matchFormat: DEFAULT_FORMAT,
       matches: [
-        M(["t1", "x1"], ["o1", "o2"], "A", "2-1"),   // t1: 1W-0L +1, faced o1,o2
-        M(["t2", "x2"], ["o3", "o4"], "A", "2-1"),   // t2: 1W-0L +1, faced o3,o4
-        M(["o1", "o2"], ["o5", "o6"], "A", "2-1"),   // o1,o2 bank a win each → t1's SOS 2
-        M(["x1", "x2"], ["o5", "o6"], "B", "2-0"),   // keeps x1/x2 off the 1W-0L line
+        M(["t1", "x1"], ["o1", "o2"], "A", 1),   // t1: 1W-0L +1, faced o1,o2
+        M(["t2", "x2"], ["o3", "o4"], "A", 1),   // t2: 1W-0L +1, faced o3,o4
+        M(["o1", "o2"], ["o5", "o6"], "A", 1),   // o1,o2 bank a win each → t1's SOS 2
+        M(["x1", "x2"], ["o5", "o6"], "B", 0),   // keeps x1/x2 off the 1W-0L line
       ],
     };
     const table = computeStandings(pool, players);

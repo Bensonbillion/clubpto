@@ -12,8 +12,9 @@
 // class is extinct.
 
 import { describe, expect, it } from "vitest";
+import { DEFAULT_FORMAT } from "../format";
 import type {
-  AmericanoMatch, AmericanoPlayer, AmericanoPool, AmericanoScore, AmericanoSession,
+  AmericanoMatch, AmericanoPlayer, AmericanoPool, AmericanoSession,
 } from "@/types/americano";
 import { computeRecords, computeStandings, strengthOfSchedule, tiedGroup } from "../standings";
 import { migrateAmericanoSession } from "../migrate";
@@ -34,21 +35,21 @@ const mkPlayers = (n: number, prefix = "t"): AmericanoPlayer[] =>
 
 const M = (
   i: number, tA: [string, string], tB: [string, string],
-  winner: "A" | "B" = "A", score: AmericanoScore = "2-1",
+  winner: "A" | "B" = "A", setsLost = 1,
 ): AmericanoMatch => ({
   id: `court-2-m${i}`, poolId: "court-2", matchIndex: i, teamA: tA, teamB: tB,
-  result: { winner, score }, status: "completed", phase: "round_robin",
+  result: { winner, setsLost }, status: "completed", phase: "round_robin",
   startedAt: i * 100, completedAt: i * 100 + 50,
 });
 
 const mkPool = (ids: string[], matches: AmericanoMatch[]): AmericanoPool => ({
   id: "court-2", label: "Court 2", playerIds: ids, targetMatches: 2,
-  playoffMode: "top8", status: "round_robin", matches,
+  playoffMode: "top8", status: "round_robin", matches, matchFormat: DEFAULT_FORMAT,
 });
 
 const sess = (pool: AmericanoPool, players: AmericanoPlayer[]): AmericanoSession => ({
   id: "n", date: "2026-08-12", sessionName: "", players, pools: [pool],
-  isPractice: true, status: "active",
+  defaultMatchFormat: DEFAULT_FORMAT, isPractice: true, status: "active",
 });
 
 const P = (s: AmericanoSession) => s.pools[0];
@@ -183,7 +184,7 @@ describe("REGRESSION 6.1-a: a live resolution can never be contradicted", () => 
       pools: s.pools.map((p) => ({
         ...p,
         matches: p.matches.map((m) =>
-          m.id === "court-2-m1" ? { ...m, result: { winner: "A", score: "2-0" as AmericanoScore } } : m,
+          m.id === "court-2-m1" ? { ...m, result: { winner: "A" as const, setsLost: 0 } } : m,
         ),
       })),
     };
@@ -359,7 +360,7 @@ describe("SWEEP: the inert-resolution class is extinct (STEP 6.2)", () => {
       for (let i = 1; i <= 6; i++) {
         const pick = [...ids].sort(() => r() - 0.5).slice(0, 4);
         matches.push(M(i, [pick[0], pick[1]], [pick[2], pick[3]],
-          r() < 0.5 ? "A" : "B", r() < 0.5 ? "2-0" : "2-1"));
+          r() < 0.5 ? "A" : "B", r() < 0.5 ? 0 : 1));
       }
       let s = sess(mkPool(ids, matches), players);
       s = settle(s, (a, b) => (r() < 0.5 ? a : b));
@@ -374,7 +375,7 @@ describe("SWEEP: the inert-resolution class is extinct (STEP 6.2)", () => {
               matches: p.matches.map((x) =>
                 x.id !== m.id ? x
                   : mutate === "void" ? { ...x, status: "voided" as const }
-                  : { ...x, result: { winner: x.result!.winner === "A" ? "B" as const : "A" as const, score: x.result!.score } },
+                  : { ...x, result: { winner: x.result!.winner === "A" ? "B" as const : "A" as const, setsLost: (x.result as { setsLost: number }).setsLost } },
               ),
             })),
           };

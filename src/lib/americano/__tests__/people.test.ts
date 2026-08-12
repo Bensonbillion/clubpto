@@ -3,6 +3,7 @@
 // left + the fill rule, below-four reachable and reversible.
 
 import { describe, expect, it } from "vitest";
+import { DEFAULT_FORMAT } from "../format";
 import type {
   AmericanoMatch, AmericanoPlayer, AmericanoPool, AmericanoSession, AmericanoTier,
 } from "@/types/americano";
@@ -25,12 +26,12 @@ const mkPlayers = (n: number, prefix = "p"): AmericanoPlayer[] =>
 
 const mkSession = (pools: AmericanoPool[], players: AmericanoPlayer[]): AmericanoSession => ({
   id: "night-people", date: "2026-08-12", sessionName: "people",
-  players, pools, isPractice: true, status: "active",
+  players, pools, defaultMatchFormat: DEFAULT_FORMAT, isPractice: true, status: "active",
 });
 
 const court2 = (players: AmericanoPlayer[], target: number): AmericanoPool => ({
   id: "court-2", label: "Court 2", playerIds: players.map((p) => p.playerId),
-  targetMatches: target, playoffMode: "top8", status: "round_robin", matches: [],
+  targetMatches: target, playoffMode: "top8", status: "round_robin", matches: [], matchFormat: DEFAULT_FORMAT,
 });
 
 const pool2 = (s: AmericanoSession) => s.pools.find((p) => p.id === "court-2")!;
@@ -55,7 +56,7 @@ describe("not-here (STEP 5)", () => {
     // disjoint never-played quartets, so every m4 player has zero completed.
     for (let i = 0; i < 3; i++) {
       state = ensureLive(state, clock);
-      state = applyResult(state, active2(state)!.id, "A", "2-0", clock + 60_000);
+      state = applyResult(state, active2(state)!.id, { winner: "A", setsLost: 0 }, clock + 60_000);
       clock += 60_000;
     }
     state = ensureLive(state, clock);
@@ -114,7 +115,7 @@ describe("not-here (STEP 5)", () => {
     state = ensureLive(state, 0);
     const m1 = active2(state)!;
     const played = m1.teamA[0];
-    state = applyResult(state, m1.id, "A", "2-0", 60_000);
+    state = applyResult(state, m1.id, { winner: "A", setsLost: 0 }, 60_000);
 
     expect(canMarkNotHere(state, played)).toBe(false);
     expect(markNotHere(state, played)).toBe(state); // identity — rejected
@@ -150,12 +151,12 @@ describe("rejoin + the single catch-up through markArrived (STEP 5)", () => {
     const done = (i: number, four: string[]): AmericanoMatch => ({
       id: `court-2-m${i}`, poolId: "court-2", matchIndex: i,
       teamA: [four[0], four[1]], teamB: [four[2], four[3]],
-      result: { winner: "A", score: "2-0" }, status: "completed",
+      result: { winner: "A", setsLost: 0 }, status: "completed",
       phase: "round_robin", startedAt: i * 100, completedAt: i * 100 + 50,
     });
     const pool: AmericanoPool = {
       id: "court-2", label: "Court 2", playerIds: [...ids, "p8"],
-      targetMatches: 3, playoffMode: "top8", status: "round_robin",
+      targetMatches: 3, playoffMode: "top8", status: "round_robin", matchFormat: DEFAULT_FORMAT,
       matches: [
         done(1, ["p1", "p2", "p3", "p4"]),
         done(2, ["p5", "p6", "p7", "p1"]),
@@ -185,7 +186,7 @@ describe("rejoin + the single catch-up through markArrived (STEP 5)", () => {
     state = ensureLive(state, clock, collect);
     expect(seated(active2(state)!)).toContain("p8");
     expect(events[0].warnings).toEqual([]);
-    state = applyResult(state, active2(state)!.id, "A", "2-1", clock + 60_000);
+    state = applyResult(state, active2(state)!.id, { winner: "A", setsLost: 1 }, clock + 60_000);
 
     // Straight back on court: the single catch-up is GRANTED and consumed —
     // an exemption, not a relaxation, so no warning surfaces.
@@ -194,7 +195,7 @@ describe("rejoin + the single catch-up through markArrived (STEP 5)", () => {
     expect(events[1].warnings).toEqual([]);
     expect(player(state, "p8").catchUpUsed).toBe(true);
     expect(refresh(state, clock + 62_000)).toEqual(state);
-    state = applyResult(state, active2(state)!.id, "B", "2-0", clock + 120_000);
+    state = applyResult(state, active2(state)!.id, { winner: "B", setsLost: 0 }, clock + 120_000);
 
     // Forced on court a third consecutive time by the counts — but the
     // catch-up is spent, so this one is REFUSED as a grant and surfaced as a
@@ -203,7 +204,7 @@ describe("rejoin + the single catch-up through markArrived (STEP 5)", () => {
     expect(seated(active2(state)!)).toContain("p8");
     expect(events[2].warnings.some((w) => w.includes("Back-to-back relaxed"))).toBe(true);
     expect(player(state, "p8").catchUpUsed).toBe(true); // never granted twice
-    state = applyResult(state, active2(state)!.id, "A", "2-0", clock + 180_000);
+    state = applyResult(state, active2(state)!.id, { winner: "A", setsLost: 0 }, clock + 180_000);
 
     // 8 @ 3 = 6 matches exactly: the night is complete, everyone at target.
     expect(generateNextMatch(pool2(state), state.players)).toEqual({ blocked: "all_at_target" });
@@ -219,7 +220,7 @@ describe("rejoin + the single catch-up through markArrived (STEP 5)", () => {
     let state = build();
     state = markArrived(state, "p8");
     state = ensureLive(state, 1_000);
-    state = applyResult(state, active2(state)!.id, "A", "2-1", 60_000);
+    state = applyResult(state, active2(state)!.id, { winner: "A", setsLost: 1 }, 60_000);
 
     // The catch-up seating: p8 straight back on court, exemption spent.
     state = ensureLive(state, 61_000);
@@ -244,7 +245,7 @@ describe("rejoin + the single catch-up through markArrived (STEP 5)", () => {
     expect(refresh(rolled, 63_000)).toEqual(rolled);
 
     // Contrast: once the granted match is PLAYED, nothing is refunded.
-    const played = applyResult(state, granted.id, "A", "2-0", 120_000);
+    const played = applyResult(state, granted.id, { winner: "A", setsLost: 0 }, 120_000);
     expect(player(played, "p8").catchUpUsed).toBe(true);
   });
 
@@ -266,7 +267,7 @@ describe("left + the fill rule (STEP 5)", () => {
     // One completed match, then a fresh one on court — the leaver has history
     // AND is mid-match, which is the case markNotHere cannot cover.
     state = ensureLive(state, 0);
-    state = applyResult(state, active2(state)!.id, "A", "2-0", 60_000);
+    state = applyResult(state, active2(state)!.id, { winner: "A", setsLost: 0 }, 60_000);
     state = ensureLive(state, 61_000);
     const onCourt = active2(state)!;
     const leaver = onCourt.teamA[0];
@@ -294,7 +295,7 @@ describe("left + the fill rule (STEP 5)", () => {
     let clock = 0;
     for (let i = 0; i < 4; i++) {
       state = ensureLive(state, clock);
-      state = applyResult(state, active2(state)!.id, "A", "2-0", clock + 60_000);
+      state = applyResult(state, active2(state)!.id, { winner: "A", setsLost: 0 }, clock + 60_000);
       clock += 60_000;
     }
     // A player with one completed match who is NOT on court leaves.
@@ -315,7 +316,7 @@ describe("left + the fill rule (STEP 5)", () => {
         .map((p) => matchesPlayed(pool2(state), p.playerId));
       expect(Math.max(...counts)).toBeLessThanOrEqual(4);
       expect(refresh(state, clock + 1)).toEqual(state);
-      state = applyResult(state, live.id, guard % 2 ? "A" : "B", "2-1", clock + 60_000);
+      state = applyResult(state, live.id, { winner: guard % 2 ? "A" : "B", setsLost: 1 }, clock + 60_000);
       clock += 60_000;
     }
 
@@ -332,7 +333,7 @@ describe("left + the fill rule (STEP 5)", () => {
     const players = mkPlayers(16);
     let state = mkSession([court2(players, 3)], players);
     state = ensureLive(state, 0);
-    state = applyResult(state, active2(state)!.id, "A", "2-0", 60_000);
+    state = applyResult(state, active2(state)!.id, { winner: "A", setsLost: 0 }, 60_000);
 
     // Everyone but three leaves (the active match discards as they go).
     for (const p of players.slice(0, 13)) state = markLeft(state, p.playerId);
@@ -370,7 +371,7 @@ describe("pace honesty once people move (STEP 5 regression)", () => {
     let done = 0;
     while (state.players.filter((p) => matchesPlayed(pool2(state), p.playerId) >= 3).length < 4) {
       state = ensureLive(state, clock);
-      state = applyResult(state, active2(state)!.id, "A", "2-0", clock + 60_000);
+      state = applyResult(state, active2(state)!.id, { winner: "A", setsLost: 0 }, clock + 60_000);
       clock += 60_000;
       done++;
     }
@@ -398,7 +399,7 @@ describe("pace honesty once people move (STEP 5 regression)", () => {
     let state = mkSession([court2(players, 3)], players);
     state = ensureLive(state, 0);
     const first = active2(state)!;
-    state = applyResult(state, first.id, "A", "2-0", 60_000);
+    state = applyResult(state, first.id, { winner: "A", setsLost: 0 }, 60_000);
     for (const id of seated(first)) state = markLeft(state, id);
 
     const pace = poolPace(pool2(state), state.players, 60_000);
@@ -411,7 +412,7 @@ describe("pace honesty once people move (STEP 5 regression)", () => {
       state = ensureLive(state, clock);
       const live = active2(state);
       if (!live) break;
-      state = applyResult(state, live.id, "A", "2-1", clock + 60_000);
+      state = applyResult(state, live.id, { winner: "A", setsLost: 1 }, clock + 60_000);
       clock += 60_000;
       ran++;
     }
@@ -455,7 +456,7 @@ describe("full night with one of each event, refresh-simulated at every step (ST
         state = markLeft(state, leaverId);
       }
 
-      state = applyResult(state, active2(state)!.id, steps % 2 ? "A" : "B", "2-0", clock + 60_000);
+      state = applyResult(state, active2(state)!.id, { winner: steps % 2 ? "A" : "B", setsLost: 0 }, clock + 60_000);
       clock += 60_000;
     }
 

@@ -8,8 +8,9 @@
 // across a correction, and the honest decline.
 
 import { describe, expect, it } from "vitest";
+import { DEFAULT_FORMAT } from "../format";
 import type {
-  AmericanoMatch, AmericanoPlayer, AmericanoPool, AmericanoScore, AmericanoSession,
+  AmericanoMatch, AmericanoPlayer, AmericanoPool, AmericanoSession,
   AmericanoTier,
 } from "@/types/americano";
 import { generateNextMatch, pairKey } from "../generator";
@@ -46,7 +47,7 @@ function scenarioOne(): { session: AmericanoSession; players: AmericanoPlayer[] 
   const players = mkPlayers(16);
   const pool: AmericanoPool = {
     id: "court-2", label: "Court 2", playerIds: players.map((p) => p.playerId),
-    targetMatches: 3, playoffMode: "top8", status: "round_robin", matches: [],
+    targetMatches: 3, playoffMode: "top8", status: "round_robin", matches: [], matchFormat: DEFAULT_FORMAT,
   };
   const strengthOf = (id: string) => {
     const p = players.find((x) => x.playerId === id)!;
@@ -65,12 +66,11 @@ function scenarioOne(): { session: AmericanoSession; players: AmericanoPlayer[] 
     const key = teamA.join() + "|" + teamB.join() + RESULT_SALT;
     const winner = hash(key) % (a + b) < a ? "A" : "B";
     const margin = winner === "A" ? a - b : b - a;
-    const score: AmericanoScore =
-      (hash(key + "s") % 24) < 8 + Math.max(-6, Math.min(12, margin)) ? "2-0" : "2-1";
+    const setsLost = (hash(key + "s") % 24) < 8 + Math.max(-6, Math.min(12, margin)) ? 0 : 1;
     const match: AmericanoMatch = {
       id: `court-2-m${pool.matches.length + 1}`, poolId: pool.id,
       matchIndex: pool.matches.length + 1, teamA, teamB,
-      result: { winner, score }, status: "completed", phase: "round_robin",
+      result: { winner, setsLost }, status: "completed", phase: "round_robin",
       startedAt: clock, completedAt: clock + MATCH_MS,
     };
     clock += MATCH_MS;
@@ -79,7 +79,7 @@ function scenarioOne(): { session: AmericanoSession; players: AmericanoPlayer[] 
   return {
     session: {
       id: "night-s1", date: "2026-08-12", sessionName: "Scenario 1",
-      players, pools: [pool], isPractice: true, status: "active",
+      players, pools: [pool], defaultMatchFormat: DEFAULT_FORMAT, isPractice: true, status: "active",
     },
     players,
   };
@@ -174,7 +174,7 @@ describe("the staleness rule on a real night (STEP 6.2)", () => {
         ...p,
         matches: p.matches.map((m) =>
           m.id === target.id
-            ? { ...m, result: { winner: m.result!.winner === "A" ? "B" as const : "A" as const, score: m.result!.score } }
+            ? { ...m, result: { winner: m.result!.winner === "A" ? "B" as const : "A" as const, setsLost: (m.result as { setsLost: number }).setsLost } }
             : m,
         ),
       })),
@@ -255,7 +255,7 @@ describe("the overlay declines honestly (STEP 6.1, group reducer)", () => {
         ...p,
         matches: p.matches.map((m) =>
           m.id === target.id
-            ? { ...m, result: { winner: m.result!.winner === "A" ? "B" as const : "A" as const, score: m.result!.score } }
+            ? { ...m, result: { winner: m.result!.winner === "A" ? "B" as const : "A" as const, setsLost: (m.result as { setsLost: number }).setsLost } }
             : m,
         ),
       })),

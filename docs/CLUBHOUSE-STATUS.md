@@ -126,3 +126,15 @@ Before the first live Wednesday on /manage4:
   deterministically by tests (attemptCoinFlip refusals + flipPhase in
   src/lib/americano/__tests__/), but one real-device confirmation is wanted
   before the system decides a real standings position.
+
+## Step 9 (publish pipeline) — match-format items (added 2026-08-12, Step F)
+Match format is now a per-pool, setup-time choice (best of N, or a single game
+to T). Two things the publish pipeline MUST carry when it is built:
+- **Format metadata per pool** on every published session — a session is not
+  self-describing without it, because "+3" means a 3–0 best-of-5 on one court
+  and a 7–4 game on the other.
+- **Never sum differentials across sessions of different formats.** A game to
+  7 yields ±7 at the extreme; a best of 3 yields ±2. Season-level aggregation
+  has to group by format (or normalise deliberately) — a raw SUM(gameDiff)
+  across a season that mixed formats is a meaningless number that will look
+  perfectly plausible.

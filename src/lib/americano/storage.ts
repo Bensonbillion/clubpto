@@ -43,7 +43,7 @@ function americanoRemote(): RemoteSync<AmericanoSession> {
         .eq("id", AMERICANO_ROW_ID)
         .maybeSingle();
       if (error) throw error;
-      return (data?.state as Envelope<AmericanoSession> | null) ?? null;
+      return (data?.state as unknown as Envelope<AmericanoSession> | null) ?? null;
     },
   };
 }

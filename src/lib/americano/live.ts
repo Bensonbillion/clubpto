@@ -8,7 +8,7 @@
 // so an impure id here would fork between the two passes).
 
 import type {
-  AmericanoMatch, AmericanoScore, AmericanoSession,
+  AmericanoMatch, AmericanoResult, AmericanoSession,
 } from "@/types/americano";
 import { activeMatch, generateNextMatch } from "./generator";
 
@@ -69,8 +69,7 @@ export function ensureLive(
 export function applyResult(
   s: AmericanoSession,
   matchId: string,
-  winner: "A" | "B",
-  score: AmericanoScore,
+  result: AmericanoResult,
   now: number,
 ): AmericanoSession {
   return {
@@ -79,7 +78,7 @@ export function applyResult(
       ...pool,
       matches: pool.matches.map((m) =>
         m.id === matchId && m.status === "active"
-          ? { ...m, result: { winner, score }, status: "completed" as const, completedAt: now }
+          ? { ...m, result, status: "completed" as const, completedAt: now }
           : m,
       ),
     })),
@@ -91,8 +90,7 @@ export function applyResult(
 export function applyCorrection(
   s: AmericanoSession,
   matchId: string,
-  winner: "A" | "B",
-  score: AmericanoScore,
+  result: AmericanoResult,
 ): AmericanoSession {
   return {
     ...s,
@@ -100,7 +98,7 @@ export function applyCorrection(
       ...pool,
       matches: pool.matches.map((m) =>
         m.id === matchId && m.status === "completed"
-          ? { ...m, result: { winner, score } }
+          ? { ...m, result }
           : m,
       ),
     })),
