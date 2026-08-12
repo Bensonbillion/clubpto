@@ -4,7 +4,7 @@
 // surface; tiers appear nowhere player-facing. All decisions come from
 // src/lib/americano/ — components hold zero game logic.
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Delete, FlaskConical, Lock, RotateCcw, Search, UserPlus } from "lucide-react";
 import type { AmericanoTier } from "@/types/americano";
 import {
@@ -441,6 +441,172 @@ const MatchLog = ({ a, view }: { a: UseAmericanoSession; view: PoolLiveView }) =
   );
 };
 
+/* ── standings + the visible coin flip (STEP 6) ───────────────────── */
+
+const TIEBREAK_CHIP: Record<string, string> = {
+  h2h: "H2H", sos: "SOS", coinflip: "COIN", losses: "L", diff: "DIFF",
+};
+
+/** The flip: full attention, both names large, ~2s of visible motion, then a
+    real landing. The entropy is drawn ONCE, up front — the animation is
+    theatre over an outcome already decided, never a race that could resolve
+    twice — and nothing is written until it lands. */
+const FlipOverlay = ({ a, poolId, pair, onClose }: {
+  a: UseAmericanoSession;
+  poolId: string;
+  pair: { a: string; b: string };
+  onClose: () => void;
+}) => {
+  const [landed, setLanded] = useState<string | null>(null);
+  const [highlight, setHighlight] = useState(pair.a);
+  const winnerRef = useRef<string | null>(null);
+  const recordedRef = useRef(false);
+
+  useEffect(() => {
+    const winner = a.tossCoin(pair.a, pair.b);
+    winnerRef.current = winner;
+    // ~2s of alternating emphasis, decelerating into the answer.
+    const steps = [90, 90, 110, 130, 150, 170, 200, 230, 260, 290, 320];
+    const timers: number[] = [];
+    let elapsed = 0;
+    steps.forEach((gap, i) => {
+      elapsed += gap;
+      timers.push(window.setTimeout(
+        () => setHighlight(i % 2 === 0 ? pair.b : pair.a), elapsed,
+      ));
+    });
+    timers.push(window.setTimeout(() => {
+      setHighlight(winner);
+      setLanded(winner);
+      if (!recordedRef.current) {
+        recordedRef.current = true;
+        a.recordCoinFlip(poolId, pair.a, pair.b, winner);
+      }
+    }, elapsed + 260));
+    return () => timers.forEach(window.clearTimeout);
+    // Deliberately once per mount: re-running would re-toss a decided flip.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const name = (id: string) => a.playerName(id);
+  const side = (id: string) => (
+    <div className={`w-full rounded-lg border-2 px-5 py-6 text-center font-display text-3xl md:text-4xl transition-all duration-150 ${
+      landed === id ? "border-gold bg-gold/20 text-gold scale-105"
+      : landed && landed !== id ? "border-border text-muted-foreground/50"
+      : highlight === id ? "border-gold/70 bg-gold/10 text-cream" : "border-border text-cream"}`}>
+      {name(id)}
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-5">
+      <div className="w-full max-w-md space-y-4">
+        <p className="text-center text-xs uppercase tracking-widest text-muted-foreground">
+          {landed ? "The coin has landed" : "Coin flip — everything else was level"}
+        </p>
+        {side(pair.a)}
+        <p className="text-center text-muted-foreground text-sm">vs</p>
+        {side(pair.b)}
+        {landed ? (
+          <div className="space-y-2 pt-1">
+            <p className="text-center text-lg text-cream">
+              <span className="text-gold font-display text-2xl">{name(landed)}</span> takes the higher rank.
+            </p>
+            <button onClick={onClose}
+              className="w-full min-h-[56px] rounded-lg bg-gold text-dark font-display text-lg transition-all active:scale-[0.99] hover:bg-gold/90">
+              Done
+            </button>
+          </div>
+        ) : (
+          <p className="text-center text-sm text-muted-foreground animate-pulse pt-1">flipping…</p>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/** Rank · name · W–L · DIFF · SOS, recomputed on every change. Tied rows the
+    chain cannot separate are visually joined and carry [FLIP]. */
+const StandingsPanel = ({ a, view, onFlip }: {
+  a: UseAmericanoSession;
+  view: PoolLiveView;
+  onFlip: (pair: { a: string; b: string }) => void;
+}) => {
+  const [open, setOpen] = useState(false);
+  const rows = view.standings;
+  const flipCount = rows.filter((r) => r.requiresCoinFlip).length;
+  return (
+    <div className="rounded-lg border border-border bg-dark-elevated/50">
+      <button onClick={() => setOpen((o) => !o)}
+        className="w-full min-h-[44px] px-3 text-left text-xs uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+        <span>Standings</span>
+        {flipCount > 0 && (
+          <span className="text-[10px] tracking-widest text-gold border border-gold/50 rounded-full px-2">
+            {flipCount / 2 >= 1 ? `${Math.round(flipCount / 2)} flip${flipCount > 2 ? "s" : ""} pending` : "flip pending"}
+          </span>
+        )}
+        <span className="ml-auto">{open ? "▴" : "▾"}</span>
+      </button>
+      {open && (
+        <div className="border-t border-border/60">
+          <div className="px-3 py-1.5 flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground/70">
+            <span className="w-6">#</span>
+            <span className="flex-1">Player</span>
+            <span className="w-12 text-right">W–L</span>
+            <span className="w-12 text-right">Diff</span>
+            <span className="w-10 text-right">SOS</span>
+          </div>
+          <div className="divide-y divide-border/40">
+            {rows.map((r, i) => {
+              const tiedAbove = i > 0 && rows[i - 1].requiresCoinFlip && r.requiresCoinFlip
+                && rows[i - 1].flipWith === r.playerId;
+              const tiedBelow = r.requiresCoinFlip && r.flipWith === rows[i + 1]?.playerId;
+              return (
+                <div key={r.playerId}
+                  className={`px-3 py-2 flex items-center gap-2 ${
+                    r.requiresCoinFlip ? "bg-gold/[0.05]" : ""} ${
+                    tiedAbove ? "border-t-0" : ""}`}>
+                  <span className="w-6 text-sm text-muted-foreground/70">{r.rank}</span>
+                  <span className="flex-1 min-w-0 text-sm text-cream truncate">
+                    {r.name}
+                    {r.tiebreak && (
+                      <span className="ml-1.5 text-[9px] uppercase tracking-widest text-muted-foreground border border-border rounded px-1 py-0.5">
+                        {TIEBREAK_CHIP[r.tiebreak] ?? r.tiebreak}
+                      </span>
+                    )}
+                  </span>
+                  <span className="w-12 text-right text-sm text-cream">{r.wins}–{r.losses}</span>
+                  <span className="w-12 text-right text-sm text-muted-foreground">
+                    {r.gameDiff >= 0 ? "+" : ""}{r.gameDiff}
+                  </span>
+                  <span className="w-10 text-right text-sm text-muted-foreground/70">{r.sos}</span>
+                  {tiedBelow && r.flipWith && (
+                    <button onClick={() => onFlip({ a: r.playerId, b: r.flipWith! })}
+                      className="min-h-[36px] px-2 rounded border border-gold/60 text-[10px] uppercase tracking-widest text-gold hover:bg-gold/10 transition-colors">
+                      Flip
+                    </button>
+                  )}
+                  {r.requiresCoinFlip && !tiedBelow && (
+                    <span className="w-[52px] text-right text-[10px] uppercase tracking-widest text-gold/70">tied</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {flipCount > 0 && (
+            <p className="px-3 py-2 text-xs text-muted-foreground border-t border-border/40">
+              Tied on wins, losses, differential, head-to-head and strength of schedule.
+              Nothing forces a flip during the round robin — provisional order is fine until it seeds a bracket.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/** STEP 5 — the small sheet behind an active-match name tap.
+
 /** STEP 5 — the small sheet behind an active-match name tap. "Not here" only
     while truthful (zero history — the hook asks the lib); "Left" any time. */
 const PlayerSheet = ({ a, playerId, onClose }: {
@@ -561,8 +727,10 @@ const NotArrivedStrip = ({ a }: { a: UseAmericanoSession }) => {
   );
 };
 
-const PoolColumn = ({ a, view, onPlayerTap }: {
-  a: UseAmericanoSession; view: PoolLiveView; onPlayerTap: (playerId: string) => void;
+const PoolColumn = ({ a, view, onPlayerTap, onFlip }: {
+  a: UseAmericanoSession; view: PoolLiveView;
+  onPlayerTap: (playerId: string) => void;
+  onFlip: (poolId: string, pair: { a: string; b: string }) => void;
 }) => {
   const fresh = view.active !== null && a.freshMatchIds.has(view.active.id);
   const poolNotices = a.notices[view.pool.id] ?? [];
@@ -632,6 +800,7 @@ const PoolColumn = ({ a, view, onPlayerTap }: {
         </div>
       )}
 
+      <StandingsPanel a={a} view={view} onFlip={(pair) => onFlip(view.pool.id, pair)} />
       <RosterPanel a={a} view={view} />
       <MatchLog a={a} view={view} />
     </div>
@@ -640,6 +809,7 @@ const PoolColumn = ({ a, view, onPlayerTap }: {
 
 const LiveScreen = ({ a }: { a: UseAmericanoSession }) => {
   const [sheetPlayerId, setSheetPlayerId] = useState<string | null>(null);
+  const [flip, setFlip] = useState<{ poolId: string; pair: { a: string; b: string } } | null>(null);
   return (
   <div className="space-y-4">
     <div className="rounded-lg border border-border bg-dark-surface px-4 py-3 flex items-center gap-3 flex-wrap">
@@ -664,13 +834,16 @@ const LiveScreen = ({ a }: { a: UseAmericanoSession }) => {
     )}
     <div className="flex flex-col lg:flex-row gap-4 lg:items-start">
       {a.liveViews.map((view) => (
-        <PoolColumn key={view.pool.id} a={a} view={view} onPlayerTap={setSheetPlayerId} />
+        <PoolColumn key={view.pool.id} a={a} view={view} onPlayerTap={setSheetPlayerId}
+          onFlip={(poolId, pair) => setFlip({ poolId, pair })} />
       ))}
     </div>
     <NotArrivedStrip a={a} />
-    {/* Step 6's standings attach per pool. */}
     {sheetPlayerId && (
       <PlayerSheet a={a} playerId={sheetPlayerId} onClose={() => setSheetPlayerId(null)} />
+    )}
+    {flip && (
+      <FlipOverlay a={a} poolId={flip.poolId} pair={flip.pair} onClose={() => setFlip(null)} />
     )}
   </div>
   );

@@ -20,12 +20,17 @@
 //        envelope loads unchanged, its in-flight matches simply carry no
 //        receipt (worst case: one exemption not refunded, exactly today's
 //        behaviour).
+//   v7 — AmericanoPool.coinFlipResolutions (Step 6): the visible coin flips
+//        run tonight. The ONLY standings-related state ever persisted — the
+//        table itself is always recomputed. Optional and additive; a v6
+//        envelope loads with no flips recorded, which is the honest state of
+//        a night where none were run.
 
 import type {
   AmericanoPlayer, AmericanoPool, AmericanoSession,
 } from "@/types/americano";
 
-export const AMERICANO_SCHEMA_VERSION = 6;
+export const AMERICANO_SCHEMA_VERSION = 7;
 
 export function emptyPool(id: string, label: "Court 1" | "Court 2"): AmericanoPool {
   return {

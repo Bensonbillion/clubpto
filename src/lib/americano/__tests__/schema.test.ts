@@ -16,6 +16,7 @@ import v3 from "../__fixtures__/session.v3.json";
 import v4 from "../__fixtures__/session.v4.json";
 import v5 from "../__fixtures__/session.v5.json";
 import v6 from "../__fixtures__/session.v6.json";
+import v7 from "../__fixtures__/session.v7.json";
 
 const TODAY = "2026-09-01";
 
@@ -31,20 +32,20 @@ function assertValid(healed: AmericanoSession | null): AmericanoSession {
 
 describe("schema-version guard", () => {
   it("the current fixture matches the live canonical serialization AND version", () => {
-    expect(v6.schemaVersion).toBe(AMERICANO_SCHEMA_VERSION);
-    expect(v6.state).toEqual(JSON.parse(JSON.stringify(canonicalSession())));
+    expect(v7.schemaVersion).toBe(AMERICANO_SCHEMA_VERSION);
+    expect(v7.state).toEqual(JSON.parse(JSON.stringify(canonicalSession())));
   });
 
   it("a current-version fixture named for an older version cannot exist", () => {
     // The naming convention IS the guard: session.vN.json ↔ version N.
-    for (const [fixture, version] of [[v2, 2], [v3, 3], [v4, 4], [v5, 5], [v6, 6]] as const) {
+    for (const [fixture, version] of [[v2, 2], [v3, 3], [v4, 4], [v5, 5], [v6, 6], [v7, 7]] as const) {
       expect(fixture.schemaVersion).toBe(version);
     }
-    expect(AMERICANO_SCHEMA_VERSION).toBe(6);
+    expect(AMERICANO_SCHEMA_VERSION).toBe(7);
   });
 
   it("every historical fixture round-trips through migrate, healed and valid", () => {
-    for (const fixture of [v2, v3, v4, v5]) {
+    for (const fixture of [v2, v3, v4, v5, v6]) {
       const healed = assertValid(migrateAmericanoSession(fixture.state, TODAY));
       // A second pass is a no-op — healing is idempotent.
       expect(migrateAmericanoSession(healed, TODAY)).toEqual(healed);

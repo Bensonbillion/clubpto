@@ -5,7 +5,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
-  AmericanoMatch, AmericanoPlayer, AmericanoPool, AmericanoScore, AmericanoSession, AmericanoTier,
+  AmericanoMatch, AmericanoPlayer, AmericanoPool, AmericanoScore, AmericanoSession,
+  AmericanoTier, StandingsRow,
 } from "@/types/americano";
 import {
   courtMatchesNeeded, poolSetupNotices, setupDefaultTarget, validTargets,
@@ -20,6 +21,10 @@ import {
 import {
   canMarkNotHere, markArrived, markLeft, markNotHere, restoreLeft,
 } from "@/lib/americano/people";
+import {
+  applyCoinFlip, pendingFlipPairs, pickFlipWinner, poolStandings, pruneStaleFlips,
+} from "@/lib/americano/flips";
+import { strengthOfSchedule } from "@/lib/americano/standings";
 import { poolPace, type PoolPace } from "@/lib/americano/pace";
 import {
   appendSharedRosterEntry, createAmericanoStore, fetchSharedRoster,
@@ -100,6 +105,21 @@ export interface PersonRow {
   canNotHere: boolean;
 }
 
+export interface StandingsRowView {
+  playerId: string;
+  rank: number;
+  name: string;
+  wins: number;
+  losses: number;
+  gameDiff: number;
+  sos: number;
+  /** h2h / sos / coin / losses / diff — what placed this row above the next. */
+  tiebreak: StandingsRow["tiebreakApplied"];
+  requiresCoinFlip: boolean;
+  /** The unresolved pair this row belongs to, when it is flip-tied. */
+  flipWith: string | null;
+}
+
 export interface PoolLiveView {
   pool: AmericanoPool;
   active: AmericanoMatch | null;
@@ -112,6 +132,8 @@ export interface PoolLiveView {
   log: AmericanoMatch[];
   /** The roster panel rows (STEP 5) — every session player in this pool. */
   people: PersonRow[];
+  /** Standings, recomputed every render — never stored (STEP 6). */
+  standings: StandingsRowView[];
 }
 
 export interface PoolSetupView {
@@ -165,6 +187,11 @@ export interface UseAmericanoSession {
   dismissNotices(poolId: string): void;
 
   // People logistics (STEP 5)
+  /** Record a flip the room just watched land (STEP 6). */
+  recordCoinFlip(poolId: string, a: string, b: string, winner: string): void;
+  /** The coin: real entropy, injected here so the lib stays deterministic. */
+  tossCoin(a: string, b: string): string;
+
   playerNotHere(playerId: string): void;
   playerArrived(playerId: string): void;
   playerLeft(playerId: string): void;
@@ -361,13 +388,16 @@ export function useAmericanoSession(): UseAmericanoSession {
   // double-invoked updater from queueing two different ids.)
   const pendingEventsRef = useRef<GenerationEvent[]>([]);
 
-  /** commit + keep the courts rolling + surface generation events. */
+  /** commit + keep the courts rolling + surface generation events.
+      Every commit also prunes coin flips whose tie no longer exists (STEP 6):
+      a correction or void that separates a flipped pair retires the flip on
+      the spot, so a stale toss can never quietly keep deciding a rank. */
   const commitLive = useCallback((updater: (prev: AmericanoSession) => AmericanoSession) => {
     setSession((prev) => {
-      const next = ensureLive(updater(prev), Date.now(), (e) => {
+      const next = pruneStaleFlips(ensureLive(updater(prev), Date.now(), (e) => {
         const q = pendingEventsRef.current;
         if (!q.some((x) => x.matchId === e.matchId)) q.push(e);
-      });
+      }));
       storeRef.current?.save(next, Date.now());
       return next;
     });
@@ -426,6 +456,24 @@ export function useAmericanoSession(): UseAmericanoSession {
   const dismissNotices = useCallback((poolId: string) => {
     setNotices((n) => ({ ...n, [poolId]: [] }));
   }, []);
+
+  /* ── the visible coin flip (STEP 6) ────────────────────────────── */
+
+  // The entropy lives here, at the edge: crypto.getRandomValues is the coin,
+  // the library only says which name that lands on. Falls back to Math.random
+  // only where WebCrypto is absent, never silently preferring it.
+  const tossCoin = useCallback((a: string, b: string) => {
+    const rand = () => {
+      const c = globalThis.crypto;
+      if (c?.getRandomValues) return c.getRandomValues(new Uint32Array(1))[0];
+      return Math.floor(Math.random() * 0xffffffff);
+    };
+    return pickFlipWinner(a, b, rand);
+  }, []);
+
+  const recordCoinFlip = useCallback((poolId: string, a: string, b: string, winner: string) => {
+    commitLive((s) => applyCoinFlip(s, poolId, a, b, winner, Date.now()));
+  }, [commitLive]);
 
   /* ── people logistics (STEP 5) ─────────────────────────────────── */
 
@@ -522,6 +570,23 @@ export function useAmericanoSession(): UseAmericanoSession {
             canNotHere: canMarkNotHere(session, p.playerId),
           }))
           .sort((a, b) => a.name.localeCompare(b.name)),
+        standings: (() => {
+          const pending = pendingFlipPairs(pool, session.players);
+          const partner = new Map<string, string>();
+          for (const { a, b } of pending) { partner.set(a, b); partner.set(b, a); }
+          return poolStandings(pool, session.players).map((r) => ({
+            playerId: r.playerId,
+            rank: r.rank,
+            name: playerName(r.playerId),
+            wins: r.wins,
+            losses: r.losses,
+            gameDiff: r.gameDiff,
+            sos: strengthOfSchedule(pool, r.playerId),
+            tiebreak: r.tiebreakApplied,
+            requiresCoinFlip: r.requiresCoinFlip,
+            flipWith: partner.get(r.playerId) ?? null,
+          }));
+        })(),
       };
     });
   }, [session, playerName, nowTick]);
@@ -543,7 +608,7 @@ export function useAmericanoSession(): UseAmericanoSession {
     togglePlayer, isPicked,
     poolViews, movePlayer, setTarget, canStart, startSession, resetNight,
     liveViews, playerName, enterResult, correctResult, voidMatch,
-    freshMatchIds, notices, dismissNotices,
+    freshMatchIds, notices, dismissNotices, recordCoinFlip, tossCoin,
     playerNotHere, playerArrived, playerLeft, playerRestore, canNotHere, notArrived,
   };
 }

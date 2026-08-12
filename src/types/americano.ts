@@ -68,6 +68,16 @@ export type AmericanoPlayoffMode = "top8" | "top4" | "none" | "undecided";
 
 export type AmericanoPoolStatus = "setup" | "round_robin" | "playoff" | "complete";
 
+/** One visible coin flip that happened. The ONLY standings-related state
+    that is ever persisted — the table itself is always recomputed. */
+export interface CoinFlipResolution {
+  a: string;
+  b: string;
+  /** Whichever of a/b the flip landed on. */
+  winner: string;
+  at: number;
+}
+
 export interface AmericanoPool {
   id: string;
   /** Court label — NEVER a tier label. */
@@ -77,6 +87,11 @@ export interface AmericanoPool {
   playoffMode: AmericanoPlayoffMode;
   status: AmericanoPoolStatus;
   matches: AmericanoMatch[];
+  /** Flips run tonight. A resolution lives only while its pair is still tied
+      on the whole pre-flip chain; a correction that breaks the tie drops it
+      (see lib/americano/flips.ts — old chance never carries into new
+      circumstances). */
+  coinFlipResolutions?: CoinFlipResolution[];
 }
 
 export type AmericanoSessionStatus = "setup" | "active" | "complete";
