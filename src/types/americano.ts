@@ -52,6 +52,14 @@ export interface AmericanoMatch {
   phase: AmericanoPhase;
   startedAt: number | null;
   completedAt: number | null;
+  /**
+   * Late arrivals whose ONE catch-up back-to-back was spent seating them in
+   * THIS match. Recorded so a discard (STEP 5: the match never happened) can
+   * hand the exemption back — without it, a discarded match silently costs a
+   * rejoiner their catch-up and the generator then pushes them out of the
+   * quartet they were owed.
+   */
+  catchUpGranted?: string[];
 }
 
 export type AmericanoPoolLabel = "Court 1" | "Court 2";

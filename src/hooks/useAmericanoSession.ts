@@ -12,11 +12,14 @@ import {
   type SetupNotice,
 } from "@/lib/americano/config";
 import {
-  activeMatch, generateNextMatch, nextSelectionPreview,
+  activeMatch, generateNextMatch, matchesPlayed, nextSelectionPreview,
 } from "@/lib/americano/generator";
 import {
   applyCorrection, applyResult, applyVoid, ensureLive, type GenerationEvent,
 } from "@/lib/americano/live";
+import {
+  canMarkNotHere, markArrived, markLeft, markNotHere, restoreLeft,
+} from "@/lib/americano/people";
 import { poolPace, type PoolPace } from "@/lib/americano/pace";
 import {
   appendSharedRosterEntry, createAmericanoStore, fetchSharedRoster,
@@ -87,6 +90,16 @@ const removeFromDraft = (s: AmericanoSession, playerId: string): AmericanoSessio
     })),
   });
 
+export interface PersonRow {
+  playerId: string;
+  name: string;
+  status: AmericanoPlayer["status"];
+  played: number;
+  target: number;
+  /** "Not here" is only offered while it is truthful (zero match history). */
+  canNotHere: boolean;
+}
+
 export interface PoolLiveView {
   pool: AmericanoPool;
   active: AmericanoMatch | null;
@@ -97,6 +110,8 @@ export interface PoolLiveView {
   pace: PoolPace;
   /** Every match, newest first (voided included, for the log). */
   log: AmericanoMatch[];
+  /** The roster panel rows (STEP 5) — every session player in this pool. */
+  people: PersonRow[];
 }
 
 export interface PoolSetupView {
@@ -148,6 +163,15 @@ export interface UseAmericanoSession {
   /** Generator warnings per pool, dismissible, never silent. */
   notices: Record<string, string[]>;
   dismissNotices(poolId: string): void;
+
+  // People logistics (STEP 5)
+  playerNotHere(playerId: string): void;
+  playerArrived(playerId: string): void;
+  playerLeft(playerId: string): void;
+  playerRestore(playerId: string): void;
+  canNotHere(playerId: string): boolean;
+  /** The NOT ARRIVED strip — hidden when empty. */
+  notArrived: { playerId: string; name: string; poolLabel: string }[];
 }
 
 export function useAmericanoSession(): UseAmericanoSession {
@@ -349,11 +373,27 @@ export function useAmericanoSession(): UseAmericanoSession {
     });
   }, []);
 
+  // Replacement notices ("X steps in for Y") queue the same way generation
+  // events do — pushed by the updater, drained after the commit.
+  const pendingPeopleNoticesRef = useRef<{ poolId: string; text: string }[]>([]);
+
   useEffect(() => {
-    if (pendingEventsRef.current.length === 0) return;
-    const events = pendingEventsRef.current;
-    pendingEventsRef.current = [];
-    surface(events);
+    if (pendingEventsRef.current.length > 0) {
+      const events = pendingEventsRef.current;
+      pendingEventsRef.current = [];
+      surface(events);
+    }
+    if (pendingPeopleNoticesRef.current.length > 0) {
+      const items = pendingPeopleNoticesRef.current;
+      pendingPeopleNoticesRef.current = [];
+      setNotices((n) => {
+        const next = { ...n };
+        for (const it of items) {
+          next[it.poolId] = [...new Set([...(next[it.poolId] ?? []), it.text])];
+        }
+        return next;
+      });
+    }
   }, [session, surface]);
 
   const startSession = useCallback(() => {
@@ -387,6 +427,65 @@ export function useAmericanoSession(): UseAmericanoSession {
     setNotices((n) => ({ ...n, [poolId]: [] }));
   }, []);
 
+  /* ── people logistics (STEP 5) ─────────────────────────────────── */
+
+  // Commit a status reducer; when it discards the on-court match, regenerate
+  // HERE (commitLive's own ensureLive then no-ops) so the replacement can be
+  // named in a notice — the discard-and-recall must never be silent.
+  const peopleCommit = useCallback((playerId: string, reduce: (s: AmericanoSession) => AmericanoSession) => {
+    commitLive((s) => {
+      const pool = s.pools.find((p) => p.playerIds.includes(playerId));
+      const hadActive = pool ? activeMatch(pool) : undefined;
+      const next = reduce(s);
+      if (next === s) return s;
+      const discarded =
+        pool && hadActive &&
+        [...hadActive.teamA, ...hadActive.teamB].includes(playerId) &&
+        !next.pools.find((p) => p.id === pool.id)!.matches.some((m) => m.id === hadActive.id);
+      if (!discarded) return next;
+      const rolled = ensureLive(next, Date.now(), (e) => {
+        const q = pendingEventsRef.current;
+        if (!q.some((x) => x.matchId === e.matchId)) q.push(e);
+      });
+      const newActive = activeMatch(rolled.pools.find((p) => p.id === pool.id)!);
+      if (newActive) {
+        const nameOf = (id: string) => s.players.find((p) => p.playerId === id)?.displayName ?? id;
+        const old = new Set([...hadActive.teamA, ...hadActive.teamB]);
+        const stepIn = [...newActive.teamA, ...newActive.teamB].filter((id) => !old.has(id));
+        const text =
+          stepIn.length > 0
+            ? `${stepIn.map(nameOf).join(" and ")} step${stepIn.length === 1 ? "s" : ""} in for ${nameOf(playerId)} — call the new names.`
+            : `The court re-called without ${nameOf(playerId)}.`;
+        const q = pendingPeopleNoticesRef.current;
+        if (!q.some((x) => x.poolId === pool.id && x.text === text)) q.push({ poolId: pool.id, text });
+      }
+      return rolled;
+    });
+  }, [commitLive]);
+
+  const playerNotHere = useCallback(
+    (id: string) => peopleCommit(id, (s) => markNotHere(s, id)), [peopleCommit]);
+  const playerArrived = useCallback(
+    (id: string) => peopleCommit(id, (s) => markArrived(s, id)), [peopleCommit]);
+  const playerLeft = useCallback(
+    (id: string) => peopleCommit(id, (s) => markLeft(s, id)), [peopleCommit]);
+  const playerRestore = useCallback(
+    (id: string) => peopleCommit(id, (s) => restoreLeft(s, id)), [peopleCommit]);
+  const canNotHere = useCallback(
+    (id: string) => canMarkNotHere(session, id), [session]);
+
+  const notArrived = useMemo(() => {
+    if (session.status === "setup") return [];
+    return session.players
+      .filter((p) => p.status === "not_arrived")
+      .map((p) => ({
+        playerId: p.playerId,
+        name: p.displayName,
+        poolLabel:
+          session.pools.find((pool) => pool.playerIds.includes(p.playerId))?.label ?? "",
+      }));
+  }, [session]);
+
   const playerName = useCallback(
     (id: string) => session.players.find((p) => p.playerId === id)?.displayName ?? id,
     [session.players],
@@ -409,8 +508,20 @@ export function useAmericanoSession(): UseAmericanoSession {
           ? previewIds.map(playerName).sort((a, b) => a.localeCompare(b))
           : null,
         blocked,
-        pace: poolPace(pool, nowTick),
+        pace: poolPace(pool, session.players, nowTick),
         log: [...pool.matches].reverse(),
+        people: pool.playerIds
+          .map((id) => session.players.find((p) => p.playerId === id))
+          .filter((p): p is AmericanoPlayer => !!p)
+          .map((p) => ({
+            playerId: p.playerId,
+            name: p.displayName,
+            status: p.status,
+            played: matchesPlayed(pool, p.playerId),
+            target: pool.targetMatches,
+            canNotHere: canMarkNotHere(session, p.playerId),
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name)),
       };
     });
   }, [session, playerName, nowTick]);
@@ -421,6 +532,7 @@ export function useAmericanoSession(): UseAmericanoSession {
     setNotices({});
     setFreshMatchIds(new Set());
     pendingEventsRef.current = [];
+    pendingPeopleNoticesRef.current = [];
     commit(() => DEFAULTS());
   }, [commit]);
 
@@ -432,5 +544,6 @@ export function useAmericanoSession(): UseAmericanoSession {
     poolViews, movePlayer, setTarget, canStart, startSession, resetNight,
     liveViews, playerName, enterResult, correctResult, voidMatch,
     freshMatchIds, notices, dismissNotices,
+    playerNotHere, playerArrived, playerLeft, playerRestore, canNotHere, notArrived,
   };
 }

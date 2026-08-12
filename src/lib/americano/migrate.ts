@@ -14,12 +14,18 @@
 //        active (or any pool has matches), a player who appears in ANY match
 //        (voided included) is NEVER silently re-seated — an orphan with
 //        history becomes a surfaced hard error instead.
+//   v6 — AmericanoMatch.catchUpGranted (Step 5): the receipt for a late
+//        arrival's single catch-up, so discarding an unplayed match refunds
+//        the exemption instead of burning it. Optional and additive — a v5
+//        envelope loads unchanged, its in-flight matches simply carry no
+//        receipt (worst case: one exemption not refunded, exactly today's
+//        behaviour).
 
 import type {
   AmericanoPlayer, AmericanoPool, AmericanoSession,
 } from "@/types/americano";
 
-export const AMERICANO_SCHEMA_VERSION = 5;
+export const AMERICANO_SCHEMA_VERSION = 6;
 
 export function emptyPool(id: string, label: "Court 1" | "Court 2"): AmericanoPool {
   return {

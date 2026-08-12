@@ -314,17 +314,42 @@ const fmtDur = (ms: number) => {
   return `${Math.floor(totalSec / 60)}:${String(totalSec % 60).padStart(2, "0")}`;
 };
 
-/** Two taps: the winning pair, then 2–0 or 2–1. No confirm — corrections exist. */
-const ResultEntry = ({ a, match }: { a: UseAmericanoSession; match: import("@/types/americano").AmericanoMatch }) => {
+/** Two taps: the winning pair, then 2–0 or 2–1. No confirm — corrections exist.
+    Each NAME is its own tap target (STEP 5): it opens the player sheet instead
+    of selecting the winner, so "not here"/"left" live right on the court. */
+const ResultEntry = ({ a, match, onPlayerTap }: {
+  a: UseAmericanoSession;
+  match: import("@/types/americano").AmericanoMatch;
+  onPlayerTap: (playerId: string) => void;
+}) => {
   const [winner, setWinner] = useState<"A" | "B" | null>(null);
-  const team = (ids: [string, string]) => ids.map(a.playerName).join(" + ");
-  const side = (key: "A" | "B") => (
-    <button key={key} onClick={() => setWinner(winner === key ? null : key)} aria-pressed={winner === key}
-      className={`w-full min-h-[64px] rounded-lg border-2 px-4 py-3 text-left font-display text-xl md:text-2xl transition-all active:scale-[0.99] touch-manipulation ${
-        winner === key ? "border-gold bg-gold/20 text-gold" : "border-border bg-dark-elevated text-cream hover:border-gold/40"}`}>
-      {team(key === "A" ? match.teamA : match.teamB)}
-    </button>
-  );
+  const side = (key: "A" | "B") => {
+    const ids = key === "A" ? match.teamA : match.teamB;
+    const toggle = () => setWinner(winner === key ? null : key);
+    return (
+      <div key={key} role="button" tabIndex={0} aria-pressed={winner === key}
+        onClick={toggle}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}
+        className={`w-full min-h-[64px] rounded-lg border-2 px-4 py-3 text-left font-display text-xl md:text-2xl transition-all active:scale-[0.99] touch-manipulation cursor-pointer ${
+          winner === key ? "border-gold bg-gold/20 text-gold" : "border-border bg-dark-elevated text-cream hover:border-gold/40"}`}>
+        {ids.map((id, i) => (
+          <span key={id}>
+            {i > 0 && <span className="text-muted-foreground font-sans text-lg"> + </span>}
+            <button type="button"
+              onClick={(e) => { e.stopPropagation(); onPlayerTap(id); }}
+              // Without this the parent's keydown preventDefault swallows the
+              // button's own Enter/Space activation, leaving the name
+              // reachable by tab but not usable from a keyboard.
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") e.stopPropagation(); }}
+              aria-label={`Player options for ${a.playerName(id)}`}
+              className="underline decoration-dotted decoration-1 decoration-muted-foreground/50 underline-offset-4 hover:decoration-gold focus:outline-none focus:decoration-gold">
+              {a.playerName(id)}
+            </button>
+          </span>
+        ))}
+      </div>
+    );
+  };
   return (
     <div className="space-y-2">
       <p className="text-xs uppercase tracking-widest text-muted-foreground">
@@ -416,7 +441,129 @@ const MatchLog = ({ a, view }: { a: UseAmericanoSession; view: PoolLiveView }) =
   );
 };
 
-const PoolColumn = ({ a, view }: { a: UseAmericanoSession; view: PoolLiveView }) => {
+/** STEP 5 — the small sheet behind an active-match name tap. "Not here" only
+    while truthful (zero history — the hook asks the lib); "Left" any time. */
+const PlayerSheet = ({ a, playerId, onClose }: {
+  a: UseAmericanoSession; playerId: string; onClose: () => void;
+}) => {
+  const p = a.session.players.find((x) => x.playerId === playerId);
+  if (!p) return null;
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-4"
+      onClick={onClose}>
+      <div className="w-full max-w-sm rounded-lg border border-border bg-dark-surface p-5 space-y-2.5"
+        onClick={(e) => e.stopPropagation()}>
+        <h4 className="font-display text-2xl text-cream">{p.displayName}</h4>
+        {a.canNotHere(playerId) && (
+          <button onClick={() => { a.playerNotHere(playerId); onClose(); }}
+            className="w-full min-h-[56px] rounded-lg border-2 border-amber-500/50 text-amber-300 text-base hover:bg-amber-500/10 transition-colors">
+            Not here — never arrived
+          </button>
+        )}
+        {p.status === "present" && (
+          <button onClick={() => { a.playerLeft(playerId); onClose(); }}
+            className="w-full min-h-[56px] rounded-lg border-2 border-border text-cream text-base hover:border-gold/40 transition-colors">
+            Left for the night
+          </button>
+        )}
+        <button onClick={onClose}
+          className="w-full min-h-[48px] rounded-lg text-sm text-muted-foreground hover:text-cream transition-colors">
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/** STEP 5 — per-pool roster panel: every session player, status, matches
+    played, and the legal actions. Left lives here for players off court. */
+const RosterPanel = ({ a, view }: { a: UseAmericanoSession; view: PoolLiveView }) => {
+  const [open, setOpen] = useState(false);
+  const act = "min-h-[44px] px-3 rounded border text-xs transition-colors";
+  return (
+    <div className="rounded-lg border border-border bg-dark-elevated/50">
+      <button onClick={() => setOpen((o) => !o)}
+        className="w-full min-h-[44px] px-3 text-left text-xs uppercase tracking-widest text-muted-foreground">
+        Players ({view.people.length}) {open ? "▴" : "▾"}
+      </button>
+      {open && (
+        <div className="border-t border-border/60 divide-y divide-border/40">
+          {view.people.map((row) => (
+            <div key={row.playerId} className="px-3 py-2 flex items-center gap-2 flex-wrap">
+              <span className={`text-sm ${row.status === "left" ? "line-through text-muted-foreground/60" : "text-cream"}`}>
+                {row.name}
+              </span>
+              <span className={`text-xs ${row.played > row.target ? "text-amber-400" : "text-muted-foreground"}`}>
+                {row.played} of {row.target}{row.played > row.target ? " · filled in" : ""}
+              </span>
+              {row.status === "not_arrived" && (
+                <span className="text-[10px] uppercase tracking-widest text-amber-400/90 border border-amber-500/40 rounded-full px-2 py-0.5">not arrived</span>
+              )}
+              {row.status === "left" && (
+                <span className="text-[10px] uppercase tracking-widest text-muted-foreground border border-border rounded-full px-2 py-0.5">left</span>
+              )}
+              <span className="ml-auto flex gap-1.5">
+                {row.status === "present" && row.canNotHere && (
+                  <button onClick={() => a.playerNotHere(row.playerId)}
+                    className={`${act} border-amber-500/40 text-amber-300 hover:bg-amber-500/10`}>
+                    Not here
+                  </button>
+                )}
+                {row.status === "present" && (
+                  <button onClick={() => a.playerLeft(row.playerId)}
+                    className={`${act} border-border text-muted-foreground hover:text-cream`}>
+                    Left
+                  </button>
+                )}
+                {row.status === "not_arrived" && (
+                  <button onClick={() => {
+                    if (window.confirm(`${row.name} arrived? They rejoin the queue now.`)) a.playerArrived(row.playerId);
+                  }} className={`${act} border-gold/50 text-gold hover:bg-gold/10`}>
+                    Arrived
+                  </button>
+                )}
+                {row.status === "left" && (
+                  <button onClick={() => {
+                    if (window.confirm(`${row.name} is back? They rejoin with their record intact.`)) a.playerRestore(row.playerId);
+                  }} className={`${act} border-border text-muted-foreground hover:text-gold hover:border-gold/50`}>
+                    Restore
+                  </button>
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+/** STEP 5 — the pinned NOT ARRIVED strip. Hidden when empty; a no-show at
+    zero matches simply stays here all night — harmless, visible, honest. */
+const NotArrivedStrip = ({ a }: { a: UseAmericanoSession }) => {
+  if (a.notArrived.length === 0) return null;
+  return (
+    <div className="rounded-lg border border-amber-500/30 bg-dark-surface px-4 py-3 space-y-2">
+      <p className="text-xs uppercase tracking-widest text-muted-foreground">Not arrived — tap when they walk in</p>
+      <div className="flex flex-wrap gap-2">
+        {a.notArrived.map((n) => (
+          <button key={n.playerId}
+            onClick={() => {
+              if (window.confirm(`${n.name} arrived? They rejoin the ${n.poolLabel} queue now.`)) a.playerArrived(n.playerId);
+            }}
+            className="min-h-[48px] px-4 rounded-full border border-amber-500/40 text-amber-300 text-sm hover:bg-amber-500/10 transition-colors flex items-center gap-2">
+            <span>{n.name}</span>
+            <span className="text-[10px] uppercase tracking-widest text-muted-foreground">{n.poolLabel}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const PoolColumn = ({ a, view, onPlayerTap }: {
+  a: UseAmericanoSession; view: PoolLiveView; onPlayerTap: (playerId: string) => void;
+}) => {
   const fresh = view.active !== null && a.freshMatchIds.has(view.active.id);
   const poolNotices = a.notices[view.pool.id] ?? [];
   return (
@@ -450,7 +597,13 @@ const PoolColumn = ({ a, view }: { a: UseAmericanoSession; view: PoolLiveView })
           {fresh && (
             <p className="text-xs uppercase tracking-widest text-gold">Now on court — call the names</p>
           )}
-          <ResultEntry a={a} match={view.active} />
+          {/* Keyed by WHO is on court, not just the match id: a discard
+              (Step 5) reuses the freed id, so an id-only key would keep a
+              half-tapped winner selected over a different four. */}
+          <ResultEntry
+            key={`${view.active.id}:${view.active.teamA.join()}:${view.active.teamB.join()}`}
+            a={a} match={view.active} onPlayerTap={onPlayerTap}
+          />
         </div>
       ) : view.blocked === "all_at_target" ? (
         <div className="rounded-lg border border-gold/40 bg-gold/5 p-5 text-center space-y-3">
@@ -479,12 +632,15 @@ const PoolColumn = ({ a, view }: { a: UseAmericanoSession; view: PoolLiveView })
         </div>
       )}
 
+      <RosterPanel a={a} view={view} />
       <MatchLog a={a} view={view} />
     </div>
   );
 };
 
-const LiveScreen = ({ a }: { a: UseAmericanoSession }) => (
+const LiveScreen = ({ a }: { a: UseAmericanoSession }) => {
+  const [sheetPlayerId, setSheetPlayerId] = useState<string | null>(null);
+  return (
   <div className="space-y-4">
     <div className="rounded-lg border border-border bg-dark-surface px-4 py-3 flex items-center gap-3 flex-wrap">
       <h2 className="font-display text-xl text-accent">{a.session.sessionName || "Americano night"}</h2>
@@ -508,12 +664,17 @@ const LiveScreen = ({ a }: { a: UseAmericanoSession }) => (
     )}
     <div className="flex flex-col lg:flex-row gap-4 lg:items-start">
       {a.liveViews.map((view) => (
-        <PoolColumn key={view.pool.id} a={a} view={view} />
+        <PoolColumn key={view.pool.id} a={a} view={view} onPlayerTap={setSheetPlayerId} />
       ))}
     </div>
-    {/* Step 5's NOT ARRIVED strip slots here; Step 6's standings attach per pool. */}
+    <NotArrivedStrip a={a} />
+    {/* Step 6's standings attach per pool. */}
+    {sheetPlayerId && (
+      <PlayerSheet a={a} playerId={sheetPlayerId} onClose={() => setSheetPlayerId(null)} />
+    )}
   </div>
-);
+  );
+};
 
 /* ── the page ─────────────────────────────────────────────────────── */
 

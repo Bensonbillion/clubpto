@@ -45,6 +45,10 @@ export function ensureLive(
       phase: "round_robin",
       startedAt: now,
       completedAt: null,
+      // Which exemptions this seating spent — the receipt a discard refunds.
+      ...(gen.meta.catchUpPlayerIds.length > 0
+        ? { catchUpGranted: [...gen.meta.catchUpPlayerIds] }
+        : {}),
     };
     next = {
       ...next,
