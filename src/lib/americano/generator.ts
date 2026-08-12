@@ -110,16 +110,21 @@ export function generateNextMatch(
 
   const wait = (id: string) => waitOf(pool, id);
   const neverPlayed = (id: string) => played(id) === 0 && wait(id) === Infinity;
-  // Opening seeding: two never-played players order by hidden tier; a player
-  // with any history never compares by tier again.
+  const atTarget = (id: string) => played(id) === pool.targetMatches;
+  // Canonical candidate order (also the deterministic combo tie-break):
+  // fewest matches first; never-played pairs compare by hidden tier (opening
+  // seeding — tier never touches a player with history); at-target fillers
+  // compare by longest wait (the unamended fill rule); playerId last.
   const cmp = (a: AmericanoPlayer, b: AmericanoPlayer): number => {
     const pa = played(a.playerId), pb = played(b.playerId);
     if (pa !== pb) return pa - pb;
-    const wa = wait(a.playerId), wb = wait(b.playerId);
-    if (wa !== wb) return wb - wa; // longest wait first (Infinity naturally leads)
     if (neverPlayed(a.playerId) && neverPlayed(b.playerId)) {
       const t = TIER_RANK[a.tier] - TIER_RANK[b.tier];
       if (t !== 0) return t;
+    }
+    if (atTarget(a.playerId) && atTarget(b.playerId)) {
+      const wa = wait(a.playerId), wb = wait(b.playerId);
+      if (wa !== wb) return wb - wa;
     }
     return a.playerId < b.playerId ? -1 : 1;
   };
@@ -129,11 +134,11 @@ export function generateNextMatch(
 
   // Candidate seats: every below-target player first (the fill guard — nobody
   // reaches target+1 while anyone sits below target), then at-target fillers
-  // by longest wait when a departure left fewer than four.
+  // when a departure left fewer than four.
   const candidates = [...below].sort(cmp);
   if (candidates.length < 4) {
     const fillers = present
-      .filter((p) => played(p.playerId) === pool.targetMatches)
+      .filter((p) => atTarget(p.playerId))
       .sort(cmp);
     for (const f of fillers) {
       if (candidates.length >= 4) break;
@@ -141,29 +146,73 @@ export function generateNextMatch(
       fillPlayerIds.push(f.playerId);
     }
     if (candidates.length < 4) return { blocked: "below_four_present" };
+    candidates.sort(cmp);
   }
 
-  // Back-to-back exclusion against the immediately preceding completed match.
+  // VARIETY SELECTION (§3, amended). The quartet must consume the four LOWEST
+  // match counts (the wave property and exact convergence are untouchable);
+  // WITHIN that constraint, prefer the foursome with the fewest prior
+  // co-occurrences tonight, never repeat an exact foursome while an
+  // alternative satisfying the hard constraints exists, and avoid
+  // back-to-backs above all. Deterministic: canonical order breaks all ties.
   const done = countedMatches(pool);
   const prev = done[done.length - 1];
   const justPlayed = new Set(prev ? [...prev.teamA, ...prev.teamB] : []);
   const isCatchUp = (p: AmericanoPlayer) => p.joinedAtMatchIndex !== null && !p.catchUpUsed;
-  const catchUpPlayerIds: string[] = [];
 
-  let selection: AmericanoPlayer[];
-  if (present.length < 8) {
-    // Mathematically unavoidable in small pools — the rule relaxes wholesale.
-    selection = candidates.slice(0, 4);
-  } else {
-    const rested = candidates.filter((p) => !justPlayed.has(p.playerId) || isCatchUp(p));
-    if (rested.length >= 4) {
-      selection = rested.slice(0, 4);
-    } else {
-      // Exclusion leaves fewer than four — relax for this match, say so.
-      selection = candidates.slice(0, 4);
-      warnings.push("Back-to-back relaxed: fewer than four rested players were available.");
+  // Co-occurrence counts and past foursomes: completed + active, voided out.
+  const coocc = new Map<string, number>();
+  const foursomes = new Set<string>();
+  for (const m of pool.matches) {
+    if (m.status === "voided") continue;
+    const four = [...m.teamA, ...m.teamB];
+    foursomes.add([...four].sort().join("|"));
+    for (let i = 0; i < 4; i++) {
+      for (let j = i + 1; j < 4; j++) {
+        const k = pairKey(four[i], four[j]);
+        coocc.set(k, (coocc.get(k) ?? 0) + 1);
+      }
     }
   }
+
+  const requiredCounts = candidates
+    .slice(0, 4)
+    .map((p) => played(p.playerId))
+    .sort((a, b) => a - b)
+    .join(",");
+  const b2bRelaxed = present.length < 8;
+
+  let best: AmericanoPlayer[] | null = null;
+  let bestScore = Infinity;
+  const n = candidates.length;
+  for (let i = 0; i < n - 3; i++)
+    for (let j = i + 1; j < n - 2; j++)
+      for (let k = j + 1; k < n - 1; k++)
+        for (let l = k + 1; l < n; l++) {
+          const combo = [candidates[i], candidates[j], candidates[k], candidates[l]];
+          const counts = combo.map((p) => played(p.playerId)).sort((a, b) => a - b).join(",");
+          if (counts !== requiredCounts) continue; // least-played-first is hard
+          let score = 0;
+          if (!b2bRelaxed) {
+            for (const p of combo) {
+              if (justPlayed.has(p.playerId) && !isCatchUp(p)) score += 1e9;
+            }
+          }
+          if (foursomes.has(combo.map((p) => p.playerId).sort().join("|"))) score += 1e6;
+          for (let x = 0; x < 4; x++)
+            for (let y = x + 1; y < 4; y++)
+              score += coocc.get(pairKey(combo[x].playerId, combo[y].playerId)) ?? 0;
+          if (score < bestScore) {
+            bestScore = score;
+            best = combo;
+          }
+        }
+  if (!best) return { blocked: "below_four_present" };
+  const selection = best;
+  if (bestScore >= 1e9) {
+    warnings.push("Back-to-back relaxed: fewer than four rested players were available.");
+  }
+  const catchUpPlayerIds: string[] = [];
   for (const p of selection) {
     if (justPlayed.has(p.playerId) && isCatchUp(p)) catchUpPlayerIds.push(p.playerId);
   }

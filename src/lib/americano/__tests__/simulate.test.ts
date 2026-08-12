@@ -12,7 +12,7 @@ import {
   generateNextMatch, matchesPlayed, pairKey, partnershipsTonight, waveSpread,
   type GeneratedMatch,
 } from "../generator";
-import { computeStandings, earlyCutSummary, playoffEligible } from "../standings";
+import { computeStandings, earlyCutSummary, playoffEligible, strengthOfSchedule } from "../standings";
 
 /* ── driver ──────────────────────────────────────────────────────── */
 
@@ -140,6 +140,24 @@ describe("Scenario 1 — normal night", () => {
       }
     }
 
+    // VARIETY (§3, amended): zero repeated foursomes while alternatives
+    // existed, and the room actually remixes — every player meets at least 5
+    // distinct others, pool average at least 7.
+    const foursomes = n.pool.matches.map((m) => [...m.teamA, ...m.teamB].sort().join("|"));
+    expect(new Set(foursomes).size).toBe(foursomes.length);
+    const met = new Map<string, Set<string>>();
+    for (const m of n.pool.matches) {
+      const four = [...m.teamA, ...m.teamB];
+      for (const x of four) {
+        if (!met.has(x)) met.set(x, new Set());
+        for (const y of four) if (y !== x) met.get(x)!.add(y);
+      }
+    }
+    const encounterCounts = [...met.values()].map((s) => s.size);
+    expect(Math.min(...encounterCounts)).toBeGreaterThanOrEqual(5);
+    const avgEncounters = encounterCounts.reduce((a, b) => a + b, 0) / encounterCounts.length;
+    expect(avgEncounters).toBeGreaterThanOrEqual(7);
+
     // Standings fully ordered by the chain; every row W+L = matches.
     const table = computeStandings(n.pool, n.players);
     expect(table.length).toBe(16);
@@ -152,52 +170,34 @@ describe("Scenario 1 — normal night", () => {
           (a.losses === b.losses && a.gameDiff >= b.gameDiff)));
       expect(chainOk, `rows ${i + 1}/${i + 2} chain order`).toBe(true);
     }
-    // COIN FLIPS — deviation from the step spec, documented: "no
-    // requiresCoinFlip rows in the seeded run" is unreachable for 16@3 under
-    // ANY deterministic seed (400 scanned). Differentials sum a four-value
-    // alphabet, so identical W-L-diff lines are pigeonhole-guaranteed, and
-    // the locked exactly-two-and-met H2H rule cannot order most of them. The
-    // brief itself only promises flips are RARE and VISIBLE — so what must be
-    // proven is the MECHANISM: flags rise only on true ties, the provisional
-    // order is stable, and injected resolutions fully resolve the table.
+    // COIN FLIPS (§4, amended): SOS resolves ties BEFORE any flip fires — a
+    // flag may rise only between rows tied on W-L-diff AND SOS. Whatever
+    // still flips resolves the way the UI will: one visible flip at a time.
     const flagged = table.filter((r) => r.requiresCoinFlip);
     for (const row of flagged) {
       const peer = table.find(
         (r) => r.playerId !== row.playerId && r.wins === row.wins &&
-          r.losses === row.losses && r.gameDiff === row.gameDiff,
+          r.losses === row.losses && r.gameDiff === row.gameDiff &&
+          strengthOfSchedule(n.pool, r.playerId) === strengthOfSchedule(n.pool, row.playerId),
       );
-      expect(peer, `flagged row ${row.playerId} has a true W-L-diff twin`).toBeDefined();
+      expect(peer, `flagged row ${row.playerId} is a true W-L-diff-SOS twin`).toBeDefined();
     }
-    for (let i = 0; i < table.length - 1; i++) {
-      if (table[i].requiresCoinFlip && table[i + 1].requiresCoinFlip) {
-        expect(table[i].playerId < table[i + 1].playerId).toBe(true); // provisional order is stable
+    expect(table.some((r) => r.tiebreakApplied === "sos")).toBe(true); // SOS is doing real work
+    if (flagged.length > 0) {
+      const resolutions: Record<string, string> = {};
+      let resolved = table;
+      for (let step = 0; step < 32; step++) {
+        const idx = resolved.findIndex(
+          (r, i) => i < resolved.length - 1 && r.requiresCoinFlip && resolved[i + 1].requiresCoinFlip &&
+            resolutions[pairKey(r.playerId, resolved[i + 1].playerId)] === undefined,
+        );
+        if (idx === -1) break;
+        const a = resolved[idx].playerId, b = resolved[idx + 1].playerId;
+        resolutions[pairKey(a, b)] = hash(pairKey(a, b)) % 2 === 0 ? a : b;
+        resolved = computeStandings(n.pool, n.players, resolutions);
       }
-    }
-    // The admin resolves flips the way the UI will: one visible flip at a
-    // time, table recomputes, next unresolved pair — until none remain.
-    const resolutions: Record<string, string> = {};
-    let resolved = table;
-    for (let step = 0; step < 32; step++) {
-      const idx = resolved.findIndex(
-        (r, i) => i < resolved.length - 1 && r.requiresCoinFlip && resolved[i + 1].requiresCoinFlip &&
-          resolutions[pairKey(r.playerId, resolved[i + 1].playerId)] === undefined,
-      );
-      if (idx === -1) break;
-      const a = resolved[idx].playerId, b = resolved[idx + 1].playerId;
-      // Deterministic flip outcome (heads = the provisional upper player).
-      resolutions[pairKey(a, b)] = hash(pairKey(a, b)) % 2 === 0 ? a : b;
-      resolved = computeStandings(n.pool, n.players, resolutions);
-    }
-    expect(resolved.some((r) => r.requiresCoinFlip)).toBe(false);
-    expect(resolved.filter((r) => r.tiebreakApplied === "coinflip").length).toBeGreaterThan(0);
-    // And the resolved table is still chain-consistent.
-    for (let i = 0; i < resolved.length - 1; i++) {
-      const x = resolved[i], y = resolved[i + 1];
-      const ok =
-        x.wins > y.wins ||
-        (x.wins === y.wins && (x.losses < y.losses ||
-          (x.losses === y.losses && x.gameDiff >= y.gameDiff)));
-      expect(ok, `resolved rows ${i + 1}/${i + 2}`).toBe(true);
+      expect(resolved.some((r) => r.requiresCoinFlip)).toBe(false);
+      expect(resolved.filter((r) => r.tiebreakApplied === "coinflip").length).toBeGreaterThan(0);
     }
 
     // Human-readable printout (the DONE-WHEN artifact).
@@ -205,8 +205,9 @@ describe("Scenario 1 — normal night", () => {
     const lines = n.pool.matches.map((m) =>
       `  #${String(m.matchIndex).padStart(2)} ${name(m.teamA[0])}+${name(m.teamA[1])} vs ${name(m.teamB[0])}+${name(m.teamB[1])} → ${m.result!.winner} ${m.result!.score}`);
     const standingsLines = table.map((r) =>
-      `  ${String(r.rank).padStart(2)}. ${name(r.playerId)}  ${r.wins}W-${r.losses}L  diff ${r.gameDiff >= 0 ? "+" : ""}${r.gameDiff}${r.tiebreakApplied ? `  (${r.tiebreakApplied})` : ""}`);
-    console.log(`SCENARIO 1 — 16 players @ 3 each (12 court matches)\n${lines.join("\n")}\nFINAL STANDINGS\n${standingsLines.join("\n")}`);
+      `  ${String(r.rank).padStart(2)}. ${name(r.playerId)}  ${r.wins}W-${r.losses}L  diff ${r.gameDiff >= 0 ? "+" : ""}${r.gameDiff}  sos ${strengthOfSchedule(n.pool, r.playerId)}${r.tiebreakApplied ? `  (${r.tiebreakApplied})` : ""}${r.requiresCoinFlip ? "  [flip]" : ""}`);
+    const encounterLine = `encounters: min ${Math.min(...encounterCounts)}, avg ${avgEncounters.toFixed(1)} of 15 possible · flips flagged: ${flagged.length}`;
+    console.log(`SCENARIO 1 — 16 players @ 3 each (12 court matches)\n${lines.join("\n")}\nFINAL STANDINGS (${encounterLine})\n${standingsLines.join("\n")}`);
   });
 
   it("12 players @ target 4: same guarantees", () => {
@@ -215,7 +216,15 @@ describe("Scenario 1 — normal night", () => {
     for (const id of presentIds(n)) expect(matchesPlayed(n.pool, id)).toBe(4);
     expect(n.pool.matches.length).toBe(courtMatchesNeeded(12, 4));
     expect(n.maxSpreadSeen).toBeLessThanOrEqual(1);
-    for (const meta of n.metas) expect(meta.fallbackLevel).toBe(0);
+    // Falling back (1+3/2+4) is the system WORKING when 1+4/2+3 would repeat;
+    // the invariant is that no partnership ever actually repeats.
+    const partnerships = n.pool.matches.flatMap((m) => [
+      pairKey(m.teamA[0], m.teamA[1]),
+      pairKey(m.teamB[0], m.teamB[1]),
+    ]);
+    expect(new Set(partnerships).size).toBe(partnerships.length);
+    const foursomes = n.pool.matches.map((m) => [...m.teamA, ...m.teamB].sort().join("|"));
+    expect(new Set(foursomes).size).toBe(foursomes.length); // remixing here too
   });
 });
 
@@ -364,5 +373,45 @@ describe("Scenario 4 — messy night", () => {
       expect(a.wins).toBe(b.wins - 1);
     }
     expect(partnershipsTonight(n.pool).has(pairKey(victim.teamA[0], victim.teamA[1]))).toBe(false);
+  });
+});
+
+/* ── SOS unit test (§4, amended) ─────────────────────────────────── */
+
+describe("Strength of schedule", () => {
+  it("orders a W-L-diff tie by opponents' win totals, annotated 'sos'", () => {
+    const P = (id: string): AmericanoPlayer => ({
+      playerId: id, displayName: id, tier: "B", status: "present",
+      joinedAtMatchIndex: null, catchUpUsed: false,
+    });
+    const players = ["t1", "t2", "x1", "x2", "o1", "o2", "o3", "o4", "o5", "o6"].map(P);
+    let seq = 0;
+    const M = (teamA: [string, string], teamB: [string, string], winner: "A" | "B", score: AmericanoScore): AmericanoMatch => ({
+      id: `s${++seq}`, poolId: "px", matchIndex: seq, teamA, teamB,
+      result: { winner, score }, status: "completed", phase: "round_robin",
+      startedAt: seq * 10, completedAt: seq * 10 + 5,
+    });
+    const pool: AmericanoPool = {
+      id: "px", label: "Court 2", playerIds: players.map((p) => p.playerId),
+      targetMatches: 3, playoffMode: "top8", status: "round_robin",
+      matches: [
+        M(["t1", "x1"], ["o1", "o2"], "A", "2-1"),   // t1: 1W-0L +1, faced o1,o2
+        M(["t2", "x2"], ["o3", "o4"], "A", "2-1"),   // t2: 1W-0L +1, faced o3,o4
+        M(["o1", "o2"], ["o5", "o6"], "A", "2-1"),   // o1,o2 bank a win each → t1's SOS 2
+        M(["x1", "x2"], ["o5", "o6"], "B", "2-0"),   // keeps x1/x2 off the 1W-0L line
+      ],
+    };
+    const table = computeStandings(pool, players);
+    const t1 = table.find((r) => r.playerId === "t1")!;
+    const t2 = table.find((r) => r.playerId === "t2")!;
+    expect(t1.wins).toBe(1); expect(t2.wins).toBe(1);
+    expect(t1.losses).toBe(0); expect(t2.losses).toBe(0);
+    expect(t1.gameDiff).toBe(1); expect(t2.gameDiff).toBe(1);
+    expect(strengthOfSchedule(pool, "t1")).toBe(2);
+    expect(strengthOfSchedule(pool, "t2")).toBe(0);
+    expect(t1.rank).toBeLessThan(t2.rank);          // harder road ranks higher
+    expect(t1.tiebreakApplied).toBe("sos");
+    expect(t1.requiresCoinFlip).toBe(false);
+    expect(t2.requiresCoinFlip).toBe(false);
   });
 });

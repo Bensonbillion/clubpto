@@ -95,7 +95,7 @@ export interface StandingsRow {
   /** 1-based position after the full chain. */
   rank: number;
   /** What placed this row above the next, when it wasn't wins. */
-  tiebreakApplied: null | "losses" | "diff" | "h2h" | "coinflip";
+  tiebreakApplied: null | "losses" | "diff" | "h2h" | "sos" | "coinflip";
   /** True when only a visible coin flip can order this row against its
       neighbour — the UI resolves it; the library never rolls one. */
   requiresCoinFlip: boolean;
