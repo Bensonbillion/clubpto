@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 4,
+  "state": {
+    "id": "night-2026-08-06",
+    "date": "2026-08-06",
+    "sessionName": "healed shape",
+    "players": [
+      { "playerId": "p1", "displayName": "One", "tier": "B", "status": "present", "joinedAtMatchIndex": null, "catchUpUsed": false },
+      { "playerId": "p2", "displayName": "Two", "tier": "B", "status": "present", "joinedAtMatchIndex": null, "catchUpUsed": false },
+      { "playerId": "p3", "displayName": "Three", "tier": "B", "status": "present", "joinedAtMatchIndex": null, "catchUpUsed": false },
+      { "playerId": "p4", "displayName": "Four", "tier": "B", "status": "present", "joinedAtMatchIndex": null, "catchUpUsed": false }
+    ],
+    "pools": [
+      { "id": "court-2", "label": "Court 2", "playerIds": ["p1", "p2", "p3", "p4"], "targetMatches": 4, "playoffMode": "undecided", "status": "round_robin",
+        "matches": [
+          { "id": "m1", "poolId": "court-2", "matchIndex": 1, "teamA": ["p1", "p4"], "teamB": ["p2", "p3"],
+            "result": { "winner": "A", "score": "2-1" }, "status": "completed", "phase": "round_robin",
+            "startedAt": 1000, "completedAt": 2000 }
+        ] },
+      { "id": "court-1", "label": "Court 1", "playerIds": [], "targetMatches": 4, "playoffMode": "undecided", "status": "setup", "matches": [] }
+    ],
+    "isPractice": false,
+    "status": "active"
+  }
+}

@@ -8,7 +8,7 @@ import { useMemo, useRef, useState } from "react";
 import { Delete, FlaskConical, Lock, RotateCcw, Search, UserPlus } from "lucide-react";
 import type { AmericanoTier } from "@/types/americano";
 import {
-  useAmericanoSession, type PoolSetupView, type UseAmericanoSession,
+  useAmericanoSession, type PoolLiveView, type PoolSetupView, type UseAmericanoSession,
 } from "@/hooks/useAmericanoSession";
 
 const ADMIN_PASSCODE = "9999";
@@ -305,35 +305,213 @@ const PoolsStage = ({ a }: { a: UseAmericanoSession }) => {
   );
 };
 
-/* ── the resumable stub (Step 4 replaces the court loop) ──────────── */
+/* ── the rolling court loop (STEP 4) ──────────────────────────────── */
 
-const LiveStub = ({ a }: { a: UseAmericanoSession }) => (
-  <div className="space-y-5">
-    <div className="rounded-lg border border-border bg-dark-surface p-5 space-y-1">
-      <div className="flex items-center gap-3 flex-wrap">
-        <h2 className="font-display text-2xl text-accent">
-          {a.session.sessionName || "Americano night"}
-        </h2>
-        {a.session.isPractice && (
-          <span className="text-[10px] uppercase tracking-widest border border-gold/50 text-gold rounded-full px-2 py-1">practice</span>
-        )}
-      </div>
-      <p className="text-sm text-muted-foreground">{a.session.date} · session live</p>
-    </div>
-    <div className="flex flex-col lg:flex-row gap-4">
-      {a.poolViews.map((v) => (
-        <div key={v.pool.id} className="flex-1 rounded-lg border border-border bg-dark-surface p-5 space-y-1">
-          <h3 className="font-display text-2xl text-accent">{v.pool.label}</h3>
-          <p className="text-base text-cream">
-            {v.size} players · {v.pool.targetMatches} each · {v.courtMatches} court matches
-          </p>
-          <p className="text-sm text-muted-foreground">Rolling round robin, ready to run.</p>
+const fmtClock = (ms: number) =>
+  new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const fmtDur = (ms: number) => {
+  const totalSec = Math.round(ms / 1000);
+  return `${Math.floor(totalSec / 60)}:${String(totalSec % 60).padStart(2, "0")}`;
+};
+
+/** Two taps: the winning pair, then 2–0 or 2–1. No confirm — corrections exist. */
+const ResultEntry = ({ a, match }: { a: UseAmericanoSession; match: import("@/types/americano").AmericanoMatch }) => {
+  const [winner, setWinner] = useState<"A" | "B" | null>(null);
+  const team = (ids: [string, string]) => ids.map(a.playerName).join(" + ");
+  const side = (key: "A" | "B") => (
+    <button key={key} onClick={() => setWinner(winner === key ? null : key)} aria-pressed={winner === key}
+      className={`w-full min-h-[64px] rounded-lg border-2 px-4 py-3 text-left font-display text-xl md:text-2xl transition-all active:scale-[0.99] touch-manipulation ${
+        winner === key ? "border-gold bg-gold/20 text-gold" : "border-border bg-dark-elevated text-cream hover:border-gold/40"}`}>
+      {team(key === "A" ? match.teamA : match.teamB)}
+    </button>
+  );
+  return (
+    <div className="space-y-2">
+      <p className="text-xs uppercase tracking-widest text-muted-foreground">
+        {winner ? "Tap the score" : "Tap the winning pair"}
+      </p>
+      {side("A")}
+      <p className="text-center text-muted-foreground text-sm">vs</p>
+      {side("B")}
+      {winner && (
+        <div className="flex gap-2 pt-1">
+          {(["2-0", "2-1"] as const).map((score) => (
+            <button key={score} onClick={() => { a.enterResult(match.id, winner, score); setWinner(null); }}
+              className="flex-1 min-h-[56px] rounded-lg bg-gold text-dark font-display text-xl transition-all active:scale-[0.98] hover:bg-gold/90">
+              {score.replace("-", "–")}
+            </button>
+          ))}
         </div>
+      )}
+    </div>
+  );
+};
+
+/** Per-pool match log, newest first, with corrections + void (§6 note). */
+const MatchLog = ({ a, view }: { a: UseAmericanoSession; view: PoolLiveView }) => {
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
+  if (view.log.length === 0) return null;
+  return (
+    <div className="rounded-lg border border-border bg-dark-elevated/50">
+      <button onClick={() => setOpen((o) => !o)}
+        className="w-full min-h-[44px] px-3 text-left text-xs uppercase tracking-widest text-muted-foreground">
+        Match log ({view.log.length}) {open ? "▴" : "▾"}
+      </button>
+      {open && (
+        <div className="border-t border-border/60 divide-y divide-border/40">
+          {view.log.map((m) => {
+            const voided = m.status === "voided";
+            const winIds = m.result ? (m.result.winner === "A" ? m.teamA : m.teamB) : null;
+            const loseIds = m.result ? (m.result.winner === "A" ? m.teamB : m.teamA) : null;
+            return (
+              <div key={m.id} className="px-3 py-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <p className={`text-sm min-w-0 ${voided ? "line-through text-muted-foreground/50" : ""}`}>
+                    <span className="text-muted-foreground/70">#{m.matchIndex} </span>
+                    {m.result && winIds && loseIds ? (
+                      <>
+                        <span className="text-cream">{winIds.map(a.playerName).join(" + ")}</span>
+                        <span className="text-gold mx-1">{m.result.score.replace("-", "–")}</span>
+                        <span className="text-muted-foreground">{loseIds.map(a.playerName).join(" + ")}</span>
+                      </>
+                    ) : (
+                      <span className="text-cream">
+                        {m.teamA.map(a.playerName).join(" + ")} vs {m.teamB.map(a.playerName).join(" + ")}
+                        <span className="text-muted-foreground text-xs ml-1">on court</span>
+                      </span>
+                    )}
+                    {voided && <span className="no-underline text-[10px] uppercase tracking-widest text-muted-foreground ml-1">void</span>}
+                  </p>
+                  {m.status === "completed" && (
+                    <button onClick={() => setEditing(editing === m.id ? null : m.id)}
+                      className="h-9 px-2 rounded border border-border text-xs text-muted-foreground hover:text-cream transition-colors">
+                      {editing === m.id ? "close" : "edit"}
+                    </button>
+                  )}
+                </div>
+                {editing === m.id && m.status === "completed" && (
+                  <div className="flex gap-1.5 mt-2 flex-wrap">
+                    {(["A", "B"] as const).flatMap((w) =>
+                      (["2-0", "2-1"] as const).map((score) => (
+                        <button key={`${w}${score}`}
+                          onClick={() => { a.correctResult(m.id, w, score); setEditing(null); }}
+                          className="min-h-[44px] px-2 rounded border border-border text-xs text-muted-foreground hover:text-gold hover:border-gold/50 transition-colors">
+                          {(w === "A" ? m.teamA : m.teamB).map(a.playerName).join("+")} {score.replace("-", "–")}
+                        </button>
+                      )),
+                    )}
+                    <button onClick={() => { a.voidMatch(m.id); setEditing(null); }}
+                      className="min-h-[44px] px-3 rounded border border-red-500/50 text-xs text-red-400 hover:bg-red-500/10 transition-colors">
+                      VOID — counts for nothing
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PoolColumn = ({ a, view }: { a: UseAmericanoSession; view: PoolLiveView }) => {
+  const fresh = view.active !== null && a.freshMatchIds.has(view.active.id);
+  const poolNotices = a.notices[view.pool.id] ?? [];
+  return (
+    <div className="flex-1 min-w-0 rounded-lg border border-border bg-dark-surface p-4 space-y-4">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <h3 className="font-display text-2xl md:text-3xl text-accent">{view.pool.label}</h3>
+        <div className="text-right">
+          <p className="text-sm text-cream">match {Math.min(view.pace.done + 1, view.pace.total)} of {view.pace.total}</p>
+          {view.pace.avgMs !== null && view.pace.projectedEndMs !== null && (
+            <p className="text-xs text-muted-foreground">
+              avg {fmtDur(view.pace.avgMs)} · RR ends ~{fmtClock(view.pace.projectedEndMs)}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {poolNotices.length > 0 && (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 space-y-1">
+          {poolNotices.map((w, i) => (
+            <p key={i} className="text-sm text-amber-400">{w}</p>
+          ))}
+          <button onClick={() => a.dismissNotices(view.pool.id)}
+            className="h-8 px-2 rounded text-xs text-muted-foreground hover:text-cream transition-colors">
+            dismiss
+          </button>
+        </div>
+      )}
+
+      {view.active ? (
+        <div className={`rounded-lg border-2 p-3 space-y-2 transition-colors ${fresh ? "border-gold bg-gold/[0.06]" : "border-border"}`}>
+          {fresh && (
+            <p className="text-xs uppercase tracking-widest text-gold">Now on court — call the names</p>
+          )}
+          <ResultEntry a={a} match={view.active} />
+        </div>
+      ) : view.blocked === "all_at_target" ? (
+        <div className="rounded-lg border border-gold/40 bg-gold/5 p-5 text-center space-y-3">
+          <p className="font-display text-xl text-cream">Round robin complete</p>
+          <p className="text-sm text-muted-foreground">
+            {view.pace.done} played, everyone at {view.pool.targetMatches}.
+          </p>
+          <button disabled
+            className="min-h-[52px] px-5 rounded-lg border-2 border-border text-muted-foreground/60 text-sm uppercase tracking-widest cursor-not-allowed">
+            Start playoff — Step 7
+          </button>
+        </div>
+      ) : view.blocked === "below_four_present" ? (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-5 text-center">
+          <p className="text-sm text-amber-400">
+            Fewer than four players available on {view.pool.label} — the court pauses here.
+            The other court is untouched.
+          </p>
+        </div>
+      ) : null}
+
+      {view.nextUp && (
+        <div className="rounded-lg border border-border bg-dark-elevated px-4 py-3">
+          <p className="text-xs uppercase tracking-widest text-muted-foreground">Next up</p>
+          <p className="text-base md:text-lg text-cream mt-1">{view.nextUp.join(", ")}</p>
+        </div>
+      )}
+
+      <MatchLog a={a} view={view} />
+    </div>
+  );
+};
+
+const LiveScreen = ({ a }: { a: UseAmericanoSession }) => (
+  <div className="space-y-4">
+    <div className="rounded-lg border border-border bg-dark-surface px-4 py-3 flex items-center gap-3 flex-wrap">
+      <h2 className="font-display text-xl text-accent">{a.session.sessionName || "Americano night"}</h2>
+      {a.session.isPractice && (
+        <span className="text-[10px] uppercase tracking-widest border border-gold/50 text-gold rounded-full px-2 py-1">practice</span>
+      )}
+      <span className="text-sm text-muted-foreground">{a.session.date}</span>
+      <span className={`ml-auto inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-[10px] uppercase tracking-widest ${
+        a.syncStatus === "synced" ? "text-muted-foreground" : a.syncStatus === "pending" ? "text-amber-400" : "text-red-400"}`}>
+        <span className={`w-2 h-2 rounded-full ${
+          a.syncStatus === "synced" ? "bg-gold" : a.syncStatus === "pending" ? "bg-amber-400" : "bg-red-500"}`} />
+        {a.syncStatus === "synced" ? "Saved locally" : a.syncStatus === "pending" ? "Sync pending" : "Sync error"}
+      </span>
+    </div>
+    {a.session.integrityErrors && a.session.integrityErrors.length > 0 && (
+      <div className="rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-3 space-y-1">
+        {a.session.integrityErrors.map((e, i) => (
+          <p key={i} className="text-sm text-red-300">{e}</p>
+        ))}
+      </div>
+    )}
+    <div className="flex flex-col lg:flex-row gap-4 lg:items-start">
+      {a.liveViews.map((view) => (
+        <PoolColumn key={view.pool.id} a={a} view={view} />
       ))}
     </div>
-    <div className="rounded-lg border border-dashed border-border bg-dark-surface/40 py-12 text-center">
-      <p className="font-display text-lg text-muted-foreground">Court loop arrives in Step 4.</p>
-    </div>
+    {/* Step 5's NOT ARRIVED strip slots here; Step 6's standings attach per pool. */}
   </div>
 );
 
@@ -385,7 +563,7 @@ const ManageAmericanoInner = () => {
             </button>
           </>
         ) : (
-          <LiveStub a={a} />
+          <LiveScreen a={a} />
         )}
       </main>
     </div>

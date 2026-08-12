@@ -5,12 +5,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
-  AmericanoPlayer, AmericanoPool, AmericanoSession, AmericanoTier,
+  AmericanoMatch, AmericanoPlayer, AmericanoPool, AmericanoScore, AmericanoSession, AmericanoTier,
 } from "@/types/americano";
 import {
   courtMatchesNeeded, poolSetupNotices, setupDefaultTarget, validTargets,
   type SetupNotice,
 } from "@/lib/americano/config";
+import {
+  activeMatch, generateNextMatch, nextSelectionPreview,
+} from "@/lib/americano/generator";
+import {
+  applyCorrection, applyResult, applyVoid, ensureLive, type GenerationEvent,
+} from "@/lib/americano/live";
+import { poolPace, type PoolPace } from "@/lib/americano/pace";
 import {
   appendSharedRosterEntry, createAmericanoStore, fetchSharedRoster,
   type SessionStore, type SharedRosterEntry, type SyncStatus,
@@ -80,6 +87,18 @@ const removeFromDraft = (s: AmericanoSession, playerId: string): AmericanoSessio
     })),
   });
 
+export interface PoolLiveView {
+  pool: AmericanoPool;
+  active: AmericanoMatch | null;
+  /** The four names called next (nextSelectionPreview) — null when blocked. */
+  nextUp: string[] | null;
+  /** Why the court is idle, when it is. */
+  blocked: "all_at_target" | "below_four_present" | null;
+  pace: PoolPace;
+  /** Every match, newest first (voided included, for the log). */
+  log: AmericanoMatch[];
+}
+
 export interface PoolSetupView {
   pool: AmericanoPool;
   size: number;
@@ -117,6 +136,18 @@ export interface UseAmericanoSession {
   canStart: boolean;
   startSession(): void;
   resetNight(): void;
+
+  // The rolling court loop (STEP 4)
+  liveViews: PoolLiveView[];
+  playerName(id: string): string;
+  enterResult(matchId: string, winner: "A" | "B", score: AmericanoScore): void;
+  correctResult(matchId: string, winner: "A" | "B", score: AmericanoScore): void;
+  voidMatch(matchId: string): void;
+  /** Freshly generated match ids — the "now on court" emphasis. */
+  freshMatchIds: Set<string>;
+  /** Generator warnings per pool, dismissible, never silent. */
+  notices: Record<string, string[]>;
+  dismissNotices(poolId: string): void;
 }
 
 export function useAmericanoSession(): UseAmericanoSession {
@@ -132,7 +163,11 @@ export function useAmericanoSession(): UseAmericanoSession {
     const store = createAmericanoStore({ defaults: DEFAULTS, onSyncStatusChange: setSyncStatus });
     storeRef.current = store;
     void store.load().then(({ state }) => {
-      setSession(state);
+      // Resume: if an active session arrives without a match on a court
+      // (e.g. started on the Step 3 stub), get it rolling immediately.
+      const ready = ensureLive(state, Date.now(), (e) => pendingEventsRef.current.push(e));
+      if (ready !== state) store.save(ready, Date.now());
+      setSession(ready);
       setLoading(false);
     });
     const retry = window.setInterval(() => void store.flush(), 20_000);
@@ -263,8 +298,66 @@ export function useAmericanoSession(): UseAmericanoSession {
       (v) => !v.blocked && validTargets(v.size).includes(v.pool.targetMatches),
     );
 
+  /* ── the rolling court loop (STEP 4) ───────────────────────────── */
+
+  const [freshMatchIds, setFreshMatchIds] = useState<Set<string>>(new Set());
+  const [notices, setNotices] = useState<Record<string, string[]>>({});
+  const [nowTick, setNowTick] = useState(() => Date.now());
+
+  // A slow tick keeps the pace projection honest while the screen sits open.
+  useEffect(() => {
+    if (session.status !== "active") return;
+    const t = window.setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => window.clearInterval(t);
+  }, [session.status]);
+
+  const surface = useCallback((events: GenerationEvent[]) => {
+    if (events.length === 0) return;
+    setFreshMatchIds((prev) => {
+      const next = new Set(prev);
+      for (const e of events) next.add(e.matchId);
+      return next;
+    });
+    setNowTick(Date.now());
+    const withWarnings = events.filter((e) => e.warnings.length > 0);
+    if (withWarnings.length > 0) {
+      setNotices((n) => {
+        const next = { ...n };
+        for (const e of withWarnings) {
+          next[e.poolId] = [...new Set([...(next[e.poolId] ?? []), ...e.warnings])];
+        }
+        return next;
+      });
+    }
+  }, []);
+
+  // React executes state updaters at RENDER time, not inside setSession —
+  // so generation events are queued on a ref by the updater and drained by
+  // an effect after the commit. (Deterministic match ids keep StrictMode's
+  // double-invoked updater from queueing two different ids.)
+  const pendingEventsRef = useRef<GenerationEvent[]>([]);
+
+  /** commit + keep the courts rolling + surface generation events. */
+  const commitLive = useCallback((updater: (prev: AmericanoSession) => AmericanoSession) => {
+    setSession((prev) => {
+      const next = ensureLive(updater(prev), Date.now(), (e) => {
+        const q = pendingEventsRef.current;
+        if (!q.some((x) => x.matchId === e.matchId)) q.push(e);
+      });
+      storeRef.current?.save(next, Date.now());
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (pendingEventsRef.current.length === 0) return;
+    const events = pendingEventsRef.current;
+    pendingEventsRef.current = [];
+    surface(events);
+  }, [session, surface]);
+
   const startSession = useCallback(() => {
-    commit((s) => {
+    commitLive((s) => {
       if (s.status !== "setup") return s;
       for (const pool of s.pools) {
         if (pool.playerIds.length < 4) return s;
@@ -276,9 +369,58 @@ export function useAmericanoSession(): UseAmericanoSession {
         pools: s.pools.map((pool) => ({ ...pool, status: "round_robin" as const })),
       };
     });
-  }, [commit]);
+  }, [commitLive]);
+
+  const enterResult = useCallback((matchId: string, winner: "A" | "B", score: AmericanoScore) => {
+    commitLive((s) => applyResult(s, matchId, winner, score, Date.now()));
+  }, [commitLive]);
+
+  const correctResult = useCallback((matchId: string, winner: "A" | "B", score: AmericanoScore) => {
+    commitLive((s) => applyCorrection(s, matchId, winner, score));
+  }, [commitLive]);
+
+  const voidMatch = useCallback((matchId: string) => {
+    commitLive((s) => applyVoid(s, matchId));
+  }, [commitLive]);
+
+  const dismissNotices = useCallback((poolId: string) => {
+    setNotices((n) => ({ ...n, [poolId]: [] }));
+  }, []);
+
+  const playerName = useCallback(
+    (id: string) => session.players.find((p) => p.playerId === id)?.displayName ?? id,
+    [session.players],
+  );
+
+  const liveViews = useMemo<PoolLiveView[]>(() => {
+    if (session.status === "setup") return [];
+    return session.pools.map((pool) => {
+      const active = activeMatch(pool) ?? null;
+      let blocked: PoolLiveView["blocked"] = null;
+      if (!active && pool.status === "round_robin") {
+        const gen = generateNextMatch(pool, session.players);
+        if ("blocked" in gen && gen.blocked !== "match_active") blocked = gen.blocked;
+      }
+      const previewIds = nextSelectionPreview(pool, session.players);
+      return {
+        pool,
+        active,
+        nextUp: previewIds
+          ? previewIds.map(playerName).sort((a, b) => a.localeCompare(b))
+          : null,
+        blocked,
+        pace: poolPace(pool, nowTick),
+        log: [...pool.matches].reverse(),
+      };
+    });
+  }, [session, playerName, nowTick]);
 
   const resetNight = useCallback(() => {
+    // Ephemera must not leak into the next session: pool ids are constant,
+    // so stale notices would render on next week's fresh courts.
+    setNotices({});
+    setFreshMatchIds(new Set());
+    pendingEventsRef.current = [];
     commit(() => DEFAULTS());
   }, [commit]);
 
@@ -288,5 +430,7 @@ export function useAmericanoSession(): UseAmericanoSession {
     setDate, setSessionName, setPractice,
     togglePlayer, isPicked,
     poolViews, movePlayer, setTarget, canStart, startSession, resetNight,
+    liveViews, playerName, enterResult, correctResult, voidMatch,
+    freshMatchIds, notices, dismissNotices,
   };
 }

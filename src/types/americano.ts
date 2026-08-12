@@ -86,6 +86,10 @@ export interface AmericanoSession {
   /** Practice sessions run identically and publish nothing. */
   isPractice: boolean;
   status: AmericanoSessionStatus;
+  /** Surfaced hard errors from persistence healing (e.g. an orphaned player
+      WITH match history, whose membership must never be silently re-seated).
+      The admin sees these until resolved; absent when all is well. */
+  integrityErrors?: string[];
 }
 
 /** Computed, never stored. */

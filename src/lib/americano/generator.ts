@@ -278,3 +278,43 @@ export function waveSpread(pool: AmericanoPool, players: AmericanoPlayer[]): num
   const counts = present.map((p) => matchesPlayed(pool, p.playerId));
   return Math.max(...counts) - Math.min(...counts);
 }
+
+/**
+ * STEP 4 helper: the four playerIds the generator WOULD select once the
+ * current active match completes. Selection is result-independent —
+ * matchesPlayed, wait, co-occurrence, back-to-back and foursome history all
+ * ignore who WON — so the preview completes the active match with a
+ * placeholder result and runs the real selection. (Rank and pairing DO
+ * depend on the result, which is why the preview is names-only.)
+ * Returns null when the pool would be blocked. Ids come back sorted; the
+ * caller owns display order.
+ */
+export function nextSelectionPreview(
+  pool: AmericanoPool,
+  players: AmericanoPlayer[],
+): string[] | null {
+  const active = activeMatch(pool);
+  let probe = pool;
+  if (active) {
+    const lastCompleted = Math.max(
+      0,
+      ...pool.matches.map((m) => m.completedAt ?? 0),
+      active.startedAt ?? 0,
+    );
+    probe = {
+      ...pool,
+      matches: pool.matches.map((m) =>
+        m.id === active.id
+          ? {
+              ...m,
+              status: "completed" as const,
+              result: m.result ?? { winner: "A" as const, score: "2-1" as const },
+              completedAt: m.completedAt ?? lastCompleted + 1,
+            }
+          : m,
+      ),
+    };
+  }
+  const gen = generateNextMatch(probe, players);
+  return "blocked" in gen ? null : [...gen.meta.quartet].sort();
+}
