@@ -19,8 +19,6 @@ const Manage = lazy(() => import("./pages/Manage"));
 const Manage2 = lazy(() => import("./pages/Manage2"));
 const ManageNext = lazy(() => import("./pages/ManageNext"));
 const ManageAmericano = lazy(() => import("./pages/ManageAmericano"));
-const Leaderboard = lazy(() => import("./pages/Leaderboard"));
-const Profile = lazy(() => import("./pages/Profile"));
 const ManualPlayoffs = lazy(() => import("./pages/ManualPlayoffs"));
 const Simulate = lazy(() => import("./pages/Simulate"));
 const EngineTest = lazy(() => import("./pages/EngineTest"));
@@ -78,8 +76,13 @@ const App = () => (
             <Route path="/manage2" element={<Manage2 />} />
             <Route path="/manage/simulate" element={<Simulate />} />
             <Route path="/manage/test" element={<EngineTest />} />
-            <Route path="/leaderboard" element={<Leaderboard />} />
-            <Route path="/profile/:playerId" element={<Profile />} />
+            {/* Player-facing rankings are DOWN until clubhouse Wave 3 puts
+                them behind a login: real names and full standings were public
+                at these URLs. The routes stay alive as redirects because
+                /manage still links to /profile/:playerId, and a redirect is a
+                kinder dead end than a 404. robots.txt keeps disallowing them. */}
+            <Route path="/leaderboard" element={<Navigate to="/" replace />} />
+            <Route path="/profile/:playerId" element={<Navigate to="/" replace />} />
             <Route path="/admin/playoffs" element={<ManualPlayoffs />} />
             <Route path="/admin/playoffs/set01" element={<Set01Tournament />} />
             <Route path="/admin/reset" element={<SeasonReset />} />

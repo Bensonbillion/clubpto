@@ -13,7 +13,12 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700..800&family=DM+Sans:opsz,wght@9..40,300..500&family=Yellowtail&family=VT323&display=swap" rel="stylesheet" />
 
-    <!-- PWA -->
+    <!-- Home-screen install metadata. Static, hand-maintained: the PWA plugin
+         that used to generate this also generated a precaching service worker,
+         which pinned a retired design on returning devices. iOS add-to-home
+         works from these tags; Chrome's install prompt needs a worker and is
+         therefore off until we choose to bring one back deliberately. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#0f1f17" />
     <link rel="apple-touch-icon" href="/pwa-192x192.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />

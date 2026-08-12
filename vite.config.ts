@@ -2,7 +2,6 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
-import { VitePWA } from "vite-plugin-pwa";
 import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/supabase/vite";
 
 // https://vitejs.dev/config/
@@ -11,33 +10,17 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
+  // NO service worker. vite-plugin-pwa (registerType "autoUpdate",
+  // precaching every html/js/css) was serving months-old bundles to returning
+  // visitors — the "ghost" of the pre-RALLY site. A precache that owns
+  // index.html means a client can pin an entire retired design indefinitely.
+  // src/main.tsx carries a kill-switch that unregisters any surviving worker.
+  // Re-adding offline support is a deliberate decision, not a default: see
+  // VERCEL-MIGRATION.md.
   plugins: [
     react(),
     mcpPlugin(),
     mode === "development" && componentTagger(),
-    VitePWA({
-      registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "pwa-192x192.png", "pwa-512x512.png"],
-      manifest: {
-        name: "Club PTO — Padel Court Manager",
-        short_name: "Club PTO",
-        description: "Manage your padel sessions, courts, and players",
-        theme_color: "#0f1f17",
-        background_color: "#0f1f17",
-        display: "standalone",
-        orientation: "any",
-        icons: [
-          { src: "/pwa-192x192.png", sizes: "192x192", type: "image/png" },
-          { src: "/pwa-512x512.png", sizes: "512x512", type: "image/png" },
-          { src: "/pwa-512x512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
-        ],
-      },
-      workbox: {
-        navigateFallbackDenylist: [/^\/~oauth/],
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp,woff,woff2}"],
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-      },
-    }),
   ].filter(Boolean),
   resolve: {
     alias: {
