@@ -20,6 +20,11 @@
 //        envelope loads unchanged, its in-flight matches simply carry no
 //        receipt (worst case: one exemption not refunded, exactly today's
 //        behaviour).
+//   v10 — The playoff module (Step 7): AmericanoPool.playoff (the frozen
+//         seed/pair/bracket snapshot), AmericanoPool.champion, and the
+//         "playoff_pending" pool status. All additive and optional — a v9
+//         envelope loads with no bracket, which is the honest state of a
+//         night that never ran one.
 //   v9 — Configurable match format (Step F): AmericanoPool.matchFormat and
 //        AmericanoSession.defaultMatchFormat, and the result shape
 //        generalizes from a hard-coded "2-0"/"2-1" alphabet to
@@ -82,7 +87,7 @@ function convertLegacyFlips(pool: AmericanoPool): AmericanoPool {
   return next;
 }
 
-export const AMERICANO_SCHEMA_VERSION = 9;
+export const AMERICANO_SCHEMA_VERSION = 10;
 
 export function emptyPool(id: string, label: "Court 1" | "Court 2"): AmericanoPool {
   return {

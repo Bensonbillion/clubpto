@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { clubhouse as supabase } from "@/clubhouse/supabaseClient";
 import logoWordmarkCream from "@/assets/logo-wordmark-cream.png";
@@ -15,6 +15,8 @@ import {
 
 // The clubhouse door (Wave 2, AUTH-1..6): email -> link or code -> claim -> in.
 // One door, no passwords, no gated areas (ACC-1).
+// Behind the door (Wave 3): the room itself, split into its own chunk.
+const ClubhouseHome = lazy(() => import("@/clubhouse/ui/ClubhouseHome"));
 
 type Stage = "loading" | "signedOut" | "codeSent" | "claim" | "home" | "revoked";
 
@@ -128,6 +130,14 @@ const Club = () => {
         )}
       </header>
 
+      {stage === "home" && identity?.playerId ? (
+        <Suspense fallback={<div style={{ minHeight: "60vh", background: "var(--ink)" }} aria-busy="true" />}>
+          <ClubhouseHome
+            playerId={identity.playerId}
+            displayName={identity.displayName ?? "player"}
+          />
+        </Suspense>
+      ) : (
       <main className="rly-page__hero" style={{ maxWidth: 720 }}>
         {stage === "loading" && (
           <p className="rly-mono" style={{ color: "var(--chalk-dim)", fontSize: 15 }}>
@@ -278,36 +288,16 @@ const Club = () => {
           </>
         )}
 
-        {stage === "home" && identity && (
+        {stage === "home" && identity && !identity.playerId && (
           <>
             <p className="rly-kicker">
               <span className="rly-dot" /> The clubhouse
             </p>
             <h1 className="rly-display rly-page__title">
-              You're <span className="rly-script">in,</span>
-              <br />
-              {identity.displayName ?? "player"}.
+              You're <span className="rly-script">in.</span>
             </h1>
             <div className="rly-prose" style={{ marginTop: "1.6rem" }}>
-              <p>
-                This is your seat in the room. Your stats, streaks, milestone
-                clubs, the champions wall, and the recaps all land right here
-                as they're built — publish by publish.
-              </p>
-              <p>Play Wednesday. Unwind Sunday. Watch this space.</p>
-            </div>
-            <div className="rly-cta-row">
-              <a
-                className="rly-pill"
-                href="https://clubptobookings.as.me/"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Book a session ↗
-              </a>
-              <Link className="rly-pill rly-pill--ghost" to="/">
-                Back to the site
-              </Link>
+              <p>Claim your name to take your seat in the room.</p>
             </div>
           </>
         )}
@@ -336,6 +326,7 @@ const Club = () => {
           </p>
         )}
       </main>
+      )}
     </div>
   );
 };

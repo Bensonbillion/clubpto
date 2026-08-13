@@ -97,7 +97,14 @@ export type AmericanoPoolLabel = "Court 1" | "Court 2";
 
 export type AmericanoPlayoffMode = "top8" | "top4" | "none" | "undecided";
 
-export type AmericanoPoolStatus = "setup" | "round_robin" | "playoff" | "complete";
+export type AmericanoPoolStatus =
+  | "setup"
+  | "round_robin"
+  /** Playoff triggered, but a round-robin match is still on court. It finishes
+      and counts; seeds lock only from the final standings (STEP 7). */
+  | "playoff_pending"
+  | "playoff"
+  | "complete";
 
 /** One visible coin flip that happened — an entry in a group's audit trail. */
 export interface CoinFlipResolution {
@@ -141,6 +148,47 @@ export interface GroupFlipRecord {
   flips: CoinFlipResolution[];
 }
 
+/** One seeded player, with the annotation that placed them there — the audit
+    trail of who was seeded where and why (STEP 7). */
+export interface PlayoffSeed {
+  playerId: string;
+  seed: number;
+  tiebreakApplied: StandingsRow["tiebreakApplied"];
+}
+
+/** A bracket pair. Pairing is LOCKED by the brief: 1+3, 2+4, 5+7, 6+8. */
+export interface PlayoffPair {
+  seeds: [number, number];
+  playerIds: [string, string];
+}
+
+/**
+ * What was true at the moment seeds locked. Persisted rather than recomputed,
+ * because the round robin can still be corrected afterwards and the bracket
+ * must not silently reshuffle underneath the people playing it.
+ */
+export interface PlayoffSnapshot {
+  mode: "top8" | "top4";
+  lockedAt: number;
+  seeds: PlayoffSeed[];
+  pairs: PlayoffPair[];
+  /** Named on the confirm screen, with the leader−1 rule stated plainly. */
+  excluded: { playerId: string; matchesPlayed: number }[];
+  /** Bracket format — the pool's unless the confirm screen overrode it. */
+  format: MatchFormat;
+  /** The leader's match count the eligibility rule was measured against. */
+  leaderMatches: number;
+}
+
+/** A pool's terminal state. Step 9 consumes this shape. */
+export interface PoolChampion {
+  kind: "pair" | "individual";
+  playerIds: string[];
+  /** "PTO Champion of the Week" (Court 2) or "Court 1 Champion". */
+  title: string;
+  at: number;
+}
+
 export interface AmericanoPool {
   id: string;
   /** Court label — NEVER a tier label. */
@@ -159,6 +207,10 @@ export interface AmericanoPool {
       lib/americano/flips.ts — old chance never carries into new
       circumstances). */
   groupFlipResolutions?: GroupFlipRecord[];
+  /** Seeds, pairs and bracket structure, frozen at lock time (STEP 7). */
+  playoff?: PlayoffSnapshot;
+  /** Set when the bracket (or the no-playoff path) has crowned someone. */
+  champion?: PoolChampion;
   /** LEGACY (schema <= 7): pairwise resolutions. Read once by migrate, which
       converts each into a two-member group record and deletes this. */
   coinFlipResolutions?: CoinFlipResolution[];

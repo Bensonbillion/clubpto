@@ -30,6 +30,7 @@ const Login = lazy(() => import("./pages/Login"));
 const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Club = lazy(() => import("./pages/Club"));
+const ClubRoomPreview = lazy(() => import("./pages/ClubRoomPreview"));
 
 const queryClient = new QueryClient();
 
@@ -64,6 +65,8 @@ const App = () => (
 
             {/* Clubhouse door (Wave 2): own shell, soft-launch (unlinked) */}
           <Route path="/club" element={<Club />} />
+          {/* Dev-only visual harness for the room (redirects in prod) */}
+          <Route path="/club/preview" element={<ClubRoomPreview />} />
 
           {/* Manage routes — completely isolated, no public layout.
                 /manage now serves Court Manager v3 (games-first rebuild).
