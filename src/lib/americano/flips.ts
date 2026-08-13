@@ -27,7 +27,7 @@ import type {
   GroupFlipLine, GroupFlipRecord, StandingsRow,
 } from "@/types/americano";
 import {
-  computeRecords, computeStandings, h2hSeparates, strengthOfSchedule, tiedGroup,
+  computeRecords, computeStandings, strengthOfSchedule, tiedGroup,
 } from "./standings";
 
 /* ── who is tied with whom ───────────────────────────────────────── */
@@ -40,9 +40,11 @@ export function groupKey(members: string[]): string {
 const EMPTY = { matchesPlayed: 0, wins: 0, losses: 0, gameDiff: 0 };
 
 /**
- * The players a coin must order against `playerId`: same W-L-diff record
- * (standings.tiedGroup — the single definition), not separated by
- * head-to-head under the arity rule, and level on strength of schedule.
+ * The players a coin must order against `playerId`: everyone on the same
+ * points and the same differential (standings.tiedGroup — still the single
+ * definition of tied). Since STEP 6.3 that is the whole test; SOS and
+ * head-to-head no longer sit between a tie and the coin.
+ *
  * Returns the whole set INCLUDING playerId, canonically sorted. A set of one
  * needs no coin.
  */
@@ -52,15 +54,7 @@ export function flipGroupOf(
   players: AmericanoPlayer[] = [],
 ): string[] {
   const records = computeRecords(pool);
-  const group = tiedGroup(pool, playerId, records, players);
-  const sos = strengthOfSchedule(pool, playerId);
-  const members = group.filter(
-    (id) =>
-      id === playerId ||
-      (strengthOfSchedule(pool, id) === sos &&
-        !h2hSeparates(pool, group.length, playerId, id)),
-  );
-  return [...members].sort();
+  return [...tiedGroup(pool, playerId, records, players)].sort();
 }
 
 /**
@@ -107,8 +101,14 @@ export function lineOf(pool: AmericanoPool, members: string[]): GroupFlipLine {
   };
 }
 
+/**
+ * Only what DEFINES the tie may invalidate a coin (STEP 6.3): points and
+ * differential. Losses and SOS are still written into the line as an audit of
+ * the night's shape, but a change in either no longer means the group the
+ * room flipped for has become a different group.
+ */
 const sameLine = (a: GroupFlipLine, b: GroupFlipLine) =>
-  a.w === b.w && a.l === b.l && a.diff === b.diff && a.sos === b.sos;
+  a.w === b.w && a.diff === b.diff;
 
 /* ── the procedure: one visible flip at a time ───────────────────── */
 

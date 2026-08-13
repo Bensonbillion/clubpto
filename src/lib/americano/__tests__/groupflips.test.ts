@@ -319,7 +319,7 @@ describe("REGRESSION 6.1-b: the gate blocks until the group is ORDERED", () => {
 /* ── liveness, refusals, migration ───────────────────────────────── */
 
 describe("liveness and refusals (STEP 6.2)", () => {
-  it("a moved line drops the record even when the membership is identical", () => {
+  it("a moved line (points or diff) drops the record even when membership is identical", () => {
     let s = fourWay();
     s = settle(s, (a) => a);
     const rec = liveGroupRecords(P(s), s.players)[0];
@@ -329,7 +329,7 @@ describe("liveness and refusals (STEP 6.2)", () => {
         ...p,
         groupFlipResolutions: (p.groupFlipResolutions ?? []).map((r) =>
           groupKey(r.members) === groupKey(rec.members)
-            ? { ...r, line: { ...r.line, sos: r.line.sos + 1 } }
+            ? { ...r, line: { ...r.line, diff: r.line.diff + 1 } }
             : r,
         ),
       })),

@@ -246,13 +246,16 @@ export interface StandingsRow {
   matchesPlayed: number;
   wins: number;
   losses: number;
+  /** 3 × wins, derived and never stored — there are no draws (STEP 6.3). */
+  points: number;
   /** Format-defined: best-of-N is games won − games lost; a single game to
       T is ±(T − the loser's score). Never summed across formats. */
   gameDiff: number;
   /** 1-based position after the full chain. */
   rank: number;
-  /** What placed this row above the next, when it wasn't wins. */
-  tiebreakApplied: null | "losses" | "diff" | "h2h" | "sos" | "coinflip";
+  /** What placed this row above the next, when points did not (STEP 6.3:
+      losses, head-to-head and SOS left the chain). */
+  tiebreakApplied: null | "diff" | "coinflip";
   /** True when only a visible coin flip can order this row against its
       neighbour — the UI resolves it; the library never rolls one. */
   requiresCoinFlip: boolean;

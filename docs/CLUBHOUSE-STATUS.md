@@ -52,6 +52,51 @@ This file tracks what exists in-repo and what gates the next waves.
    surface (removed from FAQ same day).
 6. OPEN — founding-24 status for the join page (PUB-4).
 
+## Wave 3 (the room) — BUILT 2026-08-13, live at /club behind the door
+Sections: dashboard (DASH-1..7), recaps (REC-1..5), champions wall +
+records book (CHW-1..3), boards + milestone clubs (LB-1..4, MILE-1),
+players + profiles + rivalries (PROF-1..3), mosaic (MOS-1/2).
+
+ARCHITECTURE: one pure function, src/clubhouse/ui/viewmodel.ts, turns
+published bundles into every surface. All privacy law lives there and is
+unit-tested (44 clubhouse tests) instead of being scattered through JSX.
+src/clubhouse/data/reads.ts is the only Supabase caller; sections.tsx is
+pure presentation. Dev harness: /club/preview (dev only, fixtures, with an
+empty-room toggle) — the room can be designed without a published session.
+
+MIGRATIONS TO APPLY (owner, SQL editor, in order):
+  003_prefs.sql   - clubhouse_prefs (LB-3 win-rate opt-out, DASH-7 rank),
+                    RLS: read for members, write only your own row.
+  004_privacy_hardening.sql - roster.hidden flag (PROF-3); withdraws the
+                    anon read on clubhouse_sessions, which exposed EVERY
+                    session's recap note and shout-outs (they name
+                    members); champions teaser keeps working via a
+                    security-definer latest_published_session_id().
+  Until 003 is applied the room still works: preferences fail CLOSED, so
+  win rates stay hidden for everyone rather than being published.
+
+REVIEW FIXES (21-agent adversarial pass, each with a regression test):
+published names beat the roster copy so pseudonyms survive (PRIV-3);
+hidden players filtered at the source; LB-3 fails closed; practice nights
+off boards/records but still counted for personal attendance and
+milestone clubs (PIPE-3); milestone lists alphabetical not ranked (LB-1);
+failed preference save reverts and says so; failed reads surface as an
+error instead of an empty room; mosaic scales so every attendee has a
+square (was silently dropping everyone past the 17th).
+
+STILL OPEN for Wave 3: the room reads only what the publish pipeline
+writes, and PIPE-2 (the Publish button in Court Manager) is not built, so
+every section shows its empty state until the first publish. That is the
+next piece of real work.
+
+DEPLOY GOTCHA (hit 2026-08-13): the GitHub Pages build MUST be
+`npx vite build --base=/clubpto/`. A build without it produces
+root-relative /assets/ paths and ships a blank page. Verify after every
+deploy: `curl -s https://bensonbillion.github.io/clubpto/ | grep assets`
+must show /clubpto/assets/. Note the engine track added vercel.json +
+VERCEL-MIGRATION.md; a Vercel cutover serves from the root, so the base
+flag becomes wrong at that point. One hosting story, not two.
+
 ## Wave 2 (auth) — COMPLETE 2026-08-08: first member signed in and claimed
 Proven end to end on production (bensonbillion.github.io/clubpto/club):
 email -> magic link -> session -> roster claim ("You're in, Benson").

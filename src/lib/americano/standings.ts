@@ -1,13 +1,24 @@
 // PTO Americano v4 — standings (STEP 2, brief §4).
 //
-// Chain, locked: wins DESC → losses ASC → gameDiff DESC → head-to-head (only
-// when EXACTLY two players are tied and they met tonight) → coin flip.
-// The coin flip is returned as a FLAG (requiresCoinFlip) with a provisional
-// playerId order — the admin runs a VISIBLE flip and the UI injects the
-// outcome via coinFlipResolutions. The library never rolls one.
+// THE CHAIN (STEP 6.3, owner-locked): a win is 3 points, a loss is 0.
 //
-// 'losses ASC' is inert on a completed even night and exists to make EARLY
-// playoff cuts fair: k vs k+1 matches → 2W-0L outranks 2W-1L.
+//   points DESC  →  gameDiff DESC  →  the visible coin
+//
+// That is the whole system. Losses, head-to-head and strength of schedule are
+// GONE as ranking keys: points already carry wins, and the game scores the
+// room records at entry (the 7-5s and 7-4s) do the separating that three
+// extra tiebreaks used to. Rank is a number people can compute in their head
+// while standing on court.
+//
+// Points are derived, never stored: 3 × wins, and no draws exist.
+//
+// A consequence worth naming, because it is intended: 4-2 with +16 now
+// out-ranks 4-0 with +4. Losing twice while winning big beats an unbeaten
+// run of narrow wins. That is the owner's call and the tests assert it by
+// name so nobody later "fixes" it.
+//
+// Exact ties on points AND differential fall through to the 6.1/6.2 group
+// coin machinery, unchanged — the library still never rolls a coin.
 //
 // Standings are computed from COMPLETED round-robin matches only. Voided
 // matches count for nothing. Playoff matches decide champions, not ranks.
@@ -20,6 +31,9 @@ import { matchFormatOf, resultDiff } from "./format";
 // Differential is FORMAT-DEFINED (STEP F): lib/americano/format.ts owns the
 // arithmetic, this file only banks the number. At best of 3 it reduces to the
 // original +2 / +1, which is why nothing else in the chain had to change.
+
+/** A win is three points; a loss is none; there are no draws. */
+export const POINTS_PER_WIN = 3;
 
 const counted = (pool: AmericanoPool): AmericanoMatch[] =>
   pool.matches.filter((m) => m.status === "completed" && m.phase === "round_robin");
@@ -107,36 +121,12 @@ export function tiedGroup(
   const out: string[] = [];
   for (const id of ids) {
     const r = records.get(id) ?? EMPTY;
-    if (r.wins === mine.wins && r.losses === mine.losses && r.gameDiff === mine.gameDiff) {
-      out.push(id);
-    }
+    // Tied = same points and same differential. Losses left the chain, so two
+    // players on 4-0 and 4-2 with equal diff are now genuinely tied and go to
+    // a group order rather than being split by a key nobody ranks on.
+    if (r.wins === mine.wins && r.gameDiff === mine.gameDiff) out.push(id);
   }
   return out;
-}
-
-/** Does head-to-head separate this pair? The arity rule lives HERE, once. */
-export function h2hSeparates(
-  pool: AmericanoPool,
-  groupSize: number,
-  a: string,
-  b: string,
-): boolean {
-  return groupSize === 2 && headToHead(pool, a, b) !== 0;
-}
-
-/** Net wins of `a` over `b` when they were on opposing teams tonight. */
-function headToHead(pool: AmericanoPool, a: string, b: string): number {
-  let net = 0;
-  for (const m of counted(pool)) {
-    if (!m.result) continue;
-    const aA = m.teamA.includes(a), aB = m.teamB.includes(a);
-    const bA = m.teamA.includes(b), bB = m.teamB.includes(b);
-    if ((aA && bB) || (aB && bA)) {
-      const aWon = (aA && m.result.winner === "A") || (aB && m.result.winner === "B");
-      net += aWon ? 1 : -1;
-    }
-  }
-  return net;
 }
 
 /**
@@ -168,6 +158,7 @@ export function computeStandings(
       matchesPlayed: r.matchesPlayed,
       wins: r.wins,
       losses: r.losses,
+      points: POINTS_PER_WIN * r.wins,
       gameDiff: r.gameDiff,
       rank: 0,
       tiebreakApplied: null,
@@ -175,79 +166,43 @@ export function computeStandings(
     };
   });
 
-  // Base chain + provisional playerId order.
+  // points DESC → gameDiff DESC → provisional playerId order.
   rows.sort(
     (a, b) =>
-      b.wins - a.wins ||
-      a.losses - b.losses ||
+      b.points - a.points ||
       b.gameDiff - a.gameDiff ||
       (a.playerId < b.playerId ? -1 : 1),
   );
 
-  // Resolve ties within equal (wins, losses, gameDiff) groups:
-  // H2H (exactly two, and they met) → SOS DESC → the visible coin flip.
-  const sosOf = new Map<string, number>();
-  const sos = (id: string) => {
-    let v = sosOf.get(id);
-    if (v === undefined) { v = strengthOfSchedule(pool, id); sosOf.set(id, v); }
-    return v;
-  };
-  const key = (r: StandingsRow) => `${r.wins}|${r.losses}|${r.gameDiff}`;
+  // A run of equal (points, gameDiff) is a tie the chain cannot separate, so
+  // it goes straight to the coin — no SOS layer, no head-to-head. A
+  // coin-decided order is applied WHOLESALE or not at all (6.2): never pair
+  // by pair, which is how a resolution used to go inert once a third player
+  // sorted between a flipped pair.
+  const key = (r: StandingsRow) => `${r.points}|${r.gameDiff}`;
   for (let start = 0; start < rows.length; ) {
     let end = start + 1;
     while (end < rows.length && key(rows[end]) === key(rows[start])) end++;
-    const size = end - start;
-    // size >= 2 guards the neighbour read; h2hSeparates owns the arity rule.
-    if (size >= 2 && h2hSeparates(pool, size, rows[start].playerId, rows[start + 1].playerId)) {
-      const [a, b] = [rows[start], rows[start + 1]];
-      if (headToHead(pool, a.playerId, b.playerId) < 0) {
-        rows[start] = b;
-        rows[start + 1] = a;
-      }
-      rows[start].tiebreakApplied = "h2h";
-      start = end;
-      continue;
-    }
-    if (size >= 2) {
-      // Order the tied group by SOS DESC, provisional playerId within equal
-      // SOS. Each equal-SOS RUN inside it is a flip group: a coin-decided
-      // order is applied WHOLESALE or not at all — never pair by pair, which
-      // is how a resolution used to go inert once a third player sorted
-      // between a flipped pair.
-      const group = rows.slice(start, end).sort(
-        (a, b) => sos(b.playerId) - sos(a.playerId) || (a.playerId < b.playerId ? -1 : 1),
-      );
-      for (let i = 0; i < group.length; ) {
-        let j = i + 1;
-        while (j < group.length && sos(group[j].playerId) === sos(group[i].playerId)) j++;
-        if (j - i >= 2) {
-          const run = group.slice(i, j);
-          // A run where nobody has played is a BLANK SLATE, not a tie (STEP G):
-          // before the first result the whole pool shares 0-0-0 and SOS 0, and
-          // flagging that would ask the room to flip coins over nothing.
-          const blank = run.every((r) => r.wins + r.losses === 0);
-          const key = run.map((r) => r.playerId).sort().join("|");
-          const order = groupOrders.get(key);
-          if (blank) {
-            // nothing to order, nothing to flag
-          } else if (order && order.length === run.length) {
-            const byId = new Map(run.map((r) => [r.playerId, r] as const));
-            for (let k = 0; k < order.length; k++) group[i + k] = byId.get(order[k])!;
-            for (let k = 0; k < order.length - 1; k++) {
-              group[i + k].tiebreakApplied = group[i + k].tiebreakApplied ?? "coinflip";
-            }
-          } else {
-            for (let k = i; k < j; k++) group[k].requiresCoinFlip = true;
-          }
+    if (end - start >= 2) {
+      const run = rows.slice(start, end).sort((a, b) => (a.playerId < b.playerId ? -1 : 1));
+      // A run where nobody has played is a BLANK SLATE, not a tie (STEP G):
+      // before the first result the whole pool shares 0-0-0, and flagging
+      // that would ask the room to flip coins over nothing.
+      const blank = run.every((r) => r.wins + r.losses === 0);
+      const groupId = run.map((r) => r.playerId).sort().join("|");
+      const order = groupOrders.get(groupId);
+      if (blank) {
+        // nothing to order, nothing to flag
+      } else if (order && order.length === run.length) {
+        const byRunId = new Map(run.map((r) => [r.playerId, r] as const));
+        for (let k = 0; k < order.length; k++) run[k] = byRunId.get(order[k])!;
+        for (let k = 0; k < order.length - 1; k++) {
+          run[k].tiebreakApplied = run[k].tiebreakApplied ?? "coinflip";
         }
-        i = j;
+      } else {
+        for (const r of run) r.requiresCoinFlip = true;
       }
-      for (let i = 0; i < group.length - 1; i++) {
-        if (sos(group[i].playerId) > sos(group[i + 1].playerId)) {
-          group[i].tiebreakApplied = group[i].tiebreakApplied ?? "sos";
-        }
-      }
-      for (let i = 0; i < group.length; i++) rows[start + i] = group[i];
+      for (let i = 0; i < run.length; i++) rows[start + i] = run[i];
     }
     start = end;
   }
@@ -257,9 +212,8 @@ export function computeStandings(
   for (let i = 0; i < rows.length - 1; i++) {
     const a = rows[i], b = rows[i + 1];
     if (a.tiebreakApplied || a.requiresCoinFlip) continue; // in-group already set
-    if (a.wins !== b.wins) continue;                        // wins is the headline
-    if (a.losses !== b.losses) a.tiebreakApplied = "losses";
-    else if (a.gameDiff !== b.gameDiff) a.tiebreakApplied = "diff";
+    if (a.points !== b.points) continue;                    // points is the headline
+    if (a.gameDiff !== b.gameDiff) a.tiebreakApplied = "diff";
   }
   return rows;
 }

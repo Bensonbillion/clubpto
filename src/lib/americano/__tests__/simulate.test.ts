@@ -168,9 +168,7 @@ describe("Scenario 1 — normal night", () => {
     for (let i = 0; i < table.length - 1; i++) {
       const a = table[i], b = table[i + 1];
       const chainOk =
-        a.wins > b.wins ||
-        (a.wins === b.wins && (a.losses < b.losses ||
-          (a.losses === b.losses && a.gameDiff >= b.gameDiff)));
+        a.points > b.points || (a.points === b.points && a.gameDiff >= b.gameDiff);
       expect(chainOk, `rows ${i + 1}/${i + 2} chain order`).toBe(true);
     }
     // COIN FLIPS (§4, amended): SOS resolves ties BEFORE any flip fires — a
@@ -179,13 +177,13 @@ describe("Scenario 1 — normal night", () => {
     const flagged = table.filter((r) => r.requiresCoinFlip);
     for (const row of flagged) {
       const peer = table.find(
-        (r) => r.playerId !== row.playerId && r.wins === row.wins &&
-          r.losses === row.losses && r.gameDiff === row.gameDiff &&
-          strengthOfSchedule(n.pool, r.playerId) === strengthOfSchedule(n.pool, row.playerId),
+        (r) => r.playerId !== row.playerId &&
+          r.points === row.points && r.gameDiff === row.gameDiff,
       );
-      expect(peer, `flagged row ${row.playerId} is a true W-L-diff-SOS twin`).toBeDefined();
+      expect(peer, `flagged row ${row.playerId} is a true points-and-diff twin`).toBeDefined();
     }
-    expect(table.some((r) => r.tiebreakApplied === "sos")).toBe(true); // SOS is doing real work
+    // Differential is the only separator left before the coin (STEP 6.3).
+    expect(table.some((r) => r.tiebreakApplied === "diff")).toBe(true);
     if (flagged.length > 0) {
       // Resolve exactly the way the room does (STEP 6.2): one visible coin at
       // a time, each answer deciding what is asked next, until every tied
