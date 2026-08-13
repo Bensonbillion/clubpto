@@ -31,6 +31,12 @@ import {
 } from "@/lib/americano/format";
 import { poolPace, type PoolPace } from "@/lib/americano/pace";
 import {
+  advanceBracket, awaitingPendingMatch, cancelPlayoff as cancelPlayoffLib,
+  courtBorrowAvailable, crownFromBracket, declinePlayoff as declinePlayoffLib,
+  endCourtIndividual, lockPlayoff as lockPlayoffLib, planPlayoff,
+  regressBracket, requestPlayoff as requestPlayoffLib, type PlayoffPlan,
+} from "@/lib/americano/playoff";
+import {
   appendSharedRosterEntry, createAmericanoStore, fetchSharedRoster,
   type SessionStore, type SharedRosterEntry, type SyncStatus,
 } from "@/lib/americano/storage";
@@ -149,6 +155,17 @@ export interface PoolLiveView {
   history: AmericanoMatch[];
   /** True when this court is owed a result (the segmented control's dot). */
   owesResult: boolean;
+  /** The frozen bracket snapshot, once seeds have locked (STEP 7). */
+  playoff: AmericanoPool["playoff"];
+  champion: AmericanoPool["champion"];
+  /** SF1, SF2, FINAL in bracket order — the pager's extra cards. */
+  bracket: AmericanoMatch[];
+  /** Triggered, but a round-robin match is still on court. */
+  awaitingPending: boolean;
+  /** What the confirm screen shows: the plan, or why it refuses. */
+  plan: PlayoffPlan;
+  /** Is the other court free to host a semi in parallel? */
+  canBorrowCourt: boolean;
   /** How many flips are actually offered. NOT flagged-rows/2: a run of four
       tied players shows four flags but offers three flips. */
   pendingFlips: number;
@@ -213,6 +230,15 @@ export interface UseAmericanoSession {
   dismissNotices(poolId: string): void;
 
   // People logistics (STEP 5)
+  // The playoff (STEP 7)
+  requestPlayoff(poolId: string): void;
+  cancelPlayoff(poolId: string): void;
+  lockPlayoff(poolId: string, format?: MatchFormat): void;
+  declinePlayoff(poolId: string): void;
+  endCourt(poolId: string): void;
+  /** Set when END COURT was refused because rank 1 is still on a coin. */
+  endCourtBlocked: string | null;
+
   /** Record a flip the room just watched land (STEP 6). The verdict comes
       back on `flipOutcome` — a flip either records or visibly declines. */
   recordCoinFlip(poolId: string, a: string, b: string, winner: string): void;
@@ -429,10 +455,16 @@ export function useAmericanoSession(): UseAmericanoSession {
       the spot, so a stale toss can never quietly keep deciding a rank. */
   const commitLive = useCallback((updater: (prev: AmericanoSession) => AmericanoSession) => {
     setSession((prev) => {
-      const next = pruneStaleFlips(ensureLive(updater(prev), Date.now(), (e) => {
-        const q = pendingEventsRef.current;
-        if (!q.some((x) => x.matchId === e.matchId)) q.push(e);
-      }));
+      const now = Date.now();
+      // The bracket advances on the same heartbeat as the courts: winners
+      // walk into the final and a finished final crowns, right after the
+      // commit that produced them.
+      const next = crownFromBracket(advanceBracket(pruneStaleFlips(
+        ensureLive(updater(prev), now, (e) => {
+          const q = pendingEventsRef.current;
+          if (!q.some((x) => x.matchId === e.matchId)) q.push(e);
+        }),
+      ), now), now);
       storeRef.current?.save(next, Date.now());
       return next;
     });
@@ -493,7 +525,45 @@ export function useAmericanoSession(): UseAmericanoSession {
   }, [commit]);
 
   const voidMatch = useCallback((matchId: string) => {
-    commitLive((s) => applyVoid(s, matchId));
+    commitLive((s) => {
+      const voided = applyVoid(s, matchId);
+      const pool = voided.pools.find((p) => p.matches.some((m) => m.id === matchId));
+      // Voiding a semi empties the final and puts the bracket back where it
+      // was — otherwise a final would sit there built from a match that no
+      // longer counts.
+      return pool ? regressBracket(voided, pool.id) : voided;
+    });
+  }, [commitLive]);
+
+  const requestPlayoff = useCallback((poolId: string) => {
+    commitLive((s) => requestPlayoffLib(s, poolId));
+  }, [commitLive]);
+
+  const cancelPlayoff = useCallback((poolId: string) => {
+    commitLive((s) => cancelPlayoffLib(s, poolId));
+  }, [commitLive]);
+
+  const lockPlayoff = useCallback((poolId: string, format?: MatchFormat) => {
+    commitLive((s) => lockPlayoffLib(s, poolId, Date.now(), format));
+  }, [commitLive]);
+
+  const declinePlayoff = useCallback((poolId: string) => {
+    commitLive((s) => declinePlayoffLib(s, poolId));
+  }, [commitLive]);
+
+  const [endCourtBlocked, setEndCourtBlocked] = useState<string | null>(null);
+  const endCourt = useCallback((poolId: string) => {
+    // The refusal has to reach the screen, so it is decided eagerly against
+    // the current session rather than swallowed inside an updater.
+    const attempt = endCourtIndividual(sessionRef.current, poolId, Date.now());
+    if (attempt.blocked.length > 0) {
+      setEndCourtBlocked(
+        "Rank 1 is still tied — run the coin from the Standings tab first.",
+      );
+      return;
+    }
+    setEndCourtBlocked(null);
+    commitLive(() => attempt.session);
   }, [commitLive]);
 
   const dismissNotices = useCallback((poolId: string) => {
@@ -649,6 +719,14 @@ export function useAmericanoSession(): UseAmericanoSession {
         })(),
         history: [...pool.matches].filter((m) => m.status !== "active" && m.status !== "pending").reverse(),
         owesResult: active !== null,
+        playoff: pool.playoff,
+        champion: pool.champion,
+        bracket: ["playoff_sf1", "playoff_sf2", "playoff_final"]
+          .map((ph) => pool.matches.find((m) => m.phase === ph))
+          .filter((m): m is AmericanoMatch => !!m),
+        awaitingPending: awaitingPendingMatch(pool),
+        plan: planPlayoff(pool, session.players, nowTick, pool.playoff?.format),
+        canBorrowCourt: courtBorrowAvailable(session, pool.id),
         // Coins still to toss before every group on this court is ordered —
         // the honest count, not flagged-rows halved.
         pendingFlips: pendingFlips(pool, session.players)
@@ -694,6 +772,7 @@ export function useAmericanoSession(): UseAmericanoSession {
     togglePlayer, isPicked,
     poolViews, movePlayer, setTarget, canStart, startSession, resetNight,
     liveViews, playerName, formatOfMatch, enterResult, correctResult, voidMatch,
+    requestPlayoff, cancelPlayoff, lockPlayoff, declinePlayoff, endCourt, endCourtBlocked,
     setPoolFormat: setPoolFormatAction, setDefaultFormat: setDefaultFormatAction,
     freshMatchIds, notices, dismissNotices, recordCoinFlip, tossCoin, flipOutcome,
     playerNotHere, playerArrived, playerLeft, playerRestore, canNotHere, notArrived,

@@ -20,6 +20,7 @@ import {
 import {
   CourtSegment, FlipOverlay, HistoryPager, MatchCard, Sheet, formatKey,
 } from "./manage4/shell";
+import { playoffCorrectionBlock } from "@/lib/americano/playoff";
 
 const ADMIN_PASSCODE = "9999";
 
@@ -316,6 +317,175 @@ const SetupPad = ({ a }: { a: UseAmericanoSession }) => {
   );
 };
 
+
+/* ── PART 1: the playoff confirm screen ───────────────────────────── */
+
+const PlayoffConfirm = ({ a, view, onClose, onStandings }: {
+  a: UseAmericanoSession; view: PoolLiveView;
+  onClose: () => void; onStandings: () => void;
+}) => {
+  const [format, setFormat] = useState<MatchFormat>(view.format);
+  const plan = view.plan;
+  const name = (id: string) => a.playerName(id);
+  const early = view.pace.done < view.pace.total;
+  const atTarget = view.people.filter((p) => p.played >= p.target).length;
+  const below = view.people.filter((p) => p.played < p.target);
+
+  return (
+    <Sheet title={`${view.pool.label} playoff`} onClose={onClose}>
+      {view.awaitingPending && (
+        <p className="text-sm rounded-md border border-amber-500/40 bg-amber-500/5 text-amber-400 px-2 py-1.5">
+          A match is still on court. It finishes and counts — seeds lock from
+          the final standings.
+        </p>
+      )}
+
+      {early && (
+        <p className="text-sm text-cream">
+          {atTarget} of {view.people.length} at {view.pool.targetMatches}
+          {below.length > 0 && (
+            <span className="text-muted-foreground">
+              {" "}· {below.length} below: {below.map((p) => p.name).join(", ")}
+            </span>
+          )}
+        </p>
+      )}
+      <p className="text-xs text-muted-foreground">
+        win = 3 · ties break on score difference
+      </p>
+
+      {plan.status === "blocked_by_flips" ? (
+        <>
+          <p className="text-sm text-amber-400">
+            Seeds cannot lock while a coin the bracket needs is unrun.
+          </p>
+          {plan.blockers.map((b, i) => (
+            <p key={i} className="text-sm text-cream">
+              {b.members.map(name).join(" · ")}
+              <span className="text-muted-foreground text-xs ml-1">
+                ({b.reason === "cut_line" ? "crosses the cut" : "seed order"})
+              </span>
+            </p>
+          ))}
+          <button onClick={onStandings}
+            className="w-full min-h-[52px] rounded-lg bg-gold text-dark font-display text-lg">
+            Run the coins in Standings
+          </button>
+        </>
+      ) : plan.status === "too_few_eligible" ? (
+        <p className="text-sm text-amber-400">
+          Not enough eligible players for a bracket — eight is the minimum.
+        </p>
+      ) : (
+        <>
+          <div className="rounded-lg border border-border divide-y divide-border/40">
+            {plan.snapshot.pairs.map((pair) => (
+              <div key={pair.seeds.join()} className="px-2 py-1.5 flex items-center gap-2">
+                <span className="text-[10px] uppercase tracking-widest text-muted-foreground w-10">
+                  {pair.seeds[0]}+{pair.seeds[1]}
+                </span>
+                <span className="flex-1 text-sm text-cream">
+                  {pair.playerIds.map(name).join(" + ")}
+                </span>
+              </div>
+            ))}
+          </div>
+          {plan.snapshot.excluded.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Not eligible ({plan.snapshot.leaderMatches - 1} matches minimum —
+              one behind the leader): {plan.snapshot.excluded
+                .map((x) => `${name(x.playerId)} (${x.matchesPlayed})`).join(", ")}
+            </p>
+          )}
+          <div className="space-y-1.5">
+            <span className="text-xs uppercase tracking-widest text-muted-foreground">
+              Bracket format
+            </span>
+            <FormatButtons value={format} locked={false} onChange={setFormat} />
+          </div>
+          <button
+            disabled={view.awaitingPending}
+            onClick={() => { a.lockPlayoff(view.pool.id, format); onClose(); }}
+            className={`w-full min-h-[56px] rounded-lg font-display text-lg ${
+              view.awaitingPending
+                ? "bg-dark-elevated border border-border text-muted-foreground/60"
+                : "bg-gold text-dark"}`}>
+            Start playoff
+          </button>
+        </>
+      )}
+      <button onClick={() => { a.cancelPlayoff(view.pool.id); onClose(); }}
+        className="w-full min-h-[48px] rounded-lg border border-border text-cream text-sm">
+        Keep playing
+      </button>
+    </Sheet>
+  );
+};
+
+/* ── PART 3: the champion card ────────────────────────────────────── */
+
+const ChampionCard = ({ a, view }: { a: UseAmericanoSession; view: PoolLiveView }) => {
+  const champ = view.champion!;
+  return (
+    <div className="rounded-2xl border-2 border-gold bg-gold/10 p-5 text-center space-y-2">
+      <p className="text-[11px] uppercase tracking-widest text-gold">{champ.title}</p>
+      <p className="font-display text-3xl text-cream leading-tight">
+        {champ.playerIds.map(a.playerName).join(" + ")}
+      </p>
+      <p className="text-xs text-muted-foreground">
+        {champ.kind === "pair" ? "Won the bracket" : "Topped the standings"}
+      </p>
+    </div>
+  );
+};
+
+/* ── PART 2: bracket cards, in the pager's language ───────────────── */
+
+const PHASE_LABEL: Record<string, string> = {
+  playoff_sf1: "Semi-final 1", playoff_sf2: "Semi-final 2", playoff_final: "Final",
+};
+
+const BracketPager = ({ a, view, onEdit }: {
+  a: UseAmericanoSession; view: PoolLiveView;
+  onEdit: (m: AmericanoMatch) => void;
+}) => {
+  const [i, setI] = useState(0);
+  if (view.bracket.length === 0) return null;
+  const idx = Math.min(i, view.bracket.length - 1);
+  const m = view.bracket[idx];
+  const waiting = m.teamA[0] === "" || m.teamB[0] === "";
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-1.5">
+        {view.bracket.map((b, k) => (
+          <button key={b.id} onClick={() => setI(k)} aria-pressed={k === idx}
+            className={`flex-1 min-h-[36px] rounded-md text-[10px] uppercase tracking-widest ${
+              k === idx ? "bg-gold text-dark"
+              : b.result ? "border border-gold/40 text-gold" : "border border-border text-muted-foreground"}`}>
+            {PHASE_LABEL[b.phase].replace("Semi-final ", "SF")}
+          </button>
+        ))}
+      </div>
+      <p className="text-[11px] uppercase tracking-widest text-muted-foreground text-center">
+        {PHASE_LABEL[m.phase]}
+      </p>
+      {waiting ? (
+        <div className="rounded-2xl border-2 border-border p-6 text-center">
+          <p className="text-sm text-muted-foreground">Waiting on the semi-finals.</p>
+        </div>
+      ) : (
+        <MatchCard a={a} view={view} match={m} readOnly={m.status !== "active"} />
+      )}
+      {m.result && (
+        <button onClick={() => onEdit(m)}
+          className="w-full min-h-[44px] rounded-lg border border-border text-sm text-muted-foreground">
+          Correct or void this match
+        </button>
+      )}
+    </div>
+  );
+};
+
 /* ── PART 1 + 2: the live shell ───────────────────────────────────── */
 
 const fmtClock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -360,8 +530,24 @@ const CorrectionSheet = ({ a, view, match, onClose }: {
   a: UseAmericanoSession; view: PoolLiveView; match: AmericanoMatch; onClose: () => void;
 }) => {
   const format = a.formatOfMatch(view.pool.id, match);
+  const block = playoffCorrectionBlock(view.pool, match.id);
+  if (block.blocked) {
+    return (
+      <Sheet title={PHASE_LABEL[match.phase] ?? `Match ${match.matchIndex}`} onClose={onClose}>
+        <p className="text-sm text-amber-400">{block.message}</p>
+        <p className="text-sm text-muted-foreground">
+          The final was played from this result, so changing it now would
+          leave a champion who never beat the pair the table says they beat.
+        </p>
+        <button onClick={onClose}
+          className="w-full min-h-[52px] rounded-lg border-2 border-border text-cream">
+          Close
+        </button>
+      </Sheet>
+    );
+  }
   return (
-    <Sheet title={`Match ${match.matchIndex}`} onClose={onClose}>
+    <Sheet title={PHASE_LABEL[match.phase] ?? `Match ${match.matchIndex}`} onClose={onClose}>
       <p className="text-sm text-muted-foreground">
         {match.status === "voided" ? "Voided — counts for nothing." : "Re-enter the result:"}
       </p>
@@ -389,8 +575,9 @@ const CorrectionSheet = ({ a, view, match, onClose }: {
   );
 };
 
-const MatchTab = ({ a, view, onPlayerTap }: {
-  a: UseAmericanoSession; view: PoolLiveView; onPlayerTap: (id: string) => void;
+const MatchTab = ({ a, view, onPlayerTap, onConfirm }: {
+  a: UseAmericanoSession; view: PoolLiveView;
+  onPlayerTap: (id: string) => void; onConfirm: () => void;
 }) => {
   const [page, setPage] = useState(0);
   const [editing, setEditing] = useState<AmericanoMatch | null>(null);
@@ -405,16 +592,48 @@ const MatchTab = ({ a, view, onPlayerTap }: {
         </div>
       )}
 
-      {view.active ? (
+      {view.champion && <ChampionCard a={a} view={view} />}
+      {view.bracket.length > 0 ? (
+        <>
+          {view.canBorrowCourt && view.bracket.filter((b) => b.status === "active").length > 1 && (
+            <p className="text-xs text-muted-foreground rounded-md border border-border px-2 py-1.5">
+              The other court is free — both semis can run at once. Or play
+              them one after the other; nothing here forces it.
+            </p>
+          )}
+          <BracketPager a={a} view={view} onEdit={setEditing} />
+        </>
+      ) : view.active ? (
         <MatchCard key={`${view.active.id}:${view.active.teamA.join()}:${view.active.teamB.join()}:${formatKey(view.format)}`}
           a={a} view={view} match={view.active} onPlayerTap={onPlayerTap} />
       ) : view.blocked === "all_at_target" ? (
         <div className="rounded-2xl border-2 border-gold/40 bg-gold/5 p-6 text-center space-y-3">
           <p className="font-display text-xl text-cream">Round robin complete</p>
           <p className="text-sm text-muted-foreground">Everyone at {view.pool.targetMatches}.</p>
-          <button disabled className="w-full min-h-[52px] rounded-lg border-2 border-border text-muted-foreground/60 text-sm uppercase tracking-widest">
-            Start playoff — Step 7
+          <button onClick={() => onConfirm()}
+            className="w-full min-h-[52px] rounded-lg bg-gold text-dark font-display text-lg">
+            Start playoff
           </button>
+          {view.pool.label === "Court 1" && (
+            <button
+              onClick={() => {
+                if (window.confirm("No playoff on Court 1? Everyone gets one more match.")) {
+                  a.declinePlayoff(view.pool.id);
+                }
+              }}
+              className="w-full min-h-[48px] rounded-lg border border-border text-cream text-sm">
+              No playoff — one more match each
+            </button>
+          )}
+          {view.pool.playoffMode === "none" && (
+            <button onClick={() => a.endCourt(view.pool.id)}
+              className="w-full min-h-[48px] rounded-lg border border-gold/50 text-gold text-sm">
+              End Court 1 — crown the leader
+            </button>
+          )}
+          {a.endCourtBlocked && (
+            <p className="text-sm text-amber-400">{a.endCourtBlocked}</p>
+          )}
         </div>
       ) : view.blocked === "below_four_present" ? (
         <div className="rounded-2xl border-2 border-amber-500/40 bg-amber-500/5 p-6 text-center">
@@ -424,16 +643,23 @@ const MatchTab = ({ a, view, onPlayerTap }: {
         </div>
       ) : null}
 
-      {view.nextUp && (
+      {view.awaitingPending && (
+        <p className="text-sm text-amber-400 px-1">
+          Playoff triggered — this match finishes and counts, then seeds lock.
+        </p>
+      )}
+      {!view.playoff && view.nextUp && (
         <p className="text-sm text-cream px-1">
           <span className="text-muted-foreground">Next: </span>{view.nextUp.join(", ")}
         </p>
       )}
-      {view.resting.length > 0 && (
+      {!view.playoff && view.resting.length > 0 && (
         <p className="text-sm text-muted-foreground/70 px-1">Resting: {view.resting.join(", ")}</p>
       )}
 
-      <HistoryPager a={a} view={view} index={page} onIndex={setPage} onEdit={setEditing} />
+      {!view.playoff && (
+        <HistoryPager a={a} view={view} index={page} onIndex={setPage} onEdit={setEditing} />
+      )}
       {editing && <CorrectionSheet a={a} view={view} match={editing} onClose={() => setEditing(null)} />}
     </div>
   );
@@ -545,6 +771,7 @@ const LiveShell = ({ a }: { a: UseAmericanoSession }) => {
   const [sheetPlayer, setSheetPlayer] = useState<string | null>(null);
   const [flip, setFlip] = useState<{ poolId: string; pair: { a: string; b: string } } | null>(null);
   const [more, setMore] = useState(false);
+  const [confirm, setConfirm] = useState(false);
 
   const view = a.liveViews.find((v) => v.pool.id === courtId) ?? a.liveViews[0];
   if (!view) return null;
@@ -584,7 +811,10 @@ const LiveShell = ({ a }: { a: UseAmericanoSession }) => {
           <CourtSegment views={a.liveViews} activeId={view.pool.id} onPick={setCourtId} />
         )}
 
-        {tab === "match" && <MatchTab a={a} view={view} onPlayerTap={setSheetPlayer} />}
+        {tab === "match" && (
+          <MatchTab a={a} view={view} onPlayerTap={setSheetPlayer}
+            onConfirm={() => { a.requestPlayoff(view.pool.id); setConfirm(true); }} />
+        )}
         {tab === "players" && <PlayersTab a={a} views={a.liveViews} onPlayerTap={setSheetPlayer} />}
         {tab === "standings" && (
           <StandingsTab a={a} view={view} onFlip={(pair) => setFlip({ poolId: view.pool.id, pair })} />
@@ -606,6 +836,10 @@ const LiveShell = ({ a }: { a: UseAmericanoSession }) => {
       </nav>
 
       {sheetPlayer && <PlayerSheet a={a} playerId={sheetPlayer} onClose={() => setSheetPlayer(null)} />}
+      {confirm && (
+        <PlayoffConfirm a={a} view={view} onClose={() => setConfirm(false)}
+          onStandings={() => { setConfirm(false); setTab("standings"); }} />
+      )}
       {flip && <FlipOverlay a={a} poolId={flip.poolId} pair={flip.pair} onClose={() => setFlip(null)} />}
       {more && (
         <Sheet title="Session" onClose={() => setMore(false)}>
@@ -616,10 +850,14 @@ const LiveShell = ({ a }: { a: UseAmericanoSession }) => {
               <> · avg {fmtDur(view.pace.avgMs)} · ends ~{fmtClock(view.pace.projectedEndMs)}</>
             )}
           </p>
-          <button disabled
-            className="w-full min-h-[48px] rounded-lg border border-border text-muted-foreground/50 text-sm">
-            Playoff controls — Step 7
-          </button>
+          {!view.playoff && !view.champion && (
+            <button onClick={() => {
+                a.requestPlayoff(view.pool.id); setMore(false); setConfirm(true);
+              }}
+              className="w-full min-h-[48px] rounded-lg border border-gold/50 text-gold text-sm">
+              Start the playoff now (early)
+            </button>
+          )}
           <button onClick={() => {
               if (window.confirm("Reset the whole night? Setup and every match are discarded.")) {
                 a.resetNight(); setMore(false);
