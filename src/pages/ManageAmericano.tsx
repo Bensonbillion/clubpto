@@ -115,12 +115,15 @@ const SetupPad = ({ a }: { a: UseAmericanoSession }) => {
   const [quickTier, setQuickTier] = useState<AmericanoTier>("B");
   const q = search.trim().toLowerCase();
 
-  const matches = useMemo(
-    () => (q
-      ? a.roster.filter((r) => `${r.displayName} ${r.lastName ?? ""}`.toLowerCase().includes(q)).slice(0, 8)
-      : a.roster.slice(0, 8)),
-    [a.roster, q],
-  );
+  // Suggestions are for people NOT yet in the night — the ones already added
+  // are listed below with their own remove buttons. Without this, once a
+  // dozen names are in, a common letter returns eight chips that are all
+  // already picked and the rest of the roster is unreachable.
+  const matches = useMemo(() => {
+    const hit = (r: { displayName: string; lastName?: string }) =>
+      `${r.displayName} ${r.lastName ?? ""}`.toLowerCase().includes(q);
+    return a.roster.filter((r) => !a.isPicked(r.playerId) && (!q || hit(r))).slice(0, 8);
+  }, [a, q]);
   const missed = q.length > 1 && matches.length === 0;
   const picked = a.session.players;
   const fmt = a.session.defaultMatchFormat;
