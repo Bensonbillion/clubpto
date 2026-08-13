@@ -81,7 +81,14 @@ try {
     if (entry === ".git") continue;
     fs.rmSync(path.join(work, entry), { recursive: true, force: true });
   }
-  fs.cpSync(dist, work, { recursive: true });
+  // Skip .git on BOTH sides. An older deploy method ran `git init` inside
+  // dist/, and dist/ is gitignored, so that repo sat there invisibly; copying
+  // it would have pushed repo internals to a public site, and it aborted the
+  // copy outright because a worktree's own .git is a file, not a directory.
+  fs.cpSync(dist, work, {
+    recursive: true,
+    filter: (src) => path.basename(src) !== ".git",
+  });
 
   run("git", ["add", "-A"], { cwd: work });
   const staged = run("git", ["status", "--porcelain"], { cwd: work }).trim();
