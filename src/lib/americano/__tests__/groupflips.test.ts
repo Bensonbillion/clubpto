@@ -503,3 +503,52 @@ describe("the shared tie predicate is still the single definition", () => {
     }
   });
 });
+
+/* ── the close-out walk's defect ─────────────────────────────────── */
+
+describe("the offered coin is keyed by CANDIDATE, never by table adjacency", () => {
+  // Walk repro: a live record {c0,c1,c11} with order ["c0","c1"] still owed a
+  // coin — c11 against c0 — but c1 sorted BETWEEN them, so a UI that only drew
+  // the button when the opponent was the next row rendered nothing. The badge
+  // read "2 flips to run" with no way to run them and the playoff gate, which
+  // waits on the same records, could never clear.
+  it("a group strands if the offer needs the opponent on the next row", () => {
+    let s = fourWay();
+    const members = flipGroups(P(s), s.players)[0];
+    expect(members.length).toBeGreaterThanOrEqual(3);
+
+    let sawNonAdjacent = false;
+    for (let guard = 0; guard < 40; guard++) {
+      const pend = pendingFlips(P(s), s.players);
+      if (pend.length === 0) break;
+
+      const rows = poolStandings(P(s), s.players).map((r) => r.playerId);
+      for (const { a, b } of pend) {
+        // The FIX: one offer per candidate, so the button always has a home.
+        expect(rows).toContain(a);
+        expect(rows).toContain(b);
+        if (Math.abs(rows.indexOf(a) - rows.indexOf(b)) !== 1) {
+          sawNonAdjacent = true;
+          // …and here is the defect itself: the old rule drew the button only
+          // on the row directly above its partner, so this coin had no button.
+          const drawnByOldRule = rows.some((id, i) =>
+            (id === a && rows[i + 1] === b) || (id === b && rows[i + 1] === a));
+          expect(drawnByOldRule).toBe(false);
+        }
+      }
+      // Candidates are unique, so a candidate-keyed map never loses an offer.
+      expect(new Set(pend.map((p) => p.a)).size).toBe(pend.length);
+
+      // Insert the candidate BELOW its opponent — this is what pushes a later
+      // opponent away from the adjacent row.
+      s = applyCoinFlip(s, "court-2", pend[0].a, pend[0].b, pend[0].b, 2_000 + guard);
+    }
+
+    // The stranding case is real, not hypothetical: at least one offered coin
+    // named an opponent that was not the neighbouring row.
+    expect(sawNonAdjacent).toBe(true);
+    // And the group still resolves all the way to a complete order.
+    expect(pendingFlips(P(s), s.players)).toEqual([]);
+    for (const rec of liveGroupRecords(P(s), s.players)) expect(isComplete(rec)).toBe(true);
+  });
+});

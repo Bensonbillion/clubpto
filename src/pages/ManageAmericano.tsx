@@ -734,8 +734,11 @@ const StandingsTab = ({ a, view, onFlip }: {
       win = 3 · ties break on score difference
     </p>
     <div className="divide-y divide-border/40">
-      {view.standings.map((r, i) => {
-        const tiedBelow = r.requiresCoinFlip && r.flipWith === view.standings[i + 1]?.playerId;
+      {view.standings.map((r) => {
+        // The offer lives on the row the procedure is ASKING about, naming its
+        // opponent — never on "the row above its neighbour", which silently
+        // hid the coin whenever a third player sat between the two.
+        const offer = r.flipWith;
         return (
           <div key={r.playerId} className={`px-3 py-2 flex items-center gap-2 ${r.requiresCoinFlip ? "bg-gold/[0.05]" : ""}`}>
             <span className="w-5 text-sm text-muted-foreground/70">{r.rank}</span>
@@ -750,12 +753,14 @@ const StandingsTab = ({ a, view, onFlip }: {
             <span className="w-8 text-right font-display text-base text-gold">{r.points}</span>
             <span className="w-10 text-right text-sm text-muted-foreground">{r.wins}–{r.losses}</span>
             <span className="w-10 text-right text-sm text-cream">{r.gameDiff >= 0 ? "+" : ""}{r.gameDiff}</span>
-            {tiedBelow && r.flipWith && (
-              <button onClick={() => onFlip({ a: r.playerId, b: r.flipWith! })}
-                className="min-h-[36px] px-2 rounded border border-gold/60 text-[10px] uppercase tracking-widest text-gold">
-                Flip
+            {offer ? (
+              <button onClick={() => onFlip({ a: r.playerId, b: offer })}
+                className="min-h-[36px] px-2 rounded border border-gold/60 text-[10px] uppercase tracking-widest text-gold whitespace-nowrap">
+                Flip v {a.playerName(offer)}
               </button>
-            )}
+            ) : r.requiresCoinFlip ? (
+              <span className="text-[10px] uppercase tracking-widest text-gold/70">tied</span>
+            ) : null}
           </div>
         );
       })}

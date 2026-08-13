@@ -734,9 +734,13 @@ export function useAmericanoSession(): UseAmericanoSession {
         standings: (() => {
           const pending = pendingFlips(pool, session.players);
           // Only the NEXT flip of each group is offerable: the procedure is an
-          // insertion, so each answer decides what is asked next.
+          // insertion, so each answer decides what is asked next. The key is
+          // the CANDIDATE (a) alone — its opponent may sit anywhere in the
+          // run, not necessarily on the next row, so pairing both ways would
+          // leave the button dependent on table adjacency and a group could
+          // strand with a coin nobody can reach.
           const partner = new Map<string, string>();
-          for (const { a, b } of pending) { partner.set(a, b); partner.set(b, a); }
+          for (const { a, b } of pending) partner.set(a, b);
           return poolStandings(pool, session.players).map((r) => ({
             playerId: r.playerId,
             rank: r.rank,
