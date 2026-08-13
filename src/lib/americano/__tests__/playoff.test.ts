@@ -145,10 +145,8 @@ describe("the gate: seeds cannot lock over an unresolved coin (STEP 7)", () => {
 
     // Eight eligible → top 4, so the cut runs through the four winners.
     const plan0 = planPlayoff(P(s), s.players, 1_000);
-    expect(plan0.ok).toBe(false);
-    if (plan0.ok) return;
-    expect(plan0.reason).toBe("blocked_by_flips");
-    expect(plan0.blockers.length).toBeGreaterThan(0);
+    expect(plan0.status).toBe("blocked_by_flips");
+    expect(plan0.status === "ready" ? [] : plan0.blockers).not.toHaveLength(0);
     expect(lockPlayoff(s, "court-2", 1_000)).toBe(s); // refuses to write
 
     // One coin is not enough — the group's order must COMPLETE.
@@ -157,8 +155,7 @@ describe("the gate: seeds cannot lock over an unresolved coin (STEP 7)", () => {
     expect(playoffBlockers(P(s), s.players, "top4").length).toBeGreaterThan(0);
 
     s = settleAll(s);
-    const plan1 = planPlayoff(P(s), s.players, 3_000);
-    expect(plan1.ok).toBe(true);
+    expect(planPlayoff(P(s), s.players, 3_000).status).toBe("ready");
   });
 
   it("blank-slate groups never block a bracket", () => {
@@ -173,8 +170,7 @@ describe("the gate: seeds cannot lock over an unresolved coin (STEP 7)", () => {
   it("a settled night plans cleanly, with SOS- and coin-decided seeds recorded", () => {
     const s = settleAll(playedNight());
     const plan = planPlayoff(P(s), s.players, 5_000);
-    expect(plan.ok).toBe(true);
-    if (!plan.ok) return;
+    if (plan.status !== "ready") throw new Error("expected a ready plan");
     const rows = poolStandings(P(s), s.players);
     // The seeds ARE the standings, annotation and all — the audit trail.
     expect(plan.snapshot.seeds.map((x) => x.playerId)).toEqual(rows.slice(0, 8).map((r) => r.playerId));
@@ -219,7 +215,7 @@ describe("early trigger with a match still on court (STEP 7)", () => {
     let s = settleAll(partialNight(8));
     expect(playoffBlockers(P(s), s.players, "top8")).toEqual([]);
     expect(P(s).matches.some((m) => m.status === "active")).toBe(true);
-    expect(planPlayoff(P(s), s.players, 1).ok).toBe(true); // the plan is fine…
+    expect(planPlayoff(P(s), s.players, 1).status).toBe("ready"); // the plan is fine…
     expect(lockPlayoff(s, "court-2", 600_000)).toBe(s);    // …the write is not
 
     // Finish it and the same call succeeds.

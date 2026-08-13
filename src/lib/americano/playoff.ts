@@ -78,8 +78,9 @@ const PAIR_SEEDS: Record<"top8" | "top4", [number, number][]> = {
 };
 
 export type PlayoffPlan =
-  | { ok: true; snapshot: PlayoffSnapshot }
-  | { ok: false; reason: "too_few_eligible" | "blocked_by_flips"; blockers: BlockingFlip[] };
+  | { status: "ready"; snapshot: PlayoffSnapshot }
+  | { status: "too_few_eligible"; blockers: BlockingFlip[] }
+  | { status: "blocked_by_flips"; blockers: BlockingFlip[] };
 
 /**
  * Everything the confirm screen shows, and exactly what lockPlayoff will
@@ -94,10 +95,10 @@ export function planPlayoff(
 ): PlayoffPlan {
   const { eligible, excluded, leaderMatches } = eligibility(pool, players);
   const mode = playoffModeFor(eligible.length);
-  if (!mode) return { ok: false, reason: "too_few_eligible", blockers: [] };
+  if (!mode) return { status: "too_few_eligible", blockers: [] };
 
   const blockers = playoffBlockers(pool, players, mode);
-  if (blockers.length > 0) return { ok: false, reason: "blocked_by_flips", blockers };
+  if (blockers.length > 0) return { status: "blocked_by_flips", blockers };
 
   const cut = eligible.slice(0, cutSizeFor(mode));
   const seeds: PlayoffSeed[] = cut.map((r, i) => ({
@@ -112,7 +113,7 @@ export function planPlayoff(
   }));
 
   return {
-    ok: true,
+    status: "ready",
     snapshot: {
       mode, lockedAt: now, seeds, pairs, excluded,
       format: playoffFormat(pool, formatOverride),
@@ -189,7 +190,7 @@ export function lockPlayoff(
   if (!pool || pool.playoff) return s;
   if (activeMatch(pool)) return s; // the pending match finishes first
   const plan = planPlayoff(pool, s.players, now, formatOverride);
-  if (!plan.ok) return s;
+  if (plan.status !== "ready") return s;
 
   const { snapshot } = plan;
   const base = pool.matches.length;
