@@ -25,7 +25,6 @@ import {
 import {
   attemptCoinFlip, pendingFlips, pickFlipWinner, poolStandings, pruneStaleFlips,
 } from "@/lib/americano/flips";
-import { strengthOfSchedule } from "@/lib/americano/standings";
 import {
   DEFAULT_FORMAT, isFormatLocked, matchFormatOf,
   setDefaultFormat as setDefaultFormatLib, setPoolFormat as setPoolFormatLib,
@@ -117,9 +116,10 @@ export interface StandingsRowView {
   name: string;
   wins: number;
   losses: number;
+  /** 3 × wins — the headline number (STEP 6.3). */
+  points: number;
   gameDiff: number;
-  sos: number;
-  /** h2h / sos / coin / losses / diff — what placed this row above the next. */
+  /** diff / coin — what placed this row above the next. */
   tiebreak: StandingsRow["tiebreakApplied"];
   requiresCoinFlip: boolean;
   /** The unresolved pair this row belongs to, when it is flip-tied. */
@@ -666,7 +666,7 @@ export function useAmericanoSession(): UseAmericanoSession {
             wins: r.wins,
             losses: r.losses,
             gameDiff: r.gameDiff,
-            sos: strengthOfSchedule(pool, r.playerId),
+            points: r.points,
             tiebreak: r.tiebreakApplied,
             requiresCoinFlip: r.requiresCoinFlip,
             flipWith: partner.get(r.playerId) ?? null,

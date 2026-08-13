@@ -250,7 +250,7 @@ describe("Scenario 2 — variable split (14 players)", () => {
 /* ── Scenario 3: EARLY CUT ───────────────────────────────────────── */
 
 describe("Scenario 3 — early playoff cut", () => {
-  it("mid-wave cut: summary matches reality, W–L chain seeds fairly", () => {
+  it("mid-wave cut: summary matches reality, points-then-diff seeds fairly", () => {
     const n = start(mkPlayers(16, "e"), 3);
     for (let i = 0; i < 10; i++) expect(playOne(n)).toBe(true);
 
@@ -264,16 +264,15 @@ describe("Scenario 3 — early playoff cut", () => {
     }
 
     const table = computeStandings(n.pool, n.players);
-    // 2W-0L (2 matches) outranks 2W-1L (3 matches) whenever both exist.
-    const twoOh = table.filter((r) => r.wins === 2 && r.losses === 0);
-    const twoOne = table.filter((r) => r.wins === 2 && r.losses === 1);
-    expect(twoOh.length).toBeGreaterThan(0); // this seed produces the case
-    if (twoOne.length > 0) {
-      const worst = Math.max(...twoOh.map((r) => r.rank));
-      const best = Math.min(...twoOne.map((r) => r.rank));
-      expect(worst).toBeLessThan(best);
-      const boundary = table.find((r) => r.rank === worst);
-      expect(boundary?.tiebreakApplied).toBe("losses");
+    // An early cut mixes k and k+1 match counts. Since STEP 6.3 that is fine
+    // WITHOUT a losses key: two wins is six points whether they came in two
+    // matches or three, and differential separates from there.
+    const twoWins = table.filter((r) => r.wins === 2);
+    expect(twoWins.length).toBeGreaterThan(0);
+    for (const r of twoWins) expect(r.points).toBe(6);
+    for (let i = 0; i < table.length - 1; i++) {
+      const a = table[i], b = table[i + 1];
+      expect(a.points > b.points || (a.points === b.points && a.gameDiff >= b.gameDiff)).toBe(true);
     }
     // Everyone present-from-start is bracket-eligible at the cut.
     for (const row of table) expect(playoffEligible(row, table)).toBe(true);
@@ -385,7 +384,10 @@ describe("Scenario 4 — messy night", () => {
 /* ── SOS unit test (§4, amended) ─────────────────────────────────── */
 
 describe("Strength of schedule", () => {
-  it("orders a W-L-diff tie by opponents' win totals, annotated 'sos'", () => {
+  it("a points-and-diff tie now goes STRAIGHT to the coin — no SOS layer", () => {
+    // The same fixture that used to prove SOS ordering. Since STEP 6.3 a
+    // harder road no longer ranks anyone higher: t1 and t2 are simply tied,
+    // and only a visible coin can separate them.
     const P = (id: string): AmericanoPlayer => ({
       playerId: id, displayName: id, tier: "B", status: "present",
       joinedAtMatchIndex: null, catchUpUsed: false,
@@ -401,23 +403,22 @@ describe("Strength of schedule", () => {
       id: "px", label: "Court 2", playerIds: players.map((p) => p.playerId),
       targetMatches: 3, playoffMode: "top8", status: "round_robin", matchFormat: DEFAULT_FORMAT,
       matches: [
-        M(["t1", "x1"], ["o1", "o2"], "A", 1),   // t1: 1W-0L +1, faced o1,o2
-        M(["t2", "x2"], ["o3", "o4"], "A", 1),   // t2: 1W-0L +1, faced o3,o4
-        M(["o1", "o2"], ["o5", "o6"], "A", 1),   // o1,o2 bank a win each → t1's SOS 2
-        M(["x1", "x2"], ["o5", "o6"], "B", 0),   // keeps x1/x2 off the 1W-0L line
+        M(["t1", "x1"], ["o1", "o2"], "A", 1),
+        M(["t2", "x2"], ["o3", "o4"], "A", 1),
+        M(["o1", "o2"], ["o5", "o6"], "A", 1),   // t1's opponents bank a win
+        M(["x1", "x2"], ["o5", "o6"], "B", 0),
       ],
     };
     const table = computeStandings(pool, players);
     const t1 = table.find((r) => r.playerId === "t1")!;
     const t2 = table.find((r) => r.playerId === "t2")!;
-    expect(t1.wins).toBe(1); expect(t2.wins).toBe(1);
-    expect(t1.losses).toBe(0); expect(t2.losses).toBe(0);
+    expect(t1.points).toBe(3); expect(t2.points).toBe(3);
     expect(t1.gameDiff).toBe(1); expect(t2.gameDiff).toBe(1);
+    // The schedules genuinely differ — and the chain no longer cares.
     expect(strengthOfSchedule(pool, "t1")).toBe(2);
     expect(strengthOfSchedule(pool, "t2")).toBe(0);
-    expect(t1.rank).toBeLessThan(t2.rank);          // harder road ranks higher
-    expect(t1.tiebreakApplied).toBe("sos");
-    expect(t1.requiresCoinFlip).toBe(false);
-    expect(t2.requiresCoinFlip).toBe(false);
+    expect(t1.requiresCoinFlip).toBe(true);
+    expect(t2.requiresCoinFlip).toBe(true);
+    expect(t1.tiebreakApplied).toBeNull();
   });
 });

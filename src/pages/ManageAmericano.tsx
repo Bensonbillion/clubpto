@@ -483,7 +483,7 @@ const PlayersTab = ({ a, views, onPlayerTap }: {
 );
 
 const TIEBREAK_CHIP: Record<string, string> = {
-  h2h: "H2H", sos: "SOS", coinflip: "COIN", losses: "L", diff: "DIFF",
+  coinflip: "COIN", diff: "DIFF",
 };
 
 const StandingsTab = ({ a, view, onFlip }: {
@@ -501,9 +501,12 @@ const StandingsTab = ({ a, view, onFlip }: {
     </div>
     <div className="px-3 py-1.5 flex items-center gap-2 text-[10px] uppercase tracking-widest text-muted-foreground/70">
       <span className="w-5">#</span><span className="flex-1">Player</span>
+      <span className="w-8 text-right">Pts</span>
       <span className="w-10 text-right">W–L</span><span className="w-10 text-right">Diff</span>
-      <span className="w-8 text-right">SOS</span>
     </div>
+    <p className="px-3 pb-1.5 text-[11px] text-muted-foreground">
+      win = 3 · ties break on score difference
+    </p>
     <div className="divide-y divide-border/40">
       {view.standings.map((r, i) => {
         const tiedBelow = r.requiresCoinFlip && r.flipWith === view.standings[i + 1]?.playerId;
@@ -518,9 +521,9 @@ const StandingsTab = ({ a, view, onFlip }: {
                 </span>
               )}
             </span>
-            <span className="w-10 text-right text-sm text-cream">{r.wins}–{r.losses}</span>
-            <span className="w-10 text-right text-sm text-muted-foreground">{r.gameDiff >= 0 ? "+" : ""}{r.gameDiff}</span>
-            <span className="w-8 text-right text-sm text-muted-foreground/70">{r.sos}</span>
+            <span className="w-8 text-right font-display text-base text-gold">{r.points}</span>
+            <span className="w-10 text-right text-sm text-muted-foreground">{r.wins}–{r.losses}</span>
+            <span className="w-10 text-right text-sm text-cream">{r.gameDiff >= 0 ? "+" : ""}{r.gameDiff}</span>
             {tiedBelow && r.flipWith && (
               <button onClick={() => onFlip({ a: r.playerId, b: r.flipWith! })}
                 className="min-h-[36px] px-2 rounded border border-gold/60 text-[10px] uppercase tracking-widest text-gold">

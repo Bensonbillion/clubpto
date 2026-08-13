@@ -33,8 +33,8 @@ Whenever a court frees, for that court's pool:
 - **Best of N:** differential = **games won − games lost**, where games won is ⌈N/2⌉. At best of 3 that is +2 for a 2–0 and +1 for a 2–1 (−1 and −2 to the losers) — **exactly the original rule**, which is the backward-compatibility proof. At best of 5 it spans ±3 / ±2 / ±1.
 - **Single game to T:** tap the winning pair, then the **loser's score** from a 0…T−1 grid. Differential = **±(T − loser's score)**: a 7–4 is +3 to the winners and −3 to the losers; a 7–0 is ±7.
 Both formats feed the SAME number. Everything downstream — the chain, SOS, the coin flip, the group-order staleness rule — consumes differential and neither knows nor cares which format produced it. **Never sum differentials across sessions of different formats** (a 7-point game's ±7 is not comparable to a best-of-3's ±2); season aggregation must group by format.
-**Standings: wins → fewest losses → game differential → head-to-head → strength of schedule → visible coin flip.** **(Amended)** SOS = the sum of tonight's wins of every opponent this player faced (opponents only, not partners; a repeat opponent counts each time faced; completed matches only). SOS sits between head-to-head and the coin flip precisely so flips stay rare and last-resort.
-Wins is the headline number — no win percentage anywhere. **Fewest losses is inert on a normal night** (equal matches means equal wins implies equal losses) **and exists purely for early cuts**: when the playoff is triggered before everyone finishes, players sit at k or k+1 matches, and 2W–0L rightly outranks 2W–1L. It's the mechanism that makes an early cut fair while still ranking by wins, exactly as decided.
+**(Amended — STEP 6.3, owner-locked.) Standings: points → game differential → visible coin flip.** A win is **3 points**, a loss is **0**, and there are no draws — so points are simply 3 × wins, a number anyone can compute in their head while standing on court. Ties break on the **game scores already recorded at entry** (the 7–5s and 7–4s). Losses, head-to-head and strength of schedule have LEFT the chain entirely: the scores do the separating that three extra tiebreaks used to.
+A consequence, intended and asserted by name in the suite: **4–2 with +16 out-ranks 4–0 with +4.** Losing twice while winning big beats an unbeaten run of narrow wins. Early cuts need no special rule any more — two wins is six points whether they came in two matches or three, and differential carries on from there.
 Differential does the everyday separating and rewards decisiveness, per the locked rule: Chizea (2–0, 2–0, 0–2) and Benson (2–1, 2–1, 1–2) both sit at 2W–1L, but Chizea's +2 beats Benson's +1 — even though Benson won more individual games (5 to 4). Decisiveness over volume, which is why the metric is differential, not games won. It also works at the bottom: a 1–2 loss outranks a 0–2, so taking a game off a strong pair counts.
 **Distribution check (example: 16 players, 12 matches):** 24 wins across 16 players lands roughly two on 3W, six on 2W, six on 1W, two on 0W — the top-8 cut falls in the 2W group, where differential spans about −1 to +3 and separates cleanly. Coin flips should be rare. The shape holds across realistic pool sizes.
 Corrections: the match history log — tap any result, flip or re-enter, standings recompute.
@@ -58,8 +58,7 @@ There is no hard timing in this system. No round clock, no horn, no load-bearing
 ```
 START COURT 2 PLAYOFF NOW?
 14 of 16 players have 3 matches · 2 have 2 (David, Timi)
-Standings will use W–L records — fewer losses ranks
-higher at equal wins.
+Standings: win = 3 · ties break on score difference.
 Top 8 right now: [list]
 [START]   [KEEP PLAYING]
 ```
