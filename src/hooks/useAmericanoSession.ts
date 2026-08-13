@@ -143,6 +143,12 @@ export interface PoolLiveView {
   /** This pool's match format, and whether play has locked it (STEP F). */
   format: MatchFormat;
   formatLocked: boolean;
+  /** Present players who are neither on court nor in the next four (STEP G). */
+  resting: string[];
+  /** Completed + voided matches, newest first — the history pager's pages. */
+  history: AmericanoMatch[];
+  /** True when this court is owed a result (the segmented control's dot). */
+  owesResult: boolean;
   /** How many flips are actually offered. NOT flagged-rows/2: a run of four
       tied players shows four flags but offers three flips. */
   pendingFlips: number;
@@ -632,6 +638,17 @@ export function useAmericanoSession(): UseAmericanoSession {
           .sort((a, b) => a.name.localeCompare(b.name)),
         format: pool.matchFormat ?? DEFAULT_FORMAT,
         formatLocked: isFormatLocked(pool),
+        resting: (() => {
+          const onCourt = new Set(active ? [...active.teamA, ...active.teamB] : []);
+          const upNext = new Set(previewIds ?? []);
+          return pool.playerIds
+            .filter((id) => !onCourt.has(id) && !upNext.has(id))
+            .filter((id) => session.players.find((p) => p.playerId === id)?.status === "present")
+            .map(playerName)
+            .sort((a, b) => a.localeCompare(b));
+        })(),
+        history: [...pool.matches].filter((m) => m.status !== "active" && m.status !== "pending").reverse(),
+        owesResult: active !== null,
         // Coins still to toss before every group on this court is ordered —
         // the honest count, not flagged-rows halved.
         pendingFlips: pendingFlips(pool, session.players)

@@ -20,7 +20,7 @@ import { computeRecords, computeStandings, strengthOfSchedule, tiedGroup } from 
 import { migrateAmericanoSession } from "../migrate";
 import {
   applyCoinFlip, attemptCoinFlip, completeOrders, flipGroupOf, flipGroups,
-  groupKey, isComplete, liveGroupRecords, lineOf, pendingFlips, poolStandings,
+  groupKey, isBlankSlate, isComplete, liveGroupRecords, lineOf, pendingFlips, poolStandings,
   pruneStaleFlips, replayGroup, unresolvedFlipsAffecting,
 } from "../flips";
 
@@ -125,38 +125,96 @@ describe("the procedure: one visible flip at a time (STEP 6.2)", () => {
   });
 });
 
+describe("blank-slate groups are not ties (STEP G, Part 0)", () => {
+  it("a sixteen-player court offers ZERO coins before anyone has played", () => {
+    const players = mkPlayers(16);
+    const pool = mkPool(players.map((p) => p.playerId), []);
+    // Everyone is 0-0-0 with SOS 0 — technically one enormous tied group.
+    // Nothing has happened, so nothing is tied.
+    expect(isBlankSlate(pool, players.map((p) => p.playerId))).toBe(true);
+    expect(flipGroups(pool, players)).toEqual([]);
+    expect(pendingFlips(pool, players)).toEqual([]);
+    expect(computeStandings(pool, players).some((r) => r.requiresCoinFlip)).toBe(false);
+    expect(unresolvedFlipsAffecting(pool, players, 8)).toEqual([]);
+  });
+
+  it("late arrivals still at 0-0-0 mid-night are never flagged", () => {
+    // Six have played; two walked in and have not. The played six tie among
+    // themselves as usual; the two arrivals are a blank set, not a tie.
+    const players = mkPlayers(8);
+    const ids = players.map((p) => p.playerId);
+    const pool = mkPool(ids, [
+      M(1, [ids[0], ids[1]], [ids[2], ids[3]]),
+      M(2, [ids[4], ids[5]], [ids[2], ids[3]]),
+    ]);
+    expect(isBlankSlate(pool, [ids[6], ids[7]])).toBe(true);
+    const groups = flipGroups(pool, players).map(groupKey);
+    expect(groups).not.toContain(groupKey([ids[6], ids[7]]));
+    const rows = computeStandings(pool, players, completeOrders(pool, players));
+    for (const id of [ids[6], ids[7]]) {
+      expect(rows.find((r) => r.playerId === id)!.requiresCoinFlip).toBe(false);
+    }
+    // …and a coin cannot be forced onto them.
+    const s = sess(pool, players);
+    expect(attemptCoinFlip(s, "court-2", ids[6], ids[7], ids[6], 1))
+      .toMatchObject({ accepted: false, reason: "blank_slate" });
+  });
+
+  it("one played match is enough to make a group real again", () => {
+    const players = mkPlayers(8);
+    const ids = players.map((p) => p.playerId);
+    const pool = mkPool(ids, [M(1, [ids[0], ids[1]], [ids[2], ids[3]])]);
+    // The four who played form two genuine groups; the four who did not are
+    // still blank.
+    expect(isBlankSlate(pool, [ids[0], ids[1]])).toBe(false);
+    expect(isBlankSlate(pool, [ids[4], ids[5], ids[6], ids[7]])).toBe(true);
+    const keys = flipGroups(pool, players).map(groupKey);
+    expect(keys).toContain(groupKey([ids[0], ids[1]]));
+    expect(keys).not.toContain(groupKey([ids[4], ids[5], ids[6], ids[7]]));
+  });
+});
+
 /* ── the 6.1 repros, as regressions ──────────────────────────────── */
 
 describe("REGRESSION 6.1-a: a live resolution can never be contradicted", () => {
   it("a third player joining the tie drops the pair record and re-flags fresh", () => {
-    // Six players, one match: t01,t03 win; t04,t05 lose; t00,t02 sit at 0-0-0.
+    // Six players, two matches. t00 and t02 end 1W-1L +0 with equal SOS and a
+    // split head-to-head — a genuine two-group WITH history (a blank 0-0-0
+    // set is no longer a tie at all, STEP G Part 0).
     const players = mkPlayers(6);
     const ids = players.map((p) => p.playerId);
-    let s = sess(mkPool(ids, [M(1, [ids[1], ids[3]], [ids[4], ids[5]])]), players);
+    let s = sess(mkPool(ids, [
+      M(1, [ids[0], ids[1]], [ids[2], ids[3]]),  // t00,t01 beat t02,t03
+      M(2, [ids[2], ids[4]], [ids[0], ids[5]]),  // t02,t04 beat t00,t05
+    ]), players);
 
     const pair = flipGroupOf(P(s), "t00", s.players);
     expect(pair).toEqual(["t00", "t02"]);
+    expect(pendingFlips(P(s), s.players).some((f) =>
+      groupKey(f.members) === groupKey(pair))).toBe(true);
     s = applyCoinFlip(s, "court-2", "t00", "t02", "t02", 1_000);
     expect(rankOf(s, "t02")).toBeLessThan(rankOf(s, "t00")); // the coin decides
+    expect(liveGroupRecords(P(s), s.players)).toHaveLength(1);
 
-    // VOID the only match: everyone collapses into one 0-0-0 group.
+    // VOID match 1: both of them land in DIFFERENT groups, each with a third
+    // player who never flipped against anyone.
     const voided: AmericanoSession = {
       ...s,
       pools: s.pools.map((p) => ({
-        ...p, matches: p.matches.map((m) => ({ ...m, status: "voided" as const })),
+        ...p,
+        matches: p.matches.map((m) =>
+          m.id === "court-2-m1" ? { ...m, status: "voided" as const } : m),
       })),
     };
     const after = pruneStaleFlips(voided);
 
-    // The pair record is GONE — membership grew, so the whole record drops.
+    // The pair record is GONE — membership moved, so the whole record drops.
     expect(after.pools[0].groupFlipResolutions).toBeUndefined();
     expect(liveGroupRecords(P(after), after.players)).toEqual([]);
     expect(completeOrders(P(after), after.players).size).toBe(0);
-    // The six now flag as one fresh group, and a coin is offered again.
-    expect(flipGroups(P(after), after.players)[0]).toHaveLength(6);
-    expect(pendingFlips(P(after), after.players)).toHaveLength(1);
-    // The old verdict never resurrects: t00/t02's order is provisional again.
-    expect(poolStandings(P(after), after.players).every((r) => r.requiresCoinFlip)).toBe(true);
+    expect(flipGroupOf(P(after), "t00", after.players)).not.toContain("t02");
+    // The old verdict never resurrects: fresh coins are offered instead.
+    expect(pendingFlips(P(after), after.players).length).toBeGreaterThan(0);
   });
 
   it("at no point does the table show a live resolution's loser above its winner", () => {
@@ -192,28 +250,36 @@ describe("REGRESSION 6.1-a: a live resolution can never be contradicted", () => 
   });
 
   it("the converse churn: a trio shrinking to a pair drops the record, no resurrection", () => {
-    const players = mkPlayers(6);
-    const ids = players.map((p) => p.playerId);
-    // t00,t02 and one more all at 0-0-0 initially (nobody has played).
-    let s = sess(mkPool(ids, []), players);
-    expect(flipGroups(P(s), s.players)[0]).toHaveLength(6);
+    // Eight players, two matches: the four winners are one tied group of four
+    // (WITH history). Settle it, then break the tie so the group shrinks.
+    let s = fourWay();
     s = settle(s, (a) => a);
     expect(pendingFlips(P(s), s.players)).toEqual([]);
-    const settledOrder = order(s);
+    const before = liveGroupRecords(P(s), s.players);
+    expect(before.length).toBeGreaterThan(0);
 
-    // A match is played: four players leave the 0-0-0 group entirely.
-    const played: AmericanoSession = {
+    // Correct match 1 to a 2-0: its two winners move to a different diff, so
+    // the four-group becomes two-and-two and every record covering it dies.
+    const corrected: AmericanoSession = {
       ...s,
-      pools: s.pools.map((p) => ({ ...p, matches: [M(1, [ids[0], ids[1]], [ids[2], ids[3]])] })),
+      pools: s.pools.map((p) => ({
+        ...p,
+        matches: p.matches.map((m) =>
+          m.id === "court-2-m1" ? { ...m, result: { winner: "A" as const, setsLost: 0 } } : m),
+      })),
     };
-    const after = pruneStaleFlips(played);
-    expect(after.pools[0].groupFlipResolutions).toBeUndefined(); // whole record dropped
-    // The remaining pair must flip afresh rather than inherit the old order.
-    const remaining = flipGroupOf(P(after), ids[4], after.players);
-    expect(remaining).toEqual([ids[4], ids[5]]);
-    expect(pendingFlips(P(after), after.players).some((f) =>
-      groupKey(f.members) === groupKey(remaining))).toBe(true);
-    void settledOrder;
+    const after = pruneStaleFlips(corrected);
+    const survivors = after.pools[0].groupFlipResolutions ?? [];
+    expect(survivors.some((r) => r.members.length === 4)).toBe(false);
+    // The smaller groups must flip AFRESH rather than inherit the old order.
+    for (const members of flipGroups(P(after), after.players)) {
+      const rec = liveGroupRecords(P(after), after.players)
+        .find((r) => groupKey(r.members) === groupKey(members));
+      if (!rec) {
+        expect(pendingFlips(P(after), after.players)
+          .some((f) => groupKey(f.members) === groupKey(members))).toBe(true);
+      }
+    }
   });
 });
 
@@ -298,7 +364,10 @@ describe("migration from pairwise resolutions (STEP 6.2)", () => {
   it("a legacy pair becomes a two-member group and orders identically", () => {
     const players = mkPlayers(6);
     const ids = players.map((p) => p.playerId);
-    const pool = mkPool(ids, [M(1, [ids[1], ids[3]], [ids[4], ids[5]])]);
+    const pool = mkPool(ids, [
+      M(1, [ids[0], ids[1]], [ids[2], ids[3]]),
+      M(2, [ids[2], ids[4]], [ids[0], ids[5]]),
+    ]);
     // A v7 envelope: the old pairwise shape, t02 beat t00 on the coin.
     const legacy = {
       ...sess(pool, players),

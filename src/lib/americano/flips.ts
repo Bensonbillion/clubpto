@@ -63,6 +63,24 @@ export function flipGroupOf(
   return [...members].sort();
 }
 
+/**
+ * A group where nobody has played yet is a BLANK SLATE, not a tie (STEP G).
+ *
+ * Before the first result every player sits at 0-0-0 with SOS 0, so the whole
+ * pool is technically one tied group — and the honest arithmetic of the coin
+ * procedure then advertises something like "120 flips to run" on a sixteen
+ * player court before a ball is hit. Nothing is tied there; nothing has
+ * happened. The predicate is exact: counted matches means W+L > 0, so the
+ * blank set is precisely the never-played.
+ */
+export function isBlankSlate(pool: AmericanoPool, members: string[]): boolean {
+  const records = computeRecords(pool);
+  return members.every((id) => {
+    const r = records.get(id);
+    return !r || r.wins + r.losses === 0;
+  });
+}
+
 /** Every set of two or more players tonight that only a coin can order. */
 export function flipGroups(pool: AmericanoPool, players: AmericanoPlayer[]): string[][] {
   const rows = computeStandings(pool, players);
@@ -72,7 +90,7 @@ export function flipGroups(pool: AmericanoPool, players: AmericanoPlayer[]): str
     if (seen.has(row.playerId)) continue;
     const members = flipGroupOf(pool, row.playerId, players);
     for (const id of members) seen.add(id);
-    if (members.length >= 2) out.push(members);
+    if (members.length >= 2 && !isBlankSlate(pool, members)) out.push(members);
   }
   return out;
 }
@@ -248,6 +266,7 @@ export type FlipRefusal =
   | "bad_winner"
   | "unknown_pool"
   | "tie_changed"
+  | "blank_slate"
   | "group_changed"
   | "not_the_next_flip"
   | "already_resolved";
@@ -278,6 +297,8 @@ export function attemptCoinFlip(
   const members = flipGroupOf(pool, a, s.players);
   if (members.length < 2) return { accepted: false, reason: "tie_changed" };
   if (!members.includes(b)) return { accepted: false, reason: "tie_changed" };
+  // Nobody has played: there is nothing for a coin to decide yet.
+  if (isBlankSlate(pool, members)) return { accepted: false, reason: "blank_slate" };
 
   const key = groupKey(members);
   const stored = pool.groupFlipResolutions ?? [];

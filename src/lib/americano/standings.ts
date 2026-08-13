@@ -222,9 +222,15 @@ export function computeStandings(
         while (j < group.length && sos(group[j].playerId) === sos(group[i].playerId)) j++;
         if (j - i >= 2) {
           const run = group.slice(i, j);
+          // A run where nobody has played is a BLANK SLATE, not a tie (STEP G):
+          // before the first result the whole pool shares 0-0-0 and SOS 0, and
+          // flagging that would ask the room to flip coins over nothing.
+          const blank = run.every((r) => r.wins + r.losses === 0);
           const key = run.map((r) => r.playerId).sort().join("|");
           const order = groupOrders.get(key);
-          if (order && order.length === run.length) {
+          if (blank) {
+            // nothing to order, nothing to flag
+          } else if (order && order.length === run.length) {
             const byId = new Map(run.map((r) => [r.playerId, r] as const));
             for (let k = 0; k < order.length; k++) group[i + k] = byId.get(order[k])!;
             for (let k = 0; k < order.length - 1; k++) {
