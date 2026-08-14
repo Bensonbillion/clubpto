@@ -17,7 +17,7 @@
 | Animation | Framer Motion 12.34.5 + GSAP 3.14.2 + Lenis 1.0.42 | |
 | Routing | React Router DOM 6.30.1 | BrowserRouter, 12 routes |
 | State | useState/useCallback hooks + Supabase realtime | Single `game_state` row |
-| Database | Supabase (PostgreSQL) | Project: ikfbtktofcfkpqxwlfku |
+| Database | Supabase (PostgreSQL) | Project: flahcijysipymafazhxq (club-owned) |
 | Data Fetching | TanStack React Query 5.83.0 | For sessions queries |
 | Forms | React Hook Form 7.61.1 + Zod 3.25.76 | |
 | Hosting | Vercel (project `clubpto-site`) | auto-deploys from `main` |
