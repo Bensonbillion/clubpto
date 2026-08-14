@@ -1,29 +1,40 @@
-const SUPABASE_PROJECT_ID = import.meta.env.VITE_SUPABASE_PROJECT_ID || "ikfbtktofcfkpqxwlfku";
-const FUNCTION_URL = `https://${SUPABASE_PROJECT_ID}.supabase.co/functions/v1/turso-proxy`;
+// Legacy data path — RETIRED 2026-08-14.
+//
+// This called a `turso-proxy` Edge Function on the Lovable-managed Supabase
+// project, which forwarded SQL to a Turso database. Two things ended it:
+//
+//   1. The proxy already answers 500 "Turso not configured" — its Turso
+//      credentials went away with the Lovable disconnect, so every call
+//      through here was failing before this file changed.
+//   2. The engine has moved to the club's own Supabase project, which has no
+//      such function and no Turso behind it.
+//
+// It used to fall back to the OLD project's id and anon key when the env
+// vars were missing. Those hard-coded values are deliberately gone: after a
+// migration, a silent fallback to the database you just left is worse than
+// an error, because it looks like it works.
+//
+// The surfaces that still import `query` are the legacy ones — /manage-classic,
+// /manage2, the admin pages, and the old leaderboard. Court Manager v3
+// (/manage) and Americano v4 (/manage4) do NOT use this file; they read and
+// write Supabase directly and are unaffected.
+//
+// To bring those legacy screens back, port their queries onto Supabase
+// tables (see supabase/migrations/20260814_engine_tables.sql) and delete
+// this file along with its imports.
 
-const ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlrZmJ0a3RvZmNma3BxeHdsZmt1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzNDcwNzksImV4cCI6MjA4MzkyMzA3OX0.95w2QWdpJeMz1ob7KgtU7SmJVl88Uf2_xioTkphw3-Y";
+const RETIRED =
+  "This screen used the retired Turso proxy, which went away with the Lovable " +
+  "disconnect. Court Manager v3 (/manage) and Americano v4 (/manage4) are " +
+  "unaffected — use those.";
 
-export async function query(sql: string, params?: any[]) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000);
-
-  const res = await fetch(FUNCTION_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "apikey": ANON_KEY,
-    },
-    body: JSON.stringify({ sql, params: params || [] }),
-    signal: controller.signal,
-  }).finally(() => clearTimeout(timeout));
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
-    throw new Error(err.error || `Turso proxy error: ${res.status}`);
-  }
-
-  return await res.json();
+// The return type stays `any` on purpose: 27 call sites across the legacy
+// screens read `.rows` off the result, and narrowing it to `never` would
+// turn a runtime retirement into a repo-wide typecheck failure.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function query(_sql: string, _params?: any[]): Promise<any> {
+  throw new Error(RETIRED);
 }
 
-// Legacy export for compatibility — no longer used
+/** Legacy export kept so old imports still typecheck. */
 export const turso = null;
