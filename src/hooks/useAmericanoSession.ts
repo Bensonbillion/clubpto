@@ -764,7 +764,13 @@ export function useAmericanoSession(): UseAmericanoSession {
     // C7: archive the night BEFORE clearing it. A throw here stops the reset
     // dead — nothing below runs, the session survives, and the caller shows
     // the error. Never clear on a failed archive.
-    await archiveOrThrow(AMERICANO_ROW_ID, "v4 resetNight");
+    //
+    // C7a: this device's envelope goes too — if pushes have been failing it
+    // is the only copy of the night that exists.
+    await archiveOrThrow(AMERICANO_ROW_ID, {
+      local: storeRef.current?.snapshot() ?? null,
+      label: "v4 resetNight",
+    });
 
     // Ephemera must not leak into the next session: pool ids are constant,
     // so stale notices would render on next week's fresh courts.

@@ -548,7 +548,13 @@ export function useSessionV2(): UseSessionV2 {
     // archive cannot be written, the throw propagates and nothing below runs
     // — the session survives and the caller shows the error. Never clear on
     // a failed archive.
-    await archiveOrThrow(STORAGE_KEY, "v3 resetSession");
+    //
+    // C7a: pass this device's envelope too. If pushes have been failing, the
+    // remote row is stale or absent and this is the only copy of the night.
+    await archiveOrThrow(STORAGE_KEY, {
+      local: storeRef.current?.snapshot() ?? null,
+      label: "v3 resetSession",
+    });
 
     // End-of-night reset: the ROSTER survives (it's the multi-week asset);
     // the schedule and all of tonight's derived data clear via the single
