@@ -130,6 +130,29 @@ export function createSessionStore<T>(config: SessionStoreConfig<T>): SessionSto
     async load() {
       const local = readLocal();
       if (local) {
+        // Local-first, but NOT local-blind. A device that has been away holds
+        // an envelope older than the shared row, and returning it unexamined
+        // means the very next tap republishes that stale copy over everyone
+        // else's work. This row carries the multi-week roster, so that
+        // rollback is silent and unrecoverable. Whichever copy is newer wins;
+        // mid-session that is always the local one, so a live night still
+        // resumes from local and an offline device still resumes at all.
+        if (config.remote) {
+          try {
+            const remote = upgrade(await config.remote.pull());
+            if (remote && remote.savedAt > local.savedAt) {
+              try {
+                config.storage.setItem(config.storageKey, JSON.stringify(remote));
+              } catch {
+                setStatus("error");
+              }
+              latest = remote;
+              return { state: remote.state, source: "remote" as const };
+            }
+          } catch {
+            // Offline: the local copy is the best available, exactly as before.
+          }
+        }
         latest = local;
         return { state: local.state, source: "local" as const };
       }
@@ -151,7 +174,11 @@ export function createSessionStore<T>(config: SessionStoreConfig<T>): SessionSto
             return { state: remote.state, source: "remote" as const };
           }
         } catch {
-          // Wifi down on load — defaults, and the admin sees it immediately.
+          // Wifi down on load and nothing local: defaults are unavoidable, but
+          // the store must not look healthy. A green pill over an empty session
+          // is what convinces someone it is safe to start entering names — and
+          // the first save would push that emptiness over the shared row.
+          setStatus("error");
         }
       }
       return { state: config.defaults(), source: "defaults" as const };

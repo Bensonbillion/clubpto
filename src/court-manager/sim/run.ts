@@ -672,7 +672,7 @@ await (async () => {
   section("Persistence: localStorage-first, remote in background (§12)");
 
   type S = { n: number };
-  const flakyRemote = (failures: { push: boolean }) => {
+  const flakyRemote = (failures: { push: boolean; pull?: boolean }) => {
     let stored: Envelope<S> | null = null;
     const remote: RemoteSync<S> = {
       async push(env) {
@@ -680,6 +680,7 @@ await (async () => {
         stored = env;
       },
       async pull() {
+        if (failures.pull) throw new Error("wifi down");
         return stored;
       },
     };
@@ -743,6 +744,46 @@ await (async () => {
     defaults: () => ({ n: 0 }),
   });
   assert((await store4.load()).source === "defaults", "old-schema local state is not resumed");
+
+  // A device that has been away holds an envelope OLDER than the shared row.
+  // Returning it blind means the next tap republishes that stale copy over
+  // everyone else's work — and this row carries the multi-week roster, so the
+  // rollback is silent and permanent. Whichever copy is newer wins.
+  const storage5 = memoryStorage();
+  storage5.setItem("cm2_test", JSON.stringify({ schemaVersion: 1, savedAt: 1_000, state: { n: 20 } }));
+  const r5 = flakyRemote({ push: false });
+  await r5.remote.push({ schemaVersion: 1, savedAt: 9_000, state: { n: 449 } });
+  const store5 = createSessionStore<S>({
+    storageKey: "cm2_test", schemaVersion: 1, storage: storage5,
+    remote: r5.remote, defaults: () => ({ n: 0 }),
+  });
+  const reconciled = await store5.load();
+  assert(reconciled.state.n === 449, `stale local must not beat a newer server copy (got ${reconciled.state.n})`);
+
+  // …but a device that is genuinely ahead keeps its own work: mid-session the
+  // local copy is always the newest, and that must still be true offline.
+  const storage6 = memoryStorage();
+  storage6.setItem("cm2_test", JSON.stringify({ schemaVersion: 1, savedAt: 9_000, state: { n: 449 } }));
+  const r6 = flakyRemote({ push: false });
+  await r6.remote.push({ schemaVersion: 1, savedAt: 1_000, state: { n: 20 } });
+  const store6 = createSessionStore<S>({
+    storageKey: "cm2_test", schemaVersion: 1, storage: storage6,
+    remote: r6.remote, defaults: () => ({ n: 0 }),
+  });
+  const kept = await store6.load();
+  assert(kept.source === "local" && kept.state.n === 449, "newer local work is never thrown away for an older server copy");
+
+  // Wifi down on load with nothing local: defaults are unavoidable, but the
+  // store must NOT look healthy — a green pill is what convinces someone it is
+  // safe to start tapping names over the roster.
+  const r7 = flakyRemote({ push: false, pull: true });
+  const store7 = createSessionStore<S>({
+    storageKey: "cm2_test", schemaVersion: 1, storage: memoryStorage(),
+    remote: r7.remote, defaults: () => ({ n: 0 }),
+  });
+  const blind = await store7.load();
+  assert(blind.source === "defaults", "unreadable remote still falls back to defaults");
+  assert(store7.syncStatus() !== "synced", `a failed pull must not report synced (got ${store7.syncStatus()})`);
 })();
 
 // ---------------------------------------------------------------------------
