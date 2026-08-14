@@ -1,7 +1,13 @@
 /// <reference types="vite/client" />
 
-declare const process: {
-  env: Record<string, string | undefined>;
-  exit: (code?: number) => never;
-  argv: string[];
-};
+/**
+ * Images imported with `?picture` come back as an AVIF/WebP/JPEG set plus
+ * the real pixel dimensions (see vite.config.ts and components/ui/Picture).
+ */
+declare module "*?picture" {
+  const out: {
+    img: { src: string; w: number; h: number };
+    sources: Record<string, string>;
+  };
+  export default out;
+}

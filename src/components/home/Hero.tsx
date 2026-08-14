@@ -1,8 +1,9 @@
 import { useLayoutEffect, useRef } from "react";
 import gsap from "gsap";
-import heroGridStyle from "@/assets/featured/hero-grid-style.jpg";
-import heroGridPoint from "@/assets/featured/hero-grid-point.jpg";
-import heroSocial from "@/assets/featured/hero-s2-social.jpg";
+import Picture from "@/components/ui/Picture";
+import heroGridStyle from "@/assets/featured/hero-grid-style.jpg?picture";
+import heroGridPoint from "@/assets/featured/hero-grid-point.jpg?picture";
+import heroSocial from "@/assets/featured/hero-s2-social.jpg?picture";
 import { courtsideII, weeklyMeets, isCourtsideUpcoming } from "@/lib/constants";
 import "./heroRally.css";
 
@@ -39,13 +40,19 @@ const Hero = () => {
           <span className="script">game.</span>
         </h1>
         <figure className="frame f1">
-          <img src={heroGridStyle} alt="Style in the room at Set 01" />
+          {/* The LCP element: the only image on the site that loads eagerly. */}
+          <Picture
+            img={heroGridStyle}
+            alt="Style in the room at Set 01"
+            priority
+            sizes="(max-width: 900px) 55vw, 32vw"
+          />
         </figure>
         <figure className="frame f2">
-          <img src={heroGridPoint} alt="Match point at golden hour" loading="lazy" />
+          <Picture img={heroGridPoint} alt="Match point at golden hour" sizes="(max-width: 900px) 45vw, 26vw" />
         </figure>
         <figure className="frame f3">
-          <img src={heroSocial} alt="Two friends in the room" loading="lazy" />
+          <Picture img={heroSocial} alt="Two friends in the room" sizes="(max-width: 900px) 45vw, 26vw" />
         </figure>
         <span className="stamp mono">
           Set 01 sold out

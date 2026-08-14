@@ -1,8 +1,9 @@
 import { motion } from "framer-motion";
 import { fadeUp, staggerContainer } from "@/lib/animations";
-import photoCompete from "@/assets/featured/grid_rally.jpg";
-import photoConnect from "@/assets/featured/s2_net.jpg";
-import photoAfter from "@/assets/featured/s2_dj.jpg";
+import Picture from "@/components/ui/Picture";
+import photoCompete from "@/assets/featured/grid_rally.jpg?picture";
+import photoConnect from "@/assets/featured/s2_net.jpg?picture";
+import photoAfter from "@/assets/featured/s2_dj.jpg?picture";
 
 // The experience, numbered. Play / Connect / the after, with the room's own
 // faces. Row 01 covers both nights equally: no night is the serious one and
@@ -55,7 +56,7 @@ const Experience = () => (
         className={`rly-exp__row ${i % 2 === 1 ? "rly-exp__row--flip" : ""}`}
       >
         <motion.figure variants={fadeUp} className="rly-exp__photo">
-          <img src={row.photo} alt={row.alt} loading="lazy" />
+          <Picture img={row.photo} alt={row.alt} />
         </motion.figure>
         <motion.div variants={fadeUp} className="rly-exp__copy">
           <span className="rly-exp__num">{row.num}</span>

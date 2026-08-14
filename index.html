@@ -11,7 +11,23 @@
     <!-- Google Fonts: Brand Book v2 stack (Bricolage Grotesque, DM Sans, Yellowtail, VT323) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700..800&family=DM+Sans:opsz,wght@9..40,300..500&family=Yellowtail&family=VT323&display=swap" rel="stylesheet" />
+    <!-- Loaded without blocking the first paint: the stylesheet arrives as a
+         non-applying "print" sheet and flips to "all" once it lands. The URL
+         already carries display=swap, so text paints immediately in the
+         fallback face and swaps when the real one is ready. Blocking here
+         cost ~800ms of white screen on a throttled phone. -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700..800&family=DM+Sans:opsz,wght@9..40,300..500&family=Yellowtail&family=VT323&display=swap"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700..800&family=DM+Sans:opsz,wght@9..40,300..500&family=Yellowtail&family=VT323&display=swap"
+      />
+    </noscript>
 
     <!-- Home-screen install metadata. Static, hand-maintained: the PWA plugin
          that used to generate this also generated a precaching service worker,

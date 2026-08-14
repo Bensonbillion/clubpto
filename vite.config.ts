@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/supabase/vite";
+import { imagetools } from "vite-imagetools";
 
 /**
  * GitHub Pages serves static files and knows nothing about client-side routes,
@@ -26,6 +27,65 @@ const spaFallback = (): Plugin => ({
   },
 });
 
+/**
+ * The hero photo is the largest contentful paint, but it lives inside a React
+ * component, so the browser cannot even discover it until the bundle has
+ * parsed and rendered — measured at ~1.1s of pure discovery delay on a
+ * throttled phone. Its filename is content-hashed, so the preload cannot be
+ * hand-written in index.html; this injects it at build time from the actual
+ * emitted assets. Keep the srcset and sizes identical to the <Picture> that
+ * renders it, or the browser preloads a candidate it then declines to use.
+ */
+const HERO_BASENAME = "hero-grid-style";
+const HERO_SIZES = "(max-width: 900px) 55vw, 32vw";
+
+const preloadHero = (): Plugin => ({
+  name: "clubpto-preload-hero",
+  apply: "build",
+  transformIndexHtml: {
+    order: "post",
+    async handler(html, ctx) {
+      const bundle = ctx.bundle ?? {};
+      const files = Object.keys(bundle).filter(
+        (f) => f.includes(HERO_BASENAME) && f.endsWith(".avif")
+      );
+      if (files.length === 0) return html;
+
+      // The emitted names are content-hashed, not width-stamped, so the
+      // widths are read from the encoded bytes. A srcset without correct
+      // `w` descriptors is worse than none: the browser would preload an
+      // arbitrary candidate and then fetch a different one to display.
+      const { default: sharp } = await import("sharp");
+      const measured = await Promise.all(
+        files.map(async (f) => {
+          const asset = bundle[f] as { source?: Uint8Array | string };
+          const source = asset?.source;
+          if (!source || typeof source === "string") return null;
+          try {
+            const { width } = await sharp(Buffer.from(source)).metadata();
+            return width ? { f, width } : null;
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      const usable = measured.filter((m): m is { f: string; width: number } => m !== null);
+      if (usable.length === 0) return html;
+
+      const base = ctx.server ? "/" : "/clubpto/";
+      const srcset = usable
+        .sort((a, b) => a.width - b.width)
+        .map(({ f, width }) => `${base}${f} ${width}w`)
+        .join(", ");
+      const tag =
+        `<link rel="preload" as="image" type="image/avif" ` +
+        `imagesrcset="${srcset}" imagesizes="${HERO_SIZES}" fetchpriority="high">`;
+      return html.replace("</head>", `    ${tag}\n  </head>`);
+    },
+  },
+});
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
@@ -43,6 +103,23 @@ export default defineConfig(({ mode }) => ({
     react(),
     mcpPlugin(),
     spaFallback(),
+    // Images are the heaviest part of the mobile experience. An import
+    // ending in ?picture is emitted as AVIF + WebP + the original format,
+    // with real pixel dimensions attached so <Picture> can reserve space
+    // and never shift the layout. See src/components/ui/Picture.tsx.
+    imagetools({
+      defaultDirectives: (url) =>
+        url.searchParams.has("picture")
+          ? new URLSearchParams({
+              // Three widths so a phone downloads a phone-sized image
+              // instead of the full 1000px master.
+              w: "480;800;1200",
+              format: "avif;webp;jpg",
+              as: "picture",
+            })
+          : new URLSearchParams(),
+    }),
+    preloadHero(),
     mode === "development" && componentTagger(),
   ].filter(Boolean),
   resolve: {

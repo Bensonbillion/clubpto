@@ -1,14 +1,15 @@
 import { useRef } from "react";
 import { motion } from "framer-motion";
 import { fadeUp } from "@/lib/animations";
-import gridCrowd from "@/assets/featured/grid_crowd.jpg";
-import gridCrowd2 from "@/assets/featured/grid_crowd2.jpg";
-import gridMic from "@/assets/featured/grid_mic.jpg";
-import s2Lounge from "@/assets/featured/s2_lounge.jpg";
-import goldenhour from "@/assets/featured/hero_goldenhour.jpg";
-import s2HeroCourt from "@/assets/featured/s2_hero_court.jpg";
-import gnCouple from "@/assets/featured/gn_strip_couple.jpg";
-import groupPhoto from "@/assets/featured/group-photo.jpg";
+import Picture from "@/components/ui/Picture";
+import gridCrowd from "@/assets/featured/grid_crowd.jpg?picture";
+import gridCrowd2 from "@/assets/featured/grid_crowd2.jpg?picture";
+import gridMic from "@/assets/featured/grid_mic.jpg?picture";
+import s2Lounge from "@/assets/featured/s2_lounge.jpg?picture";
+import goldenhour from "@/assets/featured/hero_goldenhour.jpg?picture";
+import s2HeroCourt from "@/assets/featured/s2_hero_court.jpg?picture";
+import gnCouple from "@/assets/featured/gn_strip_couple.jpg?picture";
+import groupPhoto from "@/assets/featured/group-photo.jpg?picture";
 
 const photos = [
   gridCrowd2,
@@ -76,9 +77,9 @@ const Wall = () => {
         onPointerCancel={endDrag}
         onPointerLeave={endDrag}
       >
-        {photos.map((src) => (
-          <figure key={src} className="rly-wall__item">
-            <img src={src} alt="" loading="lazy" draggable={false} />
+        {photos.map((photo) => (
+          <figure key={photo.img.src} className="rly-wall__item">
+            <Picture img={photo} alt="" draggable={false} sizes="(max-width: 900px) 72vw, 30vw" />
           </figure>
         ))}
       </div>
