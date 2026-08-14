@@ -317,7 +317,11 @@ export function buildClubhouseView(
       rivalries: mine,
     };
   };
-  const profiles = roster.map((r) => profileOf(r.playerId));
+  // PROF-3: a hidden player is gone from the directory — including from
+  // their own copy of it, so hiding looks like it worked. Their name still
+  // reaches nameOf above, which is what keeps their own seat from greeting
+  // them as "Club member".
+  const profiles = roster.filter((r) => !r.hidden).map((r) => profileOf(r.playerId));
 
   // ---- me (dashboard) ----
   let me: MyView | null = null;

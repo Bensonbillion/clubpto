@@ -198,3 +198,42 @@ pick one definition and the other surface must be reconciled.
 **C7 — both managers can destroy the night before it is published.** v3
 `resetSession()` and v4 "End session and reset" both overwrite the single
 `game_state` row with no archive.
+
+---
+
+## 6. Amendments since Step 0
+
+This map is a snapshot taken on 2026-08-14 before any of the work landed.
+What has changed since, so the map does not quietly go stale:
+
+**C7 — closed.** `game_state_archive` (append-only, admin-only, no UPDATE or
+DELETE policy at all) plus `archiveOrThrow()` in front of both resets. C7a
+extended it to archive the device's in-memory envelope as well as the remote
+row, because a session whose push had been failing lived only on the device.
+
+**C3 — closed for the new table only.** `clubhouse_attendance.player_id` is
+the first foreign key to `clubhouse_roster` anywhere in the schema. The
+existing `clubhouse_links.player_id` and `clubhouse_prefs.player_id` are
+still unconstrained text and can still orphan.
+
+**C2 — partly answered, deliberately.** The eight `SELECT to authenticated
+USING true` tables were reviewed and seven were left alone: they hold what a
+members' room is for, and member-visible is the intent. `clubhouse_roster`
+was the exception and is now `hidden = false OR the reader owns the row`,
+because migration 004 added the `hidden` flag and then enforced it only in
+the browser. `clubhouse_attendance` is stricter than all of them — own rows
+or admin — which is the standard for anything that records where a person
+was on a given night.
+
+**Still open:** C1 (no joinable id between engine players and roster ids —
+Step 1.5), C4, C5 and C6.
+
+**New table.** `clubhouse_attendance` — PK (`session_id`, `player_id`),
+`status` in (present, booked, no_show), `source` in (publish, checkin,
+walkin, booking), `checked_in_at`, `recorded_by`, `created_at`,
+`updated_at`. `session_id` carries NO foreign key to `clubhouse_sessions`
+on purpose: that table is the published record, and attendance has to be
+writable before a night is published. A BEFORE UPDATE trigger keeps the
+earliest `checked_in_at`, freezes `source`, and refuses `present -> booked`,
+`no_show -> booked`, and `present -> no_show` unless it comes through
+`mark_attendance_no_show()`.

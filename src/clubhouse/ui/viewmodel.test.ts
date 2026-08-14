@@ -233,3 +233,58 @@ describe("clubhouse view-model", () => {
     expect(new Set(v.mosaic.map((r) => r.length)).size).toBe(1);
   });
 });
+
+// PROF-3 has two halves, and only one of them fails loudly. "Other members
+// cannot see the hidden player" is the half everyone tests. The half that
+// breaks in silence is the hidden player opening their own seat and finding
+// a stranger there.
+describe("a hidden player, from their own side", () => {
+  const hiddenRoster: RosterEntry[] = [
+    { playerId: "a", displayName: "Ada" },
+    { playerId: "b", displayName: "Ben" },
+    { playerId: "c", displayName: "Cy" },
+    { playerId: "d", displayName: "Dee", hidden: true },
+  ];
+
+  it("still knows their own name in their own seat", () => {
+    // Dee has never been published, so nameOf can only learn "Dee" from the
+    // roster row. Drop that row and the seat greets her as "Club member".
+    const v = buildClubhouseView([], hiddenRoster, noPrefs, "d");
+    expect(v.me?.name).toBe("Dee");
+    expect(v.me?.playerId).toBe("d");
+    expect(v.me?.nextClub).toEqual({ name: "The 10 Club", toGo: 10 });
+  });
+
+  it("keeps their published stats, which hiding was never meant to erase", () => {
+    const v = buildClubhouseView(
+      [session("s1", "2026-08-02"), session("s2", "2026-08-05")],
+      hiddenRoster,
+      noPrefs,
+      "d"
+    );
+    expect(v.me?.sessions).toBe(2);
+    expect(v.me?.ptoPoints).toBe(100); // finalist twice
+  });
+
+  it("is absent from the players directory, including their own copy of it", () => {
+    const v = buildClubhouseView([], hiddenRoster, noPrefs, "d");
+    expect(v.profiles.map((p) => p.playerId)).toEqual(["a", "b", "c"]);
+    // Hiding that still lists you back to yourself reads as hiding that failed.
+    expect(v.profiles.some((p) => p.playerId === "d")).toBe(false);
+  });
+
+  it("is absent for every other member too", () => {
+    const v = buildClubhouseView([], hiddenRoster, noPrefs, "a");
+    expect(v.profiles.map((p) => p.playerId)).toEqual(["a", "b", "c"]);
+  });
+
+  // What the obvious fix would have done. A policy of `hidden = false`
+  // alone, or the .eq("hidden", false) that used to sit in fetchRoster,
+  // means Dee's row never reaches the browser — including Dee's browser.
+  // Nothing throws. She just stops being herself.
+  it("loses their name entirely when the row never arrives", () => {
+    const withoutDee = hiddenRoster.filter((r) => r.playerId !== "d");
+    const v = buildClubhouseView([], withoutDee, noPrefs, "d");
+    expect(v.me?.name).toBe("Club member");
+  });
+});
