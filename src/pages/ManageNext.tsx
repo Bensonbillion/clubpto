@@ -15,6 +15,7 @@ import { SessionSetup, CheckIn } from "@/components/manage-next/SetupCheckIn";
 import RoundBoard from "@/components/manage-next/RoundBoard";
 import StandingsPlayoffs from "@/components/manage-next/StandingsPlayoffs";
 import { ManageErrorBoundary } from "@/components/manage-next/ManageErrorBoundary";
+import AdminGate from "@/court-manager/auth/AdminGate";
 
 const ADMIN_PASSCODE = "9999";
 
@@ -195,10 +196,18 @@ const ManageNextInner = () => {
 
 // The boundary must sit OUTSIDE the component that calls useSessionV2, so a
 // throw during that component's render is caught instead of white-screening.
+//
+// AdminGate sits outside both: game_state is admin-only in the database now,
+// so an un-signed-in device cannot read the session at all and there is no
+// point mounting the manager behind it. The 9999 passcode stays exactly where
+// it was — it still separates admin surfaces from the day-of helper surfaces
+// once you are through the door.
 const ManageNext = () => (
-  <ManageErrorBoundary>
-    <ManageNextInner />
-  </ManageErrorBoundary>
+  <AdminGate>
+    <ManageErrorBoundary>
+      <ManageNextInner />
+    </ManageErrorBoundary>
+  </AdminGate>
 );
 
 export default ManageNext;

@@ -10,6 +10,7 @@
 
 import { useMemo, useState } from "react";
 import { Delete, Lock, MoreVertical, Search, Trash2, UserPlus } from "lucide-react";
+import AdminGate from "@/court-manager/auth/AdminGate";
 import type { AmericanoMatch, AmericanoTier, MatchFormat } from "@/types/americano";
 import {
   useAmericanoSession, type PoolLiveView, type UseAmericanoSession,
@@ -932,10 +933,15 @@ const ManageAmericanoInner = () => {
   return a.session.status === "setup" ? <SetupPad a={a} /> : <LiveShell a={a} />;
 };
 
+// v4 keeps its own game_state row, which is admin-only in the database now,
+// so it needs the same door as v3. The passcode stays as the inner step.
 const ManageAmericano = () => {
   const [unlocked, setUnlocked] = useState(false);
-  if (!unlocked) return <PasscodeGate onUnlock={() => setUnlocked(true)} />;
-  return <ManageAmericanoInner />;
+  return (
+    <AdminGate>
+      {unlocked ? <ManageAmericanoInner /> : <PasscodeGate onUnlock={() => setUnlocked(true)} />}
+    </AdminGate>
+  );
 };
 
 export default ManageAmericano;
