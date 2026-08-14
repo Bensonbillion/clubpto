@@ -92,3 +92,40 @@ manager links to it) and keep the `robots.txt` disallow entries either way.
 - `curl -I https://<domain>/assets/<some-hash>.js` → `immutable`
 - `curl -s https://<domain>/ | grep -c registerSW` → `0`
 - Hard-refresh `/manage4` → loads (rewrite works), passcode gate appears.
+
+---
+
+## DONE — migrated and launched 2026-08-14
+
+The site is live on **https://clubpto.com**, served by Vercel (project
+`clubpto-site`, auto-deploying from `main`). What was actually done:
+
+- **DNS at GoDaddy**: the apex `A` record pointed at "WebsiteBuilder Site" —
+  GoDaddy's own parked landing page, which is what kept appearing at
+  clubpto.com. It now points at `216.198.79.1` (Vercel). `www` was already a
+  CNAME to the apex and is registered in Vercel as a 307 to the apex, so
+  clubpto.com is canonical and www follows.
+- **Vercel env vars**: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`
+  and `VITE_SUPABASE_PROJECT_ID` are set on the project. Before this the
+  build only worked because `.env` is committed — worth knowing before anyone
+  untracks it.
+- **Supabase auth**: Site URL is now `https://clubpto.com` and
+  `https://clubpto.com/*` is in the redirect allow-list, so the `/club`
+  sign-in link lands on the real domain.
+- **Headers verified live**: hashed assets return
+  `cache-control: public, max-age=31536000, immutable` and `content-encoding: br`;
+  the document returns `no-store, must-revalidate`. On GitHub Pages every
+  response was `max-age=600` and gzip, so returning visitors re-downloaded
+  the whole bundle every ten minutes. That is the win this file was written
+  for, and it does NOT show up in a cold-load Lighthouse run.
+- SPA deep links (`/club`, `/about`, `/faq`, `/partners`, `/community`) all
+  return 200; `/membership` 307s to `/`.
+
+Cold-load Lighthouse mobile on the live domain is ~80 (median of 3), LCP
+~4.5s — essentially the same as Pages, because the remaining cost is not
+hosting: it is ~1.6s of render delay waiting for the main bundle to parse
+before React paints the hero. Getting under 2.5s means taking the hero off
+the JS critical path, not another hosting change.
+
+Still on GitHub Pages: nothing. The gh-pages branch can stay as a fallback
+but is no longer the live site.
