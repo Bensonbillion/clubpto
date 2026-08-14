@@ -104,7 +104,13 @@ try {
 }
 
 say(`
-Now verify the LIVE artifact, not this log:
-  curl -s https://bensonbillion.github.io/clubpto/ | grep -o '${BASE}assets/[^"]*' | head -3
-  curl -so /dev/null -w '%{http_code}\\n' https://bensonbillion.github.io/clubpto/manage4
-Pages can take a minute. The second must not be 404.`);
+Now verify the LIVE artifact, not this log. Pages can take a minute, and it
+serves stale bytes for a while after that — re-run until the hash moves.
+
+  curl -s https://bensonbillion.github.io/clubpto/ | grep -o '${BASE}assets/index-[^"]*'
+  curl -s https://bensonbillion.github.io/clubpto/manage4 | grep -c 'assets/index-'
+
+The second is the deep-link check, and it must print 1 or more. Do NOT check
+it by status code: Pages serves the custom 404.html with an HTTP 404, so a
+perfectly healthy deep link reports 404. What matters is that the body is our
+SPA shell — the browser renders it and the router takes over from there.`);
