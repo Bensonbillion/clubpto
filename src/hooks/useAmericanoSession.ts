@@ -37,9 +37,10 @@ import {
   regressBracket, requestPlayoff as requestPlayoffLib, type PlayoffPlan,
 } from "@/lib/americano/playoff";
 import {
-  appendSharedRosterEntry, createAmericanoStore, fetchSharedRoster,
+  AMERICANO_ROW_ID, appendSharedRosterEntry, createAmericanoStore, fetchSharedRoster,
   type SessionStore, type SharedRosterEntry, type SyncStatus,
 } from "@/lib/americano/storage";
+import { archiveOrThrow } from "@/court-manager/archive";
 
 const COURT2 = "court-2";
 const COURT1 = "court-1";
@@ -209,7 +210,8 @@ export interface UseAmericanoSession {
   setTarget(poolId: string, target: number): void;
   canStart: boolean;
   startSession(): void;
-  resetNight(): void;
+  /** Async since C7: archives the night first and rejects if that fails. */
+  resetNight(): Promise<void>;
 
   // The rolling court loop (STEP 4)
   liveViews: PoolLiveView[];
@@ -758,7 +760,12 @@ export function useAmericanoSession(): UseAmericanoSession {
     });
   }, [session, playerName, nowTick]);
 
-  const resetNight = useCallback(() => {
+  const resetNight = useCallback(async () => {
+    // C7: archive the night BEFORE clearing it. A throw here stops the reset
+    // dead — nothing below runs, the session survives, and the caller shows
+    // the error. Never clear on a failed archive.
+    await archiveOrThrow(AMERICANO_ROW_ID, "v4 resetNight");
+
     // Ephemera must not leak into the next session: pool ids are constant,
     // so stale notices would render on next week's fresh courts.
     setNotices({});

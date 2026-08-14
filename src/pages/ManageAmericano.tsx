@@ -909,9 +909,19 @@ const LiveShell = ({ a }: { a: UseAmericanoSession }) => {
               Start the playoff now (early)
             </button>
           )}
-          <button onClick={() => {
-              if (window.confirm("Reset the whole night? Setup and every match are discarded.")) {
-                a.resetNight(); setMore(false);
+          <button onClick={async () => {
+              if (!window.confirm("Reset the whole night? Setup and every match are discarded.")) return;
+              try {
+                // The night is archived first; if that fails, resetNight
+                // rejects and NOTHING is cleared (C7).
+                await a.resetNight();
+                setMore(false);
+              } catch (err) {
+                window.alert(
+                  `The night was NOT reset — it could not be archived first, so nothing was cleared.\n\n${
+                    err instanceof Error ? err.message : String(err)
+                  }`
+                );
               }
             }}
             className="w-full min-h-[48px] rounded-lg border border-red-500/40 text-red-400 text-sm">

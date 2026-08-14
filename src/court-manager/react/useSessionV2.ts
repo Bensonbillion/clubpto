@@ -22,6 +22,7 @@ import { mergeRoster } from "../rosterMerge";
 import { generateRoundSchedule, regenerateFromRound } from "../scheduler/rounds";
 import { validateRoundSchedule } from "../scheduler/validate";
 import { correctResult } from "../edge";
+import { archiveOrThrow } from "../archive";
 import { avgGameMs, pausedOverlapMs, type PauseInterval } from "../pace";
 import type { CompletedRRGame } from "../playoffs";
 import { buildPairH2h, pairStandings, seedWednesdayTop8, sortSeeding, wednesdayBracket } from "../playoffs";
@@ -249,7 +250,8 @@ export interface UseSessionV2 {
   /** Hand-swap two players between their pairs (same tier). Setup phase only. */
   swapPlayers(playerIdA: string, playerIdB: string): void;
   startSession(): void;
-  resetSession(): void;
+  /** Async since C7: archives the night first and rejects if that fails. */
+  resetSession(): Promise<void>;
 
   // Rounds
   courts: CourtView[];
@@ -541,7 +543,13 @@ export function useSessionV2(): UseSessionV2 {
     });
   }, [commit]);
 
-  const resetSession = useCallback(() => {
+  const resetSession = useCallback(async () => {
+    // C7: copy the night into game_state_archive BEFORE clearing it. If the
+    // archive cannot be written, the throw propagates and nothing below runs
+    // — the session survives and the caller shows the error. Never clear on
+    // a failed archive.
+    await archiveOrThrow(STORAGE_KEY, "v3 resetSession");
+
     // End-of-night reset: the ROSTER survives (it's the multi-week asset);
     // the schedule and all of tonight's derived data clear via the single
     // clearTwoCourtSchedule source of truth. Check-ins reset too.

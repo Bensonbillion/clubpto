@@ -150,10 +150,19 @@ const ManageNextInner = () => {
           </nav>
           {adminUnlocked ? (
             <button
-              onClick={() => {
-                if (window.confirm("Reset tonight's session? The roster is kept — check-ins, pairs, games, and results are cleared.")) {
-                  s.resetSession();
+              onClick={async () => {
+                if (!window.confirm("Reset tonight's session? The roster is kept — check-ins, pairs, games, and results are cleared.")) return;
+                try {
+                  // The night is archived first; if that fails, resetSession
+                  // rejects and NOTHING is cleared (C7).
+                  await s.resetSession();
                   setTab("session");
+                } catch (err) {
+                  window.alert(
+                    `The session was NOT reset — it could not be archived first, so nothing was cleared.\n\n${
+                      err instanceof Error ? err.message : String(err)
+                    }`
+                  );
                 }
               }}
               className="min-h-[44px] px-3 flex items-center gap-2 text-sm text-muted-foreground hover:text-cream transition-colors"
