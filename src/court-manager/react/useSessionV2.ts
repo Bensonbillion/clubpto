@@ -152,7 +152,7 @@ const SCHEMA_VERSION = 6;
  * silently dropped the roster; that class of loss is banned). Any recognizable
  * older SessionV2 shape is upgraded by layering it over fresh defaults.
  */
-function migrateSession(oldState: unknown, _oldVersion: number): SessionV2 | null {
+export function migrateSession(oldState: unknown, _oldVersion: number): SessionV2 | null {
   if (typeof oldState !== "object" || oldState === null) return null;
   const old = oldState as Partial<SessionV2>;
   if (!Array.isArray(old.players)) return null; // unrecognizable — nothing worth keeping
