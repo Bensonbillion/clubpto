@@ -94,7 +94,12 @@ Deno.serve(async (req: Request) => {
   // ---- rate limit BEFORE the comparison -----------------------------------
   // Checking the code first would let an attacker time the compare even while
   // locked out, and would log a "wrong" that the limiter then has to ignore.
-  const since = new Date(Date.now() - DEFAULT_POLICY.windowMs).toISOString();
+  // Fetch window + lockout, not just window. The trip point can be older than
+  // the window by the time the lockout is running down, and a limiter that
+  // cannot see the failure that locked it will reopen the door early.
+  const since = new Date(
+    Date.now() - (DEFAULT_POLICY.windowMs + DEFAULT_POLICY.lockoutMs),
+  ).toISOString();
   const { data: rows, error: readError } = await admin
     .from("manager_passcode_attempts")
     .select("at, ok")

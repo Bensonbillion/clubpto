@@ -17,74 +17,6 @@ import StandingsPlayoffs from "@/components/manage-next/StandingsPlayoffs";
 import { ManageErrorBoundary } from "@/components/manage-next/ManageErrorBoundary";
 import AdminGate from "@/court-manager/auth/AdminGate";
 
-const ADMIN_PASSCODE = "9999";
-
-const PasscodeGate = ({ onUnlock }: { onUnlock: () => void }) => {
-  const [code, setCode] = useState("");
-  const [error, setError] = useState(false);
-
-  const handleDigit = (d: string) => {
-    const next = code + d;
-    setError(false);
-    if (next.length === 4) {
-      if (next === ADMIN_PASSCODE) onUnlock();
-      else {
-        setError(true);
-        setCode("");
-      }
-    } else {
-      setCode(next);
-    }
-  };
-
-  return (
-    <div className="min-h-[70vh] flex flex-col items-center justify-center gap-8 text-cream">
-      <div className="w-20 h-20 rounded-full bg-accent/10 border border-accent/30 flex items-center justify-center">
-        <Lock className="w-10 h-10 text-accent" />
-      </div>
-      <div className="text-center">
-        <h1 className="font-display text-3xl text-accent">Admin area</h1>
-        <p className="mt-2 text-muted-foreground">{error ? "Wrong passcode — try again" : "Enter 4-digit passcode"}</p>
-        <p className="mt-1 text-sm text-muted-foreground/70">
-          Check-In and Courts need no code — helpers can use them freely.
-        </p>
-      </div>
-      <div className="flex gap-4">
-        {[0, 1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className={`w-4 h-4 rounded-full border ${i < code.length ? "bg-accent border-accent" : "border-muted-foreground/40"}`}
-          />
-        ))}
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        {["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"].map((key, i) =>
-          key === "" ? (
-            <div key={i} />
-          ) : key === "del" ? (
-            <button
-              key={i}
-              onClick={() => setCode((c) => c.slice(0, -1))}
-              className="w-16 h-16 rounded-full border border-muted-foreground/30 flex items-center justify-center text-muted-foreground hover:border-accent hover:text-accent transition-colors"
-              aria-label="Delete digit"
-            >
-              <Delete className="w-6 h-6" />
-            </button>
-          ) : (
-            <button
-              key={i}
-              onClick={() => handleDigit(key)}
-              className="w-16 h-16 rounded-full border border-muted-foreground/30 text-2xl text-cream hover:border-accent hover:text-accent transition-colors"
-            >
-              {key}
-            </button>
-          ),
-        )}
-      </div>
-    </div>
-  );
-};
-
 const tabs = [
   { id: "session", label: "Roster", icon: Settings, locked: true },
   { id: "checkin", label: "Check-In", icon: UserCheck, locked: false },
@@ -98,11 +30,12 @@ const LOCKED_TABS: Tab[] = tabs.filter((t) => t.locked).map((t) => t.id);
 const isLocked = (t: Tab) => LOCKED_TABS.includes(t);
 
 const ManageNextInner = () => {
-  // Passcode unlocks the admin tabs (Roster, Standings) for this browser
-  // session; a refresh re-locks them — the open tabs never lock, so helpers
-  // are never blocked, and a curious player who grabs the tablet can't reach
-  // the leaderboard after a reload.
-  const [adminUnlocked, setAdminUnlocked] = useState(false);
+  // The admin tabs used to sit behind a second, client-side passcode. That
+  // code is gone from the bundle: AdminGate now verifies the passcode against
+  // a server-side secret, so anyone who reached this component is already a
+  // member of engine_admins. A second gate here would only ask the same
+  // person for the same secret twice.
+  const adminUnlocked = true;
   // Default to the open Check-In tab so opening the app never shows a passcode.
   const [tab, setTab] = useState<Tab>("checkin");
   const s = useSessionV2();
@@ -180,7 +113,7 @@ const ManageNextInner = () => {
         {s.loading ? (
           <div className="py-24 text-center text-muted-foreground animate-pulse">Loading session…</div>
         ) : gated ? (
-          <PasscodeGate onUnlock={() => setAdminUnlocked(true)} />
+          <div className="py-24 text-center text-muted-foreground">Checking access…</div>
         ) : (
           <>
             {tab === "session" && <SessionSetup s={s} />}

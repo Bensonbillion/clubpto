@@ -23,55 +23,6 @@ import {
 } from "./manage4/shell";
 import { playoffCorrectionBlock } from "@/lib/americano/playoff";
 
-const ADMIN_PASSCODE = "9999";
-
-/* ── passcode gate ────────────────────────────────────────────────── */
-
-const PasscodeGate = ({ onUnlock }: { onUnlock: () => void }) => {
-  const [code, setCode] = useState("");
-  const [error, setError] = useState(false);
-  const digit = (d: string) => {
-    const next = code + d;
-    setError(false);
-    if (next.length === 4) {
-      if (next === ADMIN_PASSCODE) onUnlock();
-      else { setError(true); setCode(""); }
-    } else setCode(next);
-  };
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-7 bg-dark text-cream px-6">
-      <div className="w-16 h-16 rounded-full bg-accent/10 border border-accent/30 flex items-center justify-center">
-        <Lock className="w-8 h-8 text-accent" />
-      </div>
-      <div className="text-center">
-        <h1 className="font-display text-2xl text-accent">PTO Americano</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {error ? "Wrong passcode — try again" : "Enter 4-digit passcode"}
-        </p>
-      </div>
-      <div className="flex gap-3">
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className={`w-3 h-3 rounded-full border ${i < code.length ? "bg-accent border-accent" : "border-muted-foreground/40"}`} />
-        ))}
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        {["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"].map((k, i) =>
-          k === "" ? <div key={i} /> : k === "del" ? (
-            <button key={i} onClick={() => setCode((c) => c.slice(0, -1))} aria-label="Delete digit"
-              className="w-16 h-16 rounded-full border border-muted-foreground/30 flex items-center justify-center text-muted-foreground">
-              <Delete className="w-5 h-5" />
-            </button>
-          ) : (
-            <button key={i} onClick={() => digit(k)}
-              className="w-16 h-16 rounded-full border border-muted-foreground/30 text-2xl text-cream active:bg-accent/10">
-              {k}
-            </button>
-          ))}
-      </div>
-    </div>
-  );
-};
-
 /* ── PART 3: setup as a pad ───────────────────────────────────────── */
 
 const Chip = ({ label, value, onClick }: { label: string; value: string; onClick: () => void }) => (
@@ -943,15 +894,15 @@ const ManageAmericanoInner = () => {
   return a.session.status === "setup" ? <SetupPad a={a} /> : <LiveShell a={a} />;
 };
 
-// v4 keeps its own game_state row, which is admin-only in the database now,
-// so it needs the same door as v3. The passcode stays as the inner step.
-const ManageAmericano = () => {
-  const [unlocked, setUnlocked] = useState(false);
-  return (
-    <AdminGate>
-      {unlocked ? <ManageAmericanoInner /> : <PasscodeGate onUnlock={() => setUnlocked(true)} />}
-    </AdminGate>
-  );
-};
+// v4 keeps its own game_state row, which is admin-only in the database now, so
+// it needs the same door as v3 — and AdminGate IS that door. It no longer just
+// checks a session: the passcode pad lives inside it and is verified against a
+// secret held server-side, so there is no second, client-side code to keep here
+// (and none to find in the bundle).
+const ManageAmericano = () => (
+  <AdminGate>
+    <ManageAmericanoInner />
+  </AdminGate>
+);
 
 export default ManageAmericano;

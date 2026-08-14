@@ -41,26 +41,40 @@ export interface AttemptRecord {
 }
 
 /**
- * Should this caller be allowed to try at all?
+ * When did the limiter last trip — i.e. when did maxFailures land inside one
+ * window? Null if it never has.
  *
- * Counts only FAILURES inside the window: a successful sign-in must not push
- * an admin toward their own lockout, and the owner opening the pad twice on a
- * Wednesday is not an attack.
+ * The window is measured BETWEEN FAILURES, never against `now`. Filtering by
+ * `now - at < windowMs` first looks equivalent and is not: as the lockout runs
+ * down, the oldest failures age out of the window, the count falls under the
+ * threshold, and the door quietly reopens EARLY — the one failure mode a rate
+ * limiter must not have. Caught by
+ * __tests__/passcodeRules.test.ts "REOPENS on its own".
+ *
+ * Only FAILURES count: a successful sign-in must never push an admin toward
+ * their own lockout, and the owner opening the pad twice is not an attack.
  */
+function lastTripAt(
+  attempts: readonly AttemptRecord[],
+  policy: RateLimitPolicy,
+): number | null {
+  const failures = attempts.filter((a) => !a.ok).sort((a, b) => a.at - b.at);
+  let trip: number | null = null;
+  for (let i = policy.maxFailures - 1; i < failures.length; i++) {
+    const span = failures[i].at - failures[i - (policy.maxFailures - 1)].at;
+    if (span <= policy.windowMs) trip = failures[i].at;
+  }
+  return trip;
+}
+
+/** Should this caller be allowed to try at all? */
 export function isLockedOut(
   attempts: readonly AttemptRecord[],
   now: number,
   policy: RateLimitPolicy = DEFAULT_POLICY,
 ): boolean {
-  const failures = attempts
-    .filter((a) => !a.ok && now - a.at < policy.windowMs)
-    .sort((a, b) => a.at - b.at);
-  if (failures.length < policy.maxFailures) return false;
-  // The lockout runs from the failure that tripped it, not from the newest —
-  // otherwise every further attempt refreshes the sentence and the door never
-  // reopens on its own.
-  const tripped = failures[policy.maxFailures - 1];
-  return now - tripped.at < policy.lockoutMs;
+  const trip = lastTripAt(attempts, policy);
+  return trip !== null && now - trip < policy.lockoutMs;
 }
 
 /** Remaining lockout in ms, or 0 if the caller may try. */
@@ -69,12 +83,9 @@ export function lockoutRemaining(
   now: number,
   policy: RateLimitPolicy = DEFAULT_POLICY,
 ): number {
-  if (!isLockedOut(attempts, now, policy)) return 0;
-  const failures = attempts
-    .filter((a) => !a.ok && now - a.at < policy.windowMs)
-    .sort((a, b) => a.at - b.at);
-  const tripped = failures[policy.maxFailures - 1];
-  return Math.max(0, policy.lockoutMs - (now - tripped.at));
+  const trip = lastTripAt(attempts, policy);
+  if (trip === null) return 0;
+  return Math.max(0, policy.lockoutMs - (now - trip));
 }
 
 /**
