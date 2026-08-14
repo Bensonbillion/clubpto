@@ -43,7 +43,7 @@ const faqs = [
   {
     question: "Can I come alone?",
     answer:
-      "Yes. Wednesday's format pairs you up when you arrive. Once you're in, you're in.",
+      "Yes. Most people do. You'll be paired up when you arrive. Once you're in, you're in.",
   },
   {
     question: "What if I have to cancel?",

@@ -161,7 +161,7 @@ export function Recaps({ recaps }: { recaps: RecapView[] }) {
     <section className="clb-section" id="recaps">
       <SectionHead kicker="Session recaps" title="How the nights went." />
       {recaps.length === 0 ? (
-        <Empty>Your first recap lands here after the next session. Play Wednesday.</Empty>
+        <Empty>Your first recap lands here after the next session.</Empty>
       ) : (
         recaps.map((r) => (
           <Recap

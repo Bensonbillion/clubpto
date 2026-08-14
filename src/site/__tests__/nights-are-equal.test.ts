@@ -65,6 +65,33 @@ describe("Wednesday and Sunday read as the same night", () => {
     expect(hits.map((f) => f.replace(ROOT + "/", ""))).toEqual([]);
   });
 
+  // The phrase list above only catches the wording we already know about.
+  // The failure mode is broader: any sentence that names one night and not
+  // the other quietly makes it the real one. ("Wednesday's format pairs you
+  // up", "Play Wednesday." — both shipped, both invisible to a word list.)
+  it("no line of copy names one night without the other", () => {
+    const offenders: string[] = [];
+    // constants.ts is exempt: it is the facts table, where each night gets
+    // its own line by design. Its symmetry is covered by the next test.
+    for (const file of publicCopy().filter((f) => !f.endsWith("constants.ts"))) {
+      readFileSync(file, "utf8")
+        .split("\n")
+        .forEach((line, i) => {
+          const code = line.trim();
+          if (code.startsWith("//") || code.startsWith("*")) return;
+          // Only judge lines that carry copy, not identifiers or facts
+          // rendered from weeklyMeets.
+          if (/weeklyMeets|nights\[|night\./.test(code)) return;
+          const wed = /wednesday/i.test(code);
+          const sun = /sunday/i.test(code);
+          if (wed !== sun) {
+            offenders.push(`${file.replace(ROOT + "/", "")}:${i + 1}  ${code.slice(0, 80)}`);
+          }
+        });
+    }
+    expect(offenders).toEqual([]);
+  });
+
   it("both nights carry exactly the same fields", async () => {
     const { weeklyMeets } = await import("../../lib/constants");
     const shapes = weeklyMeets.nights.map((n) => Object.keys(n).sort().join(","));
