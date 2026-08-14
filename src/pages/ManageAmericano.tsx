@@ -379,16 +379,31 @@ const PlayoffConfirm = ({ a, view, onClose, onStandings }: {
       ) : (
         <>
           <div className="rounded-lg border border-border divide-y divide-border/40">
-            {plan.snapshot.pairs.map((pair) => (
-              <div key={pair.seeds.join()} className="px-2 py-1.5 flex items-center gap-2">
-                <span className="text-[10px] uppercase tracking-widest text-muted-foreground w-10">
-                  {pair.seeds[0]}+{pair.seeds[1]}
-                </span>
-                <span className="flex-1 text-sm text-cream">
-                  {pair.playerIds.map(name).join(" + ")}
-                </span>
-              </div>
-            ))}
+            {plan.snapshot.pairs.map((pair) => {
+              // Eligibility asks only "within one match of the leader", so
+              // someone who played their share and then went home is still a
+              // perfectly ordinary seed here. Nothing else on this card would
+              // say so, and a semi cannot be played by a pair that is one
+              // body short — name them while the bracket can still be changed.
+              const gone = pair.playerIds.filter(
+                (id) => a.session.players.find((p) => p.playerId === id)?.status === "left",
+              );
+              return (
+                <div key={pair.seeds.join()} className="px-2 py-1.5 flex items-center gap-2">
+                  <span className="text-[10px] uppercase tracking-widest text-muted-foreground w-10">
+                    {pair.seeds[0]}+{pair.seeds[1]}
+                  </span>
+                  <span className="flex-1 text-sm text-cream">
+                    {pair.playerIds.map(name).join(" + ")}
+                  </span>
+                  {gone.length > 0 && (
+                    <span className="text-[10px] uppercase tracking-widest text-amber-400 whitespace-nowrap">
+                      {gone.map(name).join(", ")} left
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
           {plan.snapshot.excluded.length > 0 && (
             <p className="text-xs text-muted-foreground">
@@ -551,7 +566,17 @@ const CorrectionSheet = ({ a, view, match, onClose }: {
       <p className="text-sm text-muted-foreground">
         {match.status === "voided" ? "Voided — counts for nothing." : "Re-enter the result:"}
       </p>
-      {(["A", "B"] as const).map((w) => (
+      {/* A void is final: applyCorrection only touches a COMPLETED match, so
+          offering score buttons here drew a full row of taps that silently did
+          nothing and read as a frozen app. Say what is true instead. */}
+      {match.status === "voided" && (
+        <p className="text-sm text-amber-400">
+          This one cannot be brought back. The four players are already back in
+          the rotation — they can be drawn together again, but this match stays
+          off everyone&rsquo;s record.
+        </p>
+      )}
+      {match.status !== "voided" && (["A", "B"] as const).map((w) => (
         <div key={w} className="space-y-1.5">
           <p className="text-sm text-cream">{(w === "A" ? match.teamA : match.teamB).map(a.playerName).join(" + ")}</p>
           <div className={`gap-1.5 ${format.kind === "bestOf" ? "flex" : "grid grid-cols-4"}`}>
@@ -640,6 +665,26 @@ const MatchTab = ({ a, view, onPlayerTap, onConfirm }: {
           <p className="text-sm text-amber-400">
             Fewer than four available on {view.pool.label} — this court pauses. The other is untouched.
           </p>
+        </div>
+      ) : view.pool.status === "playoff_pending" ? (
+        // Asking for the playoff moves the pool out of round_robin, which
+        // retires the "Round robin complete" card that carried the only
+        // Start button. Anyone who opened the confirm, went to clear a coin,
+        // and came back landed on an empty screen with nothing to press —
+        // the court reads as frozen with a room waiting on it.
+        <div className="rounded-2xl border-2 border-gold/40 bg-gold/5 p-6 text-center space-y-3">
+          <p className="font-display text-xl text-cream">Playoff requested</p>
+          <p className="text-sm text-muted-foreground">
+            Nothing is on court. Seed it when you are ready.
+          </p>
+          <button onClick={() => onConfirm()}
+            className="w-full min-h-[52px] rounded-lg bg-gold text-dark font-display text-lg">
+            Start playoff
+          </button>
+          <button onClick={() => a.cancelPlayoff(view.pool.id)}
+            className="w-full min-h-[48px] rounded-lg border border-border text-cream text-sm">
+            Not yet — keep playing
+          </button>
         </div>
       ) : null}
 
