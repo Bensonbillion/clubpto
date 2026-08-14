@@ -41,11 +41,14 @@ import {
   type SessionStore, type SharedRosterEntry, type SyncStatus,
 } from "@/lib/americano/storage";
 import { archiveOrThrow } from "@/court-manager/archive";
+import { clubToday } from "@/lib/clubDate";
 
 const COURT2 = "court-2";
 const COURT1 = "court-1";
 
-const isoToday = () => new Date().toISOString().slice(0, 10);
+// Toronto, not UTC (C6). This used to be toISOString().slice(0, 10), which
+// stamped tomorrow on every night that ran past 8pm EDT — see src/lib/clubDate.ts.
+const isoToday = clubToday;
 
 const emptyPool = (id: string, label: "Court 1" | "Court 2"): AmericanoPool => ({
   id, label, playerIds: [], targetMatches: 4, playoffMode: "undecided",
@@ -61,6 +64,7 @@ const DEFAULTS = (): AmericanoSession => ({
   defaultMatchFormat: DEFAULT_FORMAT,
   isPractice: false,
   status: "setup",
+  startedAtMs: null,
 });
 
 /* ── pure draft helpers (module scope — no hook state involved) ──── */
@@ -505,6 +509,11 @@ export function useAmericanoSession(): UseAmericanoSession {
       return {
         ...s,
         status: "active",
+        // Written exactly once, here, in the same commit as "active" (C6).
+        // This is what makes the published session id both STABLE across
+        // repeated Publish presses and DISTINCT between two nights on one
+        // calendar date. See publishIdOfV4 in src/clubhouse/publish/sessionId.ts.
+        startedAtMs: Date.now(),
         pools: s.pools.map((pool) => ({ ...pool, status: "round_robin" as const })),
       };
     });

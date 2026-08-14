@@ -222,13 +222,10 @@ create policy "roster read for authenticated"
 -- and closing the laptop halfway would leave the next Publish resolving some
 -- players and re-asking for others, with nothing to say which was which.
 --
--- ORDER WITHIN THE PUBLISH: aliases FIRST, then attendance and the session.
--- The two are not in one transaction — that would need a stored procedure
--- covering five tables — so one of them has to be able to land alone, and it
--- must be this one. An alias that outlives a failed Publish is simply a true
--- fact recorded early: re-running the Publish resolves those ids without
--- asking again. The reverse is corrupting. Attendance rows written from a
--- mapping that was never stored would be re-asked next time, answered
--- differently by a tired admin, and the same person would end up counted
--- under two roster members across two nights.
+-- SUPERSEDED BY MIGRATION 007. This note used to reason about which of the
+-- aliases and the attendance should be allowed to land alone, because the two
+-- were separate requests. They are not any more: publish_session() writes all
+-- seven tables inside one function, so there is no ordering question left —
+-- everything lands or nothing does. The upsert above is still exactly the
+-- shape 007 uses, and it is still one statement.
 -- ---------------------------------------------------------------------------

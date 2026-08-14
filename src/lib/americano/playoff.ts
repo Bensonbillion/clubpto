@@ -17,6 +17,7 @@ import type {
 import { activeMatch } from "./generator";
 import { poolStandings, unresolvedFlipsAffecting, type BlockingFlip } from "./flips";
 import { playoffFormat } from "./format";
+import { TITLES } from "@/clubhouse/publish/types";
 
 /* ── eligibility ─────────────────────────────────────────────────── */
 
@@ -357,8 +358,20 @@ export function regressBracket(s: AmericanoSession, poolId: string): AmericanoSe
 
 /* ── champions ───────────────────────────────────────────────────── */
 
+/**
+ * C6: this used to return "Court 1 Champion", singular, while PTO_POINTS_V1
+ * keys "Court 1 Champions". transform.ts looks points up as
+ * `pointsConfig[c.title] ?? 0` and never throws, so the whole court published
+ * at ZERO points and the finalists inherited floor(0/2) = 0. Nothing was
+ * broken on screen; the number was just wrong forever.
+ *
+ * The vocabulary now comes FROM the publish types rather than being retyped
+ * beside them, which is the only version of this that cannot drift again.
+ * Court 2 keeps "PTO Champion of the Week" (100) — renaming it to
+ * COURT_2_CHAMPIONS would silently reprice it to 60.
+ */
 export const championTitle = (pool: AmericanoPool): string =>
-  pool.label === "Court 2" ? "PTO Champion of the Week" : "Court 1 Champion";
+  pool.label === "Court 2" ? TITLES.PTO_CHAMPION_OF_THE_WEEK : TITLES.COURT_1_CHAMPIONS;
 
 /** The final is in → crown the pair. Idempotent. */
 export function crownFromBracket(s: AmericanoSession, now: number): AmericanoSession {
@@ -435,3 +448,24 @@ export function courtBorrowAvailable(s: AmericanoSession, poolId: string): boole
     (other.status === "round_robin" && activeMatch(other) === undefined);
   return idle;
 }
+
+/* ── is the night over? ──────────────────────────────────────────── */
+
+/**
+ * C6: the replacement for `session.status === "complete"`, which nothing ever
+ * assigned. Derived on every call rather than latched, because a court can be
+ * UN-finished — regressBracket clears a champion when an admin corrects a
+ * final, and a stored flag would keep saying the night was done.
+ *
+ * Both courts, both crowned. A pool that says "complete" without a champion
+ * is not trusted: crownFromBracket sets the two together, so a pool holding
+ * one and not the other is a half-written state, not a finished court.
+ */
+export const isNightComplete = (s: AmericanoSession): boolean =>
+  s.status === "active" &&
+  s.pools.length > 0 &&
+  s.pools.every((p) => p.status === "complete" && !!p.champion);
+
+/** The courts still playing, by label — what a refusal names out loud. */
+export const courtsStillPlaying = (s: AmericanoSession): string[] =>
+  s.pools.filter((p) => !(p.status === "complete" && !!p.champion)).map((p) => p.label);

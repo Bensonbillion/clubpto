@@ -19,6 +19,7 @@ import {
   playoffBlockers, playoffCorrectionBlock, playoffModeFor, planPlayoff, regressBracket,
   requestPlayoff,
 } from "../playoff";
+import { PTO_POINTS_V1 } from "@/clubhouse/publish/types";
 
 /* ── fixtures ────────────────────────────────────────────────────── */
 
@@ -360,9 +361,32 @@ describe("bracket play, corrections and the champion (STEP 7)", () => {
     expect(JSON.parse(JSON.stringify(s))).toEqual(s);
   });
 
-  it("Court 1's title differs", () => {
+  // C6: this asserted "Court 1 Champion", singular, which is not a key of
+  // PTO_POINTS_V1 — so the whole court published at zero points and its
+  // finalists at floor(0/2). The test agreed with the bug, which is how it
+  // survived. Every title has to be PRICED, not merely spelled.
+  it("Court 1's title differs, and is a title the club has a price for", () => {
     const pool = { ...mkPool([], []), id: "court-1", label: "Court 1" as const };
-    expect(championTitle(pool)).toBe("Court 1 Champion");
+    expect(championTitle(pool)).toBe("Court 1 Champions");
+    expect(PTO_POINTS_V1[championTitle(pool)]).toBe(40);
+  });
+
+  // The permanent guard. A title the engine can emit but the club cannot
+  // price is worth zero points and says nothing about it.
+  it("every title this engine can produce has a price", () => {
+    for (const label of ["Court 1", "Court 2"] as const) {
+      const pool = { ...mkPool([], []), id: `court-${label === "Court 1" ? 1 : 2}`, label };
+      const title = championTitle(pool);
+      expect(Object.keys(PTO_POINTS_V1)).toContain(title);
+      expect(PTO_POINTS_V1[title]).toBeGreaterThan(0);
+    }
+  });
+
+  it("Court 2 keeps the 100-point title, not the 60-point one", () => {
+    const pool = { ...mkPool([], []), id: "court-2", label: "Court 2" as const };
+    // Renaming this to COURT_2_CHAMPIONS would look tidier and silently
+    // reprice the premier Sunday title from 100 to 60.
+    expect(PTO_POINTS_V1[championTitle(pool)]).toBe(100);
   });
 });
 
