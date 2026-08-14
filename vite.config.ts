@@ -39,9 +39,17 @@ const spaFallback = (): Plugin => ({
 const HERO_BASENAME = "hero-grid-style";
 const HERO_SIZES = "(max-width: 900px) 55vw, 32vw";
 
-const preloadHero = (): Plugin => ({
+const preloadHero = (): Plugin => {
+  // Read the real base rather than assuming /clubpto/: this repo builds for
+  // GitHub Pages under a subpath today and vercel.json points at a root
+  // deploy tomorrow. A hard-coded prefix would silently preload 404s there.
+  let base = "/";
+  return {
   name: "clubpto-preload-hero",
   apply: "build",
+  configResolved(config) {
+    base = config.base || "/";
+  },
   transformIndexHtml: {
     order: "post",
     async handler(html, ctx) {
@@ -73,10 +81,10 @@ const preloadHero = (): Plugin => ({
       const usable = measured.filter((m): m is { f: string; width: number } => m !== null);
       if (usable.length === 0) return html;
 
-      const base = ctx.server ? "/" : "/clubpto/";
+      const prefix = base.endsWith("/") ? base : `${base}/`;
       const srcset = usable
         .sort((a, b) => a.width - b.width)
-        .map(({ f, width }) => `${base}${f} ${width}w`)
+        .map(({ f, width }) => `${prefix}${f} ${width}w`)
         .join(", ");
       const tag =
         `<link rel="preload" as="image" type="image/avif" ` +
@@ -84,7 +92,8 @@ const preloadHero = (): Plugin => ({
       return html.replace("</head>", `    ${tag}\n  </head>`);
     },
   },
-});
+  };
+};
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
