@@ -234,6 +234,11 @@ create policy "attendance admin delete"
 -- ever happens is to unhide, let them claim, hide again.
 -- ---------------------------------------------------------------------------
 
+-- SUPERSEDED BY MIGRATION 006, which adds an is_engine_admin() clause. This
+-- version is correct for members and wrong for admins: the Publish confirm
+-- screen builds its candidate list by reading this table, so without the
+-- admin clause a hidden member cannot be mapped and never gets an attendance
+-- row. Left here as written because migrations are a record of what ran.
 drop policy if exists "roster read for authenticated" on clubhouse_roster;
 create policy "roster read for authenticated"
   on clubhouse_roster for select to authenticated

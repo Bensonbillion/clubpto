@@ -237,3 +237,35 @@ writable before a night is published. A BEFORE UPDATE trigger keeps the
 earliest `checked_in_at`, freezes `source`, and refuses `present -> booked`,
 `no_show -> booked`, and `present -> no_show` unless it comes through
 `mark_attendance_no_show()`.
+
+### Step 1.5 (migration 006)
+
+**C1 — closed.** `clubhouse_player_alias` is the join: `(kind, value)` as the
+primary key, `player_id` FK to `clubhouse_roster`, `verified`, `confirmed_by`.
+`kind` is closed by a check constraint to `engine_player_id`; `email` and
+`phone` get added by migration when something writes them. Two further checks
+make "never auto-confirm" structural — an engine alias cannot be stored
+unverified, and it cannot be stored without naming the admin who confirmed it.
+
+Many aliases may point at one member; one alias points at exactly one. That
+shape is required, not incidental: v3's `mergeRoster` replaces a `csv_` id
+with a stable one when "Import classic roster" matches a CSV-created player,
+and both import callers rewrite `session.players` only — the old id stays
+behind in `pairs[].playerIds`, in the pair id string, in `unpaired`,
+`vipPartnerId`, `playoffs` and `champion`. A publish input built from pairs
+therefore carries the old id while one built from players carries the new one,
+and both have to land on the same person.
+
+**`clubhouse_player_alias_history`** records every reassignment and every
+deletion, written by a trigger on the alias table. Append-only: no UPDATE or
+DELETE policy. `now_player_id` null means the alias was removed rather than
+repointed.
+
+**The roster policy gained an admin clause.** Migration 005 set
+`hidden = false OR the reader owns the row` and stopped there, which is right
+for members and wrong for admins: the Publish confirm screen builds its
+candidate list by reading `clubhouse_roster` as the admin, so a hidden member
+would have been unmappable and would never get an attendance row. 006 adds
+`is_engine_admin()`.
+
+**Still open:** C4, C5, C6.
