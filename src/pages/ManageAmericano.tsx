@@ -22,6 +22,17 @@ import {
   CourtSegment, FlipOverlay, HistoryPager, MatchCard, Sheet, formatKey,
 } from "./manage4/shell";
 import { playoffCorrectionBlock } from "@/lib/americano/playoff";
+import PublishConfirm, { ResetGuardPanel } from "@/components/manage-publish/PublishConfirm";
+import { usePublishFlow } from "@/clubhouse/publish/usePublishFlow";
+import { planV4Publish, publishIdOfV4, publishNotesV4 } from "@/clubhouse/publish/plan";
+import { resetDecision } from "@/clubhouse/publish/resetGuard";
+import { clubDate, defaultVenueFor } from "@/lib/clubDate";
+
+/** "Wednesday 12 August" — what the confirm screen calls tonight. */
+const longDate = (iso: string) =>
+  new Date(`${iso}T12:00:00`).toLocaleDateString("en-CA", {
+    weekday: "long", day: "numeric", month: "long",
+  });
 
 /* ── PART 3: setup as a pad ───────────────────────────────────────── */
 
@@ -774,6 +785,47 @@ const LiveShell = ({ a }: { a: UseAmericanoSession }) => {
   const [flip, setFlip] = useState<{ poolId: string; pair: { a: string; b: string } } | null>(null);
   const [more, setMore] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [resetHeld, setResetHeld] = useState(false);
+
+  // ── Publish (Step 2b) ────────────────────────────────────────────
+  const publishDate = a.session.startedAtMs ? clubDate(a.session.startedAtMs) : a.session.date;
+  const people = useMemo(
+    () => a.session.players
+      .filter((p) => p.status !== "not_arrived")
+      .map((p) => ({ id: p.playerId, name: p.displayName })),
+    [a.session.players],
+  );
+  const flow = usePublishFlow({
+    people,
+    defaultVenue: defaultVenueFor(publishDate) ?? "",
+    buildPlan: (input) => planV4Publish(a.session, input),
+    onPublished: (id) => a.markPublished(id),
+  });
+
+  // Reset nulls startedAtMs, which the publish id is derived from — so
+  // resetting first loses the ability to file the night at all (Step 2b).
+  const gate = resetDecision({
+    publishId: publishIdOfV4(a.session),
+    publishedId: a.session.publishedId ?? null,
+    hasContent: a.session.players.length > 0,
+    peopleCount: people.length,
+  });
+
+  const runReset = async () => {
+    setResetHeld(false);
+    try {
+      // The night is archived first; if that fails, resetNight rejects and
+      // NOTHING is cleared (C7).
+      await a.resetNight();
+      setMore(false);
+    } catch (err) {
+      window.alert(
+        `The night was NOT reset — it could not be archived first, so nothing was cleared.\n\n${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  };
 
   const view = a.liveViews.find((v) => v.pool.id === courtId) ?? a.liveViews[0];
   if (!view) return null;
@@ -843,6 +895,34 @@ const LiveShell = ({ a }: { a: UseAmericanoSession }) => {
           onStandings={() => { setConfirm(false); setTab("standings"); }} />
       )}
       {flip && <FlipOverlay a={a} poolId={flip.poolId} pair={flip.pair} onClose={() => setFlip(null)} />}
+      {flow.open && (
+        <PublishConfirm
+          when={a.session.startedAtMs ? longDate(publishDate) : publishDate}
+          venue={flow.venue}
+          onVenueChange={flow.setVenue}
+          questions={flow.resolution.questions}
+          decisions={flow.decisions}
+          onDecide={flow.decide}
+          notes={publishNotesV4(a.session, flow.venue, flow.skipped)}
+          plan={flow.plan}
+          busy={flow.busy || flow.loading}
+          error={flow.error}
+          onPublish={() => void flow.publish()}
+          onCancel={flow.closeSheet}
+        />
+      )}
+
+      {resetHeld && !gate.allowed && (
+        <ResetGuardPanel
+          reason={gate.reason!}
+          consequence={gate.consequence!}
+          overrideLabel={gate.overrideLabel!}
+          onPublishInstead={() => { setResetHeld(false); flow.openSheet(); }}
+          onOverride={() => void runReset()}
+          onCancel={() => setResetHeld(false)}
+        />
+      )}
+
       {more && (
         <Sheet title="Session" onClose={() => setMore(false)}>
           <p className="text-sm text-muted-foreground">{a.session.date} · {view.pool.label} · {formatLabel(view.format)}</p>
@@ -860,20 +940,14 @@ const LiveShell = ({ a }: { a: UseAmericanoSession }) => {
               Start the playoff now (early)
             </button>
           )}
+          <button onClick={() => { setMore(false); flow.openSheet(); }}
+            className="w-full min-h-[48px] rounded-lg bg-gold text-dark text-sm font-medium">
+            {a.session.publishedId ? "Publish again" : "Publish tonight"}
+          </button>
           <button onClick={async () => {
+              if (!gate.allowed) { setResetHeld(true); return; }
               if (!window.confirm("Reset the whole night? Setup and every match are discarded.")) return;
-              try {
-                // The night is archived first; if that fails, resetNight
-                // rejects and NOTHING is cleared (C7).
-                await a.resetNight();
-                setMore(false);
-              } catch (err) {
-                window.alert(
-                  `The night was NOT reset — it could not be archived first, so nothing was cleared.\n\n${
-                    err instanceof Error ? err.message : String(err)
-                  }`
-                );
-              }
+              await runReset();
             }}
             className="w-full min-h-[48px] rounded-lg border border-red-500/40 text-red-400 text-sm">
             End session and reset

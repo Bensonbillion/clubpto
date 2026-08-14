@@ -86,6 +86,13 @@ export interface SessionV2 {
   /** Pause intervals (§8) — frozen time is excluded from measured durations. */
   pauses: PauseInterval[];
   sessionStartedAt: number | null;
+  /**
+   * The published session id this night was last filed under, or null.
+   * Reset nulls sessionStartedAt, which the publish id is derived from — so
+   * resetting before publishing loses the ability to file the night at all.
+   * See resetDecision() in src/clubhouse/publish/resetGuard.ts.
+   */
+  publishedId?: string | null;
   playoffs: PlayoffsState | null;
   /** Winning players' ids once the final resolves. */
   champion: string[] | null;
@@ -137,7 +144,8 @@ export const SESSION_TEMPLATES: Record<string, { label: string; note?: string; p
 // state pulls the loss-proof roster from Supabase on next load instead of
 // resuming a broken/empty local session.
 const STORAGE_KEY = "cm_v3_session";
-const SCHEMA_VERSION = 5;
+// v6: publishedId — what stops Reset from clearing an unpublished night.
+const SCHEMA_VERSION = 6;
 
 /**
  * Schema migration — NEVER discard older state on a version bump (the v3 bump
@@ -252,6 +260,8 @@ export interface UseSessionV2 {
   startSession(): void;
   /** Async since C7: archives the night first and rejects if that fails. */
   resetSession(): Promise<void>;
+  /** Record that this night was filed under `id`, which releases Reset. */
+  markPublished(id: string): void;
 
   // Rounds
   courts: CourtView[];
@@ -541,6 +551,13 @@ export function useSessionV2(): UseSessionV2 {
         champion: null,
       };
     });
+  }, [commit]);
+
+
+  // Written after publish_session returns. Lives in the session so it syncs
+  // to the other tablet and is archived with the night (Step 2b).
+  const markPublished = useCallback((id: string) => {
+    commit((s) => (s.publishedId === id ? s : { ...s, publishedId: id }));
   }, [commit]);
 
   const resetSession = useCallback(async () => {
@@ -1034,6 +1051,7 @@ export function useSessionV2(): UseSessionV2 {
     swapPlayers,
     startSession,
     resetSession,
+    markPublished,
     courts,
     countSummary,
     roundComplete,

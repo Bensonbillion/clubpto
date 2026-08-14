@@ -65,6 +65,7 @@ const DEFAULTS = (): AmericanoSession => ({
   isPractice: false,
   status: "setup",
   startedAtMs: null,
+  publishedId: null,
 });
 
 /* ── pure draft helpers (module scope — no hook state involved) ──── */
@@ -216,6 +217,8 @@ export interface UseAmericanoSession {
   startSession(): void;
   /** Async since C7: archives the night first and rejects if that fails. */
   resetNight(): Promise<void>;
+  /** Record that this night was filed under `id`, which releases Reset. */
+  markPublished(id: string): void;
 
   // The rolling court loop (STEP 4)
   liveViews: PoolLiveView[];
@@ -769,6 +772,13 @@ export function useAmericanoSession(): UseAmericanoSession {
     });
   }, [session, playerName, nowTick]);
 
+  // Written after publish_session returns. It lives in the session so it
+  // syncs to the other tablet and is archived with the night, rather than
+  // being one device's opinion about whether the club has the record.
+  const markPublished = useCallback((id: string) => {
+    commitLive((s) => (s.publishedId === id ? s : { ...s, publishedId: id }));
+  }, [commitLive]);
+
   const resetNight = useCallback(async () => {
     // C7: archive the night BEFORE clearing it. A throw here stops the reset
     // dead — nothing below runs, the session survives, and the caller shows
@@ -796,7 +806,7 @@ export function useAmericanoSession(): UseAmericanoSession {
     roster, rosterLoading, loadRoster, quickAdd, quickAddBusy,
     setDate, setSessionName, setPractice,
     togglePlayer, isPicked,
-    poolViews, movePlayer, setTarget, canStart, startSession, resetNight,
+    poolViews, movePlayer, setTarget, canStart, startSession, resetNight, markPublished,
     liveViews, playerName, formatOfMatch, enterResult, correctResult, voidMatch,
     requestPlayoff, cancelPlayoff, lockPlayoff, declinePlayoff, endCourt, endCourtBlocked,
     setPoolFormat: setPoolFormatAction, setDefaultFormat: setDefaultFormatAction,

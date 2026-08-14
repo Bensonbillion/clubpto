@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { planV4Publish, publishIdOfV3, publishIdOfV4, type PlanInput, type PublishPlan } from "./plan";
+import {
+  planV4Publish, publishIdOfV3, publishIdOfV4, publishNotesV4,
+  type PlanInput, type PublishPlan,
+} from "./plan";
 import type { AmericanoSession, AmericanoPlayer, AmericanoPool } from "@/types/americano";
 import type { SessionV2 } from "@/court-manager/react/useSessionV2";
 import { DEFAULT_FORMAT } from "@/lib/americano/format";
@@ -236,5 +239,49 @@ describe("the venue on the confirm screen", () => {
   it("suggests nothing on a day the club does not normally play", () => {
     // A Saturday. The confirm has to ask rather than guess.
     expect(defaultVenueFor("2026-08-15")).toBeNull();
+  });
+});
+
+// Found by opening the screen and tapping through it. The alias step accepts
+// "not one of ours" as an answer, and planV4Publish still demanded a mapping
+// for that person — so the screen said "All answered" and refused in the same
+// breath, with no path out. Skipping has to mean the same thing on both sides
+// of the seam.
+describe("somebody the admin sets aside", () => {
+  const guest = night({
+    players: [player("e1", "Benson"), player("e2", "Timi"), player("e9", "Someone's mate")],
+    pools: [donePool("court-2", "Court 2", ["e1"]), donePool("court-1", "Court 1", ["e2"])],
+  });
+
+  it("publishes without them instead of demanding them", () => {
+    const plan = planV4Publish(guest, input({ skipped: ["e9"] }));
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    expect(plan.payload.attendance).toEqual([{ player_id: "p-benson" }, { player_id: "p-timi" }]);
+  });
+
+  it("counts the people it records, not the people in the room", () => {
+    const plan = planV4Publish(guest, input({ skipped: ["e9"] }));
+    if (!plan.ok) throw new Error("expected a plan");
+    expect(plan.payload.session.attendance_count).toBe(2);
+    expect(plan.payload.attendance).toHaveLength(2);
+    // A count that disagreed with the rows is a lie the room would render.
+    expect(plan.payload.session.attendance_count).toBe(plan.payload.attendance.length);
+  });
+
+  it("never writes an undefined player_id", () => {
+    const plan = planV4Publish(guest, input({ skipped: ["e9"] }));
+    if (!plan.ok) throw new Error("expected a plan");
+    for (const row of plan.payload.attendance) expect(typeof row.player_id).toBe("string");
+  });
+
+  it("still refuses somebody who was neither matched nor set aside", () => {
+    expect(planV4Publish(guest, input()).ok).toBe(false);
+  });
+
+  it("says out loud that somebody was set aside", () => {
+    const notes = publishNotesV4(guest, "The District Padel", ["e9"]).join(" ");
+    expect(notes).toContain("2 people were here");
+    expect(notes).toContain("1 person is set aside");
   });
 });

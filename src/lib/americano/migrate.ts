@@ -89,7 +89,8 @@ function convertLegacyFlips(pool: AmericanoPool): AmericanoPool {
 
 // v11 (C6): AmericanoSession gained startedAtMs, the value the published
 // session id is built from, and lost the never-assigned "complete" status.
-export const AMERICANO_SCHEMA_VERSION = 11;
+// v12: publishedId — what stops Reset from clearing an unpublished night.
+export const AMERICANO_SCHEMA_VERSION = 12;
 
 export function emptyPool(id: string, label: "Court 1" | "Court 2"): AmericanoPool {
   return {
@@ -132,6 +133,7 @@ export function canonicalSession(date = "2026-01-01"): AmericanoSession {
     isPractice: false,
     status: "setup",
     startedAtMs: null,
+    publishedId: null,
   };
 }
 
@@ -205,6 +207,7 @@ export function migrateAmericanoSession(
     // night began at the moment of a page refresh. Null means Publish asks
     // rather than guesses.
     startedAtMs: typeof old.startedAtMs === "number" ? old.startedAtMs : null,
+    publishedId: typeof old.publishedId === "string" ? old.publishedId : null,
     // "complete" was removed from the union; a stored row may still say it.
     status: storedStatus === "active" || storedStatus === "complete" ? "active" : "setup",
   };

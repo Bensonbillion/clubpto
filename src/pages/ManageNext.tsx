@@ -16,6 +16,17 @@ import RoundBoard from "@/components/manage-next/RoundBoard";
 import StandingsPlayoffs from "@/components/manage-next/StandingsPlayoffs";
 import { ManageErrorBoundary } from "@/components/manage-next/ManageErrorBoundary";
 import AdminGate from "@/court-manager/auth/AdminGate";
+import PublishConfirm, { ResetGuardPanel } from "@/components/manage-publish/PublishConfirm";
+import { usePublishFlow } from "@/clubhouse/publish/usePublishFlow";
+import { planV3Publish, publishIdOfV3 } from "@/clubhouse/publish/plan";
+import { resetDecision } from "@/clubhouse/publish/resetGuard";
+import { clubDate, defaultVenueFor } from "@/lib/clubDate";
+
+/** "Wednesday 12 August" — what the confirm screen calls tonight. */
+const longDate = (iso: string) =>
+  new Date(`${iso}T12:00:00`).toLocaleDateString("en-CA", {
+    weekday: "long", day: "numeric", month: "long",
+  });
 
 const tabs = [
   { id: "session", label: "Roster", icon: Settings, locked: true },
@@ -38,7 +49,42 @@ const ManageNextInner = () => {
   const adminUnlocked = true;
   // Default to the open Check-In tab so opening the app never shows a passcode.
   const [tab, setTab] = useState<Tab>("checkin");
+  const [resetHeld, setResetHeld] = useState(false);
   const s = useSessionV2();
+
+  // ── Publish (Step 2b) ────────────────────────────────────────────
+  const attended = s.session.players.filter((p) => p.checkedIn || p.attending);
+  const publishDate = s.session.sessionStartedAt ? clubDate(s.session.sessionStartedAt) : "";
+  const flow = usePublishFlow({
+    people: attended.map((p) => ({ id: p.id, name: p.name, lastName: p.lastName })),
+    defaultVenue: publishDate ? defaultVenueFor(publishDate) ?? "" : "",
+    buildPlan: (input) => planV3Publish(s.session, input),
+    onPublished: (id) => s.markPublished(id),
+  });
+
+  // Reset nulls sessionStartedAt, which the publish id is derived from.
+  const gate = resetDecision({
+    publishId: publishIdOfV3(s.session),
+    publishedId: s.session.publishedId ?? null,
+    hasContent: attended.length > 0 || s.session.results.length > 0,
+    peopleCount: attended.length,
+  });
+
+  const runReset = async () => {
+    setResetHeld(false);
+    try {
+      // The night is archived first; if that fails, resetSession
+      // rejects and NOTHING is cleared (C7).
+      await s.resetSession();
+      setTab("session");
+    } catch (err) {
+      window.alert(
+        `The session was NOT reset — it could not be archived first, so nothing was cleared.\n\n${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
+  };
 
   // Follow the session: rounds → Courts (open). At playoffs/done, only send the
   // admin to the locked Standings tab — a no-passcode helper stays on the open
@@ -82,27 +128,25 @@ const ManageNextInner = () => {
             ))}
           </nav>
           {adminUnlocked ? (
+            <>
+            <button
+              onClick={() => flow.openSheet()}
+              className="min-h-[44px] px-3 flex items-center gap-2 text-sm text-gold hover:text-gold/80 transition-colors"
+            >
+              <span>{s.session.publishedId ? "Publish again" : "Publish"}</span>
+            </button>
             <button
               onClick={async () => {
+                if (!gate.allowed) { setResetHeld(true); return; }
                 if (!window.confirm("Reset tonight's session? The roster is kept — check-ins, pairs, games, and results are cleared.")) return;
-                try {
-                  // The night is archived first; if that fails, resetSession
-                  // rejects and NOTHING is cleared (C7).
-                  await s.resetSession();
-                  setTab("session");
-                } catch (err) {
-                  window.alert(
-                    `The session was NOT reset — it could not be archived first, so nothing was cleared.\n\n${
-                      err instanceof Error ? err.message : String(err)
-                    }`
-                  );
-                }
+                await runReset();
               }}
               className="min-h-[44px] px-3 flex items-center gap-2 text-sm text-muted-foreground hover:text-cream transition-colors"
             >
               <RotateCcw className="w-4 h-4" />
               <span className="hidden sm:inline">Reset</span>
             </button>
+            </>
           ) : (
             <div className="w-4" />
           )}
@@ -132,6 +176,34 @@ const ManageNextInner = () => {
           </>
         )}
       </main>
+
+      {flow.open && (
+        <PublishConfirm
+          when={publishDate ? longDate(publishDate) : "This night has not been started"}
+          venue={flow.venue}
+          onVenueChange={flow.setVenue}
+          questions={flow.resolution.questions}
+          decisions={flow.decisions}
+          onDecide={flow.decide}
+          notes={"notes" in flow.plan ? flow.plan.notes : []}
+          plan={flow.plan}
+          busy={flow.busy || flow.loading}
+          error={flow.error}
+          onPublish={() => void flow.publish()}
+          onCancel={flow.closeSheet}
+        />
+      )}
+
+      {resetHeld && !gate.allowed && (
+        <ResetGuardPanel
+          reason={gate.reason!}
+          consequence={gate.consequence!}
+          overrideLabel={gate.overrideLabel!}
+          onPublishInstead={() => { setResetHeld(false); flow.openSheet(); }}
+          onOverride={() => void runReset()}
+          onCancel={() => setResetHeld(false)}
+        />
+      )}
     </div>
   );
 };

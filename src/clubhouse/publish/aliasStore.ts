@@ -82,3 +82,21 @@ export async function commitAliasesOrThrow(rows: AliasRow[]): Promise<number> {
   if (error) throw new AliasCommitFailed(`Could not save the name mappings: ${error.message}`);
   return rows.length;
 }
+
+/**
+ * The roster, read as the ADMIN through the engine client.
+ *
+ * src/clubhouse/data/reads.ts has a fetchRoster() already, but it runs on the
+ * clubhouse client, which on /manage holds no session at all — the admin is
+ * signed in on "engine-auth". Migration 006 added is_engine_admin() to the
+ * roster policy precisely so this read returns every member, hidden ones
+ * included: a hidden player who cannot be offered as a candidate can never be
+ * mapped, and would silently stop getting attendance.
+ */
+export async function fetchRosterAsAdmin(): Promise<{ playerId: string; displayName: string }[]> {
+  const { data, error } = await aliasTable()("clubhouse_roster").select("player_id, display_name");
+  if (error) throw new AliasCommitFailed(`Could not read the roster: ${error.message}`);
+  return (data as unknown as { player_id: string; display_name: string }[] ?? [])
+    .map((r) => ({ playerId: r.player_id, displayName: r.display_name }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+}

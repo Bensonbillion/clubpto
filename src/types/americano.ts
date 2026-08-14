@@ -248,6 +248,15 @@ export interface AmericanoSession {
    * the same id on every press while two nights on one date differ.
    */
   startedAtMs?: number | null;
+  /**
+   * The published session id this night was last filed under, or null.
+   *
+   * Reset sits next to Publish and nulls startedAtMs, so pressing it first
+   * loses not just the data but the ability to file the night at all. This is
+   * what resetDecision() checks. It lives in the session, so it syncs across
+   * tablets and is archived with the night rather than living on one device.
+   */
+  publishedId?: string | null;
   sessionName: string;
   /** Tonight's players — the AmericanoPlayer records the generator consumes.
       (Step 3 addition: the Step 1 shape carried only ids inside pools, but a

@@ -73,6 +73,16 @@ export interface PlanInput {
   mapping: Record<string, string>;
   /** The confirmations to commit in the same transaction. */
   aliasRows: AliasRow[];
+  /**
+   * Engine ids the admin explicitly set aside — a guest, a visitor, somebody
+   * who is not on the roster tonight.
+   *
+   * Load-bearing: without it the alias step accepts a skip as an answer while
+   * this module still demands a mapping for that person, so the screen says
+   * "all answered" and refuses in the same breath, with no path out. Skipping
+   * has to mean the same thing on both sides of the seam.
+   */
+  skipped?: string[];
   recapNote?: string;
   shoutouts?: string[];
 }
@@ -106,6 +116,38 @@ const unmappedRefusal = (
  * credit from pair membership, so a fabricated pair does not stay cosmetic —
  * it becomes an attendance fact. Publishing zero pairs is the truthful shape.
  */
+/**
+ * What a v4 night records, stated whether or not the night is ready to go.
+ *
+ * This is an account, not a warning, so it must be readable from the moment
+ * the screen opens — an admin deciding how to answer four name questions
+ * should already know what those answers are FOR. Returning it only on the
+ * ok branch put it behind the last tap, which is the one moment it is no
+ * longer useful.
+ */
+export function publishNotesV4(
+  session: AmericanoSession,
+  venue: string,
+  skipped: string[] = []
+): string[] {
+  const n = recordedPeople(session, skipped).length;
+  const date = session.startedAtMs ? clubDate(session.startedAtMs) : session.date;
+  const where = venue.trim();
+  const aside = skipped.length;
+  return [
+    "Court 1 and Court 2 score people individually, and the club record stores pairs — so a night played this way has no pairs to store. Tonight's results are not published.",
+    `The room will show that ${n} ${n === 1 ? "person was" : "people were"} here on ${date}${where ? ` at ${where}` : ""}.`,
+    ...(aside > 0
+      ? [`${aside} ${aside === 1 ? "person is" : "people are"} set aside and will not be recorded.`]
+      : []),
+    "Champions, standings and scores stay on this tablet.",
+  ];
+}
+
+/** Everyone who was in the room and is being recorded: present, not skipped. */
+const recordedPeople = (session: AmericanoSession, skipped: string[]) =>
+  session.players.filter((p) => p.status !== "not_arrived" && !skipped.includes(p.playerId));
+
 export function planV4Publish(session: AmericanoSession, input: PlanInput): PublishPlan {
   const refusals: string[] = [];
 
@@ -129,32 +171,30 @@ export function planV4Publish(session: AmericanoSession, input: PlanInput): Publ
   const venueProblem = venueRefusal(input.venue, date);
   if (venueProblem) refusals.push(venueProblem);
 
-  // Everyone who was actually in the room. "not_arrived" means they were
-  // expected and never came, which is not attendance.
-  const present = session.players.filter((p) => p.status !== "not_arrived");
+  // Everyone who was actually in the room AND is being recorded. "not_arrived"
+  // means they were expected and never came, which is not attendance; skipped
+  // means the admin said they are not one of ours tonight.
+  const skipped = input.skipped ?? [];
+  const recorded = recordedPeople(session, skipped);
   const unmapped = unmappedRefusal(
-    present.map((p) => ({ id: p.playerId, name: p.displayName })),
+    recorded.map((p) => ({ id: p.playerId, name: p.displayName })),
     input.mapping
   );
   if (unmapped) refusals.push(unmapped);
 
   if (refusals.length > 0) return { ok: false, refusals };
 
-  const attendance = present.map((p) => ({ player_id: input.mapping[p.playerId] }));
+  const attendance = recorded.map((p) => ({ player_id: input.mapping[p.playerId] }));
 
   return {
     ok: true,
-    notes: [
-      "Tonight's results are not published. Court 1 and Court 2 score people individually and the club record stores pairs, so a night played this way has no pairs to store.",
-      `The room will show that these ${present.length} people were here on ${date} at ${input.venue.trim()}.`,
-      "Champions, standings and scores stay on this tablet.",
-    ],
+    notes: publishNotesV4(session, input.venue, skipped),
     payload: {
       session: {
         session_id: sessionId!,
         date,
         venue: input.venue.trim(),
-        attendance_count: present.length,
+        attendance_count: attendance.length,
         recap_note: input.recapNote?.trim() || null,
         shoutouts: input.shoutouts?.length ? input.shoutouts : null,
         practice_only: session.isPractice,
@@ -194,7 +234,10 @@ export function planV3Publish(
   const venueProblem = venueRefusal(input.venue, date || "this date");
   if (venueProblem) refusals.push(venueProblem);
 
-  const attended = session.players.filter((p) => p.checkedIn || p.attending);
+  const skipped = input.skipped ?? [];
+  const attended = session.players.filter(
+    (p) => (p.checkedIn || p.attending) && !skipped.includes(p.id)
+  );
   const unmapped = unmappedRefusal(
     attended.map((p) => ({ id: p.id, name: p.name })),
     input.mapping
