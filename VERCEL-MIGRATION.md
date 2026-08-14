@@ -1,7 +1,7 @@
 # Vercel migration checklist
 
-Written during the public-site cleanup (the "ghost design" purge). Lovable
-gives us no control over response headers, so the items below are the part of
+Written during the public-site cleanup (the "ghost design" purge), when Lovable
+hosted the site and gave us no control over response headers. The items below were the part of
 that fix we could not ship yet. They are not nice-to-haves: without them, the
 browser HTTP cache can do a milder version of exactly what the service worker
 did — serve a stale `index.html` that points at asset hashes which no longer

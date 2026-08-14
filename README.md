@@ -1,73 +1,71 @@
-# Welcome to your Lovable project
+# Club PTO
 
-## Project info
+A padel social club in Toronto. Two nights a week, Wednesdays and Sundays.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+This repo holds two things that share a build but almost nothing else:
 
-## How can I edit this code?
+- **The public site** — `/`, `/about`, `/play`, `/community`, `/partners`,
+  `/faq`, plus the members-only clubhouse at `/club`.
+- **Court Manager** — the courtside tool that runs a live night, at
+  `/manage` (v3) and `/manage4` (Americano v4).
 
-There are several ways of editing your application.
+## Live
 
-**Use Lovable**
+| | |
+| --- | --- |
+| Site | https://clubpto.com |
+| Hosting | Vercel, project `clubpto-site`, auto-deploys from `main` |
+| Bookings | Acuity (the site never owns checkout) |
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+`dab458f` and `VERCEL-MIGRATION.md` record the move from GitHub Pages to
+Vercel and the cache headers that came with it.
 
-Changes made via Lovable will be committed automatically to this repo.
+## Running it
 
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+Node 18+ and npm.
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+npm install
+npm run dev          # http://localhost:8080
 ```
 
-**Edit a file directly in GitHub**
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Dev server on :8080 |
+| `npm run build` | Production build to `dist/` |
+| `npm run lint` | ESLint |
+| `npx vitest run` | The test suite |
+| `npx tsc --noEmit -p tsconfig.app.json` | The real typecheck (not `tsc --noEmit`) |
+| `npx tsx src/court-manager/sim/run.ts` | Scheduler simulation |
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Environment: copy `.env.example` to `.env`. Every variable is a `VITE_` one,
+which means it ships to the browser — none of them is a secret, and Supabase
+Row Level Security is what actually protects the data.
 
-**Use GitHub Codespaces**
+## Layout
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```
+src/
+├── components/home/     public homepage sections
+├── components/layout/   header, footer, page wrapper
+├── clubhouse/           members area: publish transform, derived stats, /club UI
+├── court-manager/       Court Manager v3 engine (pure, simulated, tested)
+├── lib/americano/       Americano v4 engine
+├── pages/               routes
+└── site/__tests__/      guards that fail the build on content regressions
+```
 
-## What technologies are used for this project?
+## House rules
 
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+- **Facts only** in public copy. No invented times, counts, or formats. The
+  facts live in `src/lib/constants.ts`.
+- **The two nights are the same thing.** No copy may rank Wednesday against
+  Sunday or describe one as harder or softer.
+  `src/site/__tests__/nights-are-equal.test.ts` fails the build if it does.
+- **No service worker.** One precached `index.html` pinned a retired design
+  on real devices for months. `src/lib/killStaleCaches.ts` exists to heal
+  devices that still carry it, and `no-ghost-design.test.ts` fails if a
+  registration reappears.
+- **The clubhouse publishes no tier data, ever.** Skill tiers exist in the
+  engine and are structurally absent from every published type. See
+  `docs/CLUBHOUSE-REQUIREMENTS.md`.

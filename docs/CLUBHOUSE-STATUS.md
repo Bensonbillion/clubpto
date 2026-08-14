@@ -108,9 +108,10 @@ same night: main.tsx routes any Supabase auth hash (#access_token/#error)
 landing on ANY page to /club, where the clubhouse client consumes it —
 without this, Site-URL-fallback landings silently dropped the session
 (root cause of the first failed sign-ins, confirmed by a 17-agent audit).
-GOTCHA: clubpto.lovable.app is a STALE build until Share -> Publish in
-Lovable; never test auth there. Resend remains open (deliverability + the
-{{ .Token }} code line in the template, which is SMTP-gated).
+The live site is https://clubpto.com (Vercel) as of 2026-08-14; the old
+clubpto.lovable.app mirror is retired along with the Lovable connection.
+Resend remains open (deliverability + the {{ .Token }} code line in the
+template, which is SMTP-gated).
 
 - src/clubhouse/migrations/001_clubhouse.sql — ONE paste in the Supabase SQL
   editor creates all clubhouse tables (content + roster + links) with RLS:
@@ -133,8 +134,8 @@ admin context. One more step off Lovable.
 
 Remaining dashboard steps:
   0. DONE - URL configuration fixed after first real link redirected to
-     localhost and expired: Site URL = https://bensonbillion.github.io/clubpto,
-     redirect allow-list = prod/* + clubpto.lovable.app/* + localhost:8080/*.
+     localhost and expired. Site URL is now https://clubpto.com and the
+     redirect allow-list covers clubpto.com/* plus localhost:8080/*.
      /club now explains expired links (#error_code=otp_expired) with the
      email form ready for a fresh request.
   1. DONE - migration applied to flahcijysipymafazhxq (verified 2026-08-26).

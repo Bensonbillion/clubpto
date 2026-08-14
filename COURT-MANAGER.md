@@ -52,7 +52,7 @@ Skill tiers **A / B / C** are assigned by the admin, visible only in admin views
 
 ## 4. Tech Stack & Architecture
 
-- **React 18 + TypeScript + Vite** (Lovable.dev scaffold — do not migrate frameworks)
+- **React 18 + TypeScript + Vite** (do not migrate frameworks)
 - **Tailwind + shadcn/ui**; **Supabase** for archive/sync; **localStorage is the live source of truth during sessions** (section 13)
 - No state library — custom hooks
 

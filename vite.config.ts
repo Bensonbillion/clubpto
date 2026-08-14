@@ -2,8 +2,6 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import fs from "fs";
 import path from "path";
-import { componentTagger } from "lovable-tagger";
-import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/supabase/vite";
 import { imagetools } from "vite-imagetools";
 
 /**
@@ -96,7 +94,7 @@ const preloadHero = (): Plugin => {
 };
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig({
   server: {
     host: "::",
     port: 8080,
@@ -110,7 +108,6 @@ export default defineConfig(({ mode }) => ({
   // VERCEL-MIGRATION.md.
   plugins: [
     react(),
-    mcpPlugin(),
     spaFallback(),
     // Images are the heaviest part of the mobile experience. An import
     // ending in ?picture is emitted as AVIF + WebP + the original format,
@@ -129,11 +126,10 @@ export default defineConfig(({ mode }) => ({
           : new URLSearchParams(),
     }),
     preloadHero(),
-    mode === "development" && componentTagger(),
-  ].filter(Boolean),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
   },
-}));
+});

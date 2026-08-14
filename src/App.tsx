@@ -27,7 +27,6 @@ const SessionHistory = lazy(() => import("./pages/admin/SessionHistory"));
 const SessionDetail = lazy(() => import("./pages/admin/SessionDetail"));
 const Set01Tournament = lazy(() => import("./pages/admin/Set01Tournament"));
 const Login = lazy(() => import("./pages/Login"));
-const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Club = lazy(() => import("./pages/Club"));
 const ClubRoomPreview = lazy(() => import("./pages/ClubRoomPreview"));
@@ -92,7 +91,6 @@ const App = () => (
             <Route path="/admin/history" element={<SessionHistory />} />
             <Route path="/admin/history/:id" element={<SessionDetail />} />
             <Route path="/login" element={<Login />} />
-            <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

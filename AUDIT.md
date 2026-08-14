@@ -20,7 +20,7 @@
 | Database | Supabase (PostgreSQL) | Project: ikfbtktofcfkpqxwlfku |
 | Data Fetching | TanStack React Query 5.83.0 | For sessions queries |
 | Forms | React Hook Form 7.61.1 + Zod 3.25.76 | |
-| Hosting | Lovable.dev platform | Share → Publish |
+| Hosting | Vercel (project `clubpto-site`) | auto-deploys from `main` |
 | PWA | vite-plugin-pwa 1.2.0 | Workbox, 5MB cache |
 
 ### State Management Approach
@@ -70,7 +70,6 @@
 | `typescript` 5.8.3 | Type checking |
 | `vitest` 4.0.18 | Test runner |
 | `eslint` 9.32.0 | Linting |
-| `lovable-tagger` 1.1.13 | Lovable platform integration |
 | `tailwindcss` / `postcss` / `autoprefixer` | CSS pipeline |
 
 ### Folder Structure (2 levels)

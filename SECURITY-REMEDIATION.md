@@ -6,14 +6,14 @@ Findings from the security scan (2026-07-23) and the exact steps to fix them.
 
 1. **I cannot deploy these changes.** Applying RLS policies and edge-function
    config needs your Supabase project's deploy access (Supabase dashboard SQL
-   editor, the `supabase` CLI with the service-role key, or Lovable). I only
+   editor or the `supabase` CLI with the service-role key). I only
    have the public anon key. Every SQL block below is for **you** to run.
 2. **Order matters. Do NOT lock down RLS before auth exists.** The app currently
    uses the anonymous key with no login. If you restrict a table to
    authenticated users before there's an authenticated identity, the feature
    that uses it goes fully offline. Work top-to-bottom.
 
-Test every change in a Lovable preview / Supabase branch **before** production.
+Test every change against a Supabase branch **before** production.
 Several of these can break the public booking page (revenue) or a live session.
 
 ---
