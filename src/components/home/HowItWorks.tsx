@@ -3,16 +3,21 @@ import { fadeUp, staggerContainer } from "@/lib/animations";
 import { weeklyMeets } from "@/lib/constants";
 
 // Persona one's push: first-timers need to know exactly how easy it is.
+// Both nights are described identically on purpose (see weeklyMeets).
+const nights = weeklyMeets.nights
+  .map((n) => `${n.day} at ${n.venue}, ${n.area}`)
+  .join(". ");
+
 const steps = [
   {
     num: "01",
     title: "Book a spot",
-    text: "CA$20 on our booking page. Wednesday is tournament night, Sunday runs softer. No membership, no commitment.",
+    text: `${weeklyMeets.price} on our booking page, either night. No membership, no commitment.`,
   },
   {
     num: "02",
     title: "Show up",
-    text: "District Padel Club on Wednesdays. First time on a padel court? Perfect. Come as you are.",
+    text: `${nights}. First time on a padel court? Perfect. Come as you are.`,
   },
   {
     num: "03",

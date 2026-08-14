@@ -79,9 +79,9 @@
     @apply border-border;
   }
 
-  html {
-    scroll-behavior: smooth;
-  }
+  /* No `scroll-behavior: smooth` here on purpose: it hijacks programmatic
+     scrolls in Safari 15.4+ and PageWrapper already jumps with
+     behavior: "instant" on route changes. */
 
   body {
     @apply bg-background text-foreground antialiased;

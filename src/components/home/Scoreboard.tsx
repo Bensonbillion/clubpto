@@ -1,13 +1,13 @@
 import { motion } from "framer-motion";
 import { fadeUp, staggerContainer } from "@/lib/animations";
+import { weeklyMeets } from "@/lib/constants";
 
-// The facts, scoreboard style. Every value here is real:
-// price and Wednesday venue come from the club's Acuity page.
+// The facts, scoreboard style. Every value here is real. Both nights get a
+// cell of their own: same size, same treatment, no ranking between them.
 const cells = [
   { value: "Wed + Sun", label: "every week" },
-  { value: "CA$20", label: "a session" },
-  { value: "District Padel", label: "Wednesdays" },
-  { value: "The Pad", label: "Courtside" },
+  { value: weeklyMeets.price, label: "a session" },
+  ...weeklyMeets.nights.map((n) => ({ value: n.venue, label: n.day.toLowerCase() })),
 ];
 
 const Scoreboard = () => (

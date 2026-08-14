@@ -29,12 +29,11 @@ const faqs = [
   {
     question: "When do sessions run?",
     answer:
-      "Wednesday is tournament night, Sunday runs softer. Exact start times are on the booking page.",
+      "Wednesdays and Sundays, every week. Same night either way, so take whichever one suits you. Exact start times are on the booking page.",
   },
   {
     question: "Where do you play?",
-    answer:
-      "Wednesdays run at District Padel Club. Courtside events land at The Pad. Full details come with your booking.",
+    answer: `${weeklyMeets.nights[0].day} at ${weeklyMeets.nights[0].venue} in ${weeklyMeets.nights[0].area}. ${weeklyMeets.nights[1].day} at ${weeklyMeets.nights[1].venue} in ${weeklyMeets.nights[1].area}. Courtside events land at The Pad. Full details come with your booking.`,
   },
   {
     question: "How do I book?",

@@ -32,13 +32,14 @@ const NextUp = () => {
           <span className="rly-stamp rly-card__stamp">This week</span>
           <p className="rly-card__kicker">Every week</p>
           <h3 className="rly-display rly-card__title">Weekly sessions</h3>
+          {/* Both nights, same weight, same treatment. */}
           <div className="rly-card__rows">
-            <span>
-              <strong>{weeklyMeets.days}</strong>
-            </span>
-            <span>Wednesday · tournament night</span>
-            <span>Sunday · the softer one</span>
-            <span>CA$20 · {weeklyMeets.city}</span>
+            {weeklyMeets.nights.map((night) => (
+              <span key={night.day}>
+                <strong>{night.day}</strong> · {night.venue}, {night.area}
+              </span>
+            ))}
+            <span>{weeklyMeets.price} · no membership</span>
           </div>
           <div className="rly-card__cta-row">
             <a

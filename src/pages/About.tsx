@@ -27,12 +27,13 @@ const About = () => (
         <motion.div variants={fadeUp} className="rly-prose" style={{ marginTop: "2rem" }}>
           <p>
             A padel social club in Toronto. We meet twice a week, every week:
-            compete Wednesday, unwind Sunday.
+            Wednesdays and Sundays.
           </p>
           <p>
-            Wednesdays are for the game: fixed pairs, a round robin, live
-            standings, playoffs before the night ends. Sundays close the week
-            the softer way.
+            Same night either way. {weeklyMeets.nights[0].day} at{" "}
+            {weeklyMeets.nights[0].venue} in {weeklyMeets.nights[0].area},{" "}
+            {weeklyMeets.nights[1].day} at {weeklyMeets.nights[1].venue} in{" "}
+            {weeklyMeets.nights[1].area}. Take whichever one your week allows.
           </p>
           <p>
             Courtside is the flagship. Tournament padel at The Pad, DJ sets,
@@ -46,7 +47,7 @@ const About = () => (
         <motion.div variants={fadeUp} className="rly-facts-row">
           <span>{weeklyMeets.days} · every week</span>
           <span>Courtside · the flagship</span>
-          <span>{weeklyMeets.city}</span>
+          <span>{weeklyMeets.nights.map((n) => n.area).join(" + ")}</span>
         </motion.div>
         <motion.div variants={fadeUp} className="rly-cta-row">
           <a

@@ -4,14 +4,15 @@ import photoCompete from "@/assets/featured/grid_rally.jpg";
 import photoConnect from "@/assets/featured/s2_net.jpg";
 import photoAfter from "@/assets/featured/s2_dj.jpg";
 
-// The experience, numbered. Compete / Connect / the after -
-// the book's own words, with the room's own faces.
+// The experience, numbered. Play / Connect / the after, with the room's own
+// faces. Row 01 covers both nights equally: no night is the serious one and
+// no night is the easy one (see weeklyMeets in lib/constants).
 const rows = [
   {
     num: "01",
-    title: "Compete",
+    title: "Play",
     script: null,
-    text: "Tournament padel, every Wednesday at District Padel Club. Fixed pairs, a round robin, live standings, and playoffs to close the night.",
+    text: "Two nights a week, same game both times. Long rallies, close points, a court that fills up fast. Take whichever night you can make.",
     photo: photoCompete,
     alt: "A rally at golden hour in front of the crowd",
   },

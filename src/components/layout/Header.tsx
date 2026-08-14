@@ -1,29 +1,61 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { navItems, courtsideII, weeklyMeets, isCourtsideUpcoming } from "@/lib/constants";
 import logoWordmarkCream from "@/assets/logo-wordmark-cream.png";
 import { staggerContainer, fadeIn } from "@/lib/animations";
+import { nextHeaderState } from "./headerScroll";
 
 const Header = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  // Touch devices get a solid bar instead of a blurred one (see below).
+  const [coarsePointer, setCoarsePointer] = useState(false);
   const location = useLocation();
 
-  // Hide on scroll down, reveal on scroll up
+  const lastY = useRef(0);
+  const ticking = useRef(false);
+  // Mirror the booleans in refs so the handler can compare without re-binding.
+  const scrolledRef = useRef(false);
+  const hiddenRef = useRef(false);
+
+  // Hide on scroll down, reveal on scroll up. The scroll event fires far
+  // faster than the screen paints, so the read is deferred to one animation
+  // frame and state is only touched when a boolean actually flips.
+  // Re-rendering a fixed header on every scroll event is what made mobile
+  // scrolling stutter.
   const handleScroll = useCallback(() => {
-    const currentY = window.scrollY;
-    setScrolled(currentY > 40);
-    setHidden(currentY > 120 && currentY > (handleScroll as any)._lastY);
-    (handleScroll as any)._lastY = currentY;
+    if (ticking.current) return;
+    ticking.current = true;
+    requestAnimationFrame(() => {
+      ticking.current = false;
+      const currentY = window.scrollY;
+      const next = nextHeaderState(currentY, lastY.current);
+
+      if (next.scrolled !== scrolledRef.current) {
+        scrolledRef.current = next.scrolled;
+        setScrolled(next.scrolled);
+      }
+      if (next.hidden !== hiddenRef.current) {
+        hiddenRef.current = next.hidden;
+        setHidden(next.hidden);
+      }
+
+      lastY.current = currentY;
+    });
   }, []);
 
   useEffect(() => {
-    (handleScroll as any)._lastY = 0;
+    lastY.current = window.scrollY;
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
   }, [handleScroll]);
+
+  // Checked after mount so the first paint is identical everywhere.
+  useEffect(() => {
+    setCoarsePointer(window.matchMedia("(pointer: coarse)").matches);
+  }, []);
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -46,8 +78,16 @@ const Header = () => {
           hidden ? "-translate-y-full" : "translate-y-0"
         }`}
         style={{
-          background: scrolled ? "rgba(10, 24, 16, 0.82)" : "transparent",
-          backdropFilter: scrolled ? "blur(16px)" : undefined,
+          // A fixed, full-width blur over moving content forces a GPU
+          // recomposite every frame — the most expensive thing a phone can be
+          // asked to do while scrolling. Touch gets an opaque bar; the blur
+          // stays on desktop, where it is cheap and looks better.
+          background: scrolled
+            ? coarsePointer
+              ? "rgba(10, 24, 16, 0.92)"
+              : "rgba(10, 24, 16, 0.82)"
+            : "transparent",
+          backdropFilter: scrolled && !coarsePointer ? "blur(16px)" : undefined,
           borderBottom: scrolled ? "1px solid rgba(244, 237, 224, 0.1)" : "1px solid transparent",
         }}
       >

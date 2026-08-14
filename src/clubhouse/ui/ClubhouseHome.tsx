@@ -137,7 +137,8 @@ export default function ClubhouseHome({
           </a>
         </div>
         <p className="clb-dim" style={{ fontSize: 14.5 }}>
-          Everything here builds publish by publish. Play Wednesday. Unwind Sunday.
+          Everything here builds session by session. Wednesdays and Sundays,
+          all year.
         </p>
       </footer>
     </div>

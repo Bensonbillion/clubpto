@@ -44,10 +44,23 @@ export const courtsideII = {
 } as const;
 
 // Weekly meets. Booking runs through Acuity; the site never owns checkout.
+//
+// THE TWO NIGHTS ARE THE SAME THING. Both entries carry exactly the same
+// fields, and no public copy may rank one night above the other or imply a
+// difference in how hard or how serious it is. If a descriptor is added to
+// one night it must be added to both, or it does not belong on either.
+// Anyone should be able to take whichever day their week allows and know
+// they got the same night.
+// (Guarded by src/site/__tests__/nights-are-equal.test.ts.)
 export const weeklyMeets = {
-  days: "Wednesday + Sunday",
-  city: "Toronto",
   bookingUrl: "https://clubptobookings.as.me/",
+  price: "CA$20",
+  nights: [
+    { day: "Wednesdays", venue: "The District Padel", area: "Mississauga" },
+    { day: "Sundays", venue: "North Padel", area: "North York" },
+  ],
+  /** Short form for tickers and footers. */
+  days: "Wednesday + Sunday",
 } as const;
 
 // True until the end of event day (America/Toronto). Every surface that

@@ -22,7 +22,7 @@ const moments = [
   {
     when: "Now",
     what: "Every week",
-    note: "Compete Wednesday, unwind Sunday. The room keeps growing.",
+    note: "Wednesdays and Sundays, both nights on court. The room keeps growing.",
   },
   {
     when: "Next",

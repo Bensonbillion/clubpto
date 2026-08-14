@@ -21,14 +21,19 @@ export function useSmoothScroll() {
 
     lenis.on("scroll", ScrollTrigger.update);
 
-    gsap.ticker.add((time) => {
+    // Keep the exact reference that was added: removing `lenis.raf` instead
+    // leaves this wrapper on the ticker forever, calling into a destroyed
+    // Lenis after navigating away (e.g. to /club or /manage).
+    const tick = (time: number) => {
       lenis.raf(time * 1000);
-    });
+    };
+    gsap.ticker.add(tick);
     gsap.ticker.lagSmoothing(0);
 
     return () => {
+      // Unhook before destroying, so no frame can land on a dead instance.
+      gsap.ticker.remove(tick);
       lenis.destroy();
-      gsap.ticker.remove(lenis.raf);
     };
   }, []);
 }
