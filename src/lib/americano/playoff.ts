@@ -307,12 +307,40 @@ export function playoffCorrectionBlock(
   return { blocked: false };
 }
 
-/** Voiding a semi regresses the bracket: the final empties and waits again. */
+/**
+ * Voiding inside a bracket puts it back where it was.
+ *
+ * Voiding the FINAL takes the champion down with it — the correction sheet
+ * tells the admin to "void the final first", so that has to be a real way
+ * back, not just a status change under a headline still naming the wrong
+ * pair. A void leaves the result on the match (it is a record of what was
+ * played, not a deletion), so the final is explicitly reopened here.
+ *
+ * Voiding a SEMI empties the final and makes it wait again — only in top8,
+ * because a top4 bracket is the final alone and has no semis to void.
+ */
 export function regressBracket(s: AmericanoSession, poolId: string): AmericanoSession {
   const pool = s.pools.find((p) => p.id === poolId);
-  if (!pool || !pool.playoff || pool.playoff.mode !== "top8") return s;
+  if (!pool || !pool.playoff) return s;
   const finalMatch = findPhase(pool, "playoff_final");
-  if (!finalMatch || finalMatch.result) return s;
+  if (!finalMatch) return s;
+
+  if (finalMatch.status === "voided") {
+    return {
+      ...s,
+      pools: s.pools.map((p) =>
+        p.id === poolId
+          ? { ...p, champion: undefined, status: "playoff" as const,
+              matches: p.matches.map((m) =>
+                m.id === finalMatch.id
+                  ? { ...m, result: null, status: "active" as const, completedAt: null }
+                  : m) }
+          : p,
+      ),
+    };
+  }
+
+  if (pool.playoff.mode !== "top8" || finalMatch.result) return s;
   return {
     ...s,
     pools: s.pools.map((p) =>

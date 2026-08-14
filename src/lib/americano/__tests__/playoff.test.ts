@@ -424,3 +424,96 @@ describe("the optional court borrow (STEP 7)", () => {
     expect(courtBorrowAvailable(busy, "court-2")).toBe(false);
   });
 });
+
+/* ── voiding the final ───────────────────────────────────────────── */
+
+describe("a wrong final can be taken back (the run-of-show's recovery)", () => {
+  /** Lock a bracket and play it to a crowned champion. */
+  function crowned(): AmericanoSession {
+    let s = settleAll(playedNight());
+    s = requestPlayoff(s, "court-2");
+    s = lockPlayoff(s, "court-2", 2_000);
+    let clock = 3_000;
+    for (let step = 0; step < 6; step++) {
+      s = advanceBracket(s, clock);
+      const live = P(s).matches.find(
+        (m) => m.phase.startsWith("playoff") && m.status === "active",
+      );
+      if (!live) break;
+      s = applyResult(s, live.id, { winner: "A", setsLost: 0 }, clock);
+      s = crownFromBracket(advanceBracket(s, clock), clock);
+      clock += 1_000;
+    }
+    return s;
+  }
+
+  it("the champion is crowned from the final, as expected", () => {
+    const s = crowned();
+    expect(P(s).champion).toBeDefined();
+    expect(P(s).champion!.kind).toBe("pair");
+    expect(P(s).status).toBe("complete");
+  });
+
+  it("VOIDING THE FINAL clears the champion and lets it be re-recorded", () => {
+    // The room heard the wrong pair announced. The correction sheet's own
+    // instruction is "Void the final first" — so voiding it must actually
+    // take the champion back down, or the phone keeps showing a pair that
+    // did not win and there is no way back short of resetting the night.
+    const s = crowned();
+    const wrong = P(s).champion!.playerIds.join();
+    const finalMatch = P(s).matches.find((m) => m.phase === "playoff_final")!;
+
+    let after = applyVoid(s, finalMatch.id);
+    after = regressBracket(after, "court-2");
+
+    expect(P(after).champion).toBeUndefined();
+    expect(P(after).status).toBe("playoff");
+
+    // …and the final is genuinely re-playable: it stands ready with the two
+    // semi winners on it, so the right result can be entered.
+    after = advanceBracket(after, 20_000);
+    const replay = P(after).matches.find(
+      (m) => m.phase === "playoff_final" && m.status === "active",
+    );
+    expect(replay).toBeDefined();
+
+    after = applyResult(after, replay!.id, { winner: "B", setsLost: 1 }, 21_000);
+    after = crownFromBracket(advanceBracket(after, 21_000), 21_000);
+    expect(P(after).champion).toBeDefined();
+    expect(P(after).champion!.playerIds.join()).not.toBe(wrong);
+  });
+});
+
+describe("the same recovery in a top4 bracket (8-11 eligible — the likely night)", () => {
+  it("top4 is the final alone, and voiding it also takes the champion down", () => {
+    // A top4 bracket has no semis, so the old regress path — which only ever
+    // looked at top8 — could not have helped here at all.
+    let s = settleAll(playedNight(3, 8));
+    expect(playoffModeFor(eligibility(P(s), s.players).eligible.length)).toBe("top4");
+
+    s = requestPlayoff(s, "court-2");
+    s = lockPlayoff(s, "court-2", 2_000);
+    expect(P(s).playoff!.mode).toBe("top4");
+
+    const theFinal = P(s).matches.find((m) => m.phase === "playoff_final")!;
+    s = applyResult(s, theFinal.id, { winner: "A", setsLost: 0 }, 3_000);
+    s = crownFromBracket(advanceBracket(s, 3_000), 3_000);
+    const wrong = P(s).champion!.playerIds.join();
+    expect(P(s).status).toBe("complete");
+
+    s = regressBracket(applyVoid(s, theFinal.id), "court-2");
+    expect(P(s).champion).toBeUndefined();
+    expect(P(s).status).toBe("playoff");
+
+    // The same two pairs are still on it — a top4 final is not rebuilt from
+    // anything, so re-recording must work off the seeds it locked with.
+    const replay = P(s).matches.find((m) => m.phase === "playoff_final")!;
+    expect(replay.status).toBe("active");
+    expect(replay.result).toBeNull();
+    expect(replay.teamA.join()).toBe(theFinal.teamA.join());
+
+    s = applyResult(s, replay.id, { winner: "B", setsLost: 1 }, 4_000);
+    s = crownFromBracket(advanceBracket(s, 4_000), 4_000);
+    expect(P(s).champion!.playerIds.join()).not.toBe(wrong);
+  });
+});
