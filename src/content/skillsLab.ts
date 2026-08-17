@@ -9,7 +9,9 @@
 export const TODO = "TODO_BENSON";
 
 export const skillsLab = {
-  cohortStartDate: TODO, // e.g. "2026-08-30"
+  // Public on the poster ("LIVE 30.08.2026") and the approved wireframe's
+  // ribbon — the one operational fact that's already published.
+  cohortStartDate: "2026-08-30",
   sessionDay: TODO, // e.g. "Wednesday" or "Sunday"
   sessionTime: TODO, // e.g. "10:00–11:30 AM"
   venueName: TODO, // e.g. "North Padel"
