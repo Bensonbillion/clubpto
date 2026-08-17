@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { navItems, courtsideII, weeklyMeets, isCourtsideUpcoming } from "@/lib/constants";
+import { navItems, courtsideII, weeklyMeets, skillLab, isCourtsideUpcoming } from "@/lib/constants";
 import logoWordmarkCream from "@/assets/logo-wordmark-cream.png";
 import { staggerContainer, fadeIn } from "@/lib/animations";
 import { nextHeaderState } from "./headerScroll";
@@ -70,6 +70,21 @@ const Header = () => {
 
   const isActive = (href: string) => location.pathname === href;
 
+  // Route-aware CTA. A page that sells exactly one thing must not have the
+  // header selling a different one — on /skill-lab the header funnels to the
+  // cohort, everywhere else the state-aware session/tickets logic stands.
+  const routeCta: Record<string, { href: string; label: string; mobileLabel: string }> = {
+    "/skill-lab": {
+      href: skillLab.bookingUrl,
+      label: "Join the next cohort ↗",
+      mobileLabel: "Join the next cohort ↗",
+    },
+  };
+  const cta =
+    routeCta[location.pathname] ??
+    (isCourtsideUpcoming()
+      ? { href: courtsideII.ticketsUrl, label: "Tickets ↗", mobileLabel: "Courtside II · Tickets ↗" }
+      : { href: weeklyMeets.bookingUrl, label: "Book a session ↗", mobileLabel: "Book a session ↗" });
 
   return (
     <>
@@ -111,26 +126,21 @@ const Header = () => {
               ))}
             </nav>
 
-            {/* State-aware CTA, desktop */}
-            {isCourtsideUpcoming() ? (
+            {/* CTA, desktop only. The wrapper div carries the visibility:
+                Tailwind's `hidden` on the pill itself loses to .rly-pill's
+                own display rule (rally.css loads later), which is how the
+                desktop pill was leaking onto phones two pixels off the
+                logo. A wrapper with no pill class actually hides. */}
+            <div className="hidden lg:block">
               <a
-                href={courtsideII.ticketsUrl}
+                href={cta.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rly-pill rly-pill--nav hidden lg:inline-flex"
+                className="rly-pill rly-pill--nav"
               >
-                Tickets ↗
+                {cta.label}
               </a>
-            ) : (
-              <a
-                href={weeklyMeets.bookingUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rly-pill rly-pill--nav hidden lg:inline-flex"
-              >
-                Book a session ↗
-              </a>
-            )}
+            </div>
 
             {/* Mobile hamburger */}
             <button
@@ -191,27 +201,15 @@ const Header = () => {
                 </motion.div>
               ))}
               <motion.div variants={fadeIn}>
-                {isCourtsideUpcoming() ? (
-                  <a
-                    href={courtsideII.ticketsUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rly-pill mt-4"
-                    onClick={() => setIsOpen(false)}
-                  >
-                    Courtside II · Tickets ↗
-                  </a>
-                ) : (
-                  <a
-                    href={weeklyMeets.bookingUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rly-pill mt-4"
-                    onClick={() => setIsOpen(false)}
-                  >
-                    Book a session ↗
-                  </a>
-                )}
+                <a
+                  href={cta.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rly-pill mt-4"
+                  onClick={() => setIsOpen(false)}
+                >
+                  {cta.mobileLabel}
+                </a>
               </motion.div>
             </motion.nav>
           </motion.div>
