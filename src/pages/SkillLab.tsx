@@ -15,8 +15,10 @@
 import { useEffect } from "react";
 import { motion } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
+import Picture from "@/components/ui/Picture";
 import { fadeUp, staggerContainer } from "@/lib/animations";
 import { skillLab } from "@/lib/constants";
+import poster from "@/assets/skill-lab-poster.jpg?picture";
 
 // The four weeks, one line each. Wording is the source's, compressed.
 const WEEKS = [
@@ -103,6 +105,23 @@ const SkillLab = () => {
           <motion.p variants={fadeUp} className="rly-prose" style={{ marginTop: "1.5rem" }}>
             Six players, four weeks, one coach.
           </motion.p>
+
+          {/* A 2:3 portrait at full desktop width swallows the viewport and
+              pushes every other block below the fold, so the column is capped
+              rather than the image stretched. Full width on a phone, where a
+              portrait poster is the right shape anyway. */}
+          <motion.div
+            variants={fadeUp}
+            style={{ maxWidth: "min(100%, 420px)", marginTop: "2rem" }}
+          >
+            <Picture
+              img={poster}
+              alt="SKILL LAB — Club PTO"
+              priority
+              sizes="(max-width: 700px) 100vw, 420px"
+              style={{ width: "100%", height: "auto", display: "block" }}
+            />
+          </motion.div>
 
           <motion.div variants={fadeUp} className="rly-cta-row" style={{ marginTop: "2rem" }}>
             <Cta label="Join the next cohort" />
