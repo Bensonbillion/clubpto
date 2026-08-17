@@ -159,7 +159,7 @@ describe("clubhouse view-model", () => {
     const real = session("s1", "2026-08-02");
     const practice = session("s2", "2026-08-09", { practiceOnly: true });
     const v = buildClubhouseView([real, practice], roster, noPrefs, "a");
-    // Board and record count the competitive night only.
+    // Board and record count the non-practice session only.
     expect(v.boards.attendance[0].value).toBe(1);
     const sessionsRecord = v.records.find((r) => r.label === "Most sessions attended");
     expect(sessionsRecord?.value).toBe(1);

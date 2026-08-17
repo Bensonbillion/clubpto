@@ -10,7 +10,7 @@ export const TODO = "TODO_BENSON";
 
 export const skillsLab = {
   cohortStartDate: TODO, // e.g. "2026-08-30"
-  sessionDay: TODO, // e.g. "Sunday"
+  sessionDay: TODO, // e.g. "Wednesday" or "Sunday"
   sessionTime: TODO, // e.g. "10:00–11:30 AM"
   venueName: TODO, // e.g. "North Padel"
   venueArea: TODO, // e.g. "North York"
