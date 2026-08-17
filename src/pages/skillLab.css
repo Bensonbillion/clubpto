@@ -2,17 +2,34 @@
   SKILL LAB layout. Scoped to .sl-*, on the same tokens as rally.css — this
   is a composition problem, not a new design system.
 
-  WHAT THIS FIXES. The first version put every block in a 640px prose column
-  pinned left, with 60-70vh of air between sections and the right half of a
-  1440px viewport empty. That is a mobile layout stretched wide. The poster
-  sat below a headline as a thumbnail rather than being the hero.
+  STAGE 1 (design direction, Aug 2026): a fluid type scale and an 8pt
+  spacing system as page-scoped tokens, an svh-safe hero for the Instagram
+  in-app browser, and the one CTA repeated at hero and close with identical
+  copy. The coach section the direction calls for is absent on purpose:
+  there is no confirmed coach name or credential to put in it.
 
-  So: real two-column compositions at desktop, the poster filling the hero,
-  and vertical rhythm cut to about half. Single column on mobile, poster
-  first, which is the shape a 2:3 portrait wants anyway.
+  The scale mixes a rem term with vw so browser zoom still works (WCAG
+  1.4.4); a pure-vw preferred value defeats text resize.
 */
 
 .sl-page {
+  /* type scale — Perfect Fourth, compressed on mobile so nothing clips */
+  --sl-step--1: clamp(0.83rem, 0.8rem + 0.15vw, 0.9rem);
+  --sl-step-0: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+  --sl-step-1: clamp(1.15rem, 1.05rem + 0.5vw, 1.4rem);
+  --sl-step-3: clamp(2.2rem, 1.8rem + 2vw, 3.6rem);
+  --sl-step-4: clamp(2.8rem, 2rem + 4vw, 5.5rem);
+  /* spacing — 8pt system */
+  --sl-space-1: 8px;
+  --sl-space-2: 16px;
+  --sl-space-3: 24px;
+  --sl-space-4: 32px;
+  --sl-space-6: 48px;
+  --sl-space-8: 64px;
+  --sl-space-12: 96px;
+  --sl-section-pad: clamp(3.5rem, 7vw, 6.5rem);
+  --sl-gutter: clamp(1.1rem, 4vw, 3.5rem);
+
   background: var(--ink);
   color: var(--chalk);
   font-family: var(--f-body);
@@ -21,16 +38,39 @@
   padding-top: 4rem;
 }
 
-/* ── hero ─────────────────────────────────────────────────────── */
+/* Headlines never clip or orphan. */
+.sl-page .rly-display {
+  text-wrap: balance;
+}
+
+/* One CTA, repeated verbatim. 48px minimum height so it is a comfortable
+   thumb target inside the Instagram browser (WCAG 2.5.5 wants 44). */
+.sl-cta {
+  min-height: 48px;
+}
+
+/* ── 1. hero ──────────────────────────────────────────────────────── */
 
 .sl-hero {
   display: grid;
   grid-template-columns: 1fr;
   gap: clamp(2rem, 5vw, 4rem);
   align-items: center;
-  padding: clamp(1.5rem, 4vw, 3rem) clamp(1.1rem, 4vw, 3.5rem) clamp(3rem, 7vh, 5rem);
-  max-width: 1340px;
+  padding: var(--sl-space-3) var(--sl-gutter) var(--sl-space-8);
+  /* The gutter lives INSIDE the max-width box here, so this box must be
+     1340 + two gutters — otherwise this section's content edge lands one
+     gutter to the right of the sections that pad outside a 1340 inner. */
+  max-width: calc(1340px + 2 * var(--sl-gutter));
   margin: 0 auto;
+  /* svh, not vh: 100vh is computed with mobile toolbars retracted and hides
+     the bottom of the hero — including the CTA — on first paint. */
+  min-height: calc(100svh - 4rem);
+}
+
+@supports (-webkit-touch-callout: none) {
+  .sl-hero {
+    min-height: -webkit-fill-available;
+  }
 }
 
 .sl-hero__poster {
@@ -46,18 +86,52 @@
 }
 
 .sl-hero__title {
-  /* Down from the 6rem page title: at 1440 that clipped its own container. */
-  font-size: clamp(2.6rem, 6vw, 5rem);
-  margin: 0.6rem 0 0;
+  font-size: var(--sl-step-4);
+  margin: var(--sl-space-1) 0 0;
 }
 
 .sl-hero__lead {
-  margin-top: 1.4rem;
-  font-size: clamp(17px, 1.4vw, 21px);
+  margin-top: var(--sl-space-3);
+  font-size: var(--sl-step-1);
   line-height: 1.5;
   font-weight: 300;
   color: var(--chalk);
   max-width: 34ch;
+}
+
+.sl-hero__cta {
+  margin-top: var(--sl-space-4);
+}
+
+@media (max-width: 899px) {
+  /* The whole hero — poster included — must fit one small viewport with the
+     CTA inside it. The poster caps in svh so the stack scales with the
+     real height the Instagram browser actually gives us. */
+  .sl-hero {
+    gap: var(--sl-space-3);
+    padding-top: var(--sl-space-2);
+  }
+
+  .sl-hero__poster img {
+    max-height: 58vh;
+    max-height: 58svh;
+    width: auto;
+    max-width: 100%;
+    margin: 0 auto;
+  }
+
+  .sl-hero__lead {
+    margin-top: var(--sl-space-2);
+  }
+
+  .sl-hero__cta {
+    margin-top: var(--sl-space-3);
+  }
+
+  /* Thumb zone: the mobile CTA is full-width, lower on the frame. */
+  .sl-hero__cta .sl-cta {
+    width: 100%;
+  }
 }
 
 @media (min-width: 900px) {
@@ -65,7 +139,6 @@
     /* The poster is the hero. It gets the larger share. */
     grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
     gap: clamp(3rem, 5vw, 5.5rem);
-    min-height: calc(100vh - 4rem);
     padding-top: 0;
     padding-bottom: 0;
   }
@@ -86,12 +159,13 @@
   }
 }
 
-/* ── what it is ───────────────────────────────────────────────── */
+/* ── 2. what it is ────────────────────────────────────────────────── */
 
 .sl-what {
   border-top: 1px solid var(--line);
-  padding: clamp(3rem, 7vh, 5rem) clamp(1.1rem, 4vw, 3.5rem);
-  max-width: 1340px;
+  padding: var(--sl-section-pad) var(--sl-gutter);
+  /* Same content-edge arithmetic as the hero. */
+  max-width: calc(1340px + 2 * var(--sl-gutter));
   margin: 0 auto;
   display: grid;
   grid-template-columns: 1fr;
@@ -99,7 +173,7 @@
 }
 
 .sl-what__heading {
-  font-size: clamp(2rem, 4.2vw, 3.4rem);
+  font-size: var(--sl-step-3);
   margin: 0;
 }
 
@@ -108,7 +182,7 @@
   grid-template-columns: 1fr;
   gap: clamp(1.2rem, 2.5vw, 2.4rem);
   align-items: start;
-  font-size: 17px;
+  font-size: var(--sl-step-0);
   line-height: 1.65;
   font-weight: 300;
 }
@@ -140,12 +214,12 @@
   }
 }
 
-/* ── the four weeks, then the one CTA ─────────────────────────── */
+/* ── 3. the four weeks, then the Meet ─────────────────────────────── */
 
 .sl-weeks {
   border-top: 1px solid var(--line);
   background: var(--ink-2);
-  padding: clamp(3rem, 7vh, 5rem) clamp(1.1rem, 4vw, 3.5rem);
+  padding: var(--sl-section-pad) var(--sl-gutter);
 }
 
 .sl-weeks__inner {
@@ -154,7 +228,7 @@
 }
 
 .sl-weeks__heading {
-  font-size: clamp(2rem, 4.2vw, 3.4rem);
+  font-size: var(--sl-step-3);
   margin: 0 0 clamp(1.8rem, 4vw, 2.8rem);
 }
 
@@ -169,21 +243,21 @@
 
 .sl-week {
   border-top: 1px solid var(--line);
-  padding-top: 1rem;
+  padding-top: var(--sl-space-2);
 }
 
 .sl-week__num {
   display: block;
   font-family: var(--f-mono);
-  font-size: 14px;
+  font-size: var(--sl-step--1);
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--lime);
+  color: var(--volt);
 }
 
 .sl-week__text {
   margin: 0.5rem 0 0;
-  font-size: 16px;
+  font-size: var(--sl-step-0);
   line-height: 1.55;
   font-weight: 300;
 }
@@ -200,46 +274,58 @@
   }
 }
 
-/* The close: the Meet, then one button. */
-.sl-close {
-  margin-top: clamp(2.5rem, 6vh, 4rem);
-  padding-top: clamp(2rem, 4vh, 3rem);
+.sl-weeks__meet {
+  margin: clamp(2rem, 5vh, 3rem) 0 0;
+  padding-top: clamp(1.5rem, 3vh, 2.5rem);
   border-top: 1px solid var(--line);
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: clamp(1.5rem, 3vw, 2.5rem);
-  align-items: center;
-}
-
-.sl-close__text {
-  margin: 0;
-  font-size: 17px;
+  font-size: var(--sl-step-0);
   line-height: 1.65;
   font-weight: 300;
-  max-width: 52ch;
+  max-width: 58ch;
+}
+
+/* ── 4. the close: one poster frame, the same CTA ─────────────────── */
+
+.sl-close {
+  border-top: 1px solid var(--line);
+  padding: var(--sl-section-pad) var(--sl-gutter);
+}
+
+.sl-close__inner {
+  max-width: 1340px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--sl-space-4);
+}
+
+.sl-close__title {
+  font-size: var(--sl-step-3);
+  margin: 0;
 }
 
 .sl-close__action {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.75rem;
+  gap: var(--sl-space-2);
 }
 
 .sl-close__note {
   margin: 0;
   font-family: var(--f-mono);
-  font-size: 13px;
+  font-size: var(--sl-step--1);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--chalk-dim);
 }
 
-@media (min-width: 900px) {
-  .sl-close {
-    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-  }
+@media (max-width: 899px) {
   .sl-close__action {
-    align-items: flex-end;
+    width: 100%;
+  }
+  .sl-close__action .sl-cta {
+    width: 100%;
   }
 }

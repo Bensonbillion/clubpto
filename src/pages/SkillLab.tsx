@@ -69,6 +69,18 @@ const SkillLab = () => {
             <motion.p variants={fadeUp} className="sl-hero__lead">
               Small-group padel coaching. Six players, four weeks, one coach.
             </motion.p>
+            {/* The same CTA, verbatim, at hero and close. One goal, one
+                action — repetition, not variation. */}
+            <motion.div variants={fadeUp} className="sl-hero__cta">
+              <a
+                className="rly-pill sl-cta"
+                href={skillLab.bookingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Join the next cohort ↗
+              </a>
+            </motion.div>
           </div>
         </motion.section>
 
@@ -104,7 +116,7 @@ const SkillLab = () => {
           </motion.div>
         </motion.section>
 
-        {/* ── 3. The four weeks, the Meet, one CTA ──────────────────── */}
+        {/* ── 3. The four weeks, then the Meet ──────────────────────── */}
         <motion.section
           variants={staggerContainer}
           initial="initial"
@@ -125,24 +137,38 @@ const SkillLab = () => {
               ))}
             </ol>
 
-            <motion.div variants={fadeUp} className="sl-close">
-              <p className="sl-close__text">
-                You finish with one complimentary Club PTO Wednesday or Sunday
-                Meet. That's the part that matters. Four weeks of coaching is
-                only useful if you then go and play, against people you don't
-                know, who do things you don't expect.
-              </p>
-              <div className="sl-close__action">
-                <a
-                  className="rly-pill"
-                  href={skillLab.bookingUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Join the next cohort ↗
-                </a>
-                <p className="sl-close__note">Six players per cohort.</p>
-              </div>
+            <motion.p variants={fadeUp} className="sl-weeks__meet">
+              You finish with one complimentary Club PTO Wednesday or Sunday
+              Meet. That's the part that matters. Four weeks of coaching is
+              only useful if you then go and play, against people you don't
+              know, who do things you don't expect.
+            </motion.p>
+          </div>
+        </motion.section>
+
+        {/* ── 4. The close: the name restated as a cover line, the same
+               CTA, and the scarcity fact stated flat beside it. ──────── */}
+        <motion.section
+          variants={staggerContainer}
+          initial="initial"
+          whileInView="animate"
+          viewport={{ once: true, margin: "-80px" }}
+          className="sl-close"
+        >
+          <div className="sl-close__inner">
+            <motion.h2 variants={fadeUp} className="rly-display sl-close__title">
+              SKILL LAB
+            </motion.h2>
+            <motion.div variants={fadeUp} className="sl-close__action">
+              <a
+                className="rly-pill sl-cta"
+                href={skillLab.bookingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Join the next cohort ↗
+              </a>
+              <p className="sl-close__note">Six players per cohort.</p>
             </motion.div>
           </div>
         </motion.section>
