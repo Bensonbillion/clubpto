@@ -1,0 +1,245 @@
+/*
+  SKILL LAB layout. Scoped to .sl-*, on the same tokens as rally.css — this
+  is a composition problem, not a new design system.
+
+  WHAT THIS FIXES. The first version put every block in a 640px prose column
+  pinned left, with 60-70vh of air between sections and the right half of a
+  1440px viewport empty. That is a mobile layout stretched wide. The poster
+  sat below a headline as a thumbnail rather than being the hero.
+
+  So: real two-column compositions at desktop, the poster filling the hero,
+  and vertical rhythm cut to about half. Single column on mobile, poster
+  first, which is the shape a 2:3 portrait wants anyway.
+*/
+
+.sl-page {
+  background: var(--ink);
+  color: var(--chalk);
+  font-family: var(--f-body);
+  /* The site header is fixed. rly-page reserves this and .sl-page must too,
+     or the poster and the first heading render underneath it. */
+  padding-top: 4rem;
+}
+
+/* ── hero ─────────────────────────────────────────────────────── */
+
+.sl-hero {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(2rem, 5vw, 4rem);
+  align-items: center;
+  padding: clamp(1.5rem, 4vw, 3rem) clamp(1.1rem, 4vw, 3.5rem) clamp(3rem, 7vh, 5rem);
+  max-width: 1340px;
+  margin: 0 auto;
+}
+
+.sl-hero__poster {
+  margin: 0;
+  order: -1; /* poster leads on mobile */
+}
+
+.sl-hero__poster img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+}
+
+.sl-hero__title {
+  /* Down from the 6rem page title: at 1440 that clipped its own container. */
+  font-size: clamp(2.6rem, 6vw, 5rem);
+  margin: 0.6rem 0 0;
+}
+
+.sl-hero__lead {
+  margin-top: 1.4rem;
+  font-size: clamp(17px, 1.4vw, 21px);
+  line-height: 1.5;
+  font-weight: 300;
+  color: var(--chalk);
+  max-width: 34ch;
+}
+
+@media (min-width: 900px) {
+  .sl-hero {
+    /* The poster is the hero. It gets the larger share. */
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    gap: clamp(3rem, 5vw, 5.5rem);
+    min-height: calc(100vh - 4rem);
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  .sl-hero__poster {
+    order: 0;
+    /* Fills the viewport height without ever exceeding it. */
+    max-height: 86vh;
+    display: flex;
+    align-items: center;
+  }
+
+  .sl-hero__poster img {
+    max-height: 86vh;
+    width: auto;
+    max-width: 100%;
+    margin: 0 auto;
+  }
+}
+
+/* ── what it is ───────────────────────────────────────────────── */
+
+.sl-what {
+  border-top: 1px solid var(--line);
+  padding: clamp(3rem, 7vh, 5rem) clamp(1.1rem, 4vw, 3.5rem);
+  max-width: 1340px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(1.5rem, 3vw, 3rem);
+}
+
+.sl-what__heading {
+  font-size: clamp(2rem, 4.2vw, 3.4rem);
+  margin: 0;
+}
+
+.sl-what__body {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(1.2rem, 2.5vw, 2.4rem);
+  align-items: start;
+  font-size: 17px;
+  line-height: 1.65;
+  font-weight: 300;
+}
+
+/* Each column is a group of related paragraphs rather than one paragraph per
+   cell. Four cells in two columns made the row height follow the tallest one
+   and left a hole under the short line. */
+.sl-what__col {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  margin: 0;
+  max-width: 46ch;
+}
+
+.sl-what__col p {
+  margin: 0;
+}
+
+@media (min-width: 900px) {
+  /* Heading holds the left rail, the two prose columns run beside it, so
+     nothing sits in a narrow strip with the page empty next to it. */
+  .sl-what {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 2fr);
+    align-items: start;
+  }
+  .sl-what__body {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ── the four weeks, then the one CTA ─────────────────────────── */
+
+.sl-weeks {
+  border-top: 1px solid var(--line);
+  background: var(--ink-2);
+  padding: clamp(3rem, 7vh, 5rem) clamp(1.1rem, 4vw, 3.5rem);
+}
+
+.sl-weeks__inner {
+  max-width: 1340px;
+  margin: 0 auto;
+}
+
+.sl-weeks__heading {
+  font-size: clamp(2rem, 4.2vw, 3.4rem);
+  margin: 0 0 clamp(1.8rem, 4vw, 2.8rem);
+}
+
+.sl-weeks__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(1.2rem, 2.5vw, 2rem);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sl-week {
+  border-top: 1px solid var(--line);
+  padding-top: 1rem;
+}
+
+.sl-week__num {
+  display: block;
+  font-family: var(--f-mono);
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lime);
+}
+
+.sl-week__text {
+  margin: 0.5rem 0 0;
+  font-size: 16px;
+  line-height: 1.55;
+  font-weight: 300;
+}
+
+@media (min-width: 700px) {
+  .sl-weeks__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1100px) {
+  .sl-weeks__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* The close: the Meet, then one button. */
+.sl-close {
+  margin-top: clamp(2.5rem, 6vh, 4rem);
+  padding-top: clamp(2rem, 4vh, 3rem);
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(1.5rem, 3vw, 2.5rem);
+  align-items: center;
+}
+
+.sl-close__text {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.65;
+  font-weight: 300;
+  max-width: 52ch;
+}
+
+.sl-close__action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.sl-close__note {
+  margin: 0;
+  font-family: var(--f-mono);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+}
+
+@media (min-width: 900px) {
+  .sl-close {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  }
+  .sl-close__action {
+    align-items: flex-end;
+  }
+}
