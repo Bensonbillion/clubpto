@@ -52,7 +52,8 @@ const publicCopy = () => [
   // works on files it reads.
   join(ROOT, "src", "pages", "Partners.tsx"),
   join(ROOT, "src", "pages", "Community.tsx"),
-  join(ROOT, "src", "pages", "SkillLab.tsx"),
+  join(ROOT, "src", "pages", "SkillsLab.tsx"),
+  join(ROOT, "src", "content", "skillsLab.ts"),
   join(ROOT, "src", "lib", "constants.ts"),
 ];
 
