@@ -127,8 +127,9 @@
   gap: 20px;
 }
 
+/* Eyebrows are quiet — the CTA is each viewport's one lime moment. */
 .skl-hero__eyebrow {
-  color: var(--volt);
+  color: var(--chalk-dim);
 }
 
 .skl-hero__title {
@@ -162,6 +163,13 @@
   .skl-hero__text .skl-cta {
     width: 100%;
     text-align: center;
+  }
+
+  /* full-bleed on mobile, per the photography system */
+  .skl-hero__photo {
+    margin-inline: calc(-1 * var(--skl-pad-x));
+    border-left: 0;
+    border-right: 0;
   }
 }
 
@@ -291,6 +299,11 @@
   aspect-ratio: 3 / 2;
 }
 
+.skl-six__copy {
+  margin: 20px 0 0;
+  opacity: 0.85;
+}
+
 @media (min-width: 1024px) {
   .skl-six .skl-inner {
     grid-template-columns: 5fr 6fr;
@@ -309,7 +322,7 @@
 
 .skl-who__row {
   list-style: none;
-  margin: 0;
+  margin: 32px 0 0;
   padding: 0;
   display: grid;
   grid-template-columns: 1fr;

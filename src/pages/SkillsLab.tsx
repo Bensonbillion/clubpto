@@ -298,7 +298,7 @@ const SkillsLab = () => {
                 <h2 className="rly-display skl-h2">
                   Six players. One coach. No waiting around.
                 </h2>
-                <p className="skl-body" style={{ marginTop: 20, opacity: 0.85 }}>
+                <p className="skl-body skl-six__copy">
                   A twenty-person clinic gives you a queue and a handful of
                   touches an hour. Six means the coach sees every rep you take —
                   and you take a lot of them.
@@ -328,7 +328,7 @@ const SkillsLab = () => {
               <motion.h2 variants={fadeUp} className="rly-display skl-h2">
                 Who it's for
               </motion.h2>
-              <ul className="skl-who__row" style={{ marginTop: 32 }}>
+              <ul className="skl-who__row">
                 {WHO.map((who) => (
                   <motion.li variants={fadeUp} key={who.label} className="skl-who__cell">
                     <span className="skl-label skl-who__label">{who.label}</span>
