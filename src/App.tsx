@@ -14,6 +14,7 @@ const About = lazy(() => import("./pages/About"));
 const FAQPage = lazy(() => import("./pages/FAQPage"));
 const Community = lazy(() => import("./pages/Community"));
 const Partners = lazy(() => import("./pages/Partners"));
+const SkillLab = lazy(() => import("./pages/SkillLab"));
 const Install = lazy(() => import("./pages/Install"));
 const Manage = lazy(() => import("./pages/Manage"));
 const Manage2 = lazy(() => import("./pages/Manage2"));
@@ -59,6 +60,7 @@ const App = () => (
               <Route path="/events" element={<Navigate to="/" replace />} />
               <Route path="/community" element={<Community />} />
               <Route path="/partners" element={<Partners />} />
+              <Route path="/skill-lab" element={<SkillLab />} />
               <Route path="/install" element={<Install />} />
             </Route>
 
