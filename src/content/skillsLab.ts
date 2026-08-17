@@ -20,7 +20,7 @@ export const skillsLab = {
   cohortPrice: 199, // CAD
   // Benson (2026-08-17): the two-session pack renders.
   showTwoSessionPack: true,
-  twoSessionPackPrice: 110, // only used if the flag flips
+  twoSessionPackPrice: 99,
   singleSessionPrice: 60,
   registrationUrl: TODO, // where all CTAs resolve
 } as const;
