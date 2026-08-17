@@ -125,7 +125,8 @@ const PhotoSlot = ({
  * flips no state here (the mount itself is IntersectionObserver-driven from
  * the parent, which also renders only on that one flip).
  */
-const StickyBar = memo(({ onDismiss }: { onDismiss: () => void }) => (
+const StickyBar = memo(({ onDismiss }: { onDismiss: () => void }) => {
+  return (
   <motion.div
     initial={{ opacity: 0, y: 16 }}
     animate={{ opacity: 1, y: 0 }}
@@ -149,7 +150,8 @@ const StickyBar = memo(({ onDismiss }: { onDismiss: () => void }) => (
       ✕
     </button>
   </motion.div>
-));
+  );
+});
 StickyBar.displayName = "StickyBar";
 
 const SkillsLab = () => {
@@ -181,37 +183,33 @@ const SkillsLab = () => {
           people who asked the OS for less motion. */}
       <MotionConfig reducedMotion="user">
         <div className="skl-page">
-          {/* ── 1. Hero — split ─────────────────────────────────────── */}
+          {/* ── 1. Hero — split. Deliberately NOT animated: the headline is
+                 the largest contentful paint, and an entrance tween from
+                 opacity 0 makes the LCP wait for the animation. The hero
+                 paints whole; the reveals start below the fold. ─────────── */}
           <section ref={heroRef} className="skl-hero">
-            <motion.div
-              variants={staggerContainer}
-              initial="initial"
-              animate="animate"
-              className="skl-hero__text"
-            >
-              <motion.p variants={fadeUp} className="skl-label skl-hero__eyebrow">
-                club pto skills lab
-              </motion.p>
-              <motion.h1 variants={fadeUp} className="rly-display skl-hero__title">
+            <div className="skl-hero__text">
+              <p className="skl-label skl-hero__eyebrow">club pto skills lab</p>
+              <h1 className="rly-display skl-hero__title">
                 You don't need to be good to start.
-              </motion.h1>
-              <motion.p variants={fadeUp} className="skl-hero__sub">
+              </h1>
+              <p className="skl-hero__sub">
                 Small-group padel coaching. Six players, four weeks, one coach.
-              </motion.p>
-              <motion.div variants={fadeUp}>
+              </p>
+              <div>
                 <a className="rly-pill skl-cta" href={ctaHref()}>
                   {CTA_LABEL}
                 </a>
-              </motion.div>
-              <motion.p variants={fadeUp} className="skl-label skl-hero__specs">
+              </div>
+              <p className="skl-label skl-hero__specs">
                 6 players · 4 weeks · 4 sessions
-              </motion.p>
+              </p>
               {isSet(skillsLab.cohortStartDate) && (
-                <motion.p variants={fadeUp} className="skl-label skl-hero__next">
+                <p className="skl-label skl-hero__next">
                   next cohort — {skillsLab.cohortStartDate}
-                </motion.p>
+                </p>
               )}
-            </motion.div>
+            </div>
             <PhotoSlot
               name="hero"
               caption="coach + 6 players, courtside"
