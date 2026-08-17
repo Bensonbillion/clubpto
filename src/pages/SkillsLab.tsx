@@ -76,7 +76,7 @@ const INCLUDED = [
 const FAQ = [
   {
     q: "Do I need experience?",
-    a: "No. Players are placed by level and complete beginners are welcome. Regulars are too — the coach just works on different things with you.",
+    a: "No. Players are placed by level and complete beginners are welcome. Regulars are too. The coach just works on different things with you.",
   },
   { q: "How big is the group?", a: "Six players. Never more." },
   { q: "How often do we play?", a: "Once a week, for four weeks." },
@@ -86,7 +86,7 @@ const FAQ = [
   },
   {
     q: "Do I need a racket?",
-    a: "No — rackets and balls are provided. Just bring court shoes and water.",
+    a: "No. Rackets and balls are provided. Just bring court shoes and water.",
   },
   {
     q: "What happens after the four weeks?",
@@ -128,7 +128,7 @@ const PhotoSlot = ({
       />
       {!loaded && (
         <span className="skl-photo__placeholder" aria-hidden="true">
-          <span className="skl-label skl-photo__caption">[ photo — {caption} ]</span>
+          <span className="skl-label skl-photo__caption">[ photo: {caption} ]</span>
         </span>
       )}
     </figure>
@@ -219,7 +219,7 @@ const SkillsLab = () => {
               </h1>
               <p className="skl-hero__sub">
                 Four weeks of small-group padel coaching in Toronto. Six
-                players, one coach, and a plan that meets you where you are —
+                players, one coach, and a plan that meets you where you are,
                 whether you've never held a racket or you play every week and
                 keep hitting the same ceiling.
               </p>
@@ -248,7 +248,7 @@ const SkillsLab = () => {
             </div>
             <PhotoSlot
               name="hero"
-              caption="SKILL LAB — Club PTO"
+              caption="SKILL LAB · Club PTO"
               className="skl-hero__photo"
               width={1000}
               height={1502}
@@ -281,7 +281,7 @@ const SkillsLab = () => {
               </motion.p>
               <motion.p variants={fadeUp} className="skl-why__note">
                 Same four weeks, same six players, same coach. Where you start
-                doesn't change the program — it changes what the coach works on
+                doesn't change the program. It changes what the coach works on
                 with you.
               </motion.p>
             </div>
@@ -352,7 +352,7 @@ const SkillsLab = () => {
                   <p className="skl-six__copy">
                     A twenty-person clinic gives you a queue and a handful of
                     touches an hour. Six means the coach sees every rep you
-                    take — and you take a lot of them.
+                    take, and you take a lot of them.
                   </p>
                 </motion.div>
               </div>
