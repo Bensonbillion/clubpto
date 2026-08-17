@@ -498,20 +498,6 @@ const SkillsLab = () => {
                       </p>
                     )}
                 </motion.div>
-                <motion.div variants={fadeUp} className="skl-price">
-                  <span className="skl-label skl-price__label skl-price__label--quiet">
-                    Single session
-                  </span>
-                  <div className="skl-price__amount">${skillsLab.singleSessionPrice}</div>
-                  <div className="skl-price__per">one session</div>
-                  <p className="skl-price__desc">
-                    Not ready to commit to four weeks? Try one session and see
-                    what Skill Lab is about.
-                  </p>
-                  <a className="rly-pill rly-pill--ghost skl-cta" href={ctaHref()}>
-                    Book a session
-                  </a>
-                </motion.div>
                 {skillsLab.showTwoSessionPack && (
                   <motion.div variants={fadeUp} className="skl-price">
                     <span className="skl-label skl-price__label skl-price__label--quiet">
@@ -527,6 +513,20 @@ const SkillsLab = () => {
                     </a>
                   </motion.div>
                 )}
+                <motion.div variants={fadeUp} className="skl-price">
+                  <span className="skl-label skl-price__label skl-price__label--quiet">
+                    Single session
+                  </span>
+                  <div className="skl-price__amount">${skillsLab.singleSessionPrice}</div>
+                  <div className="skl-price__per">one session</div>
+                  <p className="skl-price__desc">
+                    Not ready to commit to four weeks? Try one session and see
+                    what Skill Lab is about.
+                  </p>
+                  <a className="rly-pill rly-pill--ghost skl-cta" href={ctaHref()}>
+                    Book a session
+                  </a>
+                </motion.div>
               </div>
             </div>
           </motion.section>
