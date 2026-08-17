@@ -63,25 +63,9 @@ export const weeklyMeets = {
   days: "Wednesday + Sunday",
 } as const;
 
-/**
- * SKILL LAB — the four-week small-group coaching block.
- *
- * ONE URL, ONE PLACE. Every button on /skill-lab points here, so the booking
- * can be repointed at a Skill Lab-specific Acuity page or a payment link
- * without touching layout. It currently holds the same Acuity URL the weekly
- * meets use, which is deliberate: pointing somewhere real beats pointing at a
- * placeholder.
- *
- * Nothing else about the programme lives here. Venue, day, time, start date
- * and payment mechanism are unconfirmed, and an unconfirmed fact in the facts
- * file is the one most likely to reach a page by accident.
- */
-export const skillLab = {
-  name: "SKILL LAB",
-  bookingUrl: "https://clubptobookings.as.me/",
-  players: 6,
-  weeks: 4,
-} as const;
+// Skills Lab facts live in src/content/skillsLab.ts, not here — that file
+// carries the TODO sentinels and the build-time check that unconfirmed
+// values never render.
 
 // True until the end of event day (America/Toronto). Every surface that
 // sells tickets must check this so the site never promotes a past event.

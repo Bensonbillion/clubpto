@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { navItems, courtsideII, weeklyMeets, skillLab, isCourtsideUpcoming } from "@/lib/constants";
+import { navItems, courtsideII, weeklyMeets, isCourtsideUpcoming } from "@/lib/constants";
+import { ctaHref as skillsLabCtaHref } from "@/content/skillsLab";
 import logoWordmarkCream from "@/assets/logo-wordmark-cream.png";
 import { staggerContainer, fadeIn } from "@/lib/animations";
 import { nextHeaderState } from "./headerScroll";
@@ -74,8 +75,8 @@ const Header = () => {
   // header selling a different one — on /skill-lab the header funnels to the
   // cohort, everywhere else the state-aware session/tickets logic stands.
   const routeCta: Record<string, { href: string; label: string; mobileLabel: string }> = {
-    "/skill-lab": {
-      href: skillLab.bookingUrl,
+    "/skills-lab": {
+      href: skillsLabCtaHref(),
       label: "Join the next cohort ↗",
       mobileLabel: "Join the next cohort ↗",
     },

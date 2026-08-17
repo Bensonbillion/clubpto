@@ -52,7 +52,8 @@ const publicCopy = () => [
   // works on files it reads.
   join(ROOT, "src", "pages", "Partners.tsx"),
   join(ROOT, "src", "pages", "Community.tsx"),
-  join(ROOT, "src", "pages", "SkillLab.tsx"),
+  join(ROOT, "src", "pages", "SkillsLab.tsx"),
+  join(ROOT, "src", "content", "skillsLab.ts"),
   join(ROOT, "src", "lib", "constants.ts"),
 ];
 
@@ -63,6 +64,15 @@ describe("Wednesday and Sunday read as the same night", () => {
     ["softer"],
     ["unwind", "sunday"],
     ["compete", "wednesday"],
+    ["competitive", "night"],
+    // Inventory scarcity is banned everywhere; "6 per cohort" (structural
+    // capacity) is the allowed form.
+    ["spots", "left"],
+    // Testimonial-shaped names. The Skills Lab program has never run — if
+    // one of these appears, someone invented a person.
+    ["priya"],
+    ["marcus", "t"],
+    ["alexa", "r"],
   ].map((parts) => parts.join(" "));
 
   it.each(BANNED)("no public copy says %s", (phrase) => {

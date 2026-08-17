@@ -1,0 +1,661 @@
+/*
+  Skills Lab — the club's front door for nervous beginners, on the site's
+  own skin. Scoped to .skl-*. Every color comes through rally.css custom
+  properties; there are deliberately no color literals in this file, hex or
+  otherwise (Gate 2 is a grep).
+
+  Type roles per the brief, mapped onto the faces the codebase actually
+  loads: display = Bricolage (--f-display), host-voice script = Yellowtail
+  (--f-script), ticket-stub metadata = VT323 (--f-mono), body = DM Sans
+  (--f-body).
+
+  Every clamp() mixes a rem term with vw so browser text zoom still works.
+*/
+
+.skl-page {
+  --skl-display: clamp(2.5rem, 1.9rem + 3.2vw, 4.75rem);
+  --skl-h2: clamp(1.8rem, 1.45rem + 1.6vw, 3rem);
+  --skl-h3: clamp(1.1rem, 1rem + 0.5vw, 1.4rem);
+  --skl-body: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+  --skl-label: clamp(0.78rem, 0.75rem + 0.15vw, 0.9rem);
+  --skl-script: clamp(1.6rem, 1.4rem + 1vw, 2.4rem);
+  --skl-pad-x: clamp(1.25rem, 4vw, 3rem);
+  --skl-pad-y: clamp(4rem, 8vw, 7rem);
+  --skl-line-on-volt: color-mix(in srgb, var(--ink) 20%, transparent);
+
+  background: var(--ink);
+  color: var(--chalk);
+  font-family: var(--f-body);
+  /* the fixed site header */
+  padding-top: 4rem;
+}
+
+.skl-page .rly-display {
+  text-wrap: balance;
+}
+
+/* ticket-stub metadata */
+.skl-label {
+  font-family: var(--f-mono);
+  font-size: var(--skl-label);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* host voice — two uses on the page, never more */
+.skl-script {
+  font-family: var(--f-script);
+  font-size: var(--skl-script);
+  color: var(--volt);
+  line-height: 1.2;
+}
+
+.skl-cta {
+  min-height: 48px;
+  padding: 14px 28px;
+}
+
+.skl-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.skl-section {
+  padding: var(--skl-pad-y) var(--skl-pad-x);
+}
+
+.skl-h2 {
+  font-size: var(--skl-h2);
+  line-height: 1.05;
+  margin: 0;
+}
+
+.skl-body {
+  font-size: var(--skl-body);
+  line-height: 1.5;
+  max-width: 62ch;
+}
+
+/* photo slots — a branded frame whether the real photo has landed or not */
+.skl-photo {
+  position: relative;
+  margin: 0;
+  border: 1px solid var(--line);
+  background: var(--ink-2);
+  overflow: hidden;
+}
+
+.skl-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.skl-photo__placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  padding: 24px;
+  /* the thin cream frame, inset 12px */
+  outline: 1px solid var(--line);
+  outline-offset: -12px;
+}
+
+.skl-photo__caption {
+  color: var(--chalk-dim);
+  text-transform: lowercase;
+}
+
+/* ── 1. hero ─────────────────────────────────────────────────────── */
+
+.skl-hero {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(2rem, 4vw, 3.5rem);
+  align-items: center;
+  padding: clamp(1.5rem, 3vw, 2.5rem) var(--skl-pad-x) clamp(2.5rem, 5vw, 4rem);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.skl-hero__text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+/* Eyebrows are quiet — the CTA is each viewport's one lime moment. */
+.skl-hero__eyebrow {
+  color: var(--chalk-dim);
+}
+
+.skl-hero__title {
+  font-size: var(--skl-display);
+  line-height: 1.05;
+  margin: 0;
+}
+
+.skl-hero__sub {
+  margin: 0;
+  font-size: var(--skl-body);
+  line-height: 1.5;
+  opacity: 0.85;
+  max-width: 36ch;
+}
+
+.skl-hero__specs {
+  color: var(--chalk-dim);
+}
+
+.skl-hero__next {
+  color: var(--chalk-dim);
+}
+
+.skl-hero__photo {
+  aspect-ratio: 4 / 5;
+  order: -1; /* image over text on mobile */
+}
+
+@media (max-width: 1023px) {
+  .skl-hero__text .skl-cta {
+    width: 100%;
+    text-align: center;
+  }
+
+  /* full-bleed on mobile, per the photography system */
+  .skl-hero__photo {
+    margin-inline: calc(-1 * var(--skl-pad-x));
+    border-left: 0;
+    border-right: 0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .skl-hero {
+    grid-template-columns: 6fr 5fr;
+    min-height: calc(92svh - 4rem);
+  }
+  .skl-hero__photo {
+    order: 0;
+  }
+}
+
+/* ── 2. the empathy beat ─────────────────────────────────────────── */
+
+.skl-empathy {
+  border-top: 1px solid var(--line);
+}
+
+.skl-empathy .skl-inner {
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.skl-empathy__lines {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.skl-empathy__lines p {
+  margin: 0;
+  font-size: var(--skl-h3);
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
+/* ── 3. the four weeks ───────────────────────────────────────────── */
+
+.skl-weeks {
+  border-top: 1px solid var(--line);
+  background: var(--ink-2);
+}
+
+.skl-weeks .skl-inner {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(2rem, 4vw, 3.5rem);
+}
+
+.skl-weeks__head {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+.skl-weeks__rail {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+
+.skl-week {
+  border-top: 1px solid var(--line);
+  padding: 20px 0 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skl-week__num {
+  color: var(--volt);
+}
+
+.skl-week__title {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: var(--skl-h3);
+  text-transform: uppercase;
+  line-height: 1.1;
+  margin: 0;
+  color: var(--chalk);
+}
+
+.skl-week__text {
+  margin: 0;
+  font-size: var(--skl-body);
+  line-height: 1.5;
+  opacity: 0.8;
+}
+
+.skl-weeks__photo {
+  aspect-ratio: 3 / 2;
+}
+
+@media (min-width: 1024px) {
+  .skl-weeks .skl-inner {
+    grid-template-columns: 7fr 5fr;
+    align-items: start;
+  }
+  .skl-weeks__rail {
+    grid-template-columns: repeat(2, 1fr);
+    column-gap: 40px;
+  }
+}
+
+/* ── 4. why six ──────────────────────────────────────────────────── */
+
+.skl-six {
+  border-top: 1px solid var(--line);
+}
+
+.skl-six .skl-inner {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(2rem, 4vw, 3.5rem);
+  align-items: center;
+}
+
+.skl-six__photo {
+  aspect-ratio: 3 / 2;
+}
+
+.skl-six__copy {
+  margin: 20px 0 0;
+  opacity: 0.85;
+}
+
+@media (min-width: 1024px) {
+  .skl-six .skl-inner {
+    grid-template-columns: 5fr 6fr;
+  }
+  .skl-six__photo {
+    order: -1;
+  }
+}
+
+/* ── 5. who it's for ─────────────────────────────────────────────── */
+
+.skl-who {
+  border-top: 1px solid var(--line);
+  background: var(--ink-2);
+}
+
+.skl-who__row {
+  list-style: none;
+  margin: 32px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+.skl-who__cell {
+  border-top: 1px solid var(--line);
+  padding: 20px 0;
+}
+
+.skl-who__label {
+  display: block;
+  color: var(--volt);
+  margin-bottom: 8px;
+}
+
+.skl-who__cell p {
+  margin: 0;
+  font-size: var(--skl-body);
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
+@media (min-width: 1024px) {
+  .skl-who__row {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 40px;
+  }
+}
+
+/* ── 6. the bridge ───────────────────────────────────────────────── */
+
+.skl-bridge {
+  position: relative;
+  overflow: hidden;
+}
+
+.skl-bridge__photo {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  aspect-ratio: auto;
+}
+
+/* seat the overlay copy against whatever the photo is */
+.skl-bridge__scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--ink) 88%, transparent),
+    color-mix(in srgb, var(--ink) 45%, transparent) 55%,
+    color-mix(in srgb, var(--ink) 25%, transparent)
+  );
+  pointer-events: none;
+}
+
+.skl-bridge__content {
+  position: relative;
+  padding: clamp(6rem, 14vw, 11rem) var(--skl-pad-x) var(--skl-pad-y);
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.skl-bridge__copy {
+  font-size: var(--skl-h3);
+  line-height: 1.5;
+  max-width: 46ch;
+  margin: 0;
+}
+
+.skl-bridge__proof {
+  color: var(--chalk-dim);
+}
+
+/* ── 7. what's included ──────────────────────────────────────────── */
+
+.skl-included {
+  border-top: 1px solid var(--line);
+}
+
+.skl-included__list {
+  list-style: none;
+  margin: clamp(1.5rem, 3vw, 2.5rem) 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  column-gap: 48px;
+}
+
+.skl-included__item {
+  border-top: 1px solid var(--line);
+  padding: 14px 0;
+  display: flex;
+  gap: 12px;
+  font-size: var(--skl-body);
+  line-height: 1.5;
+}
+
+.skl-included__check {
+  color: var(--volt);
+  flex-shrink: 0;
+}
+
+@media (min-width: 768px) {
+  .skl-included__list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ── 8. pricing ──────────────────────────────────────────────────── */
+
+.skl-pricing {
+  border-top: 1px solid var(--line);
+  background: var(--ink-2);
+  /* the sticky header covers anchor targets without this */
+  scroll-margin-top: 5rem;
+}
+
+.skl-pricing__cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  margin-top: clamp(1.5rem, 3vw, 2.5rem);
+  align-items: stretch;
+}
+
+.skl-price {
+  border: 1px solid var(--line);
+  padding: 32px 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.skl-price--primary {
+  background: var(--ink);
+  border-color: var(--volt);
+}
+
+.skl-price__label {
+  color: var(--volt);
+}
+
+.skl-price__amount {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: clamp(2.2rem, 1.8rem + 1.6vw, 3.2rem);
+  line-height: 1;
+  color: var(--chalk);
+}
+
+.skl-price__amount small {
+  font-family: var(--f-mono);
+  font-size: var(--skl-label);
+  letter-spacing: 0.1em;
+  margin-left: 8px;
+  color: var(--chalk-dim);
+}
+
+.skl-price__desc {
+  margin: 0;
+  font-size: var(--skl-body);
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
+.skl-price__meta {
+  color: var(--chalk-dim);
+}
+
+.skl-price .skl-cta {
+  margin-top: auto;
+}
+
+@media (min-width: 1024px) {
+  .skl-pricing__cards {
+    grid-template-columns: 3fr 2fr;
+  }
+}
+
+/* ── 9. founding cohort ──────────────────────────────────────────── */
+
+.skl-founding {
+  border-top: 1px solid var(--line);
+}
+
+.skl-founding .skl-inner {
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.skl-founding__motif {
+  color: var(--volt);
+}
+
+/* ── 10. FAQ ─────────────────────────────────────────────────────── */
+
+.skl-faq {
+  border-top: 1px solid var(--line);
+  background: var(--ink-2);
+}
+
+.skl-faq .skl-inner {
+  max-width: 820px;
+}
+
+.skl-faq__list {
+  margin-top: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+.skl-faq__item {
+  border-top: 1px solid var(--line);
+}
+
+.skl-faq__item:last-child {
+  border-bottom: 1px solid var(--line);
+}
+
+.skl-faq__q {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 0;
+  background: none;
+  border: 0;
+  color: var(--chalk);
+  font-family: var(--f-body);
+  font-size: var(--skl-body);
+  text-align: left;
+  cursor: pointer;
+}
+
+.skl-faq__q:focus-visible {
+  outline: 2px solid var(--volt);
+  outline-offset: 3px;
+}
+
+.skl-faq__mark {
+  color: var(--volt);
+  flex-shrink: 0;
+}
+
+.skl-faq__a {
+  margin: 0;
+  padding: 0 0 20px;
+  font-size: var(--skl-body);
+  line-height: 1.5;
+  opacity: 0.85;
+  max-width: 62ch;
+}
+
+/* ── 11. final CTA ───────────────────────────────────────────────── */
+
+.skl-final {
+  border-top: 1px solid var(--line);
+  padding: clamp(5rem, 10vw, 8rem) var(--skl-pad-x);
+}
+
+.skl-final .skl-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 24px;
+  max-width: 720px;
+}
+
+.skl-final__fact {
+  color: var(--chalk-dim);
+}
+
+/* ── 12. sticky bar ──────────────────────────────────────────────── */
+
+.skl-sticky {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  /* solid ground — no backdrop-filter on fixed elements, ever (mobile
+     scroll perf: a fixed blur recomposites every frame) */
+  background: var(--ink-2);
+  border-top: 1px solid var(--line);
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+}
+
+.skl-sticky__fact {
+  margin: 0;
+  color: var(--chalk-dim);
+  text-transform: lowercase;
+}
+
+.skl-sticky .skl-cta {
+  min-height: 44px;
+  padding: 10px 20px;
+}
+
+.skl-sticky__dismiss {
+  display: none;
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--chalk-dim);
+  font-family: var(--f-mono);
+  font-size: var(--skl-label);
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.skl-sticky__dismiss:focus-visible {
+  outline: 2px solid var(--volt);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1023px) {
+  .skl-sticky__dismiss {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
