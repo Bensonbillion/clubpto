@@ -256,7 +256,7 @@ const SkillsLab = () => {
             />
           </section>
 
-          {/* ── 01 / why we built it ────────────────────────────────── */}
+          {/* ── why we built it ────────────────────────────────── */}
           <motion.section
             variants={staggerContainer}
             initial="initial"
@@ -266,16 +266,16 @@ const SkillsLab = () => {
           >
             <div className="skl-inner">
               <motion.p variants={fadeUp} className="skl-label skl-eyebrow">
-                01 / why we built it
+                why we built it
               </motion.p>
-              <motion.div variants={fadeUp} className="skl-why__lines">
-                <p>Maybe you've been meaning to try padel and haven't booked.</p>
-                <p>
+              <motion.ul variants={fadeUp} className="skl-why__lines">
+                <li>Maybe you've been meaning to try padel and haven't booked.</li>
+                <li>
                   Maybe you've played a few times but still feel like you don't
                   really know what you're doing.
-                </p>
-                <p>Or you play most weeks now and you've stopped getting better.</p>
-              </motion.div>
+                </li>
+                <li>Or you play most weeks now and you've stopped getting better.</li>
+              </motion.ul>
               <motion.p variants={fadeUp} className="skl-why__close">
                 That's exactly why we built this.
               </motion.p>
@@ -287,7 +287,7 @@ const SkillsLab = () => {
             </div>
           </motion.section>
 
-          {/* ── 02 / the four weeks ─────────────────────────────────── */}
+          {/* ── the four weeks ─────────────────────────────────── */}
           <motion.section
             variants={staggerContainer}
             initial="initial"
@@ -299,7 +299,7 @@ const SkillsLab = () => {
               <div className="skl-weeks__head">
                 <div>
                   <motion.p variants={fadeUp} className="skl-label skl-eyebrow">
-                    02 / the four weeks
+                    the four weeks
                   </motion.p>
                   <motion.h2 variants={fadeUp} className="rly-display skl-h2">
                     Four weeks, four jobs.
@@ -327,7 +327,7 @@ const SkillsLab = () => {
             </div>
           </motion.section>
 
-          {/* ── 03 / why six ────────────────────────────────────────── */}
+          {/* ── why six ────────────────────────────────────────── */}
           <motion.section
             variants={staggerContainer}
             initial="initial"
@@ -337,7 +337,7 @@ const SkillsLab = () => {
           >
             <div className="skl-inner">
               <motion.p variants={fadeUp} className="skl-label skl-eyebrow">
-                03 / why six
+                why six
               </motion.p>
               <div className="skl-six__grid">
                 <motion.div variants={fadeUp} className="skl-six__numeral" aria-hidden="true">
@@ -359,7 +359,7 @@ const SkillsLab = () => {
             </div>
           </motion.section>
 
-          {/* ── 04 / levels ─────────────────────────────────────────── */}
+          {/* ── levels ─────────────────────────────────────────── */}
           <motion.section
             variants={staggerContainer}
             initial="initial"
@@ -369,7 +369,7 @@ const SkillsLab = () => {
           >
             <div className="skl-inner">
               <motion.p variants={fadeUp} className="skl-label skl-eyebrow">
-                04 / levels
+                levels
               </motion.p>
               <motion.h2 variants={fadeUp} className="rly-display skl-h2">
                 Not a beginners class. A better-players class.
@@ -391,7 +391,7 @@ const SkillsLab = () => {
             </div>
           </motion.section>
 
-          {/* ── 05 / what's included ────────────────────────────────── */}
+          {/* ── what's included ────────────────────────────────── */}
           <motion.section
             variants={staggerContainer}
             initial="initial"
@@ -403,7 +403,7 @@ const SkillsLab = () => {
               <div className="skl-included__grid">
                 <div>
                   <motion.p variants={fadeUp} className="skl-label skl-eyebrow">
-                    05 / what's included
+                    what's included
                   </motion.p>
                   <motion.h2 variants={fadeUp} className="rly-display skl-h2">
                     Everything in the four weeks.
@@ -427,7 +427,7 @@ const SkillsLab = () => {
             </div>
           </motion.section>
 
-          {/* ── 06 / after the four weeks ───────────────────────────── */}
+          {/* ── after the four weeks ───────────────────────────── */}
           <motion.section
             variants={staggerContainer}
             initial="initial"
@@ -437,7 +437,7 @@ const SkillsLab = () => {
           >
             <div className="skl-inner">
               <motion.p variants={fadeUp} className="skl-label skl-eyebrow">
-                06 / after the four weeks
+                after the four weeks
               </motion.p>
               <motion.h2 variants={fadeUp} className="rly-display skl-after__title">
                 Skill Lab doesn't end at graduation.
@@ -457,7 +457,7 @@ const SkillsLab = () => {
             </div>
           </motion.section>
 
-          {/* ── 07 / pricing ────────────────────────────────────────── */}
+          {/* ── pricing ────────────────────────────────────────── */}
           <motion.section
             variants={staggerContainer}
             initial="initial"
@@ -468,7 +468,7 @@ const SkillsLab = () => {
           >
             <div className="skl-inner">
               <motion.p variants={fadeUp} className="skl-label skl-eyebrow">
-                07 / pricing
+                pricing
               </motion.p>
               <motion.h2 variants={fadeUp} className="rly-display skl-h2">
                 Choose how you train.
@@ -515,10 +515,13 @@ const SkillsLab = () => {
                 {skillsLab.showTwoSessionPack && (
                   <motion.div variants={fadeUp} className="skl-price">
                     <span className="skl-label skl-price__label skl-price__label--quiet">
-                      Two sessions
+                      Two-session pack
                     </span>
                     <div className="skl-price__amount">${skillsLab.twoSessionPackPrice}</div>
-                    <div className="skl-price__per">back to back weeks</div>
+                    <div className="skl-price__per">two sessions</div>
+                    <p className="skl-price__desc">
+                      Two sessions across back-to-back weeks.
+                    </p>
                     <a className="rly-pill rly-pill--ghost skl-cta" href={ctaHref()}>
                       Book two
                     </a>
@@ -528,7 +531,7 @@ const SkillsLab = () => {
             </div>
           </motion.section>
 
-          {/* ── 08 / founding cohort — the social-proof slot for a
+          {/* ── founding cohort — the social-proof slot for a
                  program that has never run ─────────────────────────────── */}
           <motion.section
             variants={staggerContainer}
@@ -541,7 +544,7 @@ const SkillsLab = () => {
               <div className="skl-founding__grid">
                 <div>
                   <motion.p variants={fadeUp} className="skl-label skl-eyebrow">
-                    08 / founding cohort
+                    founding cohort
                   </motion.p>
                   <motion.h2 variants={fadeUp} className="rly-display skl-h2">
                     Be one of the first six.
@@ -569,7 +572,7 @@ const SkillsLab = () => {
             </div>
           </motion.section>
 
-          {/* ── 09 / faq ────────────────────────────────────────────── */}
+          {/* ── faq ────────────────────────────────────────────── */}
           <motion.section
             variants={staggerContainer}
             initial="initial"
@@ -579,7 +582,7 @@ const SkillsLab = () => {
           >
             <div className="skl-inner">
               <motion.p variants={fadeUp} className="skl-label skl-eyebrow">
-                09 / faq
+                faq
               </motion.p>
               <motion.h2 variants={fadeUp} className="rly-display skl-h2">
                 Questions people ask first.

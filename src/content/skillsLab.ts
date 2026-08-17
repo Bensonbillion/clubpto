@@ -18,8 +18,8 @@ export const skillsLab = {
   venueArea: TODO, // e.g. "North York"
   coachName: TODO,
   cohortPrice: 199, // CAD
-  // Pricing decision pending — cohort + single only until this flips.
-  showTwoSessionPack: false,
+  // Benson (2026-08-17): the two-session pack renders.
+  showTwoSessionPack: true,
   twoSessionPackPrice: 110, // only used if the flag flips
   singleSessionPrice: 60,
   registrationUrl: TODO, // where all CTAs resolve

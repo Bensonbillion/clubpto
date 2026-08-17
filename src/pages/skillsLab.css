@@ -247,18 +247,33 @@
 
 /* ── 01 / why we built it ────────────────────────────────────────── */
 
+/* The three "maybe" states as a ruled list — Benson's call: the flowing
+   paragraphs read too wide and too wordy. */
 .skl-why__lines {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  max-width: 54ch;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: 44ch;
+  border-top: 1px solid var(--line);
 }
 
-.skl-why__lines p {
-  margin: 0;
-  font-size: var(--skl-lead);
+.skl-why__lines li {
+  position: relative;
+  padding: 16px 0 16px 26px;
+  border-bottom: 1px solid var(--line);
+  font-size: clamp(1.05rem, 1rem + 0.4vw, 1.25rem);
   line-height: 1.45;
   color: var(--chalk);
+}
+
+.skl-why__lines li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 1.5em;
+  width: 10px;
+  height: 10px;
+  background: var(--volt);
 }
 
 .skl-why__close {
@@ -540,12 +555,15 @@
   grid-template-columns: 1fr;
   gap: 24px;
   margin-top: clamp(1.8rem, 3.5vw, 2.1rem);
-  align-items: start;
+  /* stretch: equal card heights so the three CTAs land on one line */
 }
 
 .skl-price {
   border: 1px solid var(--line);
   padding: clamp(22px, 3vw, 32px);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .skl-price--primary {
@@ -618,7 +636,15 @@
 .skl-price .skl-cta {
   display: block;
   text-align: center;
-  margin-top: 24px;
+  /* pinned to the card floor, never closer than 24px to the content */
+  margin-top: auto;
+  padding-top: 17px;
+  padding-bottom: 17px;
+}
+
+.skl-price__rows,
+.skl-price__desc {
+  margin-bottom: 24px;
 }
 
 .skl-price__meta {
@@ -630,7 +656,8 @@
 
 @media (min-width: 1024px) {
   .skl-pricing__cards {
-    grid-template-columns: 1.15fr 0.85fr;
+    /* three-up: the cohort stays the wide primary */
+    grid-template-columns: 1.2fr 0.9fr 0.9fr;
   }
 }
 
