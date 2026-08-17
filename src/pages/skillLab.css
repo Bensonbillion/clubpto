@@ -1,245 +1,540 @@
 /*
-  SKILL LAB layout. Scoped to .sl-*, on the same tokens as rally.css — this
-  is a composition problem, not a new design system.
+  SKILL LAB, per the final build spec (Aug 2026): six sections, band rhythm
+  ink → surface → ink → photo → lime → ink, one lime CTA repeated. Scoped to
+  .sl-* on the existing rally.css tokens — the mockups were black/white, this
+  page is forest/cream.
 
-  WHAT THIS FIXES. The first version put every block in a 640px prose column
-  pinned left, with 60-70vh of air between sections and the right half of a
-  1440px viewport empty. That is a mobile layout stretched wide. The poster
-  sat below a headline as a thumbnail rather than being the hero.
-
-  So: real two-column compositions at desktop, the poster filling the hero,
-  and vertical rhythm cut to about half. Single column on mobile, poster
-  first, which is the shape a 2:3 portrait wants anyway.
+  Every clamp() mixes a rem term with vw so browser text zoom still works
+  (WCAG 1.4.4); a pure-vw preferred value defeats resize.
 */
 
 .sl-page {
+  /* type scale */
+  --sl-display: clamp(2.75rem, 2rem + 4.5vw, 6rem);
+  --sl-h2: clamp(1.9rem, 1.5rem + 1.8vw, 3.25rem);
+  --sl-h3: clamp(1.1rem, 1rem + 0.5vw, 1.4rem);
+  --sl-body: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+  --sl-label: clamp(0.72rem, 0.7rem + 0.1vw, 0.8rem);
+  --sl-stat-num: clamp(1.75rem, 1.5rem + 1vw, 2.5rem);
+  --sl-card-num: clamp(2rem, 1.6rem + 1.5vw, 3rem);
+  --sl-panel-num: clamp(5rem, 4rem + 4vw, 8rem);
+  /* lines + rhythm */
+  --sl-line: rgba(244, 237, 224, 0.15);
+  --sl-line-on-lime: rgba(10, 24, 16, 0.2);
+  --sl-pad-x: clamp(1.25rem, 4vw, 3rem);
+  --sl-pad-y: clamp(4rem, 8vw, 7rem);
+
   background: var(--ink);
   color: var(--chalk);
   font-family: var(--f-body);
-  /* The site header is fixed. rly-page reserves this and .sl-page must too,
-     or the poster and the first heading render underneath it. */
+  /* The site header is fixed; without this reserve the hero starts under it. */
   padding-top: 4rem;
 }
 
-/* ── hero ─────────────────────────────────────────────────────── */
+.sl-page .rly-display {
+  text-wrap: balance;
+}
+
+/* mono label — always uppercase, always tracked */
+.sl-label {
+  font-family: var(--f-mono);
+  font-size: var(--sl-label);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* The one CTA. On .rly-pill for the site's base treatment, overridden where
+   the spec differs: exact padding, cream hover (pointer devices only, so
+   touch never sticks on a hover state), 0.98 active. */
+.sl-cta {
+  padding: 14px 28px;
+  min-height: 48px;
+}
+@media (hover: hover) {
+  .sl-cta:hover {
+    background: var(--chalk);
+    box-shadow: none;
+  }
+}
+.sl-cta:active {
+  transform: scale(0.98);
+}
+
+/* shared section shell */
+.sl-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* ── 1. hero — split composition ─────────────────────────────────── */
 
 .sl-hero {
   display: grid;
   grid-template-columns: 1fr;
-  gap: clamp(2rem, 5vw, 4rem);
-  align-items: center;
-  padding: clamp(1.5rem, 4vw, 3rem) clamp(1.1rem, 4vw, 3.5rem) clamp(3rem, 7vh, 5rem);
-  max-width: 1340px;
-  margin: 0 auto;
 }
 
-.sl-hero__poster {
-  margin: 0;
-  order: -1; /* poster leads on mobile */
+.sl-hero__left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 24px;
+  padding: 24px var(--sl-pad-x) 32px;
 }
 
-.sl-hero__poster img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border: 1px solid var(--line);
+.sl-hero__kicker {
+  display: inline-block;
+  border: 1px solid var(--sl-line);
+  padding: 6px 12px;
+  color: var(--chalk);
 }
 
 .sl-hero__title {
-  /* Down from the 6rem page title: at 1440 that clipped its own container. */
-  font-size: clamp(2.6rem, 6vw, 5rem);
-  margin: 0.6rem 0 0;
+  font-size: var(--sl-display);
+  line-height: 1.05;
+  margin: 0;
 }
 
 .sl-hero__lead {
-  margin-top: 1.4rem;
-  font-size: clamp(17px, 1.4vw, 21px);
+  margin: 0;
+  font-size: var(--sl-body);
   line-height: 1.5;
-  font-weight: 300;
   color: var(--chalk);
+  opacity: 0.85;
   max-width: 34ch;
 }
 
-@media (min-width: 900px) {
-  .sl-hero {
-    /* The poster is the hero. It gets the larger share. */
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-    gap: clamp(3rem, 5vw, 5.5rem);
-    min-height: calc(100vh - 4rem);
-    padding-top: 0;
-    padding-bottom: 0;
-  }
+/* stat row — one bordered wrapper, internal dividers, no double lines */
+.sl-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  width: 100%;
+  max-width: 420px;
+  border: 1px solid var(--sl-line);
+}
 
-  .sl-hero__poster {
-    order: 0;
-    /* Fills the viewport height without ever exceeding it. */
-    max-height: 86vh;
-    display: flex;
-    align-items: center;
-  }
+.sl-stat {
+  padding: 16px 0;
+  text-align: center;
+}
 
-  .sl-hero__poster img {
-    max-height: 86vh;
-    width: auto;
-    max-width: 100%;
-    margin: 0 auto;
+.sl-stat + .sl-stat {
+  border-left: 1px solid var(--sl-line);
+}
+
+.sl-stat__num {
+  display: block;
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: var(--sl-stat-num);
+  line-height: 1.1;
+  color: var(--chalk);
+}
+
+.sl-stat__label {
+  display: block;
+  margin-top: 4px;
+  color: var(--chalk);
+  opacity: 0.6;
+}
+
+.sl-hero__action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+}
+
+.sl-hero__fact {
+  margin: 0;
+  color: var(--chalk);
+  opacity: 0.6;
+}
+
+/* right column — the poster, with the lime panel on it */
+.sl-hero__art {
+  position: relative;
+  overflow: hidden;
+}
+
+.sl-hero__art img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.sl-hero__panel {
+  position: absolute;
+  /* Centered by auto margins, NOT by transform: Framer animates the panel's
+     transform (the scale-in), and an inline transform replaces a class
+     transform wholesale — translateX centering would be lost the moment
+     the animation runs. */
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  bottom: 6%;
+  width: 160px;
+  height: 160px;
+  background: var(--volt);
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 2px;
+}
+
+.sl-hero__panel-num {
+  font-family: var(--f-display);
+  font-weight: 800;
+  line-height: 0.9;
+  font-size: clamp(4rem, 3.5rem + 2vw, 5rem);
+}
+
+.sl-hero__panel-label {
+  padding: 0 10px;
+}
+
+@media (max-width: 1023px) {
+  /* Mobile: the CTA must sit inside the first viewport at 375×667, so the
+     text column leads and the poster follows at natural height. */
+  .sl-hero__action .sl-cta {
+    width: 100%;
   }
 }
 
-/* ── what it is ───────────────────────────────────────────────── */
+@media (min-width: 1024px) {
+  .sl-hero {
+    grid-template-columns: 7fr 5fr;
+    min-height: calc(100svh - 4rem);
+  }
+
+  @supports (-webkit-touch-callout: none) {
+    .sl-hero {
+      min-height: -webkit-fill-available;
+    }
+  }
+
+  .sl-hero__art picture,
+  .sl-hero__art img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    /* center top so the racket and the poster lockup survive the crop */
+    object-fit: cover;
+    object-position: center top;
+  }
+
+  .sl-hero__panel {
+    width: clamp(180px, 22vw, 280px);
+    height: clamp(180px, 22vw, 280px);
+    bottom: 8%;
+  }
+
+  .sl-hero__panel-num {
+    font-size: var(--sl-panel-num);
+  }
+}
+
+/* ── 2. what it is — first band change ───────────────────────────── */
 
 .sl-what {
-  border-top: 1px solid var(--line);
-  padding: clamp(3rem, 7vh, 5rem) clamp(1.1rem, 4vw, 3.5rem);
-  max-width: 1340px;
-  margin: 0 auto;
+  background: var(--ink-2);
+  padding: var(--sl-pad-y) var(--sl-pad-x);
+}
+
+.sl-what .sl-inner {
   display: grid;
   grid-template-columns: 1fr;
-  gap: clamp(1.5rem, 3vw, 3rem);
+  gap: 32px;
 }
 
 .sl-what__heading {
-  font-size: clamp(2rem, 4.2vw, 3.4rem);
+  font-size: var(--sl-h2);
+  line-height: 1.05;
   margin: 0;
 }
 
 .sl-what__body {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: clamp(1.2rem, 2.5vw, 2.4rem);
-  align-items: start;
-  font-size: 17px;
-  line-height: 1.65;
-  font-weight: 300;
+  font-size: var(--sl-body);
+  line-height: 1.5;
+  max-width: 62ch;
 }
 
-/* Each column is a group of related paragraphs rather than one paragraph per
-   cell. Four cells in two columns made the row height follow the tallest one
-   and left a hole under the short line. */
-.sl-what__col {
-  display: flex;
-  flex-direction: column;
-  gap: 1.1rem;
+.sl-what__body p {
   margin: 0;
-  max-width: 46ch;
+  color: var(--chalk);
+  opacity: 0.85;
 }
 
-.sl-what__col p {
-  margin: 0;
+.sl-what__body p + p {
+  margin-top: 16px;
 }
 
-@media (min-width: 900px) {
-  /* Heading holds the left rail, the two prose columns run beside it, so
-     nothing sits in a narrow strip with the page empty next to it. */
-  .sl-what {
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 2fr);
-    align-items: start;
-  }
-  .sl-what__body {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+/* the answer line sits alone, full strength */
+.sl-what__body .sl-what__answer {
+  opacity: 1;
+}
+
+.sl-what__rule {
+  border: 0;
+  border-top: 1px solid var(--sl-line);
+  margin: 32px 0;
+}
+
+@media (min-width: 1024px) {
+  .sl-what .sl-inner {
+    grid-template-columns: 4fr 8fr;
+    gap: 48px;
   }
 }
 
-/* ── the four weeks, then the one CTA ─────────────────────────── */
+/* ── 3. the four weeks ───────────────────────────────────────────── */
 
 .sl-weeks {
-  border-top: 1px solid var(--line);
-  background: var(--ink-2);
-  padding: clamp(3rem, 7vh, 5rem) clamp(1.1rem, 4vw, 3.5rem);
+  background: var(--ink);
+  padding: var(--sl-pad-y) var(--sl-pad-x);
 }
 
-.sl-weeks__inner {
-  max-width: 1340px;
-  margin: 0 auto;
+.sl-weeks__head {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 40px;
+}
+
+.sl-weeks__label {
+  color: var(--volt);
 }
 
 .sl-weeks__heading {
-  font-size: clamp(2rem, 4.2vw, 3.4rem);
-  margin: 0 0 clamp(1.8rem, 4vw, 2.8rem);
+  font-size: var(--sl-h2);
+  line-height: 1.05;
+  margin: 0;
 }
 
+/* one bordered wrapper, cards share internal dividers */
 .sl-weeks__grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: clamp(1.2rem, 2.5vw, 2rem);
+  border: 1px solid var(--sl-line);
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
 .sl-week {
-  border-top: 1px solid var(--line);
-  padding-top: 1rem;
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sl-week + .sl-week {
+  border-top: 1px solid var(--sl-line);
+}
+
+.sl-week--raised {
+  background: var(--ink-2);
+}
+
+/* the payoff week reads as the destination */
+.sl-week--lime {
+  background: var(--volt);
+  color: var(--ink);
+}
+
+.sl-week--lime + .sl-week,
+.sl-week + .sl-week--lime {
+  border-color: var(--sl-line-on-lime);
 }
 
 .sl-week__num {
-  display: block;
-  font-family: var(--f-mono);
-  font-size: 14px;
-  letter-spacing: 0.12em;
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: var(--sl-card-num);
+  line-height: 1;
+}
+
+.sl-week__title {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: var(--sl-h3);
   text-transform: uppercase;
-  color: var(--lime);
+  line-height: 1.1;
+  margin: 0;
 }
 
 .sl-week__text {
-  margin: 0.5rem 0 0;
-  font-size: 16px;
-  line-height: 1.55;
-  font-weight: 300;
+  margin: 0;
+  font-size: var(--sl-body);
+  line-height: 1.5;
+  opacity: 0.8;
 }
 
-@media (min-width: 700px) {
+@media (min-width: 1024px) {
   .sl-weeks__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .sl-week + .sl-week {
+    border-top: 0;
+    border-left: 1px solid var(--sl-line);
+  }
+
+  .sl-week + .sl-week--lime {
+    border-left-color: var(--sl-line-on-lime);
   }
 }
 
-@media (min-width: 1100px) {
-  .sl-weeks__grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
+/* ── 4. photo band — the breather, and proof the room is real ────── */
+
+.sl-band {
+  position: relative;
+  height: clamp(320px, 45vw, 560px);
+  overflow: hidden;
 }
 
-/* The close: the Meet, then one button. */
-.sl-close {
-  margin-top: clamp(2.5rem, 6vh, 4rem);
-  padding-top: clamp(2rem, 4vh, 3rem);
-  border-top: 1px solid var(--line);
+.sl-band picture,
+.sl-band img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* same-hue gradient seating the photo against the lime band below */
+.sl-band::after {
+  content: "";
+  position: absolute;
+  inset: 60% 0 0 0;
+  background: linear-gradient(to bottom, transparent, rgba(10, 24, 16, 0.4));
+  pointer-events: none;
+}
+
+/* ── 5. the Meet — the lime band ─────────────────────────────────── */
+
+.sl-meet {
+  background: var(--volt);
+  color: var(--ink);
+  padding: var(--sl-pad-y) var(--sl-pad-x);
+}
+
+.sl-meet .sl-inner {
   display: grid;
   grid-template-columns: 1fr;
-  gap: clamp(1.5rem, 3vw, 2.5rem);
+  gap: 32px;
   align-items: center;
 }
 
-.sl-close__text {
-  margin: 0;
-  font-size: 17px;
-  line-height: 1.65;
-  font-weight: 300;
-  max-width: 52ch;
+.sl-meet__heading {
+  font-size: var(--sl-h2);
+  line-height: 1.05;
+  margin: 0 0 20px;
+  color: var(--ink);
 }
 
-.sl-close__action {
+.sl-meet__copy p {
+  margin: 0;
+  font-size: var(--sl-body);
+  line-height: 1.5;
+  color: var(--ink);
+  opacity: 0.8;
+  max-width: 62ch;
+}
+
+.sl-meet__copy p + p {
+  margin-top: 16px;
+}
+
+/* mounted-print look */
+.sl-meet__photo {
+  margin: 0;
+  border: 1px solid var(--sl-line-on-lime);
+  padding: 8px;
+}
+
+.sl-meet__photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  /* the faces live in the upper half of this shot */
+  object-position: center 30%;
+}
+
+@media (min-width: 1024px) {
+  .sl-meet .sl-inner {
+    grid-template-columns: 7fr 5fr;
+    gap: 48px;
+  }
+}
+
+/* ── 6. closing CTA — the exhale ─────────────────────────────────── */
+
+.sl-close {
+  background: var(--ink);
+  /* top of the global padding range: this section gets the most air */
+  padding: clamp(5rem, 10vw, 8rem) var(--sl-pad-x);
+}
+
+.sl-close .sl-inner {
+  max-width: 640px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 0.75rem;
+  align-items: center;
+  text-align: center;
+  gap: 28px;
 }
 
-.sl-close__note {
+.sl-close__title {
+  font-size: var(--sl-h2);
+  line-height: 1.05;
   margin: 0;
-  font-family: var(--f-mono);
-  font-size: 13px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--chalk-dim);
 }
 
-@media (min-width: 900px) {
-  .sl-close {
-    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-  }
-  .sl-close__action {
-    align-items: flex-end;
+.sl-close__fact {
+  margin: 0;
+  color: var(--chalk);
+  opacity: 0.6;
+}
+
+/* ── sticky mobile CTA bar ───────────────────────────────────────── */
+
+.sl-sticky {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* under the mobile menu overlay (z-40) and header (z-50) */
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--ink);
+  border-top: 1px solid var(--sl-line);
+  padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+}
+
+.sl-sticky__fact {
+  margin: 0;
+  color: var(--chalk);
+  opacity: 0.7;
+}
+
+.sl-sticky .sl-cta {
+  padding: 10px 20px;
+  min-height: 44px;
+}
+
+@media (min-width: 1024px) {
+  .sl-sticky {
+    display: none;
   }
 }
