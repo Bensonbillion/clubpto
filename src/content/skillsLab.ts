@@ -25,7 +25,9 @@ export const skillsLab = {
   /** The Skills Lab category page on Acuity — all three offers. */
   registrationUrl:
     "https://app.acuityscheduling.com/schedule/f86e2580/?categories[]=Skills%20Lab",
-  /** Direct booking links per offer (Benson, 2026-08-17). */
+  /** Direct booking links per offer. NOT WIRED right now: the pinned
+      datetime slots went stale ("appointment time is no longer available"),
+      so every CTA uses registrationUrl until fresh per-offer links land. */
   cohortUrl:
     "https://app.acuityscheduling.com/schedule/f86e2580/appointment/97226735/calendar/12767324/datetime/2026-08-31T17%3A00%3A00-04%3A00?categories%5B%5D=Skills+Lab",
   singleSessionUrl:
