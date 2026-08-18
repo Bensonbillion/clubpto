@@ -231,7 +231,7 @@ const SkillsLab = () => {
               <div className="skl-hero__action">
                 <a
                   className="rly-pill skl-cta"
-                  href={skillsLab.cohortUrl}
+                  href={ctaHref()}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -498,7 +498,7 @@ const SkillsLab = () => {
                   </div>
                   <a
                     className="rly-pill skl-cta"
-                    href={skillsLab.cohortUrl}
+                    href={ctaHref()}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -525,7 +525,7 @@ const SkillsLab = () => {
                     </p>
                     <a
                       className="rly-pill rly-pill--ghost skl-cta"
-                      href={skillsLab.twoSessionPackUrl}
+                      href={ctaHref()}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -545,7 +545,7 @@ const SkillsLab = () => {
                   </p>
                   <a
                     className="rly-pill rly-pill--ghost skl-cta"
-                    href={skillsLab.singleSessionUrl}
+                    href={ctaHref()}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -638,7 +638,7 @@ const SkillsLab = () => {
             <motion.div variants={fadeUp}>
               <a
                 className="rly-pill skl-cta"
-                href={skillsLab.cohortUrl}
+                href={ctaHref()}
                 target="_blank"
                 rel="noopener noreferrer"
               >
