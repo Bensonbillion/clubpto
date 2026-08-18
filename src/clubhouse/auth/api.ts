@@ -1,6 +1,11 @@
-// Clubhouse auth (AUTH-1..6): passwordless email via Supabase.
-// One email sends BOTH a magic link and a 6-digit code; either works.
-// No passwords exist anywhere, ever.
+// Clubhouse auth: email + password via Supabase (Benson, 2026-08-17 —
+// the code-per-login flow is gone).
+//
+// Members who joined in the passwordless era have auth users with no
+// password on file. Their one-time bridge is requestPasswordSetup(): a
+// recovery email whose link lands back on /club with a PASSWORD_RECOVERY
+// event, where setNewPassword() stores their first password. After that,
+// plain sign-in forever.
 
 import { clubhouse as supabase } from "@/clubhouse/supabaseClient";
 
@@ -11,29 +16,73 @@ export interface ClubIdentity {
   revoked?: boolean;
 }
 
-/** Send the login email (magic link + OTP code in one message). */
-export async function requestLoginCode(email: string): Promise<{ error?: string }> {
-  const { error } = await supabase.auth.signInWithOtp({
+/** Create an account. When email confirmation is on (the project default),
+    the session arrives only after the confirmation link is tapped — the
+    caller shows the check-your-email state when `confirmationPending`. */
+export async function signUpWithPassword(
+  email: string,
+  password: string
+): Promise<{ error?: string; confirmationPending?: boolean }> {
+  const { data, error } = await supabase.auth.signUp({
     email: email.trim().toLowerCase(),
+    password,
     options: {
-      shouldCreateUser: true,
       emailRedirectTo: `${window.location.origin}${import.meta.env.BASE_URL}club`,
     },
   });
+  if (error) {
+    if (/already registered/i.test(error.message)) {
+      return {
+        error:
+          "That email already has an account. Sign in instead, or use Set a password if you never made one.",
+      };
+    }
+    return { error: friendly(error.message) };
+  }
+  return { confirmationPending: !data.session };
+}
+
+export async function signInWithPassword(
+  email: string,
+  password: string
+): Promise<{ error?: string }> {
+  const { error } = await supabase.auth.signInWithPassword({
+    email: email.trim().toLowerCase(),
+    password,
+  });
+  if (error) {
+    if (/invalid login credentials/i.test(error.message)) {
+      return {
+        error:
+          "Wrong email or password. If you used to sign in with a code, tap Set a password below and you'll never need a code again.",
+      };
+    }
+    if (/email not confirmed/i.test(error.message)) {
+      return {
+        error:
+          "Your email isn't confirmed yet. Find our confirmation email and tap the link, then sign in.",
+      };
+    }
+    return { error: friendly(error.message) };
+  }
+  return {};
+}
+
+/** One recovery email; its link lands on /club as PASSWORD_RECOVERY, where
+    setNewPassword() finishes the job. Serves both forgot-password and the
+    first-password bridge for passwordless-era members. */
+export async function requestPasswordSetup(email: string): Promise<{ error?: string }> {
+  const { error } = await supabase.auth.resetPasswordForEmail(
+    email.trim().toLowerCase(),
+    { redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}club` }
+  );
   if (error) return { error: friendly(error.message) };
   return {};
 }
 
-/** Verify the 6-digit code as the equal alternative to the link (AUTH-1). */
-export async function verifyLoginCode(
-  email: string,
-  code: string
-): Promise<{ error?: string }> {
-  const { error } = await supabase.auth.verifyOtp({
-    email: email.trim().toLowerCase(),
-    token: code.trim(),
-    type: "email",
-  });
+/** Store the new password for the recovery-authenticated session. */
+export async function setNewPassword(password: string): Promise<{ error?: string }> {
+  const { error } = await supabase.auth.updateUser({ password });
   if (error) return { error: friendly(error.message) };
   return {};
 }
@@ -122,7 +171,7 @@ export async function claimPlayer(playerId: string): Promise<{ error?: string }>
 function friendly(message: string): string {
   if (/rate limit/i.test(message))
     return "Too many tries in a row. Give it a minute, then try again.";
-  if (/expired|invalid/i.test(message))
-    return "That code didn't match or has expired. Request a fresh one.";
+  if (/at least 6 characters/i.test(message))
+    return "Passwords need at least 6 characters.";
   return message;
 }

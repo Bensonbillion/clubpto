@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { clubhouse as supabase } from "@/clubhouse/supabaseClient";
 import logoWordmarkCream from "@/assets/logo-wordmark-cream.png";
@@ -6,24 +6,36 @@ import {
   claimPlayer,
   getMyIdentity,
   listClaimable,
-  requestLoginCode,
+  requestPasswordSetup,
+  setNewPassword,
+  signInWithPassword,
   signOut,
-  verifyLoginCode,
+  signUpWithPassword,
   type ClaimablePlayer,
   type ClubIdentity,
 } from "@/clubhouse/auth/api";
 
-// The clubhouse door (Wave 2, AUTH-1..6): email -> link or code -> claim -> in.
-// One door, no passwords, no gated areas (ACC-1).
+// The clubhouse door: email + password -> claim -> in. Passwordless-era
+// members set their first password once via the recovery email bridge.
 // Behind the door (Wave 3): the room itself, split into its own chunk.
 const ClubhouseHome = lazy(() => import("@/clubhouse/ui/ClubhouseHome"));
 
-type Stage = "loading" | "signedOut" | "codeSent" | "claim" | "home" | "revoked";
+type Stage =
+  | "loading"
+  | "signedOut"
+  | "confirmSent"
+  | "resetSent"
+  | "setPassword"
+  | "claim"
+  | "home"
+  | "revoked";
 
 const Club = () => {
+  const recoveryRef = useRef(false);
   const [stage, setStage] = useState<Stage>("loading");
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [identity, setIdentity] = useState<ClubIdentity | null>(null);
@@ -58,34 +70,67 @@ const Club = () => {
       );
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
     }
-    resolve();
+    if (!recoveryRef.current) resolve();
     // Magic-link landings establish the session asynchronously.
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN") resolve();
+      // A recovery link fires PASSWORD_RECOVERY and SIGNED_IN; without the
+      // ref, the SIGNED_IN resolve() would replace the set-password form
+      // and the member would land in the room still passwordless.
+      if (event === "PASSWORD_RECOVERY") {
+        recoveryRef.current = true;
+        setStage("setPassword");
+      } else if (event === "SIGNED_IN" && !recoveryRef.current) {
+        resolve();
+      }
       if (event === "SIGNED_OUT") setStage("signedOut");
     });
     return () => sub.subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const sendCode = async (e: React.FormEvent) => {
+  const submitAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const res = await requestLoginCode(email);
-    setBusy(false);
-    if (res.error) setError(res.error);
-    else setStage("codeSent");
+    if (mode === "signup") {
+      const res = await signUpWithPassword(email, password);
+      setBusy(false);
+      if (res.error) setError(res.error);
+      else if (res.confirmationPending) setStage("confirmSent");
+      // else: session exists, onAuthStateChange -> resolve()
+    } else {
+      const res = await signInWithPassword(email, password);
+      setBusy(false);
+      if (res.error) setError(res.error);
+      // success flows through onAuthStateChange -> resolve()
+    }
   };
 
-  const submitCode = async (e: React.FormEvent) => {
+  const sendPasswordSetup = async () => {
+    if (!email.trim()) {
+      setError("Type your email above first, then tap Set a password.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const res = await requestPasswordSetup(email);
+    setBusy(false);
+    if (res.error) setError(res.error);
+    else setStage("resetSent");
+  };
+
+  const submitNewPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const res = await verifyLoginCode(email, code);
+    const res = await setNewPassword(password);
     setBusy(false);
     if (res.error) setError(res.error);
-    // success flows through onAuthStateChange -> resolve()
+    else {
+      recoveryRef.current = false;
+      setPassword("");
+      resolve();
+    }
   };
 
   const claim = async (playerId: string) => {
@@ -155,11 +200,12 @@ const Club = () => {
             </h1>
             <div className="rly-prose" style={{ marginTop: "1.6rem" }}>
               <p>
-                Your stats, your streaks, your nights. Enter your email and
-                we'll send a sign-in link and a code. No passwords, ever.
+                {mode === "signin"
+                  ? "Your stats, your streaks, your nights. Sign in and take your seat."
+                  : "Create your account, then claim your name in the book."}
               </p>
             </div>
-            <form className="rly-form" style={{ marginTop: "2rem" }} onSubmit={sendCode}>
+            <form className="rly-form" style={{ marginTop: "2rem" }} onSubmit={submitAuth}>
               <label>
                 Email
                 <input
@@ -170,16 +216,47 @@ const Club = () => {
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </label>
+              <label>
+                Password
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </label>
               <div className="rly-cta-row" style={{ marginTop: 0 }}>
                 <button type="submit" className="rly-pill" disabled={busy}>
-                  {busy ? "Sending" : "Send me a code ↗"}
+                  {busy ? "One second" : mode === "signin" ? "Sign in ↗" : "Create account ↗"}
+                </button>
+                <button
+                  type="button"
+                  className="rly-pill rly-pill--ghost"
+                  disabled={busy}
+                  onClick={() => {
+                    setError(null);
+                    setMode(mode === "signin" ? "signup" : "signin");
+                  }}
+                >
+                  {mode === "signin" ? "New here? Create account" : "Have an account? Sign in"}
                 </button>
               </div>
             </form>
+            <button
+              type="button"
+              className="rly-mono"
+              style={{ marginTop: "1.4rem", background: "none", border: "none", color: "var(--chalk-dim)", fontSize: 13, cursor: "pointer", letterSpacing: "0.1em", textTransform: "uppercase", padding: 0 }}
+              disabled={busy}
+              onClick={sendPasswordSetup}
+            >
+              Forgot your password, or used to sign in with a code? Set a password
+            </button>
           </>
         )}
 
-        {stage === "codeSent" && (
+        {stage === "confirmSent" && (
           <>
             <p className="rly-kicker">
               <span className="rly-dot" /> Check your email
@@ -189,34 +266,56 @@ const Club = () => {
             </h1>
             <div className="rly-prose" style={{ marginTop: "1.6rem" }}>
               <p>
-                We sent a sign-in email to {email}. Tap the link in it, or type
-                the 6-digit code here. Either works.
+                We sent a confirmation email to {email}. Tap the link inside
+                and you're in. One time only, then it's just your password.
               </p>
             </div>
-            <form className="rly-form" style={{ marginTop: "2rem" }} onSubmit={submitCode}>
+          </>
+        )}
+
+        {stage === "resetSent" && (
+          <>
+            <p className="rly-kicker">
+              <span className="rly-dot" /> Check your email
+            </p>
+            <h1 className="rly-display rly-page__title">
+              One <span className="rly-script">email.</span>
+            </h1>
+            <div className="rly-prose" style={{ marginTop: "1.6rem" }}>
+              <p>
+                We sent a set-your-password email to {email}. Tap the link in
+                it, choose a password, and codes are behind you for good.
+              </p>
+            </div>
+          </>
+        )}
+
+        {stage === "setPassword" && (
+          <>
+            <p className="rly-kicker">
+              <span className="rly-dot" /> Nearly done
+            </p>
+            <h1 className="rly-display rly-page__title">
+              Pick a <span className="rly-script">password.</span>
+            </h1>
+            <div className="rly-prose" style={{ marginTop: "1.6rem" }}>
+              <p>This is the last time you'll ever need an email to get in.</p>
+            </div>
+            <form className="rly-form" style={{ marginTop: "2rem" }} onSubmit={submitNewPassword}>
               <label>
-                6-digit code
+                New password
                 <input
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={6}
+                  type="password"
                   required
-                  autoComplete="one-time-code"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
+                  minLength={6}
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                 />
               </label>
               <div className="rly-cta-row" style={{ marginTop: 0 }}>
-                <button type="submit" className="rly-pill" disabled={busy || code.length < 6}>
-                  {busy ? "Checking" : "Let me in ↗"}
-                </button>
-                <button
-                  type="button"
-                  className="rly-pill rly-pill--ghost"
-                  disabled={busy}
-                  onClick={() => sendCode(new Event("submit") as unknown as React.FormEvent)}
-                >
-                  Resend
+                <button type="submit" className="rly-pill" disabled={busy || password.length < 6}>
+                  {busy ? "Saving" : "Save and enter ↗"}
                 </button>
               </div>
             </form>
