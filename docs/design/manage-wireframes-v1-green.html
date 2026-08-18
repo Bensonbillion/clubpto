@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=VT323&family=Playfair+Display:ital,wght@0,500;0,700;1,500&display=swap" rel="stylesheet">
+<style>
+:root{--acc:#4E9B63;--accd:#2F5F3F;--ink:#F2F7EE;--paper:#161B14;--deep:#0B0F0A;--red:#C4574A;--line:#333B2E;--mut:#B7C2AE}
+body{margin:0;background:#0C0F0B;font-family:Inter,sans-serif;color:var(--ink)}
+a{color:inherit}a:hover{color:#fff}
+.job{padding:44px 48px 40px;border-bottom:1px solid rgba(255,255,255,.08)}
+.jt{font:800 13px Inter;letter-spacing:.14em;text-transform:uppercase;color:var(--acc);margin:0 0 4px}
+.jd{font:400 14.5px/1.6 Inter;color:var(--mut);margin:0 0 26px;max-width:620px}
+.fs{display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start}
+.f{width:390px;flex:none;scroll-margin-top:20px}
+.fl{font:600 11px ui-monospace,Menlo,monospace;color:#B7C2AE;margin:0 0 8px;display:flex;gap:8px;align-items:baseline}
+.fl b{background:var(--acc);color:var(--deep);padding:2px 7px;border-radius:3px;font-weight:700}
+.fl i{font-style:normal;color:#8E9A85}
+.ph{width:390px;background:var(--paper);border:1px solid #2B3327;box-shadow:0 2px 14px rgba(0,0,0,.35);display:flex;flex-direction:column;min-height:780px;position:relative;overflow:hidden;box-sizing:border-box}
+.ph *{box-sizing:border-box}
+.ph.auto{min-height:0}
+.hd{padding:22px 20px 8px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.h1{font:800 25px/1.2 Inter;margin:0;letter-spacing:-.01em}
+.step{font:700 11.5px Inter;letter-spacing:.1em;text-transform:uppercase;color:#A9B69E}
+.why{font:400 15px/1.5 Inter;color:var(--mut);padding:0 20px;margin:8px 0 0}
+.bar{margin-top:auto;border-top:1px solid var(--line);padding:14px 16px 18px;display:flex;flex-direction:column;gap:10px}
+.sent{font:400 15px/1.45 Inter;color:#C3CDB8;text-align:center}
+.act{min-height:56px;background:var(--acc);color:var(--deep);font:800 18px Inter;display:flex;align-items:center;justify-content:center;border-radius:12px;width:100%;text-align:center;padding:8px 12px}
+.act.off{background:#252D22;color:#7C8873}
+.ghost{min-height:52px;border:2px solid #5A6752;background:transparent;color:var(--ink);font:700 16px Inter;display:flex;align-items:center;justify-content:center;border-radius:12px;width:100%;padding:8px 12px}
+.danger{min-height:56px;background:var(--red);color:#fff;font:800 17px Inter;display:flex;align-items:center;justify-content:center;border-radius:12px;width:100%}
+.tabs{display:flex;border-top:1px solid var(--line);background:var(--paper)}
+.tab{flex:1;min-height:60px;display:flex;align-items:center;justify-content:center;font:600 14px Inter;color:#9BA893;border-top:3px solid transparent}
+.tab.on{color:var(--ink);border-top-color:var(--acc);font-weight:800}
+.slat{background:var(--deep);color:#fff;display:flex;align-items:center;justify-content:center;gap:44px;border:1px solid #26301F}
+.n{font-family:VT323,monospace;font-weight:400;color:#F4F9F0;letter-spacing:.02em}
+.num{font-family:VT323,monospace;letter-spacing:.02em}
+.row{display:flex;align-items:center;gap:12px;padding:13px 20px;border-bottom:1px solid var(--line)}
+.tag{font:700 11.5px Inter;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:4px;background:#232B21;color:#C3CDB8;white-space:nowrap}
+.tag.lm{background:var(--acc);color:var(--deep)}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:42px;padding:6px 15px;border:1.5px solid #4E5A47;border-radius:10px;font:600 15px Inter;color:var(--ink)}
+.chip.on{border-color:var(--acc);background:var(--acc);color:var(--deep)}
+.tok{font:600 .85em ui-monospace,Menlo,monospace;background:#1E251C;border:1px dashed #5A6752;padding:1px 5px;border-radius:4px;color:#C3CDB8;white-space:nowrap}
+.sheet{background:#1B2119;border-top:2px solid var(--acc);padding:18px 16px 20px;display:flex;flex-direction:column;gap:12px}
+.dim{position:absolute;inset:0;background:rgba(4,7,3,.62);display:flex;flex-direction:column;justify-content:flex-end}
+.key{min-height:62px;border:1px solid var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;font:400 34px VT323,monospace}
+.idx{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font:400 13.5px Inter;text-decoration:none}
+.idx b{font:600 13.5px Inter}
+.idx span{font-family:VT323,monospace;font-size:17px;color:var(--acc)}
+</style>
+</helmet>
+
+<section class="job" style="border-bottom:2px solid rgba(0,0,0,.12)">
+  <p class="jt">ClubPTO · Manage</p>
+  <h1 style="font:700 34px 'Playfair Display',serif;margin:0 0 10px">Mobile wireframes, the court manager</h1>
+  <p class="jd" style="max-width:720px">Every frame is 390px wide. Nights are named by day only, no venue. Dark ground, one deep green accent, restrained red for destructive actions only. Inter for functional text, VT323 for every numeral, Playfair for the session title and the champion. Assumptions made: accent green resolved to #4E9B63 (swap it in Tweaks), fixture roster of 15 named players over 2 courts, unconfirmed details kept as visible <span class="tok">[[TOKENS]]</span>. The bracket frame is shown with a 16 player court so the quarterfinal stage appears.</p>
+  <div class="fs">
+    <div class="f" style="width:560px">
+      <p class="fl"><b>00</b> Index of frames</p>
+      <div class="ph auto" style="width:560px;padding:20px 24px 24px;display:grid;grid-template-columns:1fr 1fr;gap:0 32px">
+        <div>
+          <a class="idx" href="#f1"><b>Passcode</b><span>01</span></a>
+          <a class="idx" href="#f2"><b>Passcode failed</b><span>02</span></a>
+          <a class="idx" href="#f3"><b>Home, nothing running</b><span>03</span></a>
+          <a class="idx" href="#f4"><b>Home, night in progress</b><span>04</span></a>
+          <a class="idx" href="#f5"><b>Which night</b><span>05</span></a>
+          <a class="idx" href="#f6"><b>Who is here</b><span>06</span></a>
+          <a class="idx" href="#f7"><b>Courts</b><span>07</span></a>
+          <a class="idx" href="#f8"><b>How many matches each</b><span>08</span></a>
+          <a class="idx" href="#f9"><b>Ready</b><span>09</span></a>
+          <a class="idx" href="#f10"><b>Court view</b><span>10</span></a>
+          <a class="idx" href="#f11"><b>Score entry</b><span>11</span></a>
+          <a class="idx" href="#f12"><b>Court switcher</b><span>12</span></a>
+          <a class="idx" href="#f13"><b>Players tab</b><span>13</span></a>
+          <a class="idx" href="#f14"><b>Late arrival</b><span>14</span></a>
+        </div>
+        <div>
+          <a class="idx" href="#f15"><b>Extend</b><span>15</span></a>
+          <a class="idx" href="#f16"><b>Correct or void</b><span>16</span></a>
+          <a class="idx" href="#f17"><b>Standings tab</b><span>17</span></a>
+          <a class="idx" href="#f18"><b>Tie-breaker, reached it first</b><span>18</span></a>
+          <a class="idx" href="#f19"><b>Playoff readiness, both states</b><span>19</span></a>
+          <a class="idx" href="#f20"><b>Bracket</b><span>20</span></a>
+          <a class="idx" href="#f21"><b>Playoff match</b><span>21</span></a>
+          <a class="idx" href="#f22"><b>Champion</b><span>22</span></a>
+          <a class="idx" href="#f23"><b>Session summary</b><span>23</span></a>
+          <a class="idx" href="#f24"><b>Empty states</b><span>24</span></a>
+          <a class="idx" href="#f25"><b>Error states</b><span>25</span></a>
+          <a class="idx" href="#f26"><b>Confirmation sheets</b><span>26</span></a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="job">
+  <p class="jt">Job 0 · Get in</p>
+  <p class="jd">Six digits and one line of instruction. Failure states what happened and what to do, nothing else.</p>
+  <div class="fs">
+    <div class="f" id="f1">
+      <p class="fl"><b>01</b> Passcode</p>
+      <div class="ph">
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 24px;gap:26px">
+          <p style="font:600 18px Inter;text-align:center;margin:0">Enter tonight's passcode.</p>
+          <div style="display:flex;justify-content:center;gap:10px">
+            <div class="num" style="width:52px;height:62px;border-bottom:3px solid var(--acc);font-size:50px;text-align:center">4</div>
+            <div class="num" style="width:52px;height:62px;border-bottom:3px solid var(--acc);font-size:50px;text-align:center">7</div>
+            <div class="num" style="width:52px;height:62px;border-bottom:3px solid var(--acc);font-size:50px;text-align:center">2</div>
+            <div class="num" style="width:52px;height:62px;border-bottom:3px solid #4E5A47;font-size:50px;text-align:center"></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:0 20px 28px">
+          <div class="key">1</div><div class="key">2</div><div class="key">3</div>
+          <div class="key">4</div><div class="key">5</div><div class="key">6</div>
+          <div class="key">7</div><div class="key">8</div><div class="key">9</div>
+          <div class="key" style="border:none"></div><div class="key">0</div><div class="key" style="border:none;font:600 14px Inter">Delete</div>
+        </div>
+      </div>
+    </div>
+    <div class="f" id="f2">
+      <p class="fl"><b>02</b> Passcode failed</p>
+      <div class="ph">
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 24px;gap:22px">
+          <p style="font:600 18px Inter;text-align:center;margin:0">Enter tonight's passcode.</p>
+          <div style="display:flex;justify-content:center;gap:10px">
+            <div class="num" style="width:52px;height:62px;border-bottom:3px solid var(--red);font-size:50px;text-align:center;color:var(--red)">4</div>
+            <div class="num" style="width:52px;height:62px;border-bottom:3px solid var(--red);font-size:50px;text-align:center;color:var(--red)">7</div>
+            <div class="num" style="width:52px;height:62px;border-bottom:3px solid var(--red);font-size:50px;text-align:center;color:var(--red)">2</div>
+            <div class="num" style="width:52px;height:62px;border-bottom:3px solid var(--red);font-size:50px;text-align:center;color:var(--red)">9</div>
+          </div>
+          <p style="font:400 15px/1.5 Inter;text-align:center;margin:0;color:var(--ink)">That passcode did not match. Check tonight's code and try again.</p>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:0 20px 28px">
+          <div class="key">1</div><div class="key">2</div><div class="key">3</div>
+          <div class="key">4</div><div class="key">5</div><div class="key">6</div>
+          <div class="key">7</div><div class="key">8</div><div class="key">9</div>
+          <div class="key" style="border:none"></div><div class="key">0</div><div class="key" style="border:none;font:600 14px Inter">Delete</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="job">
+  <p class="jt">Job 1 · Get the roster in and start the session</p>
+  <p class="jd">Setup is a wizard, one decision per screen. Each screen asks its question, says in one line why it matters, and carries the running count. The action bar always names what comes next.</p>
+  <div class="fs">
+    <div class="f" id="f3">
+      <p class="fl"><b>03</b> Home, nothing running</p>
+      <div class="ph">
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 24px;gap:8px">
+          <p style="font:500 40px/1.1 'Playfair Display',serif;margin:0">Club PTO</p>
+          <p style="font:400 16px/1.5 Inter;color:var(--mut);margin:0">No night is running. Start one and the app walks you through it.</p>
+        </div>
+        <div class="bar" style="gap:12px">
+          <div class="act">Start tonight</div>
+          <div class="ghost">Copy last Wednesday</div>
+          <div class="sent">Same people, new night.</div>
+        </div>
+      </div>
+    </div>
+    <div class="f" id="f4">
+      <p class="fl"><b>04</b> Home, night in progress</p>
+      <div class="ph">
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:0 24px;gap:18px">
+          <p style="font:500 40px/1.1 'Playfair Display',serif;margin:0">Club PTO</p>
+          <div style="border:1.5px solid #5A6752;border-radius:12px;padding:18px 18px 16px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline">
+              <span style="font:800 18px Inter">Wednesday night</span>
+              <span class="tag lm">Live</span>
+            </div>
+            <p style="font:400 15px/1.5 Inter;color:var(--mut);margin:8px 0 0">Court 2, round 3 of 4.</p>
+          </div>
+        </div>
+        <div class="bar" style="gap:12px">
+          <div class="act">Resume the night</div>
+          <div style="font:600 15px Inter;color:#A9B69E;text-align:center;min-height:44px;display:flex;align-items:center;justify-content:center">Start a different night</div>
+        </div>
+      </div>
+    </div>
+    <div class="f" id="f5">
+      <p class="fl"><b>05</b> Which night</p>
+      <div class="ph">
+        <div class="hd"><h2 class="h1">Which night is this?</h2><span class="step">1 of 4</span></div>
+        <p class="why">The day sits on every screen and on the summary you send around.</p>
+        <div style="padding:22px 20px;display:flex;flex-direction:column;gap:20px">
+          <div>
+            <p class="step" style="margin:0 0 8px">Day</p>
+            <div style="display:flex;gap:10px">
+              <div class="chip on" style="flex:1;justify-content:center;min-height:52px;font-size:16px">Wednesday</div>
+              <div class="chip" style="flex:1;justify-content:center;min-height:52px;font-size:16px">Sunday</div>
+            </div>
+          </div>
+        </div>
+        <div class="bar">
+          <div class="sent">Wednesday chosen.</div>
+          <div class="act">Next: who is here</div>
+        </div>
+      </div>
+    </div>
+    <div class="f" id="f6">
+      <p class="fl"><b>06</b> Who is here</p>
+      <div class="ph">
+        <div class="hd"><h2 class="h1">Who is here?</h2><span class="step">2 of 4</span></div>
+        <p class="why">Only people on this list get games. Tap a name to include them.</p>
+        <div style="padding:14px 20px 6px">
+          <div style="display:flex;align-items:center;gap:8px;border:1.5px solid #4E5A47;border-radius:10px;min-height:46px;padding:0 14px;color:#A9B69E;font:400 15px Inter">Search the booking list</div>
+        </div>
+        <div style="flex:1;overflow:hidden">
+          <div class="row"><span style="flex:1;font:600 16px Inter">Ade</span><span class="tag lm">In</span></div>
+          <div class="row"><span style="flex:1;font:600 16px Inter">Ayo</span><span class="tag lm">In</span></div>
+          <div class="row"><span style="flex:1;font:600 16px Inter">Bisi</span><span class="tag lm">In</span></div>
+          <div class="row"><span style="flex:1;font:600 16px Inter">Chizea</span><span class="tag lm">In</span></div>
+          <div class="row"><span style="flex:1;font:600 16px Inter">Dami</span><span class="tag lm">In</span></div>
+          <div class="row"><span style="flex:1;font:600 16px Inter;color:#8E9A85">Efe</span><span class="tag">Booked</span></div>
+          <div class="row"><span style="flex:1;font:600 16px Inter">Fiyin</span><span class="tag lm">In</span></div>
+          <div class="row"><span style="flex:1;font:600 16px Inter">Hamid</span><span class="tag lm">In</span></div>
+          <div class="row" style="border-bottom:none"><span style="flex:1;font:600 16px Inter;color:#A9B69E">Add a walk-in by name</span><span style="font:400 26px VT323,monospace">+</span></div>
+        </div>
+        <div class="bar">
+          <div class="sent" style="font:700 16px Inter;color:var(--ink)">15 in tonight.</div>
+          <div class="act">Next: courts</div>
+        </div>
+      </div>
+    </div>
+    <div class="f" id="f7">
+      <p class="fl"><b>07</b> Courts</p>
+      <div class="ph">
+        <div class="hd"><h2 class="h1">How many courts?</h2><span class="step">3 of 4</span></div>
+        <p class="why">Players stay on their court all night, so the split matters.</p>
+        <div style="padding:18px 20px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;gap:10px">
+            <div class="chip" style="flex:1;justify-content:center;min-height:52px"><span class="num" style="font-size:26px">1</span></div>
+            <div class="chip on" style="flex:1;justify-content:center;min-height:52px"><span class="num" style="font-size:26px">2</span></div>
+            <div class="chip" style="flex:1;justify-content:center;min-height:52px"><span class="num" style="font-size:26px">3</span></div>
+          </div>
+          <div style="border:1.5px solid #5A6752;border-radius:12px;padding:14px 16px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px"><span style="font:800 16px Inter">Court 1</span><span class="num" style="font-size:24px">8</span></div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              <span class="chip" style="min-height:36px;padding:4px 12px">Ayo</span><span class="chip" style="min-height:36px;padding:4px 12px">Timi</span><span class="chip" style="min-height:36px;padding:4px 12px">Tumi</span><span class="chip" style="min-height:36px;padding:4px 12px">Hamid</span><span class="chip" style="min-height:36px;padding:4px 12px">Ade</span><span class="chip" style="min-height:36px;padding:4px 12px">Dami</span><span class="chip" style="min-height:36px;padding:4px 12px">Kayode</span><span class="chip" style="min-height:36px;padding:4px 12px">Lanre</span>
+            </div>
+          </div>
+          <div style="border:1.5px solid #4E5A47;border-radius:12px;padding:14px 16px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px"><span style="font:800 16px Inter">Court 2</span><span class="num" style="font-size:24px">7</span></div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              <span class="chip" style="min-height:36px;padding:4px 12px">Chizea</span><span class="chip" style="min-height:36px;padding:4px 12px">Fiyin</span><span class="chip" style="min-height:36px;padding:4px 12px">Kemi</span><span class="chip" style="min-height:36px;padding:4px 12px">Bisi</span><span class="chip" style="min-height:36px;padding:4px 12px">Seyi</span><span class="chip" style="min-height:36px;padding:4px 12px">Tamilore</span><span class="chip" style="min-height:36px;padding:4px 12px">Nkem</span>
+            </div>
+          </div>
+        </div>
+        <div class="bar">
+          <div class="sent">15 players across 2 courts.</div>
+          <div class="act">Next: matches each</div>
+        </div>
+      </div>
+    </div>
+    <div class="f" id="f8">
+      <p class="fl"><b>08</b> How many matches each</p>
+      <div class="ph">
+        <div class="hd"><h2 class="h1">How many matches each?</h2><span class="step">4 of 4</span></div>
+        <p class="why">Every game needs four players, so the target has to fit the room.</p>
+        <div style="padding:20px;display:flex;flex-direction:column;gap:12px">
+          <div style="border:1.5px solid #2B3327;border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:16px;opacity:.55">
+            <span class="num" style="font-size:40px;width:44px;text-align:center">3</span>
+            <div style="flex:1">
+              <p style="font:700 16px Inter;margin:0;color:#8E9A85">Unavailable</p>
+              <p style="font:400 14px/1.5 Inter;color:var(--mut);margin:2px 0 0">15 players needs a target of 4.</p>
+            </div>
+          </div>
+          <div style="border:2px solid var(--acc);border-radius:12px;padding:16px;display:flex;align-items:center;gap:16px;background:var(--acc);color:var(--deep)">
+            <span class="num" style="font-size:48px;width:44px;text-align:center">4</span>
+            <div style="flex:1">
+              <p style="font:800 17px Inter;margin:0">4 matches each</p>
+              <p style="font:400 14px/1.5 Inter;margin:2px 0 0">15 games in total, partners rotate every round.</p>
+            </div>
+          </div>
+          <div style="border:1.5px solid #2B3327;border-radius:12px;padding:14px 16px;display:flex;align-items:center;gap:16px;opacity:.55">
+            <span class="num" style="font-size:40px;width:44px;text-align:center">5</span>
+            <div style="flex:1">
+              <p style="font:700 16px Inter;margin:0;color:#8E9A85">Unavailable</p>
+              <p style="font:400 14px/1.5 Inter;color:var(--mut);margin:2px 0 0">15 players needs a target of 4.</p>
+            </div>
+          </div>
+        </div>
+        <div class="bar">
+          <div class="sent">The guide updates as people arrive or leave.</div>
+          <div class="act">Next: ready</div>
+        </div>
+      </div>
+    </div>
+    <div class="f" id="f9">
+      <p class="fl"><b>09</b> Ready</p>
+      <div class="ph">
+        <div class="hd"><h2 class="h1">Ready to start</h2><span class="step">Setup done</span></div>
+        <div style="padding:20px;display:flex;flex-direction:column;gap:0">
+          <div class="row" style="padding:14px 0"><span style="flex:1;font:400 15px Inter;color:var(--mut)">Night</span><span style="font:700 16px Inter">Wednesday</span></div>
+          <div class="row" style="padding:14px 0"><span style="flex:1;font:400 15px Inter;color:var(--mut)">Players</span><span class="num" style="font-size:26px">15</span></div>
+          <div class="row" style="padding:14px 0"><span style="flex:1;font:400 15px Inter;color:var(--mut)">Courts</span><span class="num" style="font-size:26px">2</span></div>
+          <div class="row" style="padding:14px 0"><span style="flex:1;font:400 15px Inter;color:var(--mut)">Matches each</span><span class="num" style="font-size:26px">4</span></div>
+          <div class="row" style="padding:14px 0;border-bottom:none"><span style="flex:1;font:400 15px Inter;color:var(--mut)">Games in total</span><span class="num" style="font-size:26px">15</span></div>
+          <p style="font:400 14px/1.5 Inter;color:var(--mut);margin:16px 0 0">Partners rotate every round. Everyone is ranked as an individual. A win is 3 points.</p>
+        </div>
+        <div class="bar">
+          <div class="sent">Nothing here is locked. You can extend, add or correct all night.</div>
+          <div class="act">Start the night</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="job">
+  <p class="jt">Job 2 · Score the games</p>
+  <p class="jd">The score slat is the one bold thing. Recording a score is two taps: the winning side, then the score. The bench is always named, never counted.</p>
+  <div class="fs">
+    <div class="f" id="f10">
+      <p class="fl"><b>10</b> Court view</p>
+      <div class="ph">
+        <div class="hd" style="padding-bottom:0"><span class="step">Round 1 of 4</span><span style="font:800 17px Inter">Court 1</span></div>
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
+          <div style="padding:28px 20px;text-align:center;min-height:88px;display:flex;align-items:center;justify-content:center">
+            <span style="font:800 30px/1.15 Inter">Ayo &amp; Timi</span>
+          </div>
+          <div class="slat" style="padding:8px 0"><span class="n" style="font-size:108px;line-height:.85">00</span><span class="n" style="font-size:108px;line-height:.85">00</span></div>
+          <div style="padding:28px 20px;text-align:center;min-height:88px;display:flex;align-items:center;justify-content:center">
+            <span style="font:800 30px/1.15 Inter">Tumi &amp; Hamid</span>
+          </div>
+        </div>
+        <div style="padding:0 20px 16px">
+          <p class="step" style="margin:0 0 8px">Waiting</p>
+          <div style="display:flex;flex-wrap:wrap;gap:8px">
+            <span class="chip" style="min-height:38px">Ade</span><span class="chip" style="min-height:38px">Dami</span><span class="chip" style="min-height:38px">Kayode</span><span class="chip" style="min-height:38px">Lanre</span>
+          </div>
+        </div>
+        <div class="bar" style="padding-bottom:12px"><div class="sent" style="font:600 15px Inter;color:var(--ink)">Tap the winning side to score.</div></div>
+        <div class="tabs"><div class="tab on">Match</div><div class="tab">Players</div><div class="tab">Standings</div></div>
+      </div>
+    </div>
+    <div class="f" id="f11">
+      <p class="fl"><b>11</b> Score entry <i>· second of two taps</i></p>
+      <div class="ph">
+        <div class="hd" style="padding-bottom:0"><span class="step">Round 1 of 4</span><span style="font:800 17px Inter">Court 1</span></div>
+        <div style="flex:1;display:flex;flex-direction:column">
+          <div style="padding:24px 20px;text-align:center;background:var(--acc);min-height:84px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px">
+            <span style="font:800 30px/1.15 Inter">Ayo &amp; Timi</span>
+            <span class="step">Winners</span>
+          </div>
+          <div class="slat" style="padding:6px 0"><span class="n" style="font-size:88px;line-height:.85">16</span><span class="n" style="font-size:88px;line-height:.85;opacity:.35">00</span></div>
+          <div style="padding:20px;text-align:center"><span style="font:800 24px/1.15 Inter;color:#8E9A85">Tumi &amp; Hamid</span></div>
+        </div>
+        <div class="sheet">
+          <p style="font:800 17px Inter;margin:0">What did Tumi &amp; Hamid score?</p>
+          <p style="font:400 14px/1.5 Inter;color:var(--mut);margin:0">One more tap records it. Games run to <span class="tok">[[POINTS_PER_GAME]]</span>.</p>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+            <div class="key" style="font-size:30px">00</div><div class="key" style="font-size:30px">01</div><div class="key" style="font-size:30px">02</div><div class="key" style="font-size:30px">03</div>
+            <div class="key" style="font-size:30px">04</div><div class="key" style="font-size:30px">05</div><div class="key" style="font-size:30px">06</div><div class="key" style="font-size:30px">07</div>
+            <div class="key" style="font-size:30px">08</div><div class="key" style="font-size:30px">09</div><div class="key" style="font-size:30px">10</div><div class="key" style="font-size:30px">11</div>
+            <div class="key" style="font-size:30px">12</div><div class="key" style="font-size:30px">13</div><div class="key" style="font-size:30px">14</div><div class="key" style="font-size:30px">15</div>
+          </div>
+          <p style="font:400 13px Inter;color:var(--mut);margin:0;text-align:center">The next match is already on screen when this closes.</p>
+        </div>
+      </div>
+    </div>
+    <div class="f" id="f12">
+      <p class="fl"><b>12</b> Court switcher</p>
+      <div class="ph">
+        <div class="hd" style="padding-bottom:0"><span class="step">Round 2 of 4</span><span style="font:800 17px Inter">Court 1</span></div>
+        <div style="flex:1"></div>
+        <div class="dim">
+          <div class="sheet">
+            <p style="font:800 17px Inter;margin:0 0 4px">Switch court</p>
+            <div style="border:2px solid var(--acc);border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;min-height:64px">
+              <div><p style="font:800 16px Inter;margin:0">Court 1</p><p style="font:400 13.5px Inter;color:var(--mut);margin:2px 0 0">Mid match, round 2</p></div>
+              <span class="tag">You are here</span>
+            </div>
+            <div style="border:1.5px solid #4E5A47;border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;min-height:64px">
+              <div><p style="font:800 16px Inter;margin:0">Court 2</p><p style="font:400 13.5px Inter;color:var(--mut);margin:2px 0 0">Waiting on a score</p></div>
+              <span class="tag lm">Score due</span>
+            </div>
+            <p style="font:400 13px Inter;color:var(--mut);margin:2px 0 0;text-align:center">Switching never loses your place.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="f" id="f13">
+      <p class="fl"><b>13</b> Players tab <i>· sorted by games played, fewest first</i></p>
+      <div class="ph">
+        <div class="hd"><h2 class="h1">Players</h2><span class="step">15 in</span></div>
+        <p class="why" style="margin-top:2px">Whoever is owed a game is at the top.</p>
+        <div style="flex:1;margin-top:10px">
+          <div class="row"><div style="flex:1"><p style="font:700 16px Inter;margin:0">Nkem</p><p style="font:400 13.5px Inter;color:var(--mut);margin:1px 0 0">Not assessed · Arrived late</p></div><span class="num" style="font-size:30px;width:34px;text-align:right">0</span></div>
+          <div class="row" style="background:#1C2219">
+            <div style="flex:1"><p style="font:700 16px Inter;margin:0;color:#8E9A85">Tamilore</p><p style="font:400 13.5px Inter;color:var(--mut);margin:1px 0 0">Not assessed · Left</p></div>
+            <div class="ghost" style="width:auto;min-height:40px;font-size:13.5px;padding:4px 14px">Mark arrived</div>
+            <span class="num" style="font-size:30px;width:34px;text-align:right;color:#8E9A85">1</span>
+          </div>
+          <div class="row"><div style="flex:1"><p style="font:700 16px Inter;margin:0">Tumi</p><p style="font:400 13.5px Inter;color:var(--mut);margin:1px 0 0">Not assessed · Here</p></div><span class="num" style="font-size:30px;width:34px;text-align:right">3</span></div>
+          <div class="row"><div style="flex:1"><p style="font:700 16px Inter;margin:0">Dami</p><p style="font:400 13.5px Inter;color:var(--mut);margin:1px 0 0">Not assessed · Here</p></div><span class="num" style="font-size:30px;width:34px;text-align:right">3</span></div>
+          <div class="row">
+            <div style="flex:1"><p style="font:700 16px Inter;margin:0">Kayode</p><p style="font:400 13.5px Inter;color:var(--mut);margin:1px 0 0">Tier C · Here</p></div>
+            <div class="ghost" style="width:auto;min-height:40px;font-size:13.5px;padding:4px 14px">Mark left</div>
+            <span class="num" style="font-size:30px;width:34px;text-align:right">3</span>
+          </div>
+          <div class="row"><div style="flex:1"><p style="font:700 16px Inter;margin:0">Chizea</p><p style="font:400 13.5px Inter;color:var(--mut);margin:1px 0 0">Not assessed · Here</p></div><span class="num" style="font-size:30px;width:34px;text-align:right">3</span></div>
+          <div class="row"><div style="flex:1"><p style="font:700 16px Inter;margin:0">Ayo</p><p style="font:400 13.5px Inter;color:var(--mut);margin:1px 0 0">Tier A · Here</p></div><span class="num" style="font-size:30px;width:34px;text-align:right">4</span></div>
+          <div class="row"><div style="flex:1"><p style="font:700 16px Inter;margin:0">Hamid</p><p style="font:400 13.5px Inter;color:var(--mut);margin:1px 0 0">Tier A · Here</p></div><span class="num" style="font-size:30px;width:34px;text-align:right">4</span></div>
+          <div class="row" style="border-bottom:none"><div style="flex:1"><p style="font:700 16px Inter;margin:0">Timi</p><p style="font:400 13.5px Inter;color:var(--mut);margin:1px 0 0">Not assessed · Here</p></div><span class="num" style="font-size:30px;width:34px;text-align:right">4</span></div>
+        </div>
+        <div class="bar"><div class="act" style="background:transparent;border:2px solid var(--acc);font-size:16px">Add a walk-in</div></div>
+        <div class="tabs"><div class="tab">Match</div><div class="tab on">Players</div><div class="tab">Standings</div></div>
+      </div>
+    </div>
+    <div class="f" id="f14">
+      <p class="fl"><b>14</b> Late arrival</p>
+      <div class="ph">
+        <div style="flex:1"></div>
+        <div class="dim">
+          <div class="sheet">
+            <p style="font:800 17px Inter;margin:0">Add a walk-in</p>
+            <div style="border:1.5px solid #5A6752;border-radius:10px;min-height:50px;display:flex;align-items:center;padding:0 14px;font:600 16px Inter">Nkem</div>
+            <p class="step" style="margin:4px 0 0">Which court</p>
+            <div style="display:flex;gap:10px">
+              <div class="chip" style="flex:1;justify-content:center;min-height:50px">Court 1 · 8</div>
+              <div class="chip on" style="flex:1;justify-content:center;min-height:50px">Court 2 · 7</div>
+            </div>
+            <p style="font:400 14px/1.5 Inter;color:var(--mut);margin:4px 0 0">Nkem joins the Court 2 queue and gets the next open game. Nobody loses a match.</p>
+            <div class="act">Add Nkem to Court 2</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="f" id="f15">
+      <p class="fl"><b>15</b> Extend</p>
+      <div class="ph">
+        <div style="flex:1"></div>
+        <div class="dim">
+          <div class="sheet">
+            <p style="font:800 17px Inter;margin:0">Add one more round</p>
+            <p style="font:400 15px/1.5 Inter;margin:0">Everyone on Court 1 gets one more match.</p>
+            <p style="font:400 13.5px/1.5 Inter;color:var(--mut);margin:0">The target moves from 4 to 5 for the 8 players on this court. Standings keep counting as normal.</p>
+            <div class="act">Add the round</div>
+            <div style="font:600 15px Inter;color:#A9B69E;text-align:center;min-height:44px;display:flex;align-items:center;justify-content:center">Not now</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="f" id="f16">
+      <p class="fl"><b>16</b> Correct or void a result</p>
+      <div class="ph">
+        <div style="flex:1"></div>
+        <div class="dim">
+          <div class="sheet">
+            <p class="step" style="margin:0">Round 1 · Court 1</p>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px">
+              <span style="font:700 16px Inter">Ayo &amp; Timi</span>
+              <span class="slat num" style="gap:12px;padding:2px 10px;border-radius:6px;font-size:30px">16&nbsp;&nbsp;09</span>
+              <span style="font:700 16px Inter;color:#8E9A85">Tumi &amp; Hamid</span>
+            </div>
+            <div class="ghost">Change the score</div>
+            <div class="ghost" style="border-color:var(--red);color:var(--red)">Void this result</div>
+            <p style="font:400 13.5px/1.5 Inter;color:var(--mut);margin:0">Voiding removes this game from the standings and returns Ayo, Timi, Tumi and Hamid to the queue.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="job">
+  <p class="jt">Job 3 · See the standings</p>
+  <p class="jd">A win is 3, a loss is 0, ranked by points, then score difference, then whoever reached the total first. The table shows its reasoning, and no one is ever compensated for sitting out.</p>
+  <div class="fs">
+    <div class="f" id="f17">
+      <p class="fl"><b>17</b> Standings tab</p>
+      <div class="ph" style="min-height:0">
+        <div class="hd"><h2 class="h1">Standings</h2><span class="step">Round 3 of 4</span></div>
+        <div style="display:flex;gap:0;padding:12px 20px 6px;font:700 10.5px Inter;letter-spacing:.06em;text-transform:uppercase;color:#A9B69E">
+          <span style="width:30px">#</span><span style="flex:1">Player</span><span style="width:28px;text-align:right">P</span><span style="width:28px;text-align:right">W</span><span style="width:28px;text-align:right">L</span><span style="width:44px;text-align:right">Diff</span><span style="width:44px;text-align:right">Pts</span>
+        </div>
+        <div style="flex:1">
+          <div class="row" style="padding:10px 20px;gap:6px"><span class="num" style="width:30px;font-size:22px;color:#A9B69E">1</span><span style="flex:1;min-width:0;font:700 16px Inter">Ayo</span><span class="num" style="width:28px;text-align:right;font-size:22px">4</span><span class="num" style="width:28px;text-align:right;font-size:22px">3</span><span class="num" style="width:28px;text-align:right;font-size:22px">1</span><span class="num" style="width:44px;text-align:right;font-size:22px">+14</span><span class="num" style="width:44px;text-align:right;font-size:26px;font-weight:400">9</span></div>
+          <div class="row" style="padding:10px 20px;gap:6px;flex-wrap:wrap"><span class="num" style="width:30px;font-size:22px;color:#A9B69E">2</span><span style="flex:1;min-width:0;font:700 16px Inter">Hamid</span><span class="num" style="width:28px;text-align:right;font-size:22px">4</span><span class="num" style="width:28px;text-align:right;font-size:22px">3</span><span class="num" style="width:28px;text-align:right;font-size:22px">1</span><span class="num" style="width:44px;text-align:right;font-size:22px">+11</span><span class="num" style="width:44px;text-align:right;font-size:26px">9</span><span style="width:100%;font:400 13px Inter;color:#A9B69E;padding-left:30px">Behind on score difference.</span></div>
+          <div class="row" style="padding:10px 20px;gap:6px;flex-wrap:wrap"><span class="num" style="width:30px;font-size:22px;color:#A9B69E">3</span><span style="flex:1;min-width:0;font:700 16px Inter">Timi</span><span class="num" style="width:28px;text-align:right;font-size:22px">4</span><span class="num" style="width:28px;text-align:right;font-size:22px">3</span><span class="num" style="width:28px;text-align:right;font-size:22px">1</span><span class="num" style="width:44px;text-align:right;font-size:22px">+6</span><span class="num" style="width:44px;text-align:right;font-size:26px">9</span><span style="width:100%;font:400 13px Inter;color:#A9B69E;padding-left:30px">Behind on score difference.</span></div>
+          <div class="row" style="padding:10px 20px;gap:6px"><span class="num" style="width:30px;font-size:22px;color:#A9B69E">4</span><span style="flex:1;min-width:0;font:700 16px Inter">Tumi</span><span class="num" style="width:28px;text-align:right;font-size:22px">3</span><span class="num" style="width:28px;text-align:right;font-size:22px">2</span><span class="num" style="width:28px;text-align:right;font-size:22px">1</span><span class="num" style="width:44px;text-align:right;font-size:22px">+5</span><span class="num" style="width:44px;text-align:right;font-size:26px">6</span></div>
+          <div class="row" style="padding:10px 20px;gap:6px;flex-wrap:wrap"><span class="num" style="width:30px;font-size:22px;color:#A9B69E">5</span><span style="flex:1;min-width:0;font:700 16px Inter">Dami</span><span class="num" style="width:28px;text-align:right;font-size:22px">3</span><span class="num" style="width:28px;text-align:right;font-size:22px">2</span><span class="num" style="width:28px;text-align:right;font-size:22px">1</span><span class="num" style="width:44px;text-align:right;font-size:22px">+3</span><span class="num" style="width:44px;text-align:right;font-size:26px">6</span><span style="width:100%;font:400 13px Inter;color:#A9B69E;padding-left:30px">Behind on score difference.</span></div>
+          <div class="row" style="padding:10px 20px;gap:6px;flex-wrap:wrap"><span class="num" style="width:30px;font-size:22px;color:#A9B69E">6</span><span style="flex:1;min-width:0;font:700 16px Inter">Kayode</span><span class="num" style="width:28px;text-align:right;font-size:22px">3</span><span class="num" style="width:28px;text-align:right;font-size:22px">2</span><span class="num" style="width:28px;text-align:right;font-size:22px">1</span><span class="num" style="width:44px;text-align:right;font-size:22px">-1</span><span class="num" style="width:44px;text-align:right;font-size:26px">6</span><span style="width:100%;font:400 13px Inter;color:#A9B69E;padding-left:30px">Behind on score difference.</span></div>
+          <div class="row" style="padding:10px 20px;gap:6px;flex-wrap:wrap"><span class="num" style="width:30px;font-size:22px;color:#A9B69E">7</span><span style="flex:1;min-width:0;font:700 16px Inter">Ade</span><span class="num" style="width:28px;text-align:right;font-size:22px">4</span><span class="num" style="width:28px;text-align:right;font-size:22px">2</span><span class="num" style="width:28px;text-align:right;font-size:22px">2</span><span class="num" style="width:44px;text-align:right;font-size:22px">-2</span><span class="num" style="width:44px;text-align:right;font-size:26px">6</span><span style="width:100%;font:400 13px Inter;color:#A9B69E;padding-left:30px">Behind on score difference.</span></div>
+          <div class="row" style="padding:10px 20px;gap:6px;flex-wrap:wrap"><span class="num" style="width:30px;font-size:22px;color:#A9B69E">8</span><span style="flex:1;min-width:0;font:700 16px Inter">Chizea</span><span class="num" style="width:28px;text-align:right;font-size:22px">3</span><span class="num" style="width:28px;text-align:right;font-size:22px">2</span><span class="num" style="width:28px;text-align:right;font-size:22px">1</span><span class="num" style="width:44px;text-align:right;font-size:22px">-4</span><span class="num" style="width:44px;text-align:right;font-size:26px">6</span><span style="width:100%;font:400 13px Inter;color:#A9B69E;padding-left:30px">Behind on score difference.</span></div>
+          <div class="row" style="padding:10px 20px;gap:6px"><span class="num" style="width:30px;font-size:22px;color:#A9B69E">9</span><span style="flex:1;min-width:0;font:700 16px Inter">Lanre</span><span class="num" style="width:28px;text-align:right;font-size:22px">3</span><span class="num" style="width:28px;text-align:right;font-size:22px">1</span><span class="num" style="width:28px;text-align:right;font-size:22px">2</span><span class="num" style="width:44px;text-align:right;font-size:22px">0</span><span class="num" style="width:44px;text-align:right;font-size:26px">3</span></div>
+          <div class="row" style="padding:10px 20px;gap:6px"><span class="num" style="width:30px;font-size:22px;color:#A9B69E">10</span><span style="flex:1;min-width:0;font:700 16px Inter">Seyi</span><span class="num" style="width:28px;text-align:right;font-size:22px">3</span><span class="num" style="width:28px;text-align:right;font-size:22px">1</span><span class="num" style="width:28px;text-align:right;font-size:22px">2</span><span class="num" style="width:44px;text-align:right;font-size:22px">-3</span><span class="num" style="width:44px;text-align:right;font-size:26px">3</span></div>
+          <div class="row" style="padding:10px 20px;gap:6px"><span class="num" style="width:30px;font-size:22px;color:#A9B69E">11</span><span style="flex:1;min-width:0;font:700 16px Inter">Bisi</span><span class="num" style="width:28px;text-align:right;font-size:22px">3</span><span class="num" style="width:28px;text-align:right;font-size:22px">1</span><span class="num" style="width:28px;text-align:right;font-size:22px">2</span><span class="num" style="width:44px;text-align:right;font-size:22px">-6</span><span class="num" style="width:44px;text-align:right;font-size:26px">3</span></div>
+          <div class="row" style="padding:10px 20px;gap:6px;flex-wrap:wrap"><span class="num" style="width:30px;font-size:22px;color:#A9B69E">12</span><span style="flex:1;min-width:0;font:700 16px Inter">Nkem</span><span class="num" style="width:28px;text-align:right;font-size:22px">0</span><span class="num" style="width:28px;text-align:right;font-size:22px">0</span><span class="num" style="width:28px;text-align:right;font-size:22px">0</span><span class="num" style="width:44px;text-align:right;font-size:22px">0</span><span class="num" style="width:44px;text-align:right;font-size:26px">0</span><span style="width:100%;font:400 13px Inter;color:#A9B69E;padding-left:30px">Arrived late.</span></div>
+          <div class="row" style="padding:10px 20px;gap:6px;flex-wrap:wrap"><span class="num" style="width:30px;font-size:22px;color:#A9B69E">13</span><span style="flex:1;min-width:0;font:700 16px Inter;color:#8E9A85">Tamilore</span><span class="num" style="width:28px;text-align:right;font-size:22px">1</span><span class="num" style="width:28px;text-align:right;font-size:22px">0</span><span class="num" style="width:28px;text-align:right;font-size:22px">1</span><span class="num" style="width:44px;text-align:right;font-size:22px">-4</span><span class="num" style="width:44px;text-align:right;font-size:26px">0</span><span style="width:100%;font:400 13px Inter;color:#A9B69E;padding-left:30px">Left early.</span></div>
+          <div class="row" style="padding:10px 20px;gap:6px"><span class="num" style="width:30px;font-size:22px;color:#A9B69E">14</span><span style="flex:1;min-width:0;font:700 16px Inter">Fiyin</span><span class="num" style="width:28px;text-align:right;font-size:22px">3</span><span class="num" style="width:28px;text-align:right;font-size:22px">0</span><span class="num" style="width:28px;text-align:right;font-size:22px">3</span><span class="num" style="width:44px;text-align:right;font-size:22px">-8</span><span class="num" style="width:44px;text-align:right;font-size:26px">0</span></div>
+          <div class="row" style="padding:10px 20px;gap:6px;border-bottom:none"><span class="num" style="width:30px;font-size:22px;color:#A9B69E">15</span><span style="flex:1;min-width:0;font:700 16px Inter">Kemi</span><span class="num" style="width:28px;text-align:right;font-size:22px">3</span><span class="num" style="width:28px;text-align:right;font-size:22px">0</span><span class="num" style="width:28px;text-align:right;font-size:22px">3</span><span class="num" style="width:44px;text-align:right;font-size:22px">-10</span><span class="num" style="width:44px;text-align:right;font-size:26px">0</span></div>
+        </div>
+        <div class="bar"><div class="sent">Points first, then score difference. Uneven games stay visible in P.</div></div>
+        <div class="tabs"><div class="tab">Match</div><div class="tab">Players</div><div class="tab on">Standings</div></div>
+      </div>
+    </div>
+    <div class="f" id="f18">
+      <p class="fl"><b>18</b> Tie-breaker, reached it first</p>
+      <div class="ph auto">
+        <div class="hd"><h2 class="h1">Standings</h2><span class="step">Round 4 of 4</span></div>
+        <div style="padding:12px 20px 0">
+          <div class="row" style="padding:12px 0;gap:6px;flex-wrap:wrap"><span class="num" style="width:30px;font-size:22px;color:#A9B69E">1</span><span style="flex:1;min-width:0;font:700 16px Inter">Ayo</span><span class="num" style="font-size:22px;width:44px;text-align:right">+14</span><span class="num" style="width:44px;text-align:right;font-size:26px">9</span><span style="width:100%;font:400 13px Inter;color:#A9B69E;padding-left:30px">Ahead, got there in round 3.</span></div>
+          <div class="row" style="padding:12px 0;gap:6px;flex-wrap:wrap;border-bottom:none"><span class="num" style="width:30px;font-size:22px;color:#A9B69E">2</span><span style="flex:1;min-width:0;font:700 16px Inter">Timi</span><span class="num" style="font-size:22px;width:44px;text-align:right">+14</span><span class="num" style="width:44px;text-align:right;font-size:26px">9</span><span style="width:100%;font:400 13px Inter;color:#A9B69E;padding-left:30px">Got there in round 4.</span></div>
+        </div>
+        <div style="padding:16px 20px 22px">
+          <div style="border:1.5px solid #46523F;border-radius:12px;padding:16px">
+            <p style="font:800 16px Inter;margin:0">Level on points and score difference</p>
+            <p style="font:400 15px/1.55 Inter;color:var(--mut);margin:8px 0 0">Whoever reached the total first is placed higher. Ayo was on 9 points with +14 after round 3, Timi after round 4. Nothing to decide and nothing to flip.</p>
+          </div>
+          <p style="font:400 14px/1.55 Inter;color:var(--mut);margin:14px 0 0">The reason stays on the row for the rest of the night.</p>
+        </div>
+        <div class="tabs"><div class="tab">Match</div><div class="tab">Players</div><div class="tab on">Standings</div></div>
+      </div>
+    </div>
+    </div>
+  </div>
+</section>
+
+<section class="job">
+  <p class="jt">Job 4 · Run the playoffs</p>
+  <p class="jd">No horizontal trees. Playoffs are vertical stage lists, every tie a full width row. Bracket frames shown with a 16 player court so all three stages appear.</p>
+  <div class="fs">
+    <div class="f" id="f19">
+      <p class="fl"><b>19a</b> Playoff readiness, blocked</p>
+      <div class="ph">
+        <div class="hd"><h2 class="h1">Playoff, Court 1</h2><span class="step">Round 4 done</span></div>
+        <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
+          <div style="border:2px solid var(--acc);border-radius:12px;padding:16px">
+            <p style="font:800 16px Inter;margin:0">One score is still outstanding</p>
+            <p style="font:400 14.5px/1.5 Inter;color:var(--mut);margin:6px 0 12px">Round 4, Ade and Seyi against Dami and Lanre. Seeding needs it, because it changes who meets whom.</p>
+            <div class="ghost" style="min-height:48px;font-size:15px">Score that match</div>
+          </div>
+        </div>
+        <div class="bar">
+          <div class="sent">Seeding locks the standings order into the bracket.</div>
+          <div class="act off">Seed the playoff</div>
+        </div>
+        <div class="tabs"><div class="tab">Match</div><div class="tab">Players</div><div class="tab on">Standings</div></div>
+      </div>
+    </div>
+    <div class="f">
+      <p class="fl"><b>19b</b> Playoff readiness, ready</p>
+      <div class="ph">
+        <div class="hd"><h2 class="h1">Playoff, Court 1</h2><span class="step">Round 4 done</span></div>
+        <div style="padding:20px;display:flex;flex-direction:column;gap:14px">
+          <div style="border:1.5px solid var(--line);border-radius:12px;padding:16px">
+            <p style="font:800 16px Inter;margin:0">Standings settled</p>
+            <p style="font:400 14.5px/1.5 Inter;color:var(--mut);margin:6px 0 0">Every score is in. Everyone on this court is in the playoff, seeded from the table.</p>
+          </div>
+        </div>
+        <div class="bar">
+          <div class="sent">Quarterfinals first. Pairs are seeded top with bottom.</div>
+          <div class="act">Seed the playoff</div>
+        </div>
+        <div class="tabs"><div class="tab">Match</div><div class="tab">Players</div><div class="tab on">Standings</div></div>
+      </div>
+    </div>
+    <div class="f" id="f20">
+      <p class="fl"><b>20</b> Bracket <i>· vertical stage list, never a tree</i></p>
+      <div class="ph" style="min-height:0">
+        <div class="hd"><h2 class="h1">Playoff</h2><span style="font:800 17px Inter">Court 1</span></div>
+        <div style="padding:14px 20px 22px;display:flex;flex-direction:column;gap:18px">
+          <div>
+            <p class="step" style="margin:0 0 8px">Quarterfinals</p>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="border:1.5px solid var(--line);border-radius:12px;overflow:hidden;display:flex">
+                <div style="flex:1;padding:10px 14px;display:flex;flex-direction:column;gap:6px;justify-content:center">
+                  <span style="font:700 16px Inter">Ayo &amp; Kemi</span><span style="font:700 16px Inter;color:#8E9A85">Chizea &amp; Efe</span>
+                </div>
+                <div class="slat" style="flex-direction:column;gap:0;width:64px;padding:6px 0"><span class="n" style="font-size:34px;line-height:1">16</span><span class="n" style="font-size:34px;line-height:1;opacity:.4">09</span></div>
+              </div>
+              <div style="border:1.5px solid var(--line);border-radius:12px;overflow:hidden;display:flex">
+                <div style="flex:1;padding:10px 14px;display:flex;flex-direction:column;gap:6px;justify-content:center">
+                  <span style="font:700 16px Inter">Hamid &amp; Fiyin</span><span style="font:700 16px Inter;color:#8E9A85">Ade &amp; Seyi</span>
+                </div>
+                <div class="slat" style="flex-direction:column;gap:0;width:64px;padding:6px 0"><span class="n" style="font-size:34px;line-height:1">16</span><span class="n" style="font-size:34px;line-height:1;opacity:.4">12</span></div>
+              </div>
+              <div style="border:1.5px solid var(--line);border-radius:12px;overflow:hidden;display:flex">
+                <div style="flex:1;padding:10px 14px;display:flex;flex-direction:column;gap:6px;justify-content:center">
+                  <span style="font:700 16px Inter;color:#8E9A85">Timi &amp; Tamilore</span><span style="font:700 16px Inter">Kayode &amp; Bisi</span>
+                </div>
+                <div class="slat" style="flex-direction:column;gap:0;width:64px;padding:6px 0"><span class="n" style="font-size:34px;line-height:1;opacity:.4">14</span><span class="n" style="font-size:34px;line-height:1">16</span></div>
+              </div>
+              <div style="border:1.5px solid var(--line);border-radius:12px;overflow:hidden;display:flex">
+                <div style="flex:1;padding:10px 14px;display:flex;flex-direction:column;gap:6px;justify-content:center">
+                  <span style="font:700 16px Inter">Tumi &amp; Nkem</span><span style="font:700 16px Inter;color:#8E9A85">Dami &amp; Lanre</span>
+                </div>
+                <div class="slat" style="flex-direction:column;gap:0;width:64px;padding:6px 0"><span class="n" style="font-size:34px;line-height:1">16</span><span class="n" style="font-size:34px;line-height:1;opacity:.4">11</span></div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <p class="step" style="margin:0 0 8px">Semifinals</p>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="border:1.5px solid var(--line);border-radius:12px;overflow:hidden;display:flex">
+                <div style="flex:1;padding:10px 14px;display:flex;flex-direction:column;gap:6px;justify-content:center">
+                  <span style="font:700 16px Inter">Ayo &amp; Kemi</span><span style="font:700 16px Inter;color:#8E9A85">Kayode &amp; Bisi</span>
+                </div>
+                <div class="slat" style="flex-direction:column;gap:0;width:64px;padding:6px 0"><span class="n" style="font-size:34px;line-height:1">16</span><span class="n" style="font-size:34px;line-height:1;opacity:.4">12</span></div>
+              </div>
+              <div style="border:2px solid var(--acc);border-radius:12px;overflow:hidden;display:flex;position:relative">
+                <div style="flex:1;padding:10px 14px;display:flex;flex-direction:column;gap:6px;justify-content:center">
+                  <span style="font:700 16px Inter">Hamid &amp; Fiyin</span><span style="font:700 16px Inter">Tumi &amp; Nkem</span>
+                </div>
+                <span class="tag lm" style="position:absolute;top:-1px;right:72px;border-radius:0 0 6px 6px">Live</span>
+                <div class="slat" style="flex-direction:column;gap:0;width:64px;padding:6px 0"><span class="n" style="font-size:34px;line-height:1">07</span><span class="n" style="font-size:34px;line-height:1">05</span></div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <p class="step" style="margin:0 0 8px">Final</p>
+            <div style="border:1.5px dashed #4E5A47;border-radius:12px;overflow:hidden;display:flex">
+              <div style="flex:1;padding:10px 14px;display:flex;flex-direction:column;gap:6px;justify-content:center">
+                <span style="font:700 16px Inter">Ayo &amp; Kemi</span><span style="font:600 14px Inter;color:#8E9A85">Waits for the second semifinal</span>
+              </div>
+              <div class="slat" style="flex-direction:column;gap:0;width:64px;padding:6px 0;background:#252D22"><span class="n" style="font-size:34px;line-height:1;color:#8E9A85">--</span><span class="n" style="font-size:34px;line-height:1;color:#8E9A85">--</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="bar"><div class="sent">Each court runs its playoff independently.</div><div class="act">Score the live semifinal</div></div>
+        <div class="tabs"><div class="tab on">Match</div><div class="tab">Players</div><div class="tab">Standings</div></div>
+      </div>
+    </div>
+    <div class="f" id="f21">
+      <p class="fl"><b>21</b> Playoff match</p>
+      <div class="ph">
+        <div class="hd" style="padding-bottom:0"><span class="step">Semifinal 2</span><span style="font:800 17px Inter">Court 1</span></div>
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
+          <div style="padding:28px 20px;text-align:center"><span style="font:800 30px/1.15 Inter">Hamid &amp; Fiyin</span></div>
+          <div class="slat" style="padding:8px 0"><span class="n" style="font-size:108px;line-height:.85">07</span><span class="n" style="font-size:108px;line-height:.85">05</span></div>
+          <div style="padding:28px 20px;text-align:center"><span style="font:800 30px/1.15 Inter">Tumi &amp; Nkem</span></div>
+        </div>
+        <div class="bar" style="padding-bottom:12px"><div class="sent" style="font:600 15px Inter;color:var(--ink)">Tap the winning side to score.</div></div>
+        <div class="tabs"><div class="tab on">Match</div><div class="tab">Players</div><div class="tab">Standings</div></div>
+      </div>
+    </div>
+    <div class="f" id="f22">
+      <p class="fl"><b>22</b> Champion</p>
+      <div class="ph" style="background:var(--deep)">
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:18px;padding:0 24px;text-align:center">
+          <p style="font:500 20px 'Playfair Display',serif;color:#98A390;margin:0;font-style:italic">Wednesday night</p>
+          <p style="font:700 46px/1.1 'Playfair Display',serif;color:#fff;margin:0">Ayo &amp; Kemi</p>
+          <p class="step" style="color:var(--acc);margin:0">Champions, Court 1</p>
+          <div style="display:flex;gap:30px;border:1px solid #2E362B;padding:6px 30px;border-radius:8px">
+            <span class="n" style="font-size:96px;line-height:.9;color:#fff">16</span><span class="n" style="font-size:96px;line-height:.9;color:#C3CDB8">12</span>
+          </div>
+        </div>
+        <div class="bar" style="border-top-color:#C4CFBA">
+          <div class="act">Copy for WhatsApp</div>
+          <div style="font:600 15px Inter;color:#98A390;text-align:center;min-height:44px;display:flex;align-items:center;justify-content:center">Back to bracket</div>
+        </div>
+      </div>
+    </div>
+    <div class="f" id="f23">
+      <p class="fl"><b>23</b> Session summary <i>· reachable all night</i></p>
+      <div class="ph">
+        <div class="hd" style="flex-direction:column;align-items:flex-start;gap:2px;display:flex">
+          <h2 style="font:500 28px/1.15 'Playfair Display',serif;margin:0">Wednesday night</h2>
+          <span class="step">Session summary</span>
+        </div>
+        <div style="padding:14px 20px;display:flex;flex-direction:column;gap:14px;flex:1">
+          <div class="row" style="padding:12px 0;border-top:1px solid var(--line)"><span style="flex:1;font:400 14px Inter;color:var(--mut)">Champions, Court 1</span><span style="font:700 16px Inter">Ayo &amp; Kemi</span></div>
+          <div class="row" style="padding:12px 0;margin-top:-14px"><span style="flex:1;font:400 14px Inter;color:var(--mut)">Games played</span><span class="num" style="font-size:24px">22</span></div>
+          <div style="background:#1E251C;border-radius:12px;padding:14px 16px;font:400 13px/1.7 ui-monospace,Menlo,monospace;color:#C4CFBA">
+            Wednesday night<br>
+            Champions Court 1: Ayo + Kemi<br>
+            1. Ayo · 9 pts · +14<br>
+            2. Timi · 9 pts · +14, reached it later<br>
+            3. Hamid · 9 pts · +11<br>
+            4. Tumi · 6 pts · +5<br>
+            5. Dami · 6 pts · +3<br>
+            ...and 10 more
+          </div>
+          <p style="font:400 14px/1.55 Inter;color:var(--mut);margin:0">Plain text, the insurance policy against a dead phone. Send it whenever.</p>
+        </div>
+        <div class="bar"><div class="act">Copy for WhatsApp</div></div>
+        <div class="tabs"><div class="tab">Match</div><div class="tab">Players</div><div class="tab on">Standings</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="job" style="border-bottom:none">
+  <p class="jt">States · Empty, error, confirm</p>
+  <p class="jd">Empty states invite an action. Errors say what happened and what to do, never apologise, never go vague. Every destructive action names exactly what will be lost.</p>
+  <div class="fs">
+    <div class="f" id="f24">
+      <p class="fl"><b>24a</b> Empty, roster search</p>
+      <div class="ph auto" style="min-height:420px">
+        <div class="hd"><h2 class="h1">Who is here?</h2><span class="step">2 of 4</span></div>
+        <div style="padding:14px 20px 6px">
+          <div style="display:flex;align-items:center;gap:8px;border:1.5px solid #5A6752;border-radius:10px;min-height:46px;padding:0 14px;font:600 15px Inter">Sope</div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:14px;padding:24px">
+          <p style="font:400 15px/1.5 Inter;color:var(--mut);margin:0;text-align:center">No one called Sope on tonight's booking list.</p>
+          <div class="ghost" style="width:auto;padding:8px 22px">Add Sope as a walk-in</div>
+        </div>
+      </div>
+    </div>
+    <div class="f">
+      <p class="fl"><b>24b</b> Empty, court unassigned</p>
+      <div class="ph auto" style="min-height:420px">
+        <div class="hd"><h2 class="h1">How many courts?</h2><span class="step">3 of 4</span></div>
+        <div style="padding:18px 20px">
+          <div style="border:1.5px dashed #4E5A47;border-radius:12px;padding:26px 16px;display:flex;flex-direction:column;align-items:center;gap:12px">
+            <span style="font:800 16px Inter">Court 3</span>
+            <p style="font:400 14px/1.5 Inter;color:var(--mut);margin:0;text-align:center">No one on Court 3 yet.</p>
+            <div class="ghost" style="width:auto;padding:8px 22px;min-height:46px">Assign players</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="f" id="f25">
+      <p class="fl"><b>25a</b> Error, score did not save</p>
+      <div class="ph auto" style="min-height:420px">
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:10px;padding:0 24px">
+          <p style="font:800 20px Inter;margin:0">That score did not save.</p>
+          <p style="font:400 15px/1.5 Inter;color:var(--mut);margin:0">The connection dropped mid save. The match card is unchanged.</p>
+        </div>
+        <div class="bar"><div class="act">Tap the score again</div></div>
+      </div>
+    </div>
+    <div class="f">
+      <p class="fl"><b>25b</b> Error, bookings did not load</p>
+      <div class="ph auto" style="min-height:420px">
+        <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:10px;padding:0 24px">
+          <p style="font:800 20px Inter;margin:0">Tonight's bookings did not load.</p>
+          <p style="font:400 15px/1.5 Inter;color:var(--mut);margin:0">You can still run the night. Add everyone by name, or try the list again.</p>
+        </div>
+        <div class="bar" style="gap:10px"><div class="act">Try the list again</div><div class="ghost">Add players by name</div></div>
+      </div>
+    </div>
+    <div class="f" id="f26">
+      <p class="fl"><b>26a</b> Confirm, void a result</p>
+      <div class="ph auto" style="min-height:420px;justify-content:flex-end;background:rgba(20,20,18,.42)">
+        <div class="sheet">
+          <p style="font:800 17px Inter;margin:0">Void this result?</p>
+          <p style="font:400 14.5px/1.5 Inter;margin:0">Ayo &amp; Timi 16, Tumi &amp; Hamid 09 is removed from the standings. All four return to the queue.</p>
+          <div class="danger">Void the result</div>
+          <div style="font:600 15px Inter;color:#A9B69E;text-align:center;min-height:44px;display:flex;align-items:center;justify-content:center">Keep it</div>
+        </div>
+      </div>
+    </div>
+    <div class="f">
+      <p class="fl"><b>26b</b> Confirm, delete a playoff</p>
+      <div class="ph auto" style="min-height:420px;justify-content:flex-end;background:rgba(20,20,18,.42)">
+        <div class="sheet">
+          <p style="font:800 17px Inter;margin:0">Delete the Court 1 playoff?</p>
+          <p style="font:400 14.5px/1.5 Inter;margin:0">The bracket and every playoff score on it are deleted. The night's standings are untouched.</p>
+          <div class="danger">Delete the playoff</div>
+          <div style="font:600 15px Inter;color:#A9B69E;text-align:center;min-height:44px;display:flex;align-items:center;justify-content:center">Keep the bracket</div>
+        </div>
+      </div>
+    </div>
+    <div class="f">
+      <p class="fl"><b>26c</b> Confirm, end the night</p>
+      <div class="ph auto" style="min-height:420px;justify-content:flex-end;background:rgba(20,20,18,.42)">
+        <div class="sheet">
+          <p style="font:800 17px Inter;margin:0">End Wednesday night?</p>
+          <p style="font:400 14.5px/1.5 Inter;margin:0">Unplayed games are cancelled and the standings freeze as they are. The summary stays available to copy.</p>
+          <div class="ghost">Copy for WhatsApp first</div>
+          <div class="danger">End the night</div>
+          <div style="font:600 15px Inter;color:#A9B69E;text-align:center;min-height:44px;display:flex;align-items:center;justify-content:center">Keep playing</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accentHex&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#4E9B63&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#4E9B63&quot;,&quot;#3C7D50&quot;,&quot;#5FAE7A&quot;,&quot;#2F6B45&quot;],&quot;section&quot;:&quot;Brand&quot;},&quot;surfaceHex&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#161B14&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#161B14&quot;,&quot;#111611&quot;,&quot;#1B2119&quot;],&quot;section&quot;:&quot;Brand&quot;}}">
+class Component extends DCLogic {
+  componentDidMount(){ this.apply(); }
+  componentDidUpdate(){ this.apply(); }
+  apply(){
+    const r = document.documentElement.style;
+    r.setProperty('--acc', this.props.accentHex ?? '#4E9B63');
+    r.setProperty('--paper', this.props.surfaceHex ?? '#161B14');
+  }
+  renderVals(){ return {}; }
+}
+</script>
+</body>
+</html>

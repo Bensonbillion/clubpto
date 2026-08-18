@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=VT323&family=Playfair+Display:wght@500;600;700&display=swap">
+<style>
+body{margin:0;background:#04100A;font-family:Inter,system-ui,sans-serif}
+a{color:#F4EDE0}a:hover{color:#D9E270}
+.dv-turn{padding:44px 48px 36px;border-bottom:1px solid rgba(244,237,224,.1);scroll-margin-top:16px}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 22px}
+.dv-tid{font:700 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#D9E270;color:#0A1810;border-radius:4px;text-decoration:none}
+.dv-tname{font:600 13px/1.2 Inter,system-ui,sans-serif;color:#F4EDE0}
+.dv-opts{display:flex;flex-wrap:wrap;gap:30px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}
+.dv-oid{font:700 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(244,237,224,.1);color:#F4EDE0;border-radius:5px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:500 11.5px/1.3 Inter,system-ui,sans-serif;color:rgba(244,237,224,.6)}
+.dv-card{max-width:100%;background:#0E2418;border:1px solid rgba(244,237,224,.14);border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.45);overflow:hidden}
+.dv-opt:target .dv-oid{background:#D9E270;color:#0A1810}
+.dv-next{margin:26px 0 0;font:12.5px/1.5 Inter,system-ui,sans-serif;color:rgba(244,237,224,.55)}
+</style></helmet>
+
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Manage: 27 frames at 390px, in job order. Wireframe fidelity, real type, one lime accent (#D9E270).</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1a"><div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Index</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif;padding:24px 20px 28px;box-sizing:border-box">
+<div style="font-family:'Playfair Display',serif;font-size:30px;font-weight:600;line-height:1.1">Manage</div>
+<div style="font-size:15px;line-height:1.4;color:rgba(244,237,224,.68);margin-top:6px">Club PTO court manager. 27 frames, five jobs.</div>
+<div style="display:flex;flex-direction:column;gap:18px;margin-top:22px">
+
+<div style="display:flex;flex-direction:column;gap:7px">
+<div style="font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(244,237,224,.45)">Job 0 · Get in</div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">01</span><a href="#1b" style="text-decoration:none">Passcode</a></div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">02</span><a href="#1c" style="text-decoration:none">Passcode failed</a></div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:7px">
+<div style="font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(244,237,224,.45)">Job 1 · Roster and start</div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">03</span><a href="#1d" style="text-decoration:none">Home, nothing running</a></div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">04</span><a href="#1e" style="text-decoration:none">Home, night in progress</a></div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">05</span><a href="#1f" style="text-decoration:none">Which night</a></div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">06</span><a href="#1g" style="text-decoration:none">Who is here</a></div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">07</span><a href="#1h" style="text-decoration:none">Courts</a></div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">08</span><a href="#1i" style="text-decoration:none">How many matches each</a></div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">09</span><a href="#1j" style="text-decoration:none">Ready</a></div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:7px">
+<div style="font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(244,237,224,.45)">Job 2 · Score the games</div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">10</span><a href="#1k" style="text-decoration:none">Court view</a></div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">11</span><a href="#1l" style="text-decoration:none">Score entry</a></div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">12</span><a href="#1m" style="text-decoration:none">Court switcher</a></div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">13</span><a href="#1n" style="text-decoration:none">Players tab</a></div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">14</span><a href="#1o" style="text-decoration:none">Late arrival</a></div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">15</span><a href="#1p" style="text-decoration:none">Extend</a></div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">16</span><a href="#1q" style="text-decoration:none">Correct or void a result</a></div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:7px">
+<div style="font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(244,237,224,.45)">Job 3 · Standings</div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">17</span><a href="#1r" style="text-decoration:none">Standings tab</a></div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">18</span><a href="#1s" style="text-decoration:none">Tie broken by order</a></div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:7px">
+<div style="font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(244,237,224,.45)">Job 4 · Playoffs</div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">19</span><a href="#1t" style="text-decoration:none">Playoff readiness, blocked</a></div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">20</span><a href="#1u" style="text-decoration:none">Bracket</a></div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">21</span><a href="#1v" style="text-decoration:none">Playoff match</a></div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">22</span><a href="#1w" style="text-decoration:none">Champion</a></div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">23</span><a href="#1x" style="text-decoration:none">Session summary</a></div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:7px">
+<div style="font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(244,237,224,.45)">States</div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">24</span><a href="#1y" style="text-decoration:none">Empty, roster search</a></div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">25</span><a href="#1z" style="text-decoration:none">Empty, court unassigned</a></div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">26</span><a href="#1aa" style="text-decoration:none">Error, score would not save</a></div>
+<div style="display:flex;gap:10px;font-size:15px"><span style="font-family:VT323,monospace;font-size:19px;width:24px">27</span><a href="#1ab" style="text-decoration:none">Confirmation, end the night</a></div>
+</div>
+
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1b"><div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>01 Passcode</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;padding:24px">
+<div style="font-size:17px;font-weight:600">Enter tonight's passcode.</div>
+<div style="display:flex;gap:16px">
+<div style="width:18px;height:18px;border-radius:999px;background:#F4EDE0"></div>
+<div style="width:18px;height:18px;border-radius:999px;background:#F4EDE0"></div>
+<div style="width:18px;height:18px;border-radius:999px;border:2px solid rgba(244,237,224,.28);box-sizing:border-box"></div>
+<div style="width:18px;height:18px;border-radius:999px;border:2px solid rgba(244,237,224,.28);box-sizing:border-box"></div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(3,84px);gap:14px">
+<div style="height:72px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">1</div>
+<div style="height:72px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">2</div>
+<div style="height:72px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">3</div>
+<div style="height:72px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">4</div>
+<div style="height:72px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">5</div>
+<div style="height:72px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">6</div>
+<div style="height:72px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">7</div>
+<div style="height:72px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">8</div>
+<div style="height:72px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">9</div>
+<div></div>
+<div style="height:72px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">0</div>
+<div style="height:72px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:rgba(244,237,224,.55)">Delete</div>
+</div>
+</div>
+<div style="padding:14px 18px 20px;border-top:1px solid rgba(244,237,224,.12);font-size:14px;color:rgba(244,237,224,.5);text-align:center">Court view and check-in need no code.</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1c"><div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>02 Passcode failed</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;padding:24px">
+<div style="max-width:300px;text-align:center;font-size:17px;font-weight:600;line-height:1.35;text-wrap:pretty">That passcode did not match. Check tonight's code and try again.</div>
+<div style="display:flex;gap:16px">
+<div style="width:18px;height:18px;border-radius:999px;border:2px solid #EF4444;box-sizing:border-box"></div>
+<div style="width:18px;height:18px;border-radius:999px;border:2px solid #EF4444;box-sizing:border-box"></div>
+<div style="width:18px;height:18px;border-radius:999px;border:2px solid #EF4444;box-sizing:border-box"></div>
+<div style="width:18px;height:18px;border-radius:999px;border:2px solid #EF4444;box-sizing:border-box"></div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(3,84px);gap:14px">
+<div style="height:72px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">1</div>
+<div style="height:72px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">2</div>
+<div style="height:72px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">3</div>
+<div style="height:72px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">4</div>
+<div style="height:72px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">5</div>
+<div style="height:72px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">6</div>
+<div style="height:72px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">7</div>
+<div style="height:72px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">8</div>
+<div style="height:72px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">9</div>
+<div></div>
+<div style="height:72px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">0</div>
+<div style="height:72px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;color:rgba(244,237,224,.55)">Delete</div>
+</div>
+</div>
+<div style="padding:14px 18px 20px;border-top:1px solid rgba(244,237,224,.12);font-size:14px;color:rgba(244,237,224,.5);text-align:center">The code is [[PASSCODE_SCOPE]].</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1d"><div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>03 Home, nothing running</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="flex:1;padding:34px 20px;display:flex;flex-direction:column;gap:16px">
+<div style="font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(244,237,224,.45)">Court manager</div>
+<div style="font-family:'Playfair Display',serif;font-size:40px;line-height:1.05;font-weight:600">Nothing<br>running yet</div>
+<div style="font-size:16px;line-height:1.45;color:rgba(244,237,224,.68);max-width:300px;text-wrap:pretty">Pick the night, tick off who is here, and Manage builds every match for you.</div>
+<div style="margin-top:auto;display:flex;flex-direction:column;gap:12px">
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;padding:16px 18px;display:flex;flex-direction:column;gap:4px">
+<div style="font-size:18px;font-weight:700">Copy last Wednesday</div>
+<div style="font-size:15px;color:rgba(244,237,224,.6)">Same people, new night.</div>
+</div>
+</div>
+</div>
+<div style="padding:14px 18px 20px;border-top:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:10px">
+<div style="font-size:15px;line-height:1.35;color:rgba(244,237,224,.72)">Five steps to a running night.</div>
+<div style="height:58px;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700">Start tonight</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1e"><div class="dv-olabel"><a class="dv-oid" href="#1e">1e</a>04 Home, night in progress</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="flex:1;padding:34px 20px;display:flex;flex-direction:column;gap:16px">
+<div style="font-size:11px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(244,237,224,.45)">Court manager</div>
+<div style="font-family:'Playfair Display',serif;font-size:34px;line-height:1.1;font-weight:600">Wednesday night</div>
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;padding:18px;display:flex;flex-direction:column;gap:10px">
+<div style="font-size:17px;font-weight:600">Court 2, round 3 of 4.</div>
+<div style="display:flex;gap:22px">
+<div style="display:flex;flex-direction:column"><span style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(244,237,224,.45)">In tonight</span><span style="font-family:VT323,monospace;font-size:34px;line-height:1">16</span></div>
+<div style="display:flex;flex-direction:column"><span style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(244,237,224,.45)">Played</span><span style="font-family:VT323,monospace;font-size:34px;line-height:1">19</span></div>
+<div style="display:flex;flex-direction:column"><span style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(244,237,224,.45)">Left</span><span style="font-family:VT323,monospace;font-size:34px;line-height:1">05</span></div>
+</div>
+</div>
+<div style="margin-top:auto;display:flex;flex-direction:column;gap:10px">
+<div style="font-size:16px;font-weight:600;color:rgba(244,237,224,.6)">Start a different night</div>
+<div style="font-size:14px;color:rgba(244,237,224,.5)">Tonight's results stay saved.</div>
+</div>
+</div>
+<div style="padding:14px 18px 20px;border-top:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:10px">
+<div style="font-size:15px;line-height:1.35;color:rgba(244,237,224,.72)">Court 2 is waiting on a score.</div>
+<div style="height:58px;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700">Resume the night</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1f"><div class="dv-olabel"><a class="dv-oid" href="#1f">1f</a>05 Which night</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="padding:14px 18px;border-bottom:1px solid rgba(244,237,224,.12);display:flex;align-items:center;justify-content:space-between">
+<div style="font-size:16px;font-weight:600">Back</div>
+<div style="font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(244,237,224,.45)">Step <span style="font-family:VT323,monospace;font-size:19px">1</span> of <span style="font-family:VT323,monospace;font-size:19px">4</span></div>
+</div>
+<div style="flex:1;padding:22px 18px;display:flex;flex-direction:column;gap:14px">
+<div style="font-size:24px;font-weight:700;line-height:1.2">Which night is this?</div>
+<div style="font-size:15px;line-height:1.4;color:rgba(244,237,224,.65)">The night decides which roster pre-fills.</div>
+<div style="display:flex;flex-direction:column;gap:12px;margin-top:6px">
+<div style="border:2px solid #F4EDE0;border-radius:6px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between">
+<div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:19px;font-weight:700">Wednesday</span></div>
+<div style="width:22px;height:22px;border-radius:999px;background:#D9E270;color:#0A1810;border:2px solid #F4EDE0;box-sizing:border-box"></div>
+</div>
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;padding:16px 18px;display:flex;align-items:center;justify-content:space-between">
+<div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:19px;font-weight:700">Sunday</span></div>
+<div style="width:22px;height:22px;border-radius:999px;border:2px solid rgba(244,237,224,.28);box-sizing:border-box"></div>
+</div>
+</div>
+</div>
+<div style="padding:14px 18px 20px;border-top:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:10px">
+<div style="font-size:15px;line-height:1.35;color:rgba(244,237,224,.72)">Wednesday selected.</div>
+<div style="height:58px;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700">Next: who is here</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1g"><div class="dv-olabel"><a class="dv-oid" href="#1g">1g</a>06 Who is here</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="padding:14px 18px;border-bottom:1px solid rgba(244,237,224,.12);display:flex;align-items:center;justify-content:space-between">
+<div style="font-size:16px;font-weight:600">Back</div>
+<div style="font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(244,237,224,.45)">Step <span style="font-family:VT323,monospace;font-size:19px">2</span> of <span style="font-family:VT323,monospace;font-size:19px">4</span></div>
+</div>
+<div style="padding:18px 18px 12px;display:flex;flex-direction:column;gap:12px">
+<div style="font-size:24px;font-weight:700">Who is here?</div>
+<div style="font-size:15px;color:rgba(244,237,224,.65);line-height:1.4">Only the people you tick get put into matches.</div>
+<div style="height:48px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;padding:0 14px;font-size:16px;color:rgba(244,237,224,.45)">Search the roster</div>
+</div>
+<div style="flex:1;overflow:hidden;display:flex;flex-direction:column">
+<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;font-size:16px;border-top:1px solid rgba(244,237,224,.08)"><span style="font-weight:600">Ade</span><div style="width:26px;height:26px;border-radius:4px;background:#D9E270;color:#0A1810;border:2px solid #F4EDE0;box-sizing:border-box"></div></div>
+<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;font-size:16px;border-top:1px solid rgba(244,237,224,.08)"><span style="font-weight:600">Ayo</span><div style="width:26px;height:26px;border-radius:4px;background:#D9E270;color:#0A1810;border:2px solid #F4EDE0;box-sizing:border-box"></div></div>
+<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;font-size:16px;border-top:1px solid rgba(244,237,224,.08)"><span style="font-weight:600">Chizea</span><div style="width:26px;height:26px;border-radius:4px;background:#D9E270;color:#0A1810;border:2px solid #F4EDE0;box-sizing:border-box"></div></div>
+<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;font-size:16px;border-top:1px solid rgba(244,237,224,.08)"><span style="font-weight:600">Fiyin</span><div style="width:26px;height:26px;border-radius:4px;background:#D9E270;color:#0A1810;border:2px solid #F4EDE0;box-sizing:border-box"></div></div>
+<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;font-size:16px;border-top:1px solid rgba(244,237,224,.08)"><span style="font-weight:600">Hamid</span><div style="width:26px;height:26px;border-radius:4px;border:2px solid rgba(244,237,224,.25);box-sizing:border-box"></div></div>
+<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;font-size:16px;border-top:1px solid rgba(244,237,224,.08)"><span style="font-weight:600">Kayode</span><div style="width:26px;height:26px;border-radius:4px;background:#D9E270;color:#0A1810;border:2px solid #F4EDE0;box-sizing:border-box"></div></div>
+<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px;font-size:16px;border-top:1px solid rgba(244,237,224,.08)"><span style="font-weight:600">Tamilore</span><div style="width:26px;height:26px;border-radius:4px;background:#D9E270;color:#0A1810;border:2px solid #F4EDE0;box-sizing:border-box"></div></div>
+<div style="display:flex;align-items:center;gap:8px;padding:14px 18px;font-size:16px;font-weight:600;border-top:1px solid rgba(244,237,224,.08)"><span style="font-family:VT323,monospace;font-size:24px">+</span>Add a walk-in</div>
+</div>
+<div style="padding:14px 18px 20px;border-top:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:10px">
+<div style="font-size:15px;line-height:1.35;color:rgba(244,237,224,.72)"><span style="font-family:VT323,monospace;font-size:22px">16</span> in tonight.</div>
+<div style="height:58px;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700">Next: courts</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1h"><div class="dv-olabel"><a class="dv-oid" href="#1h">1h</a>07 Courts</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="padding:14px 18px;border-bottom:1px solid rgba(244,237,224,.12);display:flex;align-items:center;justify-content:space-between">
+<div style="font-size:16px;font-weight:600">Back</div>
+<div style="font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(244,237,224,.45)">Step <span style="font-family:VT323,monospace;font-size:19px">3</span> of <span style="font-family:VT323,monospace;font-size:19px">4</span></div>
+</div>
+<div style="flex:1;padding:18px;display:flex;flex-direction:column;gap:10px;overflow:hidden">
+<div style="font-size:24px;font-weight:700">How many courts?</div>
+<div style="font-size:15px;color:rgba(244,237,224,.65);line-height:1.4">Two courts means two sets of standings.</div>
+<div style="display:flex;gap:10px">
+<div style="flex:1;height:56px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:36px">1</div>
+<div style="flex:1;height:56px;border:2px solid #F4EDE0;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:36px">2</div>
+</div>
+<div style="font-size:14px;color:rgba(244,237,224,.5);line-height:1.4">Tap a name to move it. The letter is a seeding hint and never shows on court.</div>
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;padding:14px">
+<div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font-size:17px;font-weight:700">Court 1</span><span style="font-family:VT323,monospace;font-size:26px">08</span></div>
+<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
+<span style="font-size:14px;font-weight:600;white-space:nowrap;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:6px 11px">Ade <span style="color:rgba(244,237,224,.45)">A</span></span>
+<span style="font-size:14px;font-weight:600;white-space:nowrap;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:6px 11px">Ayo</span>
+<span style="font-size:14px;font-weight:600;white-space:nowrap;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:6px 11px">Timi</span>
+<span style="font-size:14px;font-weight:600;white-space:nowrap;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:6px 11px">Tumi <span style="color:rgba(244,237,224,.45)">C</span></span>
+<span style="font-size:14px;font-weight:600;white-space:nowrap;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:6px 11px">Fiyin</span>
+<span style="font-size:14px;font-weight:600;white-space:nowrap;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:6px 11px;color:rgba(244,237,224,.55)">[[PLAYER_10]]</span>
+<span style="font-size:14px;font-weight:600;white-space:nowrap;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:6px 11px;color:rgba(244,237,224,.55)">[[PLAYER_11]]</span>
+<span style="font-size:14px;font-weight:600;white-space:nowrap;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:6px 11px;color:rgba(244,237,224,.55)">[[PLAYER_12]]</span>
+</div>
+</div>
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;padding:14px">
+<div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font-size:17px;font-weight:700">Court 2</span><span style="font-family:VT323,monospace;font-size:26px">08</span></div>
+<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">
+<span style="font-size:14px;font-weight:600;white-space:nowrap;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:6px 11px">Chizea</span>
+<span style="font-size:14px;font-weight:600;white-space:nowrap;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:6px 11px">Hamid <span style="color:rgba(244,237,224,.45)">A</span></span>
+<span style="font-size:14px;font-weight:600;white-space:nowrap;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:6px 11px">Kayode</span>
+<span style="font-size:14px;font-weight:600;white-space:nowrap;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:6px 11px">Tamilore</span>
+<span style="font-size:14px;font-weight:600;white-space:nowrap;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:6px 11px;color:rgba(244,237,224,.55)">[[PLAYER_13]]</span>
+<span style="font-size:14px;font-weight:600;white-space:nowrap;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:6px 11px;color:rgba(244,237,224,.55)">[[PLAYER_14]]</span>
+<span style="font-size:14px;font-weight:600;white-space:nowrap;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:6px 11px;color:rgba(244,237,224,.55)">[[PLAYER_15]]</span>
+<span style="font-size:14px;font-weight:600;white-space:nowrap;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:6px 11px;color:rgba(244,237,224,.55)">[[PLAYER_16]]</span>
+</div>
+</div>
+</div>
+</div>
+<div style="padding:14px 18px 20px;border-top:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:10px">
+<div style="font-size:15px;line-height:1.35;color:rgba(244,237,224,.72)">Both courts are even at <span style="font-family:VT323,monospace;font-size:22px">8</span>.</div>
+<div style="height:58px;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700">Next: matches each</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1i"><div class="dv-olabel"><a class="dv-oid" href="#1i">1i</a>08 How many matches each</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="padding:14px 18px;border-bottom:1px solid rgba(244,237,224,.12);display:flex;align-items:center;justify-content:space-between">
+<div style="font-size:16px;font-weight:600">Back</div>
+<div style="font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(244,237,224,.45)">Step <span style="font-family:VT323,monospace;font-size:19px">4</span> of <span style="font-family:VT323,monospace;font-size:19px">4</span></div>
+</div>
+<div style="flex:1;padding:18px;display:flex;flex-direction:column;gap:14px">
+<div style="font-size:24px;font-weight:700">How many matches each?</div>
+<div style="font-size:15px;color:rgba(244,237,224,.65);line-height:1.4">Court 1 has <span style="font-family:VT323,monospace;font-size:20px">8</span> players. Every target below has to divide into fours.</div>
+<div style="display:flex;flex-direction:column;gap:10px;margin-top:4px">
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;padding:14px 16px;display:flex;align-items:center;gap:14px">
+<span style="font-family:VT323,monospace;font-size:34px;width:34px">2</span>
+<span style="font-size:15px;color:rgba(244,237,224,.6)">Short night, about [[MINUTES_PER_MATCH]] minutes each.</span>
+</div>
+<div style="border:2px solid #F4EDE0;border-radius:6px;background:#D9E270;color:#0A1810;padding:14px 16px;display:flex;align-items:center;gap:14px">
+<span style="font-family:VT323,monospace;font-size:34px;width:34px">3</span>
+<span style="font-size:15px;font-weight:600">The usual on two courts.</span>
+</div>
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;padding:14px 16px;display:flex;align-items:center;gap:14px">
+<span style="font-family:VT323,monospace;font-size:34px;width:34px">4</span>
+<span style="font-size:15px;color:rgba(244,237,224,.6)">Long night. Extend later if there is time.</span>
+</div>
+<div style="border:1px dashed rgba(244,237,224,.22);border-radius:6px;padding:14px 16px;display:flex;align-items:center;gap:14px;opacity:.55">
+<span style="font-family:VT323,monospace;font-size:34px;width:34px">5</span>
+<span style="font-size:15px">15 players needs a target of 4.</span>
+</div>
+</div>
+<div style="font-size:14px;color:rgba(244,237,224,.5);line-height:1.4;margin-top:auto">Greyed targets stay visible so the reason is readable, not hidden.</div>
+</div>
+<div style="padding:14px 18px 20px;border-top:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:10px">
+<div style="font-size:15px;line-height:1.35;color:rgba(244,237,224,.72)"><span style="font-family:VT323,monospace;font-size:22px">3</span> each means <span style="font-family:VT323,monospace;font-size:22px">6</span> matches on Court 1.</div>
+<div style="height:58px;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700">Next: review</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1j"><div class="dv-olabel"><a class="dv-oid" href="#1j">1j</a>09 Ready</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="padding:14px 18px;border-bottom:1px solid rgba(244,237,224,.12);display:flex;align-items:center;justify-content:space-between">
+<div style="font-size:16px;font-weight:600">Back</div>
+<div style="font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(244,237,224,.45)">Review</div>
+</div>
+<div style="flex:1;padding:22px 18px;display:flex;flex-direction:column;gap:18px">
+<div style="font-family:'Playfair Display',serif;font-size:32px;font-weight:600;line-height:1.1">Wednesday night</div>
+<div style="display:flex;flex-direction:column">
+<div style="display:flex;align-items:baseline;justify-content:space-between;padding:14px 0;border-top:1px solid rgba(244,237,224,.12)"><span style="font-size:16px;color:rgba(244,237,224,.6)">Players in</span><span style="font-family:VT323,monospace;font-size:30px">16</span></div>
+<div style="display:flex;align-items:baseline;justify-content:space-between;padding:14px 0;border-top:1px solid rgba(244,237,224,.12)"><span style="font-size:16px;color:rgba(244,237,224,.6)">Courts</span><span style="font-family:VT323,monospace;font-size:30px">2</span></div>
+<div style="display:flex;align-items:baseline;justify-content:space-between;padding:14px 0;border-top:1px solid rgba(244,237,224,.12)"><span style="font-size:16px;color:rgba(244,237,224,.6)">Matches each</span><span style="font-family:VT323,monospace;font-size:30px">3</span></div>
+<div style="display:flex;align-items:baseline;justify-content:space-between;padding:14px 0;border-top:1px solid rgba(244,237,224,.12)"><span style="font-size:16px;color:rgba(244,237,224,.6)">Matches in total</span><span style="font-family:VT323,monospace;font-size:30px">12</span></div>
+<div style="display:flex;align-items:baseline;justify-content:space-between;padding:14px 0;border-top:1px solid rgba(244,237,224,.12);border-bottom:1px solid rgba(244,237,224,.12)"><span style="font-size:16px;color:rgba(244,237,224,.6)">Points for a win</span><span style="font-family:VT323,monospace;font-size:30px">3</span></div>
+</div>
+<div style="font-size:15px;line-height:1.45;color:rgba(244,237,224,.65);text-wrap:pretty">Partners rotate every match. Nobody earns points for sitting out.</div>
+</div>
+<div style="padding:14px 18px 20px;border-top:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:10px">
+<div style="font-size:15px;line-height:1.35;color:rgba(244,237,224,.72)">First matches are already drawn.</div>
+<div style="height:58px;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700">Start the night</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1k"><div class="dv-olabel"><a class="dv-oid" href="#1k">1k</a>10 Court view</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="padding:14px 18px;border-bottom:1px solid rgba(244,237,224,.12);display:flex;align-items:center;justify-content:space-between">
+<div style="font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(244,237,224,.45)">Round <span style="font-family:VT323,monospace;font-size:20px">2</span> of <span style="font-family:VT323,monospace;font-size:20px">3</span></div>
+<div style="font-size:17px;font-weight:700">Court 1</div>
+</div>
+<div style="flex:1;padding:16px 18px;display:flex;flex-direction:column;gap:14px;overflow:hidden">
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;overflow:hidden">
+<div style="padding:16px 18px;display:flex;align-items:center;justify-content:space-between"><span style="font-size:22px;font-weight:700">Ade and Timi</span><span style="font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(244,237,224,.4)">Side A</span></div>
+<div style="display:grid;grid-template-columns:1fr 1px 1fr;background:#D9E270">
+<div style="display:flex;align-items:center;justify-content:center;padding:10px 0"><span style="font-family:VT323,monospace;font-size:96px;line-height:.9;color:#0A1810">00</span></div>
+<div style="background:rgba(10,24,16,.28)"></div>
+<div style="display:flex;align-items:center;justify-content:center;padding:10px 0"><span style="font-family:VT323,monospace;font-size:96px;line-height:.9;color:#0A1810">00</span></div>
+</div>
+<div style="padding:16px 18px;display:flex;align-items:center;justify-content:space-between"><span style="font-size:22px;font-weight:700">Ayo and Tumi</span><span style="font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(244,237,224,.4)">Side B</span></div>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="font-size:13px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(244,237,224,.45)">Waiting</div>
+<div style="display:flex;flex-wrap:wrap;gap:7px">
+<span style="font-size:16px;font-weight:600;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:8px 13px">Fiyin</span>
+<span style="font-size:16px;font-weight:600;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:8px 13px;color:rgba(244,237,224,.55)">[[PLAYER_10]]</span>
+<span style="font-size:16px;font-weight:600;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:8px 13px;color:rgba(244,237,224,.55)">[[PLAYER_11]]</span>
+<span style="font-size:16px;font-weight:600;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:8px 13px;color:rgba(244,237,224,.55)">[[PLAYER_12]]</span>
+</div>
+<div style="font-size:14px;color:rgba(244,237,224,.5)">All four are on next.</div>
+</div>
+</div>
+<div style="padding:14px 18px;border-top:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:10px">
+<div style="font-size:16px;font-weight:600;line-height:1.35">Tap the winning side to score.</div>
+<div style="display:flex;gap:10px">
+<div style="flex:1;height:56px;border:2px solid #F4EDE0;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700">Ade and Timi</div>
+<div style="flex:1;height:56px;border:2px solid #F4EDE0;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700">Ayo and Tumi</div>
+</div>
+</div>
+<div style="display:flex;border-top:1px solid rgba(244,237,224,.12)">
+<div style="flex:1;height:60px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-top:3px solid #F4EDE0">Match</div>
+<div style="flex:1;height:60px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-top:3px solid transparent;color:rgba(244,237,224,.45)">Players</div>
+<div style="flex:1;height:60px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-top:3px solid transparent;color:rgba(244,237,224,.45)">Standings</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1l"><div class="dv-olabel"><a class="dv-oid" href="#1l">1l</a>11 Score entry</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif;position:relative">
+<div style="padding:14px 18px;border-bottom:1px solid rgba(244,237,224,.12);display:flex;align-items:center;justify-content:space-between;opacity:.35">
+<div style="font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(244,237,224,.45)">Round <span style="font-family:VT323,monospace;font-size:20px">2</span> of <span style="font-family:VT323,monospace;font-size:20px">3</span></div>
+<div style="font-size:17px;font-weight:700">Court 1</div>
+</div>
+<div style="flex:1;padding:16px 18px;display:flex;flex-direction:column;gap:14px;overflow:hidden">
+<div style="border:2px solid #F4EDE0;border-radius:6px;overflow:hidden;background:#D9E270;color:#0A1810">
+<div style="padding:14px 18px;display:flex;align-items:center;justify-content:space-between"><span style="font-size:22px;font-weight:700">Ade and Timi</span><span style="font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase">Winner</span></div>
+</div>
+<div style="border:1px solid rgba(244,237,224,.14);border-radius:6px;padding:14px 18px;opacity:.4"><span style="font-size:22px;font-weight:700">Ayo and Tumi</span></div>
+</div>
+<div style="position:absolute;left:0;right:0;top:0;bottom:0;background:rgba(244,237,224,.35)"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;background:#173724;border-top:2px solid #F4EDE0;border-radius:10px 10px 0 0;padding:18px 18px 22px;display:flex;flex-direction:column;gap:14px">
+<div style="width:44px;height:4px;border-radius:999px;background:rgba(244,237,224,.2);align-self:center"></div>
+<div style="font-size:20px;font-weight:700">How many did Ayo and Tumi get?</div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+<div style="height:66px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">0</div>
+<div style="height:66px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">1</div>
+<div style="height:66px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">2</div>
+<div style="height:66px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">3</div>
+<div style="height:66px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">4</div>
+<div style="height:66px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">5</div>
+<div style="height:66px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:VT323,monospace;font-size:38px">6</div>
+<div style="height:66px;border:1px solid rgba(244,237,224,.18);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:rgba(244,237,224,.55)">More</div>
+</div>
+<div style="font-size:15px;color:rgba(244,237,224,.6);line-height:1.4">One tap records it and draws the next match.</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1m"><div class="dv-olabel"><a class="dv-oid" href="#1m">1m</a>12 Court switcher</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="padding:14px 18px;border-bottom:1px solid rgba(244,237,224,.12);display:flex;gap:10px">
+<div style="flex:1;border:2px solid #F4EDE0;border-radius:6px;background:#D9E270;color:#0A1810;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:16px;font-weight:700">Court 1</span><span style="font-size:13px;font-weight:600">Mid-match</span></div>
+<div style="flex:1;border:1px solid rgba(244,237,224,.18);border-radius:6px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:16px;font-weight:700">Court 2</span><span style="font-size:13px;font-weight:600;color:#D9E270">Waiting on a score</span></div>
+</div>
+<div style="flex:1;padding:16px 18px;display:flex;flex-direction:column;gap:14px">
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;overflow:hidden">
+<div style="padding:14px 18px;font-size:20px;font-weight:700">Ade and Timi</div>
+<div style="display:grid;grid-template-columns:1fr 1px 1fr;background:#D9E270">
+<div style="display:flex;align-items:center;justify-content:center;padding:8px 0"><span style="font-family:VT323,monospace;font-size:78px;line-height:.9;color:#0A1810">00</span></div>
+<div style="background:rgba(10,24,16,.28)"></div>
+<div style="display:flex;align-items:center;justify-content:center;padding:8px 0"><span style="font-family:VT323,monospace;font-size:78px;line-height:.9;color:#0A1810">00</span></div>
+</div>
+<div style="padding:14px 18px;font-size:20px;font-weight:700">Ayo and Tumi</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="font-size:13px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(244,237,224,.45)">Waiting</div>
+<div style="display:flex;flex-wrap:wrap;gap:7px">
+<span style="font-size:16px;font-weight:600;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:8px 13px">Fiyin</span>
+<span style="font-size:16px;font-weight:600;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:8px 13px;color:rgba(244,237,224,.55)">[[PLAYER_10]]</span>
+<span style="font-size:16px;font-weight:600;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:8px 13px;color:rgba(244,237,224,.55)">[[PLAYER_11]]</span>
+<span style="font-size:16px;font-weight:600;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:8px 13px;color:rgba(244,237,224,.55)">[[PLAYER_12]]</span>
+</div>
+</div>
+</div>
+<div style="padding:14px 18px;border-top:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:10px">
+<div style="font-size:16px;font-weight:600">Court 2 has a score to record.</div>
+<div style="height:56px;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">Go to Court 2</div>
+</div>
+<div style="display:flex;border-top:1px solid rgba(244,237,224,.12)">
+<div style="flex:1;height:60px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-top:3px solid #F4EDE0">Match</div>
+<div style="flex:1;height:60px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-top:3px solid transparent;color:rgba(244,237,224,.45)">Players</div>
+<div style="flex:1;height:60px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-top:3px solid transparent;color:rgba(244,237,224,.45)">Standings</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1n"><div class="dv-olabel"><a class="dv-oid" href="#1n">1n</a>13 Players tab</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="padding:14px 18px 10px;border-bottom:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:8px">
+<div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font-size:20px;font-weight:700">Players</span><span style="font-size:14px;color:rgba(244,237,224,.55)"><span style="font-family:VT323,monospace;font-size:20px">16</span> in</span></div>
+<div style="font-size:14px;color:rgba(244,237,224,.55)">Fewest games first, so whoever is owed a game is at the top.</div>
+</div>
+<div style="flex:1;overflow:hidden;display:flex;flex-direction:column">
+<div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid rgba(244,237,224,.08)"><span style="font-family:VT323,monospace;font-size:28px;width:28px">0</span><div style="flex:1"><div style="font-size:17px;font-weight:700">Fiyin</div><div style="font-size:14px;color:rgba(244,237,224,.55)">Not arrived</div></div><span style="font-size:14px;font-weight:700;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:7px 12px">Mark arrived</span></div>
+<div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid rgba(244,237,224,.08)"><span style="font-family:VT323,monospace;font-size:28px;width:28px">1</span><div style="flex:1"><div style="font-size:17px;font-weight:700">Tumi</div><div style="font-size:14px;color:rgba(244,237,224,.55)">Here</div></div><span style="font-size:14px;font-weight:700;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:7px 12px">Mark left</span></div>
+<div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid rgba(244,237,224,.08)"><span style="font-family:VT323,monospace;font-size:28px;width:28px">1</span><div style="flex:1"><div style="font-size:17px;font-weight:700">Kayode</div><div style="font-size:14px;color:rgba(244,237,224,.55)">Here</div></div><span style="font-size:14px;font-weight:700;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:7px 12px">Mark left</span></div>
+<div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid rgba(244,237,224,.08)"><span style="font-family:VT323,monospace;font-size:28px;width:28px">2</span><div style="flex:1"><div style="font-size:17px;font-weight:700">Ade</div><div style="font-size:14px;color:rgba(244,237,224,.55)">On court now</div></div><span style="font-size:14px;font-weight:700;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:7px 12px">Mark left</span></div>
+<div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid rgba(244,237,224,.08)"><span style="font-family:VT323,monospace;font-size:28px;width:28px">2</span><div style="flex:1"><div style="font-size:17px;font-weight:700">Timi</div><div style="font-size:14px;color:rgba(244,237,224,.55)">On court now</div></div><span style="font-size:14px;font-weight:700;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:7px 12px">Mark left</span></div>
+<div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid rgba(244,237,224,.08)"><span style="font-family:VT323,monospace;font-size:28px;width:28px">2</span><div style="flex:1"><div style="font-size:17px;font-weight:700">Ayo</div><div style="font-size:14px;color:rgba(244,237,224,.55)">Here</div></div><span style="font-size:14px;font-weight:700;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:7px 12px">Mark left</span></div>
+<div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid rgba(244,237,224,.08)"><span style="font-family:VT323,monospace;font-size:28px;width:28px">3</span><div style="flex:1"><div style="font-size:17px;font-weight:700">Tamilore</div><div style="font-size:14px;color:rgba(244,237,224,.55)">Left at [[TIME_LEFT]]</div></div><span style="font-size:14px;font-weight:700;border:1px solid rgba(244,237,224,.2);border-radius:999px;padding:7px 12px">Mark here</span></div>
+</div>
+<div style="padding:14px 18px;border-top:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:10px">
+<div style="font-size:16px;font-weight:600">Someone just walked in?</div>
+<div style="height:56px;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">Add a player</div>
+</div>
+<div style="display:flex;border-top:1px solid rgba(244,237,224,.12)">
+<div style="flex:1;height:60px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-top:3px solid transparent;color:rgba(244,237,224,.45)">Match</div>
+<div style="flex:1;height:60px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-top:3px solid #F4EDE0">Players</div>
+<div style="flex:1;height:60px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-top:3px solid transparent;color:rgba(244,237,224,.45)">Standings</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1o"><div class="dv-olabel"><a class="dv-oid" href="#1o">1o</a>14 Late arrival</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="padding:14px 18px;border-bottom:1px solid rgba(244,237,224,.12);display:flex;align-items:center;justify-content:space-between"><div style="font-size:16px;font-weight:600">Cancel</div><div style="font-size:17px;font-weight:700">Add a player</div></div>
+<div style="flex:1;padding:20px 18px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:rgba(244,237,224,.45)">Name</div>
+<div style="height:52px;border:2px solid #F4EDE0;border-radius:6px;display:flex;align-items:center;padding:0 14px;font-size:18px;font-weight:600">Hamid</div>
+<div style="font-size:14px;color:rgba(244,237,224,.55)">Found in the roster. Marked here for tonight.</div>
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+<div style="font-size:14px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:rgba(244,237,224,.45)">Court</div>
+<div style="display:flex;gap:10px">
+<div style="flex:1;border:1px solid rgba(244,237,224,.18);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:2px"><span style="font-size:17px;font-weight:700">Court 1</span><span style="font-size:14px;color:rgba(244,237,224,.55)"><span style="font-family:VT323,monospace;font-size:19px">8</span> playing</span></div>
+<div style="flex:1;border:2px solid #F4EDE0;background:#D9E270;color:#0A1810;border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:2px"><span style="font-size:17px;font-weight:700">Court 2</span><span style="font-size:14px"><span style="font-family:VT323,monospace;font-size:19px">7</span> playing</span></div>
+</div>
+</div>
+<div style="border-top:1px solid rgba(244,237,224,.12);padding-top:16px;font-size:16px;line-height:1.45;text-wrap:pretty">Hamid joins the Court 2 queue and is in the next match. He gets one back-to-back to catch up, and starts on <span style="font-family:VT323,monospace;font-size:20px">0</span> games played.</div>
+</div>
+<div style="padding:14px 18px 20px;border-top:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:10px">
+<div style="font-size:15px;color:rgba(244,237,224,.72)">Nothing already played changes.</div>
+<div style="height:58px;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700">Add Hamid to Court 2</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1p"><div class="dv-olabel"><a class="dv-oid" href="#1p">1p</a>15 Extend</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif;position:relative">
+<div style="flex:1;padding:16px 18px;display:flex;flex-direction:column;gap:14px;opacity:.35">
+<div style="font-size:20px;font-weight:700">Court 1</div>
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;height:200px"></div>
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;height:120px"></div>
+</div>
+<div style="position:absolute;inset:0;background:rgba(244,237,224,.35)"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;background:#173724;border-top:2px solid #F4EDE0;border-radius:10px 10px 0 0;padding:18px 18px 22px;display:flex;flex-direction:column;gap:14px">
+<div style="width:44px;height:4px;border-radius:999px;background:rgba(244,237,224,.2);align-self:center"></div>
+<div style="font-size:22px;font-weight:700">Add a round?</div>
+<div style="font-size:17px;line-height:1.45">Everyone on Court 1 gets one more match.</div>
+<div style="display:flex;flex-direction:column">
+<div style="display:flex;align-items:baseline;justify-content:space-between;padding:12px 0;border-top:1px solid rgba(244,237,224,.12)"><span style="font-size:16px;color:rgba(244,237,224,.6)">Target now</span><span style="font-family:VT323,monospace;font-size:28px">3</span></div>
+<div style="display:flex;align-items:baseline;justify-content:space-between;padding:12px 0;border-top:1px solid rgba(244,237,224,.12);border-bottom:1px solid rgba(244,237,224,.12)"><span style="font-size:16px;color:rgba(244,237,224,.6)">Target after</span><span style="font-family:VT323,monospace;font-size:28px">4</span></div>
+</div>
+<div style="font-size:15px;color:rgba(244,237,224,.6);line-height:1.4">Court 2 is untouched. About [[MINUTES_PER_ROUND]] more minutes.</div>
+<div style="height:58px;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700">Add the round</div>
+<div style="height:50px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:600;color:rgba(244,237,224,.6)">Leave it at three</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1q"><div class="dv-olabel"><a class="dv-oid" href="#1q">1q</a>16 Correct or void a result</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif;position:relative">
+<div style="flex:1;padding:16px 18px;display:flex;flex-direction:column;gap:10px;opacity:.35">
+<div style="font-size:20px;font-weight:700">Court 1 · played</div>
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;height:70px"></div>
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;height:70px"></div>
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;height:70px"></div>
+</div>
+<div style="position:absolute;inset:0;background:rgba(244,237,224,.35)"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;background:#173724;border-top:2px solid #F4EDE0;border-radius:10px 10px 0 0;padding:18px 18px 22px;display:flex;flex-direction:column;gap:14px">
+<div style="width:44px;height:4px;border-radius:999px;background:rgba(244,237,224,.2);align-self:center"></div>
+<div style="font-size:22px;font-weight:700">Match <span style="font-family:VT323,monospace;font-size:26px">4</span>, Court 1</div>
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;overflow:hidden">
+<div style="padding:12px 14px;font-size:17px;font-weight:700">Chizea and Kayode</div>
+<div style="display:grid;grid-template-columns:1fr 1px 1fr;background:#D9E270">
+<div style="display:flex;align-items:center;justify-content:center;padding:6px 0"><span style="font-family:VT323,monospace;font-size:56px;line-height:.9;color:#0A1810">21</span></div>
+<div style="background:rgba(10,24,16,.28)"></div>
+<div style="display:flex;align-items:center;justify-content:center;padding:6px 0"><span style="font-family:VT323,monospace;font-size:56px;line-height:.9;color:#0A1810">14</span></div>
+</div>
+<div style="padding:12px 14px;font-size:17px;font-weight:700">Tamilore and Tumi</div>
+</div>
+<div style="height:56px;border:2px solid #F4EDE0;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">Change the score</div>
+<div style="border:1px solid #EF4444;border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:8px">
+<div style="font-size:17px;font-weight:700;color:#FF9382">Void this match</div>
+<div style="font-size:15px;line-height:1.45">All four players go back into the queue and this match counts for nothing. Games played drops by one each.</div>
+<div style="height:52px;border:2px solid #EF4444;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;color:#FF9382">Void it</div>
+</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1r"><div class="dv-olabel"><a class="dv-oid" href="#1r">1r</a>17 Standings tab</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="padding:14px 18px 10px;border-bottom:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:6px">
+<div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font-size:20px;font-weight:700">Standings</span><span style="font-size:16px;font-weight:600">Court 1</span></div>
+<div style="font-size:14px;color:rgba(244,237,224,.55)">A win is <span style="font-family:VT323,monospace;font-size:18px">3</span>. Points first, then score difference.</div>
+</div>
+<div style="display:flex;padding:8px 18px;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:rgba(244,237,224,.45);border-bottom:1px solid rgba(244,237,224,.12)">
+<span style="width:24px">#</span><span style="flex:1">Player</span><span style="width:32px;text-align:right">P</span><span style="width:30px;text-align:right">W</span><span style="width:30px;text-align:right">L</span><span style="width:40px;text-align:right">Diff</span><span style="width:38px;text-align:right">Pts</span>
+</div>
+<div style="flex:1;overflow:hidden">
+<div style="display:flex;align-items:baseline;padding:11px 18px;border-bottom:1px solid rgba(244,237,224,.08);font-family:VT323,monospace;font-size:24px">
+<span style="width:24px">1</span><span style="flex:1;font-family:Inter,sans-serif;font-size:17px;font-weight:700">Ade</span><span style="width:32px;text-align:right">3</span><span style="width:30px;text-align:right">3</span><span style="width:30px;text-align:right">0</span><span style="width:40px;text-align:right">+18</span><span style="width:38px;text-align:right">9</span>
+</div>
+<div style="display:flex;align-items:baseline;padding:11px 18px;border-bottom:1px solid rgba(244,237,224,.08);font-family:VT323,monospace;font-size:24px">
+<span style="width:24px">2</span><span style="flex:1;font-family:Inter,sans-serif;font-size:17px;font-weight:700">Timi</span><span style="width:32px;text-align:right">3</span><span style="width:30px;text-align:right">2</span><span style="width:30px;text-align:right">1</span><span style="width:40px;text-align:right">+11</span><span style="width:38px;text-align:right">6</span>
+</div>
+<div style="padding:11px 18px;border-bottom:1px solid rgba(244,237,224,.08)">
+<div style="display:flex;align-items:baseline;font-family:VT323,monospace;font-size:24px"><span style="width:24px">3</span><span style="flex:1;font-family:Inter,sans-serif;font-size:17px;font-weight:700">Ayo</span><span style="width:32px;text-align:right">3</span><span style="width:30px;text-align:right">2</span><span style="width:30px;text-align:right">1</span><span style="width:40px;text-align:right">+4</span><span style="width:38px;text-align:right">6</span></div>
+<div style="font-size:14px;color:rgba(244,237,224,.55);margin-top:3px;padding-left:24px">Behind on score difference.</div>
+</div>
+<div style="display:flex;align-items:baseline;padding:11px 18px;border-bottom:1px solid rgba(244,237,224,.08);font-family:VT323,monospace;font-size:24px">
+<span style="width:24px">4</span><span style="flex:1;font-family:Inter,sans-serif;font-size:17px;font-weight:700">Tumi</span><span style="width:32px;text-align:right">2</span><span style="width:30px;text-align:right">1</span><span style="width:30px;text-align:right">1</span><span style="width:40px;text-align:right">+2</span><span style="width:38px;text-align:right">3</span>
+</div>
+<div style="padding:11px 18px;border-bottom:1px solid rgba(244,237,224,.08)">
+<div style="display:flex;align-items:baseline;font-family:VT323,monospace;font-size:24px"><span style="width:24px">5</span><span style="flex:1;font-family:Inter,sans-serif;font-size:17px;font-weight:700">Fiyin</span><span style="width:32px;text-align:right">3</span><span style="width:30px;text-align:right">1</span><span style="width:30px;text-align:right">2</span><span style="width:40px;text-align:right">-3</span><span style="width:38px;text-align:right">3</span></div>
+<div style="font-size:14px;color:rgba(244,237,224,.55);margin-top:3px;padding-left:24px">Got there first, in match 4.</div>
+</div>
+<div style="padding:11px 18px;border-bottom:1px solid rgba(244,237,224,.08)">
+<div style="display:flex;align-items:baseline;font-family:VT323,monospace;font-size:24px"><span style="width:24px">6</span><span style="flex:1;font-family:Inter,sans-serif;font-size:17px;font-weight:700;color:rgba(244,237,224,.6)">[[PLAYER_10]]</span><span style="width:32px;text-align:right">3</span><span style="width:30px;text-align:right">1</span><span style="width:30px;text-align:right">2</span><span style="width:40px;text-align:right">-3</span><span style="width:38px;text-align:right">3</span></div>
+<div style="font-size:14px;color:rgba(244,237,224,.55);margin-top:3px;padding-left:24px">Reached it in match 6, so second.</div>
+</div>
+<div style="display:flex;align-items:baseline;padding:11px 18px;border-bottom:1px solid rgba(244,237,224,.08);font-family:VT323,monospace;font-size:24px;color:rgba(244,237,224,.6)">
+<span style="width:24px">7</span><span style="flex:1;font-family:Inter,sans-serif;font-size:17px;font-weight:700">[[PLAYER_11]]</span><span style="width:32px;text-align:right">2</span><span style="width:30px;text-align:right">0</span><span style="width:30px;text-align:right">2</span><span style="width:40px;text-align:right">-9</span><span style="width:38px;text-align:right">0</span>
+</div>
+<div style="display:flex;align-items:baseline;padding:11px 18px;border-bottom:1px solid rgba(244,237,224,.08);font-family:VT323,monospace;font-size:24px;color:rgba(244,237,224,.6)">
+<span style="width:24px">8</span><span style="flex:1;font-family:Inter,sans-serif;font-size:17px;font-weight:700">[[PLAYER_12]]</span><span style="width:32px;text-align:right">3</span><span style="width:30px;text-align:right">0</span><span style="width:30px;text-align:right">3</span><span style="width:40px;text-align:right">-23</span><span style="width:38px;text-align:right">0</span>
+</div>
+<div style="padding:8px 18px;font-size:14px;color:rgba(244,237,224,.5);line-height:1.4">Two players have played <span style="font-family:VT323,monospace;font-size:18px">2</span>. No points for sitting out.</div>
+</div>
+<div style="padding:14px 18px;border-top:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:10px">
+<div style="font-size:16px;font-weight:600">Ties go to whoever got there first.</div>
+<div style="height:56px;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">Seed the playoff</div>
+</div>
+<div style="display:flex;border-top:1px solid rgba(244,237,224,.12)">
+<div style="flex:1;height:60px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-top:3px solid transparent;color:rgba(244,237,224,.45)">Match</div>
+<div style="flex:1;height:60px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-top:3px solid transparent;color:rgba(244,237,224,.45)">Players</div>
+<div style="flex:1;height:60px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-top:3px solid #F4EDE0">Standings</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1s"><div class="dv-olabel"><a class="dv-oid" href="#1s">1s</a>18 Tie broken by order</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif;position:relative">
+<div style="flex:1;padding:16px 18px;display:flex;flex-direction:column;gap:10px;opacity:.35">
+<div style="font-size:20px;font-weight:700">Standings</div>
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;height:44px"></div>
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;height:44px"></div>
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;height:44px"></div>
+</div>
+<div style="position:absolute;inset:0;background:rgba(244,237,224,.35)"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;background:#173724;border-top:2px solid #F4EDE0;border-radius:10px 10px 0 0;padding:18px 18px 22px;display:flex;flex-direction:column;gap:14px">
+<div style="width:44px;height:4px;border-radius:999px;background:rgba(244,237,224,.2);align-self:center"></div>
+<div style="font-size:22px;font-weight:700">Level on points</div>
+<div style="font-size:16px;line-height:1.45">Fiyin and [[PLAYER_10]] are level on points and on score difference. The higher place goes to whoever got there first.</div>
+<div style="display:flex;gap:10px">
+<div style="flex:1;border:2px solid #D9E270;border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:4px"><span style="font-size:19px;font-weight:700">Fiyin</span><span style="font-family:VT323,monospace;font-size:26px">3 pts, -3</span><span style="font-size:14px;font-weight:600;color:#D9E270">Got there in match 4</span></div>
+<div style="flex:1;border:2px solid rgba(244,237,224,.2);border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:4px"><span style="font-size:19px;font-weight:700;color:rgba(244,237,224,.6)">[[PLAYER_10]]</span><span style="font-family:VT323,monospace;font-size:26px">3 pts, -3</span><span style="font-size:14px;font-weight:600;color:rgba(244,237,224,.55)">Match 6</span></div>
+</div>
+<div style="font-size:15px;color:rgba(244,237,224,.6);line-height:1.4">No coin is tossed. The standings row says "Got there first" so the room can see why.</div>
+<div style="height:58px;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700">Got it</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1t"><div class="dv-olabel"><a class="dv-oid" href="#1t">1t</a>19 Playoff readiness, blocked</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="padding:14px 18px;border-bottom:1px solid rgba(244,237,224,.12);display:flex;align-items:center;justify-content:space-between"><div style="font-size:20px;font-weight:700">Playoff</div><div style="font-size:16px;font-weight:600">Court 1</div></div>
+<div style="flex:1;padding:20px 18px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;flex-direction:column">
+<div style="display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid rgba(244,237,224,.12)"><span style="font-family:VT323,monospace;font-size:26px;color:#F4EDE0">OK</span><span style="font-size:16px;flex:1">No match is on court right now</span></div>
+<div style="display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid rgba(244,237,224,.12)"><span style="font-family:VT323,monospace;font-size:26px">OK</span><span style="font-size:16px;flex:1">Every tie is settled by match order</span></div>
+<div style="display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid rgba(244,237,224,.12)"><span style="font-family:VT323,monospace;font-size:26px;color:#FF9382">NO</span><span style="font-size:16px;flex:1;font-weight:600">Tumi is owed a match</span></div>
+</div>
+<div style="border:2px solid #F4EDE0;border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:12px">
+<div style="font-size:19px;font-weight:700;line-height:1.3">Tumi is owed a match before seeding</div>
+<div style="font-size:15px;line-height:1.45;color:rgba(244,237,224,.7)">Everyone else on Court 1 has played 3. Seeding now would place Tumi below players Tumi never got to face.</div>
+<div style="height:52px;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700">Draw Tumi a match</div>
+</div>
+<div style="font-size:15px;color:rgba(244,237,224,.55);line-height:1.4;margin-top:auto">Court 2 seeds on its own and is unaffected.</div>
+</div>
+<div style="padding:14px 18px 20px;border-top:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:10px">
+<div style="font-size:15px;color:rgba(244,237,224,.72)">Seeding is held until games played are even.</div>
+<div style="height:58px;border-radius:6px;background:rgba(244,237,224,.1);display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700;color:rgba(244,237,224,.4)">Seed the playoff</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1u"><div class="dv-olabel"><a class="dv-oid" href="#1u">1u</a>20 Bracket, vertical stages</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="padding:14px 18px;border-bottom:1px solid rgba(244,237,224,.12);display:flex;align-items:center;justify-content:space-between"><div style="font-size:20px;font-weight:700">Playoff</div><div style="font-size:16px;font-weight:600">Court 1</div></div>
+<div style="flex:1;padding:16px 18px;display:flex;flex-direction:column;gap:18px;overflow:hidden">
+<div style="font-size:15px;color:rgba(244,237,224,.6);line-height:1.4">All <span style="font-family:VT323,monospace;font-size:20px">8</span> players are in. Seeds pair <span style="font-family:VT323,monospace;font-size:20px">1</span>+<span style="font-family:VT323,monospace;font-size:20px">3</span> and <span style="font-family:VT323,monospace;font-size:20px">2</span>+<span style="font-family:VT323,monospace;font-size:20px">4</span>.</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="font-size:13px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(244,237,224,.45)">Semifinals</div>
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;overflow:hidden">
+<div style="padding:11px 14px;display:flex;align-items:baseline;justify-content:space-between"><span style="font-size:17px;font-weight:700">Ade and Ayo</span><span style="font-family:VT323,monospace;font-size:20px;color:rgba(244,237,224,.5)">1+3</span></div>
+<div style="display:grid;grid-template-columns:1fr 1px 1fr;background:#D9E270">
+<div style="display:flex;align-items:center;justify-content:center;padding:4px 0"><span style="font-family:VT323,monospace;font-size:48px;line-height:.9;color:#0A1810">21</span></div>
+<div style="background:rgba(10,24,16,.28)"></div>
+<div style="display:flex;align-items:center;justify-content:center;padding:4px 0"><span style="font-family:VT323,monospace;font-size:48px;line-height:.9;color:#0A1810">17</span></div>
+</div>
+<div style="padding:11px 14px;display:flex;align-items:baseline;justify-content:space-between"><span style="font-size:17px;font-weight:700;color:rgba(244,237,224,.55)">[[PLAYER_11]] and [[PLAYER_12]]</span><span style="font-family:VT323,monospace;font-size:20px;color:rgba(244,237,224,.5)">6+8</span></div>
+</div>
+<div style="border:2px solid #F4EDE0;border-radius:6px;overflow:hidden">
+<div style="padding:11px 14px;display:flex;align-items:baseline;justify-content:space-between"><span style="font-size:17px;font-weight:700">Timi and Tumi</span><span style="font-family:VT323,monospace;font-size:20px;color:rgba(244,237,224,.5)">2+4</span></div>
+<div style="display:grid;grid-template-columns:1fr 1px 1fr;background:#D9E270">
+<div style="display:flex;align-items:center;justify-content:center;padding:4px 0"><span style="font-family:VT323,monospace;font-size:48px;line-height:.9;color:#0A1810">00</span></div>
+<div style="background:rgba(10,24,16,.28)"></div>
+<div style="display:flex;align-items:center;justify-content:center;padding:4px 0"><span style="font-family:VT323,monospace;font-size:48px;line-height:.9;color:#0A1810">00</span></div>
+</div>
+<div style="padding:11px 14px;display:flex;align-items:baseline;justify-content:space-between"><span style="font-size:17px;font-weight:700">Fiyin and [[PLAYER_10]]</span><span style="font-family:VT323,monospace;font-size:20px;color:rgba(244,237,224,.5)">5+7</span></div>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:10px">
+<div style="font-size:13px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(244,237,224,.45)">Final</div>
+<div style="border:1px dashed rgba(244,237,224,.25);border-radius:6px;padding:16px 14px;display:flex;flex-direction:column;gap:6px">
+<div style="font-size:17px;font-weight:700">Ade and Ayo</div>
+<div style="font-size:16px;color:rgba(244,237,224,.5)">Waiting on the second semifinal</div>
+</div>
+</div>
+</div>
+<div style="padding:14px 18px;border-top:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:10px">
+<div style="font-size:16px;font-weight:600">The second semifinal is on court now.</div>
+<div style="height:56px;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">Score that match</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1v"><div class="dv-olabel"><a class="dv-oid" href="#1v">1v</a>21 Playoff match</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="padding:14px 18px;border-bottom:1px solid rgba(244,237,224,.12);display:flex;align-items:center;justify-content:space-between"><div style="font-size:14px;font-weight:800;letter-spacing:.1em;text-transform:uppercase">Semifinal <span style="font-family:VT323,monospace;font-size:20px">2</span></div><div style="font-size:17px;font-weight:700">Court 1</div></div>
+<div style="flex:1;padding:16px 18px;display:flex;flex-direction:column;gap:14px">
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;overflow:hidden">
+<div style="padding:16px 18px;display:flex;align-items:center;justify-content:space-between"><span style="font-size:22px;font-weight:700">Timi and Tumi</span><span style="font-family:VT323,monospace;font-size:22px;color:rgba(244,237,224,.5)">2+4</span></div>
+<div style="display:grid;grid-template-columns:1fr 1px 1fr;background:#D9E270">
+<div style="display:flex;align-items:center;justify-content:center;padding:10px 0"><span style="font-family:VT323,monospace;font-size:96px;line-height:.9;color:#0A1810">00</span></div>
+<div style="background:rgba(10,24,16,.28)"></div>
+<div style="display:flex;align-items:center;justify-content:center;padding:10px 0"><span style="font-family:VT323,monospace;font-size:96px;line-height:.9;color:#0A1810">00</span></div>
+</div>
+<div style="padding:16px 18px;display:flex;align-items:center;justify-content:space-between"><span style="font-size:22px;font-weight:700">Fiyin and [[PLAYER_10]]</span><span style="font-family:VT323,monospace;font-size:22px;color:rgba(244,237,224,.5)">5+7</span></div>
+</div>
+<div style="font-size:15px;color:rgba(244,237,224,.6);line-height:1.4">Winner meets Ade and Ayo in the final. Nobody sits out: the other four are on the second court.</div>
+</div>
+<div style="padding:14px 18px;border-top:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:10px">
+<div style="font-size:16px;font-weight:600;line-height:1.35">Tap the winning side to score.</div>
+<div style="display:flex;gap:10px">
+<div style="flex:1;height:56px;border:2px solid #F4EDE0;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700">Timi and Tumi</div>
+<div style="flex:1;height:56px;border:2px solid #F4EDE0;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700">Fiyin and [[PLAYER_10]]</div>
+</div>
+</div>
+<div style="padding:12px 18px 18px;font-size:15px;font-weight:600;color:rgba(244,237,224,.6);text-align:center">Back to bracket</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1w"><div class="dv-olabel"><a class="dv-oid" href="#1w">1w</a>22 Champion</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="flex:1;padding:34px 20px;display:flex;flex-direction:column;gap:20px;justify-content:center">
+<div style="font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:rgba(244,237,224,.45)">Court 1 champions</div>
+<div style="font-family:'Playfair Display',serif;font-size:46px;line-height:1.05;font-weight:600">Timi<br>and Tumi</div>
+<div style="display:grid;grid-template-columns:1fr 1px 1fr;background:#D9E270;border-radius:4px;overflow:hidden">
+<div style="display:flex;align-items:center;justify-content:center;padding:14px 0"><span style="font-family:VT323,monospace;font-size:104px;line-height:.9;color:#0A1810">21</span></div>
+<div style="background:rgba(10,24,16,.28)"></div>
+<div style="display:flex;align-items:center;justify-content:center;padding:14px 0"><span style="font-family:VT323,monospace;font-size:104px;line-height:.9;color:rgba(10,24,16,.45)">19</span></div>
+</div>
+<div style="font-size:17px;line-height:1.45;color:rgba(244,237,224,.7)">Beat Ade and Ayo in the final.</div>
+</div>
+<div style="padding:14px 18px 20px;border-top:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:10px">
+<div style="font-size:15px;color:rgba(244,237,224,.72)">Court 2 is still playing its final.</div>
+<div style="height:58px;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700">Go to Court 2</div>
+<div style="height:50px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:600;color:rgba(244,237,224,.6)">Back to bracket</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1x"><div class="dv-olabel"><a class="dv-oid" href="#1x">1x</a>23 Session summary</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="padding:14px 18px;border-bottom:1px solid rgba(244,237,224,.12);display:flex;align-items:center;justify-content:space-between"><div style="font-size:16px;font-weight:600">Close</div><div style="font-size:17px;font-weight:700">Tonight</div></div>
+<div style="flex:1;padding:18px;display:flex;flex-direction:column;gap:16px;overflow:hidden">
+<div style="font-family:'Playfair Display',serif;font-size:26px;font-weight:600;line-height:1.15">Wednesday night</div>
+<div style="display:flex;gap:20px">
+<div style="display:flex;flex-direction:column"><span style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(244,237,224,.45)">Played</span><span style="font-family:VT323,monospace;font-size:34px;line-height:1">24</span></div>
+<div style="display:flex;flex-direction:column"><span style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(244,237,224,.45)">Players</span><span style="font-family:VT323,monospace;font-size:34px;line-height:1">16</span></div>
+<div style="display:flex;flex-direction:column"><span style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(244,237,224,.45)">Voided</span><span style="font-family:VT323,monospace;font-size:34px;line-height:1">01</span></div>
+</div>
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:4px">
+<div style="font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(244,237,224,.45)">Champions</div>
+<div style="font-size:18px;font-weight:700">Court 1: Timi and Tumi</div>
+<div style="font-size:18px;font-weight:700">Court 2: Hamid and Kayode</div>
+</div>
+<div style="display:flex;flex-direction:column">
+<div style="font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(244,237,224,.45);padding-bottom:8px">Final standings, Court 1</div>
+<div style="display:flex;align-items:baseline;padding:9px 0;border-top:1px solid rgba(244,237,224,.1);font-family:VT323,monospace;font-size:22px"><span style="width:24px">1</span><span style="flex:1;font-family:Inter,sans-serif;font-size:16px;font-weight:700">Ade</span><span style="width:34px;text-align:right">3</span><span style="width:44px;text-align:right">+18</span><span style="width:34px;text-align:right">9</span></div>
+<div style="display:flex;align-items:baseline;padding:9px 0;border-top:1px solid rgba(244,237,224,.1);font-family:VT323,monospace;font-size:22px"><span style="width:24px">2</span><span style="flex:1;font-family:Inter,sans-serif;font-size:16px;font-weight:700">Timi</span><span style="width:34px;text-align:right">3</span><span style="width:44px;text-align:right">+11</span><span style="width:34px;text-align:right">6</span></div>
+<div style="display:flex;align-items:baseline;padding:9px 0;border-top:1px solid rgba(244,237,224,.1);font-family:VT323,monospace;font-size:22px"><span style="width:24px">3</span><span style="flex:1;font-family:Inter,sans-serif;font-size:16px;font-weight:700">Ayo</span><span style="width:34px;text-align:right">3</span><span style="width:44px;text-align:right">+4</span><span style="width:34px;text-align:right">6</span></div>
+<div style="display:flex;align-items:baseline;padding:9px 0;border-top:1px solid rgba(244,237,224,.1);border-bottom:1px solid rgba(244,237,224,.1);font-family:VT323,monospace;font-size:22px"><span style="width:24px">4</span><span style="flex:1;font-family:Inter,sans-serif;font-size:16px;font-weight:700">Tumi</span><span style="width:34px;text-align:right">2</span><span style="width:44px;text-align:right">+2</span><span style="width:34px;text-align:right">3</span></div>
+</div>
+</div>
+<div style="padding:14px 18px 20px;border-top:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:10px">
+<div style="font-size:15px;color:rgba(244,237,224,.72)">Plain text, ready to paste. Works any time tonight.</div>
+<div style="height:58px;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700">Copy for WhatsApp</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1y"><div class="dv-olabel"><a class="dv-oid" href="#1y">1y</a>24 Empty, roster search</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="padding:18px 18px 12px;display:flex;flex-direction:column;gap:12px;border-bottom:1px solid rgba(244,237,224,.12)">
+<div style="font-size:24px;font-weight:700">Who is here?</div>
+<div style="height:48px;border:2px solid #F4EDE0;border-radius:6px;display:flex;align-items:center;padding:0 14px;font-size:16px;font-weight:600">Bols</div>
+</div>
+<div style="flex:1;padding:28px 18px;display:flex;flex-direction:column;gap:14px;align-items:flex-start">
+<div style="font-size:20px;font-weight:700;line-height:1.3">Nobody in the roster matches "Bols".</div>
+<div style="font-size:16px;line-height:1.45;color:rgba(244,237,224,.68)">Walk-ins are normal. Add the name and they play tonight only.</div>
+<div style="height:56px;border:2px solid #F4EDE0;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;padding:0 20px">Add "Bols" as a walk-in</div>
+<div style="font-size:15px;font-weight:600;color:rgba(244,237,224,.6)">Clear the search</div>
+</div>
+<div style="padding:14px 18px 20px;border-top:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:10px">
+<div style="font-size:15px;color:rgba(244,237,224,.72)"><span style="font-family:VT323,monospace;font-size:22px">15</span> in tonight.</div>
+<div style="height:58px;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700">Next: courts</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1z"><div class="dv-olabel"><a class="dv-oid" href="#1z">1z</a>25 Empty, court unassigned</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="padding:14px 18px;border-bottom:1px solid rgba(244,237,224,.12);display:flex;gap:10px">
+<div style="flex:1;border:1px solid rgba(244,237,224,.18);border-radius:6px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:16px;font-weight:700">Court 1</span><span style="font-size:13px;font-weight:600">Mid-match</span></div>
+<div style="flex:1;border:2px solid #F4EDE0;background:#D9E270;color:#0A1810;border-radius:6px;padding:10px 12px;display:flex;flex-direction:column;gap:2px"><span style="font-size:16px;font-weight:700">Court 2</span><span style="font-size:13px;font-weight:600">Nobody assigned</span></div>
+</div>
+<div style="flex:1;padding:28px 18px;display:flex;flex-direction:column;gap:14px;align-items:flex-start">
+<div style="font-family:VT323,monospace;font-size:64px;line-height:.9">00</div>
+<div style="font-size:20px;font-weight:700;line-height:1.3">Court 2 has nobody on it yet.</div>
+<div style="font-size:16px;line-height:1.45;color:rgba(244,237,224,.68);text-wrap:pretty">Court 1 is carrying <span style="font-family:VT323,monospace;font-size:20px">16</span> players, so the bench is long. Move half of them over and both courts run at once.</div>
+</div>
+<div style="padding:14px 18px;border-top:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:10px">
+<div style="font-size:16px;font-weight:600">Court 2 is empty.</div>
+<div style="height:56px;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">Assign players to Court 2</div>
+</div>
+<div style="display:flex;border-top:1px solid rgba(244,237,224,.12)">
+<div style="flex:1;height:60px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-top:3px solid #F4EDE0">Match</div>
+<div style="flex:1;height:60px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-top:3px solid transparent;color:rgba(244,237,224,.45)">Players</div>
+<div style="flex:1;height:60px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-top:3px solid transparent;color:rgba(244,237,224,.45)">Standings</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1aa"><div class="dv-olabel"><a class="dv-oid" href="#1aa">1aa</a>26 Error, score would not save</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif">
+<div style="padding:14px 18px;border-bottom:1px solid rgba(244,237,224,.12);display:flex;align-items:center;justify-content:space-between"><div style="font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(244,237,224,.45)">Round <span style="font-family:VT323,monospace;font-size:20px">2</span> of <span style="font-family:VT323,monospace;font-size:20px">3</span></div><div style="font-size:17px;font-weight:700">Court 1</div></div>
+<div style="flex:1;padding:20px 18px;display:flex;flex-direction:column;gap:16px">
+<div style="border:2px solid #EF4444;border-radius:6px;padding:16px;display:flex;flex-direction:column;gap:10px">
+<div style="font-size:20px;font-weight:700;line-height:1.3;color:#FF9382">The score did not save. This phone is offline.</div>
+<div style="font-size:16px;line-height:1.45">It is held on this phone and goes up as soon as there is signal. Keep scoring.</div>
+</div>
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:8px">
+<div style="font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(244,237,224,.45)">Waiting to go up</div>
+<div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font-size:16px;font-weight:600">Court 1, match 5</span><span style="font-family:VT323,monospace;font-size:24px">21 14</span></div>
+<div style="display:flex;align-items:baseline;justify-content:space-between"><span style="font-size:16px;font-weight:600">Court 2, match 4</span><span style="font-family:VT323,monospace;font-size:24px">21 09</span></div>
+</div>
+<div style="font-size:15px;color:rgba(244,237,224,.6);line-height:1.45;margin-top:auto">If the phone dies before signal returns, use Copy for WhatsApp at any point to get tonight out in plain text.</div>
+</div>
+<div style="padding:14px 18px 20px;border-top:1px solid rgba(244,237,224,.12);display:flex;flex-direction:column;gap:10px">
+<div style="font-size:15px;color:rgba(244,237,224,.72)"><span style="font-family:VT323,monospace;font-size:22px">2</span> results are queued.</div>
+<div style="height:58px;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700">Try again now</div>
+</div>
+</div>
+</div></div>
+
+<div class="dv-opt" id="1ab"><div class="dv-olabel"><a class="dv-oid" href="#1ab">1ab</a>27 Confirmation, end the night</div>
+<div class="dv-card" style="width:390px">
+<div style="width:390px;height:780px;box-sizing:border-box;display:flex;flex-direction:column;background:#0E2418;color:#F4EDE0;font-family:Inter,system-ui,sans-serif;position:relative">
+<div style="flex:1;padding:16px 18px;display:flex;flex-direction:column;gap:12px;opacity:.35">
+<div style="font-size:20px;font-weight:700">Tonight</div>
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;height:90px"></div>
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;height:150px"></div>
+</div>
+<div style="position:absolute;inset:0;background:rgba(244,237,224,.35)"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;background:#173724;border-top:2px solid #EF4444;border-radius:10px 10px 0 0;padding:18px 18px 22px;display:flex;flex-direction:column;gap:14px">
+<div style="width:44px;height:4px;border-radius:999px;background:rgba(244,237,224,.2);align-self:center"></div>
+<div style="font-size:22px;font-weight:700;color:#FF9382">End the night?</div>
+<div style="font-size:16px;line-height:1.45;text-wrap:pretty">Court 2 still has its final to play. Ending now closes both courts and no more scores can be recorded.</div>
+<div style="border:1px solid rgba(244,237,224,.18);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:6px">
+<div style="font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:rgba(244,237,224,.45)">What is kept</div>
+<div style="font-size:16px">All <span style="font-family:VT323,monospace;font-size:20px">24</span> results, both standings, Court 1 champions</div>
+<div style="font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#FF9382;margin-top:6px">What is lost</div>
+<div style="font-size:16px">The Court 2 final, unplayed</div>
+</div>
+<div style="height:58px;border-radius:6px;border:2px solid #EF4444;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700;color:#FF9382">End the night</div>
+<div style="height:50px;border-radius:6px;background:#D9E270;color:#0A1810;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700">Keep playing</div>
+</div>
+</div>
+</div></div>
+
+</div>
+<p class="dv-next">Try next: "fill the [[PLAYER_n]] tokens from this roster" · "show the one-court variant of <a class="dv-oid" href="#1h">1h</a> and <a class="dv-oid" href="#1i">1i</a>" · "make <a class="dv-oid" href="#1k">1k</a> the dark court view for reading across the net"</p>
+</section>
+</x-dc>
+</body>
+</html>
