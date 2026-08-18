@@ -150,7 +150,12 @@ const StickyBar = memo(({ onDismiss }: { onDismiss: () => void }) => {
       className="skl-sticky"
     >
       <p className="skl-label skl-sticky__fact">Skill Lab · 6 per cohort</p>
-      <a className="rly-pill skl-cta" href={ctaHref()}>
+      <a
+        className="rly-pill skl-cta"
+        href={ctaHref()}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
         Join
       </a>
       <button
@@ -224,7 +229,12 @@ const SkillsLab = () => {
                 keep hitting the same ceiling.
               </p>
               <div className="skl-hero__action">
-                <a className="rly-pill skl-cta" href={ctaHref()}>
+                <a
+                  className="rly-pill skl-cta"
+                  href={skillsLab.cohortUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   {CTA_LABEL}
                 </a>
                 <span className="skl-label skl-hero__price">
@@ -486,7 +496,12 @@ const SkillsLab = () => {
                     <div className="skl-price__row">6 players maximum</div>
                     <div className="skl-price__row">Complimentary Club PTO Meet</div>
                   </div>
-                  <a className="rly-pill skl-cta" href={ctaHref()}>
+                  <a
+                    className="rly-pill skl-cta"
+                    href={skillsLab.cohortUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     {CTA_LABEL}
                   </a>
                   {isSet(skillsLab.sessionDay) &&
@@ -508,8 +523,13 @@ const SkillsLab = () => {
                     <p className="skl-price__desc">
                       Two sessions across back-to-back weeks.
                     </p>
-                    <a className="rly-pill rly-pill--ghost skl-cta" href={ctaHref()}>
-                      Book two
+                    <a
+                      className="rly-pill rly-pill--ghost skl-cta"
+                      href={skillsLab.twoSessionPackUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Book
                     </a>
                   </motion.div>
                 )}
@@ -523,8 +543,13 @@ const SkillsLab = () => {
                     Not ready to commit to four weeks? Try one session and see
                     what Skill Lab is about.
                   </p>
-                  <a className="rly-pill rly-pill--ghost skl-cta" href={ctaHref()}>
-                    Book a session
+                  <a
+                    className="rly-pill rly-pill--ghost skl-cta"
+                    href={skillsLab.singleSessionUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Book
                   </a>
                 </motion.div>
               </div>
@@ -611,7 +636,12 @@ const SkillsLab = () => {
               different player. Come find out.
             </motion.p>
             <motion.div variants={fadeUp}>
-              <a className="rly-pill skl-cta" href={ctaHref()}>
+              <a
+                className="rly-pill skl-cta"
+                href={skillsLab.cohortUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 {CTA_LABEL}
               </a>
             </motion.div>
