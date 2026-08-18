@@ -22,15 +22,26 @@ export const skillsLab = {
   showTwoSessionPack: true,
   twoSessionPackPrice: 99,
   singleSessionPrice: 60,
-  registrationUrl: TODO, // where all CTAs resolve
+  /** The Skills Lab category page on Acuity — all three offers. */
+  registrationUrl:
+    "https://app.acuityscheduling.com/schedule/f86e2580/?categories[]=Skills%20Lab",
+  /** Direct booking links per offer (Benson, 2026-08-17). */
+  cohortUrl:
+    "https://app.acuityscheduling.com/schedule/f86e2580/appointment/97226735/calendar/12767324/datetime/2026-08-31T17%3A00%3A00-04%3A00?categories%5B%5D=Skills+Lab",
+  singleSessionUrl:
+    "https://app.acuityscheduling.com/schedule/f86e2580/appointment/97226649/calendar/12767324/datetime/2026-08-30T05%3A00%3A00-04%3A00?categories%5B%5D=Skills+Lab",
+  twoSessionPackUrl:
+    "https://app.acuityscheduling.com/schedule/f86e2580/appointment/97226697/calendar/12767324/datetime/2026-08-30T05%3A00%3A00-04%3A00?categories%5B%5D=Skills+Lab",
 } as const;
 
 /** True when Benson has filled the value in. */
 export const isSet = (value: string): boolean => value !== TODO;
 
 /**
- * Every CTA on the page resolves here. Until the registration URL lands,
- * CTAs anchor to the pricing section so the page stays shippable for review.
+ * The general CTA target: the Acuity category page with all three offers.
+ * Offer-specific buttons link their own booking URLs directly; anything
+ * neutral resolves here. The #pricing fallback stays as the safety net
+ * should the URL ever be reset to TODO.
  */
 export const ctaHref = (): string =>
   isSet(skillsLab.registrationUrl) ? skillsLab.registrationUrl : "#pricing";
