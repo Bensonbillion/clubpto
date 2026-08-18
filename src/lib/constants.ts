@@ -17,6 +17,7 @@ export const navItems = [
   { label: "Community", href: "/community" },
   { label: "Partners", href: "/partners" },
   { label: "FAQ", href: "/faq" },
+  { label: "Members", href: "/club" },
 ] as const;
 
 // Social links
