@@ -154,6 +154,49 @@ export async function updateMyProfile(fields: {
   return {};
 }
 
+export interface LinkInvite {
+  playerId: string;
+  displayName: string | null;
+}
+
+/** The club's pending link assignment for this member, if any (RLS scopes
+    the invite table to the signed-in member's own email). */
+export async function getMyInvite(): Promise<LinkInvite | null> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData.session) return null;
+  const { data: invite } = await supabase
+    .from("clubhouse_link_invite")
+    .select("player_id")
+    .maybeSingle();
+  if (!invite) return null;
+  const { data: roster } = await supabase
+    .from("clubhouse_roster")
+    .select("display_name")
+    .eq("player_id", invite.player_id)
+    .maybeSingle();
+  return { playerId: invite.player_id, displayName: roster?.display_name ?? null };
+}
+
+/**
+ * Accept the club's assignment. The insert IS the consent: the stamp is
+ * required by the links RLS, and only an invited (email, player) pair can
+ * pass it — an admin can never consent on a member's behalf. The invite
+ * row cleans up after the accept.
+ */
+export async function acceptLinkInvite(playerId: string): Promise<{ error?: string }> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user?.id;
+  if (!userId) return { error: "You're signed out. Refresh and try again." };
+  const { error } = await supabase.from("clubhouse_links").insert({
+    auth_user_id: userId,
+    player_id: playerId,
+    consent_publication_at: new Date().toISOString(),
+  });
+  if (error) return { error: friendly(error.message) };
+  await supabase.from("clubhouse_link_invite").delete().eq("player_id", playerId);
+  return {};
+}
+
 export async function getSessionEmail(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
   return data.session?.user?.email ?? null;
