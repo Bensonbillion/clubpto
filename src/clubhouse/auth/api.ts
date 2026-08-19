@@ -115,6 +115,45 @@ export async function ensureProfile(): Promise<void> {
   );
 }
 
+export interface MemberProfile {
+  fullName: string;
+  email: string;
+  phone: string;
+}
+
+/** The signed-in member's own row in the book (owner-only RLS). */
+export async function getMyProfile(): Promise<MemberProfile | null> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user?.id;
+  if (!userId) return null;
+  const { data } = await supabase
+    .from("clubhouse_member_profile")
+    .select("full_name, email, phone")
+    .eq("auth_user_id", userId)
+    .maybeSingle();
+  if (!data) return null;
+  return { fullName: data.full_name, email: data.email, phone: data.phone };
+}
+
+/** Fill the gaps in your own row — the in-room prompt's save. */
+export async function updateMyProfile(fields: {
+  fullName?: string;
+  phone?: string;
+}): Promise<{ error?: string }> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData.session?.user?.id;
+  if (!userId) return { error: "You're signed out. Refresh and try again." };
+  const patch: Record<string, string> = { updated_at: new Date().toISOString() };
+  if (fields.fullName !== undefined) patch.full_name = fields.fullName.trim();
+  if (fields.phone !== undefined) patch.phone = fields.phone.trim();
+  const { error } = await supabase
+    .from("clubhouse_member_profile")
+    .update(patch)
+    .eq("auth_user_id", userId);
+  if (error) return { error: friendly(error.message) };
+  return {};
+}
+
 export async function getSessionEmail(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
   return data.session?.user?.email ?? null;
@@ -151,49 +190,6 @@ export async function getMyIdentity(): Promise<ClubIdentity | null> {
     displayName,
     revoked: link.revoked,
   };
-}
-
-export interface ClaimablePlayer {
-  playerId: string;
-  displayName: string;
-}
-
-/** Names available in the find-your-name picker (AUTH-5). */
-export async function listClaimable(): Promise<ClaimablePlayer[]> {
-  const { data } = await supabase
-    .from("clubhouse_roster")
-    .select("player_id, display_name")
-    .eq("claimable", true)
-    .order("display_name");
-  return (data ?? []).map((r) => ({ playerId: r.player_id, displayName: r.display_name }));
-}
-
-/**
- * Claim a roster name. One link per auth user (PK) and per player (unique):
- * a second claim of a claimed player errors and surfaces to the club (AUTH-6).
- * Claiming stamps publication consent (PRIV-1) — the UI shows the consent
- * checkbox before enabling the claim button.
- */
-export async function claimPlayer(playerId: string): Promise<{ error?: string }> {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const userId = sessionData.session?.user?.id;
-  if (!userId) return { error: "You're signed out. Refresh and try again." };
-
-  const { error } = await supabase.from("clubhouse_links").insert({
-    auth_user_id: userId,
-    player_id: playerId,
-    consent_publication_at: new Date().toISOString(),
-  });
-  if (error) {
-    if (error.code === "23505") {
-      return {
-        error:
-          "That name is already claimed. If it's yours, message the club and we'll sort it out.",
-      };
-    }
-    return { error: friendly(error.message) };
-  }
-  return {};
 }
 
 function friendly(message: string): string {
