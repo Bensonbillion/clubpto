@@ -7,14 +7,15 @@
 -- So clubhouse_roster and game_state are neighbours, not strangers, and the
 -- rest of this header is written on that basis. Idempotent: safe to re-run.
 --
--- UNAPPLIED as of 2026-08-18. It is written so the owner can decide, not
--- because the decision is made. See docs/manage/roster-source.md.
+-- APPLIED 2026-08-18 to flahcijysipymafazhxq (main, production), by hand in
+-- the SQL editor. Verified from outside immediately after: the anon key reads
+-- 66 rows from clubhouse_roster, and game_state still answers an anon write
+-- with 42501. See docs/manage/roster-source.md.
 --
 -- THE PROBLEM
 --
--- clubhouse_roster has exactly one SELECT policy, "roster read for
--- authenticated" from 001_clubhouse.sql, and the manager's door is a
--- passcode rather than a login. There is no auth session behind that door,
+-- clubhouse_roster had exactly one SELECT policy, "roster read for
+-- authenticated", and the manager's door is a passcode rather than a login. There is no auth session behind that door,
 -- so the app reads as anon, and an anon read against an authenticated-only
 -- policy is not an error. It returns zero rows with HTTP 200. Verified live.
 -- The manager cannot tell that apart from an empty table, which is why the
@@ -65,9 +66,21 @@
 --
 --   drop policy if exists "roster read for anon" on clubhouse_roster;
 --
--- Note that the existing authenticated policy is `using (true)`, so it does
--- not filter hidden rows. If the passcode function ships, move the hidden
--- filter into that policy or into the query, or hidden members reappear.
+-- The authenticated policy already filters hidden, so nothing has to move
+-- with it. Read that carefully though, because the REPO IS WRONG ABOUT THIS.
+-- 001_clubhouse.sql:117 creates the policy `using (true)`. What is actually
+-- running on the database, read out of pg_policies on 2026-08-18, is:
+--
+--   (is_engine_admin()
+--    OR (hidden = false)
+--    OR (player_id IN (select l.player_id from clubhouse_links l
+--                      where l.auth_user_id = auth.uid() and not l.revoked)))
+--
+-- No migration in this repo produces that. Somebody tightened it in the
+-- dashboard and it was never written down, so the file and the database have
+-- been telling different stories for a while. This note is where that stops
+-- being invisible. Before changing anything on clubhouse_roster, read
+-- pg_policies rather than 001_clubhouse.sql.
 --
 -- ROLLBACK
 --

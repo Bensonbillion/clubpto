@@ -113,6 +113,13 @@ alter table clubhouse_totals    enable row level security;
 alter table clubhouse_rivalries enable row level security;
 
 -- Claim picker: signed-in users may read claimable names.
+--
+-- STALE AS OF 2026-08-18. The policy below says `using (true)`. What is
+-- actually running on flahcijysipymafazhxq, read out of pg_policies, is
+-- `is_engine_admin() OR hidden = false OR (your own linked row)`. It was
+-- tightened in the dashboard and never written back here. Re-running this
+-- file as written would LOOSEN production. Read pg_policies before touching
+-- clubhouse_roster. See supabase/migrations/20260818_clubhouse_roster_anon_read.sql.
 drop policy if exists "roster read for authenticated" on clubhouse_roster;
 create policy "roster read for authenticated"
   on clubhouse_roster for select to authenticated using (true);

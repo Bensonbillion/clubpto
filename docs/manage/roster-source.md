@@ -40,14 +40,15 @@ re-run `scripts/gen-manage-roster.mjs`, commit both, deploy.
 
 ## What an operator actually sees
 
-**The list, 66 names, no fuss.** The refresh returned nothing and the bundled
-names carried the screen. This is what every device gets today, because
-`clubhouse_roster` has only an authenticated SELECT policy and the passcode
-door creates no auth session, so the anon read comes back empty with HTTP 200.
-Nothing is broken and nothing is announced.
+**The list, 66 names, no fuss, and no extra line.** The refresh landed and
+returned the club's rows. This is the normal state since the anon read policy
+was applied on 2026-08-18. Names added to `clubhouse_roster` since the last
+deploy appear here without one. Nobody is dropped, by design.
 
-**The list, including someone who joined after the last deploy.** The refresh
-landed. Names added since the build appear. Nobody is dropped, by design.
+**The same list, plus a line saying it is the copy saved on this device.** The
+refresh did not land: no network, or the policy was rolled back, or the request
+passed its six second deadline. The bundled names carry the screen and the
+night runs exactly as it would have. The line is the only difference.
 
 **No list at all.** This state does not exist and there is no screen for it.
 The wizard always has the bundled names, so a frame reading "Tonight's
@@ -56,15 +57,21 @@ was drawn, and it was deleted rather than wired. What the wizard says instead
 is one quiet line naming which list it is showing, and that line is true in
 every state.
 
-## The open decision
+## How it is closed, and how to undo it
 
-Three ways to close the gap. Pick one.
+**Applied: the anon-read policy.** `supabase/migrations/20260818_clubhouse_roster_anon_read.sql`
+went in on 2026-08-18. First names and ids are readable without a login,
+scoped to non-hidden rows. Verified from outside the same minute: the anon key
+reads 66 rows, and `game_state` still answers an anon write with 42501.
 
-**Apply the anon-read migration.** `supabase/migrations/20260818_clubhouse_roster_anon_read.sql`,
-unapplied. First names and ids become readable without a login, scoped to
-non-hidden rows. The refresh starts working tonight, on the phone that is
-already in the building. Fully reversible: one `drop policy` returns the table
-to exactly its current behaviour, and nothing else changes.
+To undo it, one statement, and nothing else changes:
+
+```sql
+drop policy if exists "roster read for anon" on clubhouse_roster;
+```
+
+The two alternatives below were the other ways to close the same gap. They are
+kept because either would let the policy above be dropped.
 
 **Deploy the passcode Edge Function (Part B).** It mints a real session behind
 the door, so the app reads as `authenticated` and the policy that already
@@ -72,7 +79,7 @@ exists covers the read. No policy change, but it is a service to build,
 deploy and keep alive, and the existing policy does not filter `hidden`, so
 that filter has to move with it.
 
-**Leave it bundled-only.** Nothing to apply and nothing to run. The roster is
+**Leave it bundled-only.** Drop the policy. Nothing to run. The roster is
 correct as of the last deploy, and changing it means a code change and a
 redeploy, which for a list that turns over a few names a season may simply be
 the honest cost.
