@@ -4,6 +4,7 @@ import { clubhouse as supabase } from "@/clubhouse/supabaseClient";
 import logoWordmarkCream from "@/assets/logo-wordmark-cream.png";
 import {
   claimPlayer,
+  ensureProfile,
   getMyIdentity,
   listClaimable,
   requestPasswordSetup,
@@ -36,6 +37,8 @@ const Club = () => {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [identity, setIdentity] = useState<ClubIdentity | null>(null);
@@ -49,6 +52,10 @@ const Club = () => {
       setStage("signedOut");
       return;
     }
+    // Every signed-in member lands in the outreach book; insert-if-missing,
+    // so this never overwrites anything. Not awaited — the door doesn't
+    // wait on bookkeeping.
+    void ensureProfile();
     setIdentity(id);
     if (id.revoked) setStage("revoked");
     else if (!id.playerId) {
@@ -93,7 +100,7 @@ const Club = () => {
     setBusy(true);
     setError(null);
     if (mode === "signup") {
-      const res = await signUpWithPassword(email, password);
+      const res = await signUpWithPassword(email, password, fullName, phone);
       setBusy(false);
       if (res.error) setError(res.error);
       else if (res.confirmationPending) setStage("confirmSent");
@@ -206,6 +213,32 @@ const Club = () => {
               </p>
             </div>
             <form className="rly-form" style={{ marginTop: "2rem" }} onSubmit={submitAuth}>
+              {mode === "signup" && (
+                <>
+                  <label>
+                    Full name
+                    <input
+                      type="text"
+                      required
+                      autoComplete="name"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Phone
+                    <input
+                      type="tel"
+                      required
+                      minLength={7}
+                      autoComplete="tel"
+                      placeholder="(416) 555 0100"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                    />
+                  </label>
+                </>
+              )}
               <label>
                 Email
                 <input

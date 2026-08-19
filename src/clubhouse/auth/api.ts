@@ -16,17 +16,24 @@ export interface ClubIdentity {
   revoked?: boolean;
 }
 
-/** Create an account. When email confirmation is on (the project default),
-    the session arrives only after the confirmation link is tapped — the
-    caller shows the check-your-email state when `confirmationPending`. */
+/** Create an account. Name and phone ride the auth payload as user
+    metadata, so the capture happens at signup time even if the member
+    never finishes email confirmation — ensureProfile() materializes the
+    row on first sign-in. When email confirmation is on (the project
+    default), the session arrives only after the confirmation link is
+    tapped — the caller shows the check-your-email state when
+    `confirmationPending`. */
 export async function signUpWithPassword(
   email: string,
-  password: string
+  password: string,
+  fullName: string,
+  phone: string
 ): Promise<{ error?: string; confirmationPending?: boolean }> {
   const { data, error } = await supabase.auth.signUp({
     email: email.trim().toLowerCase(),
     password,
     options: {
+      data: { full_name: fullName.trim(), phone: phone.trim() },
       emailRedirectTo: `${window.location.origin}${import.meta.env.BASE_URL}club`,
     },
   });
@@ -85,6 +92,27 @@ export async function setNewPassword(password: string): Promise<{ error?: string
   const { error } = await supabase.auth.updateUser({ password });
   if (error) return { error: friendly(error.message) };
   return {};
+}
+
+/**
+ * The signed-in member's row in the outreach book. Insert-if-missing from
+ * the session's metadata — never an overwrite, so later edits survive
+ * every sign-in. Fire-and-forget from the door's resolve().
+ */
+export async function ensureProfile(): Promise<void> {
+  const { data } = await supabase.auth.getSession();
+  const user = data.session?.user;
+  if (!user) return;
+  const meta = (user.user_metadata ?? {}) as { full_name?: string; phone?: string };
+  await supabase.from("clubhouse_member_profile").upsert(
+    {
+      auth_user_id: user.id,
+      full_name: meta.full_name ?? "",
+      email: user.email ?? "",
+      phone: meta.phone ?? "",
+    },
+    { onConflict: "auth_user_id", ignoreDuplicates: true }
+  );
 }
 
 export async function getSessionEmail(): Promise<string | null> {
