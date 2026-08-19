@@ -10,8 +10,9 @@
 // headline and the walk-in button, because the fastest fix for a name that is
 // not on the list is to add it.
 
+import { useRef } from "react";
 import { Body, FooterBar, Num, PrimaryButton, Screen, SecondaryButton, T, TertiaryButton } from "../../ui/primitives";
-import { H1, SETUP, StepCounter, Sub, TopBar } from "./shell";
+import { H1, QuietLine, SETUP, StepCounter, Sub, TopBar } from "./shell";
 
 /** Inline styles cannot reach ::placeholder, and the spec fixes its colour. */
 const SEARCH_CSS = `.setup-roster-search::placeholder{color:rgba(244,237,224,.45);opacity:1}`;
@@ -21,6 +22,13 @@ export interface RosterRow {
   displayName: string;
   /** Ticked people are in tonight. Walk-ins arrive already ticked. */
   ticked: boolean;
+  /**
+   * A quiet second line under the name, set only when unticking will not
+   * actually remove the person. Somebody who has played is pinned in the night
+   * by their own results, and that is the one thing a row cannot say by
+   * itself.
+   */
+  note?: string | null;
 }
 
 export interface WhoIsHereProps {
@@ -30,6 +38,16 @@ export interface WhoIsHereProps {
    * footer count is not, so it keeps counting people the search hides.
    */
   rows: RosterRow[];
+  /**
+   * Where these names came from, when it is worth saying. Null when the club
+   * list loaded and there is nothing to explain.
+   *
+   * There is no error variant of this screen, and that is deliberate: the
+   * roster falls back to the copy that ships with the app, so there is no
+   * state where the list is missing. A screen offering to retry a load that
+   * already succeeded would be a lie with a button on it.
+   */
+  rosterNote?: string | null;
   /** The live search text. Empty shows the placeholder. */
   query: string;
   onQueryChange: (query: string) => void;
@@ -56,8 +74,9 @@ const Checkbox = ({ on }: { on: boolean }) => (
 );
 
 export const WhoIsHere = ({
-  rows, query, onQueryChange, onToggle, onAddWalkIn, onAddWalkInNamed, onClearSearch, onBack, onNext,
+  rows, rosterNote, query, onQueryChange, onToggle, onAddWalkIn, onAddWalkInNamed, onClearSearch, onBack, onNext,
 }: WhoIsHereProps) => {
+  const searchRef = useRef<HTMLInputElement>(null);
   const trimmed = query.trim();
   const needle = trimmed.toLowerCase();
   const visible = needle === ""
@@ -77,7 +96,9 @@ export const WhoIsHere = ({
       <div style={{ padding: "18px 18px 12px", display: "flex", flexDirection: "column", gap: 12 }}>
         <H1>Who is here?</H1>
         <Sub>Only the people you tick get put into matches.</Sub>
+        {rosterNote && <QuietLine>{rosterNote}</QuietLine>}
         <input
+          ref={searchRef}
           className="setup-roster-search"
           value={query}
           placeholder="Search the roster"
@@ -114,7 +135,9 @@ export const WhoIsHere = ({
           </TertiaryButton>
         </Body>
       ) : (
-        <Body>
+        // `overscrollBehavior` keeps a flick at the end of 66 rows inside the
+        // list instead of dragging the page and unpinning the footer on iOS.
+        <Body style={{ overscrollBehavior: "contain" }}>
           {visible.map((row) => (
             <button
               key={row.playerId}
@@ -129,14 +152,31 @@ export const WhoIsHere = ({
                 display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
               }}
             >
-              <span style={{ font: "600 16px Inter, sans-serif" }}>{row.displayName}</span>
+              <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                <span style={{ font: "600 16px Inter, sans-serif" }}>{row.displayName}</span>
+                {row.note && (
+                  <span style={{ font: "400 13px/1.35 Inter, sans-serif", color: T.ink55 }}>
+                    {row.note}
+                  </span>
+                )}
+              </span>
               <Checkbox on={row.ticked} />
             </button>
           ))}
 
+          {/*
+            With a 66 name roster this row sits about 3300px down, and it used
+            to do nothing at all when the search box was empty: a silent no-op
+            at the end of a long scroll. When there is nothing typed it now
+            sends the operator back to the field, which is where the name has
+            to go anyway.
+          */}
           <button
             type="button"
-            onClick={onAddWalkIn}
+            onClick={() => {
+              if (trimmed === "") { searchRef.current?.focus(); return; }
+              onAddWalkIn();
+            }}
             style={{
               width: "100%", boxSizing: "border-box", cursor: "pointer", textAlign: "left",
               border: "none", borderTop: `1px solid ${SETUP.lineRow}`, background: "transparent",

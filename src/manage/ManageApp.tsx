@@ -12,6 +12,9 @@ import { useEffect, useMemo, useState } from "react";
 import { ensureManageFonts } from "./ui/fonts";
 import { T } from "./ui/primitives";
 import { useManageSession } from "./useSession";
+import { useRoster } from "./roster/useRoster";
+import { dedupeWalkIn } from "./roster/merge";
+import { appearsInAMatch } from "./engine/roster-guard";
 import { validTargets, totalMatches } from "./engine/rotation";
 import { POINTS_PER_WIN } from "./engine/standings";
 import { Passcode, PasscodeFailed, HomeNothingRunning, HomeNightInProgress } from "./screens/door-home";
@@ -35,6 +38,7 @@ export default function ManageApp() {
   useEffect(ensureManageFonts, []);
 
   const s = useManageSession();
+  const roster = useRoster();
 
   // Navigation only. Nothing here is part of the night.
   const [entered, setEntered] = useState("");
@@ -44,7 +48,6 @@ export default function ManageApp() {
   const [step, setStep] = useState<Step>("night");
   const [night, setNight] = useState("Wednesday");
   const [query, setQuery] = useState("");
-  const [ticked, setTicked] = useState<Record<string, boolean>>({});
   const [courtCount, setCourtCount] = useState(2);
   const [target, setTargetLocal] = useState(4);
   const [court, setCourt] = useState(1);
@@ -52,6 +55,21 @@ export default function ManageApp() {
   const [scoring, setScoring] = useState<"A" | "B" | null>(null);
   // Home is a destination you choose, not somewhere Start throws you.
   const [atCourt, setAtCourt] = useState(false);
+
+  /**
+   * Opening the wizard, with the court count read back off the night.
+   *
+   * The wizard is reachable mid-night, and `courtCount` is local navigation
+   * state that starts at 2. Walking back in on a three court night and pressing
+   * Next through step 2 called setCourts([1, 2]), which drops court 3 and
+   * orphans every match played on it. Reading the real count on the way in is
+   * what stops a visit to the roster from quietly deleting a court.
+   */
+  const enterSetup = (to: Step = "night") => {
+    if (s.session.courts.length > 0) setCourtCount(s.session.courts.length);
+    setInSetup(true);
+    setStep(to);
+  };
   // Overlays and side-trips. All navigation, none of it part of the night.
   const [sheet, setSheet] = useState<null | "extend" | "late" | "switcher" | "summary">(null);
   const [editing, setEditing] = useState<string | null>(null);
@@ -87,7 +105,7 @@ export default function ManageApp() {
       <HomeNothingRunning
         loading={s.loading}
         lastSessionDayName={null}
-        onStartTonight={() => { setInSetup(true); setStep("night"); }}
+        onStartTonight={() => enterSetup()}
       />
     );
   }
@@ -101,7 +119,7 @@ export default function ManageApp() {
         dayName={s.session.dayLabel || night}
         waiting={waiting}
         onResume={() => setAtCourt(true)}
-        onStartDifferentNight={() => { setInSetup(true); setStep("night"); }}
+        onStartDifferentNight={() => enterSetup()}
       />
     );
   }
@@ -122,25 +140,92 @@ export default function ManageApp() {
     }
 
     if (step === "who") {
-      const rows = s.session.players.map((p) => ({
-        playerId: p.id, displayName: p.name, ticked: ticked[p.id] ?? true,
-      }));
+      // The roster is a CATALOGUE of people the club knows. The session is who
+      // is actually here. Ticking is the act that moves somebody from the first
+      // into the second, which is why there is no local `ticked` map any more:
+      // the tick state IS the session, and a screen that kept its own copy
+      // could say "ticked" about somebody the night had never heard of.
+      const inNight = new Map(s.session.players.map((p) => [p.id, p]));
+      const catalogued = new Set(roster.names.map((r) => r.playerId));
+      // Two different sentences, because "Played 0" is nonsense and that is
+      // exactly what the first draft said about the four people standing on
+      // court. appearsInAMatch counts the live match; matchesPlayedBy counts
+      // only finished ones, so somebody mid-rally is pinned in the night with
+      // nothing yet to show for it.
+      const noteFor = (playerId: string) => {
+        if (!appearsInAMatch(s.session.matches, playerId)) return null;
+        const done = s.matchesPlayedBy(playerId);
+        return done > 0
+          ? `Played ${done}. Unticking keeps the results.`
+          : "On court now. Unticking stops new matches.";
+      };
+
+      const rows = [
+        ...roster.names.map((r) => {
+          const p = inNight.get(r.playerId);
+          // `away` unticks the row, so this count and the Players tab's
+          // attendance count are always the same number.
+          return { playerId: r.playerId, displayName: r.displayName,
+                   ticked: p != null && !p.away, note: p ? noteFor(p.id) : null };
+        }),
+        // Anybody in the night the catalogue does not carry: walk-ins, and a
+        // resumed night whose roster row has since been hidden. They have to
+        // show or the operator cannot untick them.
+        ...s.session.players
+          .filter((p) => !catalogued.has(p.id))
+          .map((p) => ({ playerId: p.id, displayName: p.name,
+                         ticked: !p.away, note: noteFor(p.id) })),
+      ].sort((a, b) =>
+        a.displayName.localeCompare(b.displayName, "en", { sensitivity: "base" }) ||
+        (a.playerId < b.playerId ? -1 : 1));
+
+      // A typed name that already belongs to somebody on the roster ticks that
+      // person instead of minting a twin. Splitting one human across two ids
+      // splits their night: half the games on one, half on the other, and a
+      // standings table that adds up to nothing.
+      const addTyped = (name: string) => {
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        const hit = dedupeWalkIn(roster.names, trimmed);
+        if (hit) s.addRosterPlayer(hit); else s.addWalkIn(trimmed);
+      };
+
       return (
         <WhoIsHere
           rows={rows}
+          rosterNote={roster.origin === "bundled"
+            ? "Showing the club list saved on this device. Anyone missing, add them as a walk-in."
+            : null}
           query={query}
           onQueryChange={setQuery}
-          onToggle={(id) => setTicked((t) => ({ ...t, [id]: !(t[id] ?? true) }))}
-          onAddWalkIn={() => { const n = query.trim(); if (n) { s.addPlayer(n, true); setQuery(""); } }}
-          onAddWalkInNamed={(name) => { s.addPlayer(name, true); setQuery(""); }}
+          onToggle={(id) => {
+            const p = inNight.get(id);
+            // Not in the night yet: the tick is what puts them in it.
+            if (!p) {
+              const entry = roster.names.find((r) => r.playerId === id);
+              if (entry) s.addRosterPlayer(entry);
+              return;
+            }
+            // Here but marked away: the tick brings them back rather than
+            // adding a second copy of somebody already in the room.
+            if (p.away) { s.setAway(id, false); return; }
+            // Anyone the match log points at stays in the night. The untick
+            // becomes "away": no new matches, results intact, one tap to undo.
+            if (appearsInAMatch(s.session.matches, id)) { s.setAway(id, true); return; }
+            s.removePlayer(id);
+          }}
+          // The query deliberately survives the add. On a 66 name list,
+          // clearing it would jump back to the top and bury the person who was
+          // just added six screens down, with nothing to show it worked. Left
+          // in place, the list filters to exactly them, ticked.
+          onAddWalkIn={() => addTyped(query)}
+          onAddWalkInNamed={addTyped}
           onClearSearch={() => setQuery("")}
           onBack={() => setStep("night")}
           onNext={() => {
-            // Untick removes them from the night entirely — the wizard's list
-            // IS the night, so there is nothing else for an unticked row to mean.
-            s.session.players.forEach((p) => { if (ticked[p.id] === false) s.removePlayer(p.id); });
-            const numbers = Array.from({ length: courtCount }, (_, i) => i + 1);
-            s.setCourts(numbers);
+            // Ticking already wrote to the session, so there is nothing left to
+            // reconcile. This list is a view of the night, not a form.
+            s.setCourts(Array.from({ length: courtCount }, (_, i) => i + 1));
             setStep("courts");
           }}
         />
@@ -348,7 +433,10 @@ export default function ManageApp() {
           <LateArrival
             name={lateName}
             onNameChange={setLateName}
-            foundInRoster={false}
+            // This prop was hardcoded false, so the sheet told the operator
+            // every late arrival was a stranger even when they were on the
+            // club list. It is a roster question, so the roster answers it.
+            foundInRoster={dedupeWalkIn(roster.names, lateName) != null}
             courts={s.views.map((v) => ({
               courtNumber: v.court.number, label: `Court ${v.court.number}`,
               playingCount: v.players.filter((p) => !p.away).length,
@@ -358,7 +446,16 @@ export default function ManageApp() {
             onCancel={() => setSheet(null)}
             onAdd={() => {
               const n = lateName.trim();
-              if (n) { s.addPlayer(n, true); }
+              if (n) {
+                const hit = dedupeWalkIn(roster.names, n);
+                const id = hit ? s.addRosterPlayer(hit) : s.addWalkIn(n);
+                // The sheet asks which court, so the answer has to be applied.
+                // It never was, and buildQueue only considers players whose
+                // courtNumber matches, so a late arrival landed with no court
+                // and silently never entered a queue. The sheet promises they
+                // are in the next match; without this they were in nothing.
+                if (lateCourt != null) s.assignCourt(id, lateCourt);
+              }
               setSheet(null); setLateName("");
             }}
           />

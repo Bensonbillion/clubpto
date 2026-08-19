@@ -17,6 +17,8 @@ import type { Court, Match, Player, Session } from "./types";
 import { buildQueue, nextMatch, courtComplete, matchesPlayedBy } from "./engine/rotation";
 import { computeStandings, type PlayedMatch, type StandingsRow } from "./engine/standings";
 import { buildStages, champion, orderedPlayerIds, readiness, seedPairs, seedPlayoffMatch, type Stage } from "./engine/playoff";
+import { appearsInAMatch } from "./engine/roster-guard";
+import type { RosterName } from "./roster/names";
 
 const STORAGE_KEY = "cm_manage_session";
 const SCHEMA_VERSION = 1;
@@ -94,18 +96,66 @@ export function useManageSession() {
   const setDayLabel = useCallback((dayLabel: string) =>
     commit((s) => ({ ...s, dayLabel })), [commit]);
 
-  const addPlayer = useCallback((name: string, walkIn = false) =>
+  /**
+   * Tick somebody off the club roster into tonight.
+   *
+   * Their id IS the roster's playerId, which is the whole reason the catalogue
+   * has stable ids: the same person carries the same id from one Wednesday to
+   * the next, so a night's matches can be read back against a person rather
+   * than against whatever spelling got typed that evening.
+   *
+   * Idempotent by id. A search that lands on somebody already in cannot mint a
+   * second copy of them.
+   */
+  const addRosterPlayer = useCallback((entry: RosterName): string => {
+    commit((s) => s.players.some((p) => p.id === entry.playerId) ? s : ({
+      ...s,
+      players: [...s.players, {
+        id: entry.playerId, name: entry.displayName, walkIn: false,
+        courtNumber: null, away: false,
+        joinedAtMatchIndex: s.status === "running" ? s.matches.length + 1 : null,
+      }],
+    }));
+    return entry.playerId;
+  }, [commit]);
+
+  /**
+   * A walk-in plays tonight only, so their id is minted for tonight only. The
+   * `w-` prefix is not decoration: it lets any reader tell a tonight-only id
+   * from a roster id without holding the catalogue.
+   *
+   * Returns the id because the caller usually has a second thing to do with
+   * this person in the same tap. The late-arrival sheet asks which court, and
+   * the answer has nowhere to land without it.
+   */
+  const walkInSeq = useRef(0);
+  const addWalkIn = useCallback((name: string): string => {
+    const id = `w-${Date.now().toString(36)}-${walkInSeq.current++}`;
     commit((s) => ({
       ...s,
       players: [...s.players, {
-        id: `p-${Date.now().toString(36)}-${s.players.length}`,
-        name, walkIn, courtNumber: null, away: false,
+        id, name, walkIn: true, courtNumber: null, away: false,
         joinedAtMatchIndex: s.status === "running" ? s.matches.length + 1 : null,
       }],
-    })), [commit]);
+    }));
+    return id;
+  }, [commit]);
 
+  /**
+   * Refuses anyone the match log points at, and the refusal is here rather
+   * than in a screen because this is the only place a future caller cannot
+   * route around.
+   *
+   * Deleting someone who has played does not undo their games. The match rows
+   * keep their id, so the live card and the bracket start rendering that id
+   * where a name belongs, and the standings table loses their row while their
+   * wins keep moving everybody else's score difference. Marking them away is
+   * what that case actually wants, and it is reversible.
+   */
   const removePlayer = useCallback((playerId: string) =>
-    commit((s) => ({ ...s, players: s.players.filter((p) => p.id !== playerId) })), [commit]);
+    commit((s) => appearsInAMatch(s.matches, playerId)
+      ? s
+      : { ...s, players: s.players.filter((p) => p.id !== playerId) }), [commit]);
 
   const assignCourt = useCallback((playerId: string, courtNumber: number | null) =>
     commit((s) => ({
@@ -259,7 +309,7 @@ export function useManageSession() {
   return {
     session, loading, sync, views, playerName,
     matchesPlayedBy: (id: string) => matchesPlayedBy(session.matches, id),
-    setDayLabel, addPlayer, removePlayer, assignCourt, setCourts, setTarget, extend, start,
+    setDayLabel, addRosterPlayer, addWalkIn, removePlayer, assignCourt, setCourts, setTarget, extend, start,
     ensureOnCourt, recordScore, correctScore, voidMatch, setAway,
     seedPlayoff, deletePlayoff, endNight,
   };
