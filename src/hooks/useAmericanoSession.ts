@@ -37,14 +37,18 @@ import {
   regressBracket, requestPlayoff as requestPlayoffLib, type PlayoffPlan,
 } from "@/lib/americano/playoff";
 import {
-  appendSharedRosterEntry, createAmericanoStore, fetchSharedRoster,
+  AMERICANO_ROW_ID, appendSharedRosterEntry, createAmericanoStore, fetchSharedRoster,
   type SessionStore, type SharedRosterEntry, type SyncStatus,
 } from "@/lib/americano/storage";
+import { archiveOrThrow } from "@/court-manager/archive";
+import { clubToday } from "@/lib/clubDate";
 
 const COURT2 = "court-2";
 const COURT1 = "court-1";
 
-const isoToday = () => new Date().toISOString().slice(0, 10);
+// Toronto, not UTC (C6). This used to be toISOString().slice(0, 10), which
+// stamped tomorrow on every night that ran past 8pm EDT — see src/lib/clubDate.ts.
+const isoToday = clubToday;
 
 const emptyPool = (id: string, label: "Court 1" | "Court 2"): AmericanoPool => ({
   id, label, playerIds: [], targetMatches: 4, playoffMode: "undecided",
@@ -60,6 +64,8 @@ const DEFAULTS = (): AmericanoSession => ({
   defaultMatchFormat: DEFAULT_FORMAT,
   isPractice: false,
   status: "setup",
+  startedAtMs: null,
+  publishedId: null,
 });
 
 /* ── pure draft helpers (module scope — no hook state involved) ──── */
@@ -209,7 +215,10 @@ export interface UseAmericanoSession {
   setTarget(poolId: string, target: number): void;
   canStart: boolean;
   startSession(): void;
-  resetNight(): void;
+  /** Async since C7: archives the night first and rejects if that fails. */
+  resetNight(): Promise<void>;
+  /** Record that this night was filed under `id`, which releases Reset. */
+  markPublished(id: string): void;
 
   // The rolling court loop (STEP 4)
   liveViews: PoolLiveView[];
@@ -503,6 +512,11 @@ export function useAmericanoSession(): UseAmericanoSession {
       return {
         ...s,
         status: "active",
+        // Written exactly once, here, in the same commit as "active" (C6).
+        // This is what makes the published session id both STABLE across
+        // repeated Publish presses and DISTINCT between two nights on one
+        // calendar date. See publishIdOfV4 in src/clubhouse/publish/sessionId.ts.
+        startedAtMs: Date.now(),
         pools: s.pools.map((pool) => ({ ...pool, status: "round_robin" as const })),
       };
     });
@@ -758,7 +772,25 @@ export function useAmericanoSession(): UseAmericanoSession {
     });
   }, [session, playerName, nowTick]);
 
-  const resetNight = useCallback(() => {
+  // Written after publish_session returns. It lives in the session so it
+  // syncs to the other tablet and is archived with the night, rather than
+  // being one device's opinion about whether the club has the record.
+  const markPublished = useCallback((id: string) => {
+    commitLive((s) => (s.publishedId === id ? s : { ...s, publishedId: id }));
+  }, [commitLive]);
+
+  const resetNight = useCallback(async () => {
+    // C7: archive the night BEFORE clearing it. A throw here stops the reset
+    // dead — nothing below runs, the session survives, and the caller shows
+    // the error. Never clear on a failed archive.
+    //
+    // C7a: this device's envelope goes too — if pushes have been failing it
+    // is the only copy of the night that exists.
+    await archiveOrThrow(AMERICANO_ROW_ID, {
+      local: storeRef.current?.snapshot() ?? null,
+      label: "v4 resetNight",
+    });
+
     // Ephemera must not leak into the next session: pool ids are constant,
     // so stale notices would render on next week's fresh courts.
     setNotices({});
@@ -774,7 +806,7 @@ export function useAmericanoSession(): UseAmericanoSession {
     roster, rosterLoading, loadRoster, quickAdd, quickAddBusy,
     setDate, setSessionName, setPractice,
     togglePlayer, isPicked,
-    poolViews, movePlayer, setTarget, canStart, startSession, resetNight,
+    poolViews, movePlayer, setTarget, canStart, startSession, resetNight, markPublished,
     liveViews, playerName, formatOfMatch, enterResult, correctResult, voidMatch,
     requestPlayoff, cancelPlayoff, lockPlayoff, declinePlayoff, endCourt, endCourtBlocked,
     setPoolFormat: setPoolFormatAction, setDefaultFormat: setDefaultFormatAction,

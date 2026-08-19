@@ -34,6 +34,9 @@ const Login = lazy(() => import("./pages/Login"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Club = lazy(() => import("./pages/Club"));
 const ClubRoomPreview = lazy(() => import("./pages/ClubRoomPreview"));
+// Fixtures only, no gate, linked from nowhere — the Publish confirm screen
+// and the held Reset, so they can be exercised without the owner's passcode.
+const PublishPreview = lazy(() => import("./pages/PublishPreview"));
 
 const queryClient = new QueryClient();
 
@@ -73,6 +76,7 @@ const App = () => (
           <Route path="/club" element={<Club />} />
           {/* Dev-only visual harness for the room (redirects in prod) */}
           <Route path="/club/preview" element={<ClubRoomPreview />} />
+          <Route path="/manage/publish-preview" element={<PublishPreview />} />
 
           {/* Manage routes — completely isolated, no public layout.
                 /manage now serves Court Manager v3 (games-first rebuild).

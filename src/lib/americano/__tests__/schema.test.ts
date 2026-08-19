@@ -20,6 +20,8 @@ import v7 from "../__fixtures__/session.v7.json";
 import v8 from "../__fixtures__/session.v8.json";
 import v9 from "../__fixtures__/session.v9.json";
 import v10 from "../__fixtures__/session.v10.json";
+import v11 from "../__fixtures__/session.v11.json";
+import v12 from "../__fixtures__/session.v12.json";
 
 const TODAY = "2026-09-01";
 
@@ -35,20 +37,20 @@ function assertValid(healed: AmericanoSession | null): AmericanoSession {
 
 describe("schema-version guard", () => {
   it("the current fixture matches the live canonical serialization AND version", () => {
-    expect(v10.schemaVersion).toBe(AMERICANO_SCHEMA_VERSION);
-    expect(v10.state).toEqual(JSON.parse(JSON.stringify(canonicalSession())));
+    expect(v12.schemaVersion).toBe(AMERICANO_SCHEMA_VERSION);
+    expect(v12.state).toEqual(JSON.parse(JSON.stringify(canonicalSession())));
   });
 
   it("a current-version fixture named for an older version cannot exist", () => {
     // The naming convention IS the guard: session.vN.json ↔ version N.
-    for (const [fixture, version] of [[v2, 2], [v3, 3], [v4, 4], [v5, 5], [v6, 6], [v7, 7], [v8, 8], [v9, 9], [v10, 10]] as const) {
+    for (const [fixture, version] of [[v2, 2], [v3, 3], [v4, 4], [v5, 5], [v6, 6], [v7, 7], [v8, 8], [v9, 9], [v10, 10], [v11, 11], [v12, 12]] as const) {
       expect(fixture.schemaVersion).toBe(version);
     }
-    expect(AMERICANO_SCHEMA_VERSION).toBe(10);
+    expect(AMERICANO_SCHEMA_VERSION).toBe(12);
   });
 
   it("every historical fixture round-trips through migrate, healed and valid", () => {
-    for (const fixture of [v2, v3, v4, v5, v6, v7, v8, v9]) {
+    for (const fixture of [v2, v3, v4, v5, v6, v7, v8, v9, v10, v11]) {
       const healed = assertValid(migrateAmericanoSession(fixture.state, TODAY));
       // A second pass is a no-op — healing is idempotent.
       expect(migrateAmericanoSession(healed, TODAY)).toEqual(healed);
@@ -111,5 +113,25 @@ describe("phase-aware healing (STEP 4 addendum)", () => {
     const s2 = activeSession(players, ["p1", "p2", "p3"], [voided]);
     const healed2 = assertValid(migrateAmericanoSession(s2, TODAY));
     expect(healed2.integrityErrors?.length).toBe(1);
+  });
+});
+
+// C6: "complete" was removed from AmericanoSessionStatus because nothing ever
+// assigned it. Stored rows written before v11 may still carry the string, and
+// a migration that stopped recognising it would read a finished night as
+// setup and re-seat players who had already played.
+describe("the status that was deleted (C6)", () => {
+  it("still reads a stored 'complete' as an active night", () => {
+    const stored = { ...canonicalSession(), status: "complete" as unknown as "active" };
+    const healed = migrateAmericanoSession(stored, TODAY)!;
+    expect(healed.status).toBe("active");
+  });
+
+  it("carries startedAtMs through, and leaves an older night null", () => {
+    const started = { ...canonicalSession(), status: "active" as const, startedAtMs: 1_700_000_000_000 };
+    expect(migrateAmericanoSession(started, TODAY)!.startedAtMs).toBe(1_700_000_000_000);
+    // A v10 row has no such field. Inventing one from Date.now() would claim
+    // the night began at the moment of a page refresh.
+    expect(migrateAmericanoSession(v10.state, TODAY)!.startedAtMs).toBeNull();
   });
 });

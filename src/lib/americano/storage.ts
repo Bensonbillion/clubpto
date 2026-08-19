@@ -17,6 +17,7 @@ import {
 } from "@/court-manager/persistence";
 import type { AmericanoSession, AmericanoTier } from "@/types/americano";
 import { AMERICANO_SCHEMA_VERSION, migrateAmericanoSession } from "./migrate";
+import { clubToday } from "@/lib/clubDate";
 
 export const AMERICANO_STORAGE_KEY = "cm_v4_session";
 export const AMERICANO_ROW_ID = "cm_v4_session";
@@ -64,7 +65,8 @@ export function createAmericanoStore(config: AmericanoStoreConfig): SessionStore
     storage: window.localStorage,
     remote: americanoRemote(),
     defaults: config.defaults,
-    migrate: (oldState) => migrateAmericanoSession(oldState, new Date().toISOString().slice(0, 10)),
+    // Toronto, not UTC (C6) — see src/lib/clubDate.ts.
+    migrate: (oldState) => migrateAmericanoSession(oldState, clubToday()),
     onSyncStatusChange: config.onSyncStatusChange,
   });
 }

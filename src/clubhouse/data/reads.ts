@@ -10,6 +10,12 @@ import type { PublishBundle, PublishedChampion, PublishedPair } from "../publish
 export interface RosterEntry {
   playerId: string;
   displayName: string;
+  /**
+   * PROF-3. Optional because the fixtures and the preview page build these
+   * by hand; absent reads as visible. Only ever true for the viewer's own
+   * row — RLS returns nobody else's hidden rows (migration 005).
+   */
+  hidden?: boolean;
 }
 
 export interface MemberPrefs {
@@ -21,17 +27,26 @@ export const DEFAULT_PREFS: MemberPrefs = { showWinpct: true, showRank: false };
 
 /**
  * Roster map for profiles and the mosaic (names only, AUTH-5 copy).
- * Hidden players (PROF-3) are filtered at the source: they must not reach
- * the browser at all, not merely go unrendered.
+ *
+ * Hidden players (PROF-3) are filtered by RLS, not here. This used to carry
+ * .eq("hidden", false), which looked like the safe belt-and-braces move and
+ * was in fact the bug: it also dropped the VIEWER'S OWN row, so a member who
+ * hid themselves lost their name from their own seat. Migration 005 moved
+ * the rule into the policy — `hidden = false OR it is yours` — so the only
+ * hidden row that can arrive here is the reader's own, and the players
+ * directory is the one surface that filters it back out.
  */
 export async function fetchRoster(): Promise<RosterEntry[]> {
   const { data, error } = await supabase
     .from("clubhouse_roster")
-    .select("player_id, display_name")
-    .eq("hidden", false)
+    .select("player_id, display_name, hidden")
     .order("display_name");
   if (error) throw error;
-  return (data ?? []).map((r) => ({ playerId: r.player_id, displayName: r.display_name }));
+  return (data ?? []).map((r) => ({
+    playerId: r.player_id,
+    displayName: r.display_name,
+    hidden: Boolean(r.hidden),
+  }));
 }
 
 /**

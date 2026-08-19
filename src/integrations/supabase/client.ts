@@ -8,10 +8,28 @@ const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
+// TWO CLIENTS, ONE PROJECT. The clubhouse (src/clubhouse/supabaseClient.ts)
+// signs in every player on the roster against this same Supabase project, so
+// both clients live on the same origin and both persist a session.
+//
+// They must not share a slot, and they must not both try to claim a token out
+// of the URL:
+//
+//   storageKey        named explicitly rather than left on the library default.
+//                     "the other one set a custom key" is not isolation, it is
+//                     a coincidence waiting for someone to remove it.
+//   detectSessionInUrl the engine never signs in via a redirect — the passcode
+//                     pad and the email CODE both mint a session in place. With
+//                     it on, a magic link landing on any page was a race: the
+//                     first client to parse the hash consumed it, and if the
+//                     clubhouse won, the manager stayed locked while the user
+//                     was visibly "signed in". Off, that race cannot start.
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
+    storageKey: "engine-auth",
     persistSession: true,
     autoRefreshToken: true,
+    detectSessionInUrl: false,
   }
 });

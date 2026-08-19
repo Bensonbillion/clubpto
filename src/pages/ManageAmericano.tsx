@@ -22,55 +22,17 @@ import {
   CourtSegment, FlipOverlay, HistoryPager, MatchCard, Sheet, formatKey,
 } from "./manage4/shell";
 import { playoffCorrectionBlock } from "@/lib/americano/playoff";
+import PublishConfirm, { ResetGuardPanel } from "@/components/manage-publish/PublishConfirm";
+import { usePublishFlow } from "@/clubhouse/publish/usePublishFlow";
+import { planV4Publish, publishIdOfV4, publishNotesV4 } from "@/clubhouse/publish/plan";
+import { resetDecision } from "@/clubhouse/publish/resetGuard";
+import { clubDate, defaultVenueFor } from "@/lib/clubDate";
 
-const ADMIN_PASSCODE = "9999";
-
-/* ── passcode gate ────────────────────────────────────────────────── */
-
-const PasscodeGate = ({ onUnlock }: { onUnlock: () => void }) => {
-  const [code, setCode] = useState("");
-  const [error, setError] = useState(false);
-  const digit = (d: string) => {
-    const next = code + d;
-    setError(false);
-    if (next.length === 4) {
-      if (next === ADMIN_PASSCODE) onUnlock();
-      else { setError(true); setCode(""); }
-    } else setCode(next);
-  };
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-7 bg-dark text-cream px-6">
-      <div className="w-16 h-16 rounded-full bg-accent/10 border border-accent/30 flex items-center justify-center">
-        <Lock className="w-8 h-8 text-accent" />
-      </div>
-      <div className="text-center">
-        <h1 className="font-display text-2xl text-accent">PTO Americano</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {error ? "Wrong passcode — try again" : "Enter 4-digit passcode"}
-        </p>
-      </div>
-      <div className="flex gap-3">
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className={`w-3 h-3 rounded-full border ${i < code.length ? "bg-accent border-accent" : "border-muted-foreground/40"}`} />
-        ))}
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        {["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"].map((k, i) =>
-          k === "" ? <div key={i} /> : k === "del" ? (
-            <button key={i} onClick={() => setCode((c) => c.slice(0, -1))} aria-label="Delete digit"
-              className="w-16 h-16 rounded-full border border-muted-foreground/30 flex items-center justify-center text-muted-foreground">
-              <Delete className="w-5 h-5" />
-            </button>
-          ) : (
-            <button key={i} onClick={() => digit(k)}
-              className="w-16 h-16 rounded-full border border-muted-foreground/30 text-2xl text-cream active:bg-accent/10">
-              {k}
-            </button>
-          ))}
-      </div>
-    </div>
-  );
-};
+/** "Wednesday 12 August" — what the confirm screen calls tonight. */
+const longDate = (iso: string) =>
+  new Date(`${iso}T12:00:00`).toLocaleDateString("en-CA", {
+    weekday: "long", day: "numeric", month: "long",
+  });
 
 /* ── PART 3: setup as a pad ───────────────────────────────────────── */
 
@@ -823,6 +785,47 @@ const LiveShell = ({ a }: { a: UseAmericanoSession }) => {
   const [flip, setFlip] = useState<{ poolId: string; pair: { a: string; b: string } } | null>(null);
   const [more, setMore] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const [resetHeld, setResetHeld] = useState(false);
+
+  // ── Publish (Step 2b) ────────────────────────────────────────────
+  const publishDate = a.session.startedAtMs ? clubDate(a.session.startedAtMs) : a.session.date;
+  const people = useMemo(
+    () => a.session.players
+      .filter((p) => p.status !== "not_arrived")
+      .map((p) => ({ id: p.playerId, name: p.displayName })),
+    [a.session.players],
+  );
+  const flow = usePublishFlow({
+    people,
+    defaultVenue: defaultVenueFor(publishDate) ?? "",
+    buildPlan: (input) => planV4Publish(a.session, input),
+    onPublished: (id) => a.markPublished(id),
+  });
+
+  // Reset nulls startedAtMs, which the publish id is derived from — so
+  // resetting first loses the ability to file the night at all (Step 2b).
+  const gate = resetDecision({
+    publishId: publishIdOfV4(a.session),
+    publishedId: a.session.publishedId ?? null,
+    hasContent: a.session.players.length > 0,
+    peopleCount: people.length,
+  });
+
+  const runReset = async () => {
+    setResetHeld(false);
+    try {
+      // The night is archived first; if that fails, resetNight rejects and
+      // NOTHING is cleared (C7).
+      await a.resetNight();
+      setMore(false);
+    } catch (err) {
+      window.alert(
+        `The night was NOT reset — it could not be archived first, so nothing was cleared.\n\n${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  };
 
   const view = a.liveViews.find((v) => v.pool.id === courtId) ?? a.liveViews[0];
   if (!view) return null;
@@ -892,6 +895,34 @@ const LiveShell = ({ a }: { a: UseAmericanoSession }) => {
           onStandings={() => { setConfirm(false); setTab("standings"); }} />
       )}
       {flip && <FlipOverlay a={a} poolId={flip.poolId} pair={flip.pair} onClose={() => setFlip(null)} />}
+      {flow.open && (
+        <PublishConfirm
+          when={a.session.startedAtMs ? longDate(publishDate) : publishDate}
+          venue={flow.venue}
+          onVenueChange={flow.setVenue}
+          questions={flow.resolution.questions}
+          decisions={flow.decisions}
+          onDecide={flow.decide}
+          notes={publishNotesV4(a.session, flow.venue, flow.skipped)}
+          plan={flow.plan}
+          busy={flow.busy || flow.loading}
+          error={flow.error}
+          onPublish={() => void flow.publish()}
+          onCancel={flow.closeSheet}
+        />
+      )}
+
+      {resetHeld && !gate.allowed && (
+        <ResetGuardPanel
+          reason={gate.reason!}
+          consequence={gate.consequence!}
+          overrideLabel={gate.overrideLabel!}
+          onPublishInstead={() => { setResetHeld(false); flow.openSheet(); }}
+          onOverride={() => void runReset()}
+          onCancel={() => setResetHeld(false)}
+        />
+      )}
+
       {more && (
         <Sheet title="Session" onClose={() => setMore(false)}>
           <p className="text-sm text-muted-foreground">{a.session.date} · {view.pool.label} · {formatLabel(view.format)}</p>
@@ -909,10 +940,14 @@ const LiveShell = ({ a }: { a: UseAmericanoSession }) => {
               Start the playoff now (early)
             </button>
           )}
-          <button onClick={() => {
-              if (window.confirm("Reset the whole night? Setup and every match are discarded.")) {
-                a.resetNight(); setMore(false);
-              }
+          <button onClick={() => { setMore(false); flow.openSheet(); }}
+            className="w-full min-h-[48px] rounded-lg bg-gold text-dark text-sm font-medium">
+            {a.session.publishedId ? "Publish again" : "Publish tonight"}
+          </button>
+          <button onClick={async () => {
+              if (!gate.allowed) { setResetHeld(true); return; }
+              if (!window.confirm("Reset the whole night? Setup and every match are discarded.")) return;
+              await runReset();
             }}
             className="w-full min-h-[48px] rounded-lg border border-red-500/40 text-red-400 text-sm">
             End session and reset
@@ -933,15 +968,15 @@ const ManageAmericanoInner = () => {
   return a.session.status === "setup" ? <SetupPad a={a} /> : <LiveShell a={a} />;
 };
 
-// v4 keeps its own game_state row, which is admin-only in the database now,
-// so it needs the same door as v3. The passcode stays as the inner step.
-const ManageAmericano = () => {
-  const [unlocked, setUnlocked] = useState(false);
-  return (
-    <AdminGate>
-      {unlocked ? <ManageAmericanoInner /> : <PasscodeGate onUnlock={() => setUnlocked(true)} />}
-    </AdminGate>
-  );
-};
+// v4 keeps its own game_state row, which is admin-only in the database now, so
+// it needs the same door as v3 — and AdminGate IS that door. It no longer just
+// checks a session: the passcode pad lives inside it and is verified against a
+// secret held server-side, so there is no second, client-side code to keep here
+// (and none to find in the bundle).
+const ManageAmericano = () => (
+  <AdminGate>
+    <ManageAmericanoInner />
+  </AdminGate>
+);
 
 export default ManageAmericano;

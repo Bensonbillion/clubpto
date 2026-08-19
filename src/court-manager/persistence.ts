@@ -40,6 +40,14 @@ export interface SessionStore<T> {
   syncStatus(): SyncStatus;
   /** Clear the local session (end-of-night reset). Remote copy untouched. */
   clearLocal(): void;
+  /**
+   * The envelope this device currently holds, or null if it has none.
+   *
+   * Exists for the pre-reset archive (C7a): when a push has been failing, this
+   * is the ONLY copy of the night in existence, and the remote row is stale or
+   * absent. Archiving must see it before a reset clears it.
+   */
+  snapshot(): Envelope<T> | null;
 }
 
 export interface SessionStoreConfig<T> {
@@ -195,6 +203,8 @@ export function createSessionStore<T>(config: SessionStoreConfig<T>): SessionSto
       latest = null;
       setStatus("synced");
     },
+
+    snapshot: () => latest,
   };
 }
 

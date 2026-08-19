@@ -184,7 +184,9 @@ export interface PlayoffSnapshot {
 export interface PoolChampion {
   kind: "pair" | "individual";
   playerIds: string[];
-  /** "PTO Champion of the Week" (Court 2) or "Court 1 Champion". */
+  /** "PTO Champion of the Week" (Court 2) or "Court 1 Champions" — the
+      vocabulary comes from TITLES in src/clubhouse/publish/types.ts, which is
+      what prices it. See championTitle(). */
   title: string;
   at: number;
 }
@@ -216,12 +218,45 @@ export interface AmericanoPool {
   coinFlipResolutions?: CoinFlipResolution[];
 }
 
-export type AmericanoSessionStatus = "setup" | "active" | "complete";
+/**
+ * C6: "complete" used to be here and was never assigned by anything. Two
+ * states are written — "setup" at DEFAULTS/migrate and "active" at
+ * startSession — so a Publish gated on `status === "complete"` would never
+ * have fired, and would have looked like a bug in the button rather than a
+ * value nobody sets.
+ *
+ * It is not replaced by a third state, because the end of a night is not
+ * latchable: a court is done when its pool says `status: "complete"` AND it
+ * has a champion, and regressBracket can un-crown a court afterwards. A
+ * stored session status would go stale the moment an admin corrected a
+ * final. Ask isNightComplete() instead — it is derived, so it cannot lie.
+ */
+export type AmericanoSessionStatus = "setup" | "active";
 
 export interface AmericanoSession {
   id: string;
-  /** ISO date of the night (e.g. "2026-07-30"). */
+  /** ISO date of the night (e.g. "2026-07-30"), in Toronto (C6). */
   date: string;
+  /**
+   * When the night actually started, epoch ms. Null until startSession.
+   *
+   * C6: `id` is `night-${date}` and two sessions on one date collide against
+   * clubhouse_sessions.session_id, which is a primary key — the second night
+   * would silently upsert over the first and its child rows would collide on
+   * (session_id, pair_id). This is the field the published id is built from:
+   * written once at start, never touched again, so the same night publishes
+   * the same id on every press while two nights on one date differ.
+   */
+  startedAtMs?: number | null;
+  /**
+   * The published session id this night was last filed under, or null.
+   *
+   * Reset sits next to Publish and nulls startedAtMs, so pressing it first
+   * loses not just the data but the ability to file the night at all. This is
+   * what resetDecision() checks. It lives in the session, so it syncs across
+   * tablets and is archived with the night rather than living on one device.
+   */
+  publishedId?: string | null;
   sessionName: string;
   /** Tonight's players — the AmericanoPlayer records the generator consumes.
       (Step 3 addition: the Step 1 shape carried only ids inside pools, but a

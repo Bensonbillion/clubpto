@@ -22,6 +22,7 @@ import { mergeRoster } from "../rosterMerge";
 import { generateRoundSchedule, regenerateFromRound } from "../scheduler/rounds";
 import { validateRoundSchedule } from "../scheduler/validate";
 import { correctResult } from "../edge";
+import { archiveOrThrow } from "../archive";
 import { avgGameMs, pausedOverlapMs, type PauseInterval } from "../pace";
 import type { CompletedRRGame } from "../playoffs";
 import { buildPairH2h, pairStandings, seedWednesdayTop8, sortSeeding, wednesdayBracket } from "../playoffs";
@@ -85,6 +86,13 @@ export interface SessionV2 {
   /** Pause intervals (§8) — frozen time is excluded from measured durations. */
   pauses: PauseInterval[];
   sessionStartedAt: number | null;
+  /**
+   * The published session id this night was last filed under, or null.
+   * Reset nulls sessionStartedAt, which the publish id is derived from — so
+   * resetting before publishing loses the ability to file the night at all.
+   * See resetDecision() in src/clubhouse/publish/resetGuard.ts.
+   */
+  publishedId?: string | null;
   playoffs: PlayoffsState | null;
   /** Winning players' ids once the final resolves. */
   champion: string[] | null;
@@ -136,14 +144,15 @@ export const SESSION_TEMPLATES: Record<string, { label: string; note?: string; p
 // state pulls the loss-proof roster from Supabase on next load instead of
 // resuming a broken/empty local session.
 const STORAGE_KEY = "cm_v3_session";
-const SCHEMA_VERSION = 5;
+// v6: publishedId — what stops Reset from clearing an unpublished night.
+const SCHEMA_VERSION = 6;
 
 /**
  * Schema migration — NEVER discard older state on a version bump (the v3 bump
  * silently dropped the roster; that class of loss is banned). Any recognizable
  * older SessionV2 shape is upgraded by layering it over fresh defaults.
  */
-function migrateSession(oldState: unknown, _oldVersion: number): SessionV2 | null {
+export function migrateSession(oldState: unknown, _oldVersion: number): SessionV2 | null {
   if (typeof oldState !== "object" || oldState === null) return null;
   const old = oldState as Partial<SessionV2>;
   if (!Array.isArray(old.players)) return null; // unrecognizable — nothing worth keeping
@@ -249,7 +258,10 @@ export interface UseSessionV2 {
   /** Hand-swap two players between their pairs (same tier). Setup phase only. */
   swapPlayers(playerIdA: string, playerIdB: string): void;
   startSession(): void;
-  resetSession(): void;
+  /** Async since C7: archives the night first and rejects if that fails. */
+  resetSession(): Promise<void>;
+  /** Record that this night was filed under `id`, which releases Reset. */
+  markPublished(id: string): void;
 
   // Rounds
   courts: CourtView[];
@@ -541,7 +553,26 @@ export function useSessionV2(): UseSessionV2 {
     });
   }, [commit]);
 
-  const resetSession = useCallback(() => {
+
+  // Written after publish_session returns. Lives in the session so it syncs
+  // to the other tablet and is archived with the night (Step 2b).
+  const markPublished = useCallback((id: string) => {
+    commit((s) => (s.publishedId === id ? s : { ...s, publishedId: id }));
+  }, [commit]);
+
+  const resetSession = useCallback(async () => {
+    // C7: copy the night into game_state_archive BEFORE clearing it. If the
+    // archive cannot be written, the throw propagates and nothing below runs
+    // — the session survives and the caller shows the error. Never clear on
+    // a failed archive.
+    //
+    // C7a: pass this device's envelope too. If pushes have been failing, the
+    // remote row is stale or absent and this is the only copy of the night.
+    await archiveOrThrow(STORAGE_KEY, {
+      local: storeRef.current?.snapshot() ?? null,
+      label: "v3 resetSession",
+    });
+
     // End-of-night reset: the ROSTER survives (it's the multi-week asset);
     // the schedule and all of tonight's derived data clear via the single
     // clearTwoCourtSchedule source of truth. Check-ins reset too.
@@ -1020,6 +1051,7 @@ export function useSessionV2(): UseSessionV2 {
     swapPlayers,
     startSession,
     resetSession,
+    markPublished,
     courts,
     countSummary,
     roundComplete,

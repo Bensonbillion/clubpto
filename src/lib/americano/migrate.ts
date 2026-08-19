@@ -87,7 +87,10 @@ function convertLegacyFlips(pool: AmericanoPool): AmericanoPool {
   return next;
 }
 
-export const AMERICANO_SCHEMA_VERSION = 10;
+// v11 (C6): AmericanoSession gained startedAtMs, the value the published
+// session id is built from, and lost the never-assigned "complete" status.
+// v12: publishedId — what stops Reset from clearing an unpublished night.
+export const AMERICANO_SCHEMA_VERSION = 12;
 
 export function emptyPool(id: string, label: "Court 1" | "Court 2"): AmericanoPool {
   return {
@@ -129,6 +132,8 @@ export function canonicalSession(date = "2026-01-01"): AmericanoSession {
     defaultMatchFormat: DEFAULT_FORMAT,
     isPractice: false,
     status: "setup",
+    startedAtMs: null,
+    publishedId: null,
   };
 }
 
@@ -160,8 +165,13 @@ export function migrateAmericanoSession(
   // the split rule. Active phase: pool membership WITH history is immutable —
   // a matchless orphan may still be seated (harmless bookkeeping), but an
   // orphan who has played is a surfaced hard error, never a silent re-seat.
+  // "complete" was removed from AmericanoSessionStatus (C6) but stored v9/v10
+  // rows may still carry the string, so this compares raw text rather than
+  // the narrowed union. A migration that stopped recognising it would treat a
+  // finished night as setup and re-seat players who had already played.
+  const storedStatus = old.status as string | undefined;
   const activePhase =
-    old.status === "active" || old.status === "complete" ||
+    storedStatus === "active" || storedStatus === "complete" ||
     oldPools.some((p) => p.matches.length > 0);
   const assigned = new Set([...court2.playerIds, ...court1.playerIds]);
   const orphans2: string[] = [];
@@ -192,6 +202,14 @@ export function migrateAmericanoSession(
     players,
     pools,
     defaultMatchFormat: old.defaultMatchFormat ?? DEFAULT_FORMAT,
+    // A night already running when v11 arrived has no start instant, and
+    // there is nothing honest to invent one from — Date.now() would say the
+    // night began at the moment of a page refresh. Null means Publish asks
+    // rather than guesses.
+    startedAtMs: typeof old.startedAtMs === "number" ? old.startedAtMs : null,
+    publishedId: typeof old.publishedId === "string" ? old.publishedId : null,
+    // "complete" was removed from the union; a stored row may still say it.
+    status: storedStatus === "active" || storedStatus === "complete" ? "active" : "setup",
   };
   // Dedupe so re-migrating an already-healed state is idempotent — the same
   // unresolved orphan must not stack a new copy of its error on every load.
