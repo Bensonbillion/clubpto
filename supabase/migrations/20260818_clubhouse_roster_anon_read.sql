@@ -1,0 +1,99 @@
+-- Let the manager read the roster without a login.
+--
+-- Applies to project flahcijysipymafazhxq, which is the ONLY Supabase project
+-- this repo still targets. The clubhouse and the engine share one database:
+-- 20260814_engine_tables.sql moved the court-manager tables off the old
+-- Lovable-managed project onto this one, and supabase/config.toml names it.
+-- So clubhouse_roster and game_state are neighbours, not strangers, and the
+-- rest of this header is written on that basis. Idempotent: safe to re-run.
+--
+-- APPLIED 2026-08-18 to flahcijysipymafazhxq (main, production), by hand in
+-- the SQL editor. Verified from outside immediately after: the anon key reads
+-- 66 rows from clubhouse_roster, and game_state still answers an anon write
+-- with 42501. See docs/manage/roster-source.md.
+--
+-- THE PROBLEM
+--
+-- clubhouse_roster had exactly one SELECT policy, "roster read for
+-- authenticated", and the manager's door is a passcode rather than a login. There is no auth session behind that door,
+-- so the app reads as anon, and an anon read against an authenticated-only
+-- policy is not an error. It returns zero rows with HTTP 200. Verified live.
+-- The manager cannot tell that apart from an empty table, which is why the
+-- roster ships bundled in the build and this read is only ever a refresh.
+--
+-- WHAT THIS EXPOSES
+--
+-- First names and stable ids. Nothing else. clubhouse_roster holds
+-- player_id, display_name, claimable, updated_at and hidden, and it holds no
+-- email, no phone, no tier, and no results. Those live in other tables and
+-- none of them are touched here. The same names are already in the public
+-- JS bundle at src/manage/roster/names.ts, so the marginal exposure of this
+-- policy is that the list can go stale in the browser instead of staying
+-- frozen at the last deploy.
+--
+-- WHAT THIS DOES NOT CHANGE
+--
+-- This is SELECT only, and it touches ONLY clubhouse_roster. No insert, no
+-- update, no delete, and no other table gains a policy.
+--
+-- game_state stays admin-only. 20260814_lock_game_state.sql closed anon
+-- WRITE on the single row a live night runs on, which was the real hazard:
+-- anyone with the publishable key could have overwritten a session mid-night
+-- in front of a full room. Nothing here reopens that. engine_admins remains
+-- the boundary for the engine, and this file neither references it nor
+-- weakens it. Same database, but a different table and a different verb:
+-- SELECT on a list of first names is not WRITE on the night's only row.
+--
+-- HIDDEN IS HONOURED
+--
+-- The policy is scoped to `not hidden`. A member who asked to be left out of
+-- member-facing surfaces set that flag in 004_privacy_hardening.sql, and
+-- this is a member-facing surface, so they stay out of it. RLS does the
+-- filtering server-side, which means the client cannot opt out of it by
+-- forgetting a where clause.
+--
+-- `claimable` is deliberately not consulted. It governs who the clubhouse
+-- claim picker offers, which is a separate question from who can be put on a
+-- court tonight.
+--
+-- THE ALTERNATIVE THAT NEEDS NO POLICY CHANGE
+--
+-- Deploy the passcode Edge Function (Part B). It mints a real Supabase
+-- session behind the manager's door, at which point the app reads as
+-- `authenticated`, the existing "roster read for authenticated" policy
+-- already covers this read, and THIS MIGRATION CAN BE DROPPED. If you go
+-- that way, run:
+--
+--   drop policy if exists "roster read for anon" on clubhouse_roster;
+--
+-- The authenticated policy already filters hidden, so nothing has to move
+-- with it. Read that carefully though, because the REPO IS WRONG ABOUT THIS.
+-- 001_clubhouse.sql:117 creates the policy `using (true)`. What is actually
+-- running on the database, read out of pg_policies on 2026-08-18, is:
+--
+--   (is_engine_admin()
+--    OR (hidden = false)
+--    OR (player_id IN (select l.player_id from clubhouse_links l
+--                      where l.auth_user_id = auth.uid() and not l.revoked)))
+--
+-- No migration in this repo produces that. Somebody tightened it in the
+-- dashboard and it was never written down, so the file and the database have
+-- been telling different stories for a while. This note is where that stops
+-- being invisible. Before changing anything on clubhouse_roster, read
+-- pg_policies rather than 001_clubhouse.sql.
+--
+-- ROLLBACK
+--
+-- Nothing needs restoring: the authenticated policy is untouched, so
+-- dropping this one returns the table to exactly its current behaviour.
+--
+--   drop policy if exists "roster read for anon" on clubhouse_roster;
+--   -- verify what is left:
+--   select policyname, roles, cmd from pg_policies
+--   where tablename = 'clubhouse_roster';
+
+drop policy if exists "roster read for anon" on clubhouse_roster;
+
+create policy "roster read for anon"
+  on clubhouse_roster for select to anon
+  using (not hidden);

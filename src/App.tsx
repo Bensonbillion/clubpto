@@ -20,6 +20,9 @@ const Manage = lazy(() => import("./pages/Manage"));
 const Manage2 = lazy(() => import("./pages/Manage2"));
 const ManageNext = lazy(() => import("./pages/ManageNext"));
 const ManageAmericano = lazy(() => import("./pages/ManageAmericano"));
+// The rebuilt manager, from the wireframes. Lives beside the old ones until
+// it has been walked end to end; then it takes /manage and they go.
+const ManageApp = lazy(() => import("./manage/ManageApp"));
 const ManualPlayoffs = lazy(() => import("./pages/ManualPlayoffs"));
 const Simulate = lazy(() => import("./pages/Simulate"));
 const EngineTest = lazy(() => import("./pages/EngineTest"));
@@ -78,6 +81,7 @@ const App = () => (
             <Route path="/manage" element={<ManageNext />} />
           {/* Court Manager v4 (Americano) — robots-blocked via the /manage prefix */}
           <Route path="/manage4" element={<ManageAmericano />} />
+          <Route path="/manage-next" element={<ManageApp />} />
             <Route path="/manage-classic" element={<Manage />} />
             <Route path="/manage2" element={<Manage2 />} />
             <Route path="/manage/simulate" element={<Simulate />} />
