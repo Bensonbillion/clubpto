@@ -9,13 +9,39 @@ When a bug is reported, do NOT start by trying to fix it. Instead:
 ## Project Overview
 Community-first padel league in Toronto. Rebuilding PUBLIC site only (/, /about, /book, /faq, /membership, /events, /community, /contact). Premium aesthetic inspired by Soho House + Padel Haus NYC. Dark theme, warm tones, editorial feel.
 
+## Court Manager
+
+There is ONE manager, and it lives in `src/manage/`. It serves `/manage`, the
+door is the passcode 9999, and there is no sign-in and no inbox.
+
+Four earlier managers were deleted on 2026-08-19: v1 (`/manage-classic`), v2
+(`/manage2`), v3 (`/manage`) and v4 (`/manage4`), together with their engines,
+components and tests. Their URLs redirect to `/manage`, because an operator
+with one of them on a home screen should land on the manager rather than a
+blank page. If you are reading advice anywhere in this repo about
+`useGameState`, `court-manager/react`, `lib/americano` or
+`components/manage*`, it is about code that no longer exists.
+
+What survives from the old world, and why:
+- `src/court-manager/persistence.ts` is the only file left in that directory.
+  `src/manage/useSession.ts` uses it, and it has zero imports of its own.
+- `src/hooks/useGameState.ts` and `src/types/courtManager.ts` are still here
+  ONLY because `/admin/reset` value-imports `getHeadToHead` from the first and
+  `DEFAULT_STATE` from the second. They are not the manager's engine any more.
+  Deleting them means retiring `/admin/*` in the same change.
+
+### Known gap, worth knowing before you touch persistence
+The manager writes to `localStorage` only (`remote: null` in
+`src/manage/useSession.ts`). The v3 manager it replaced mirrored to Supabase,
+so a dead phone mid-night no longer means a second device can pick the night
+up. Restoring that needs a writable session row, and `game_state` is
+admin-only by deliberate policy, so it waits on the passcode Edge Function.
+
 ## CRITICAL: Do NOT Touch
-- `src/pages/Manage.tsx` and ALL files in `src/components/manage/`
-- `src/hooks/useGameState.ts` — 2,159-line game scheduling engine
-- `src/types/courtManager.ts` — game state types
-- The `/manage` route and its passcode gate (9999)
-- Any Supabase tables: `game_state`, `sessions`, `bookings`
-- The existing Supabase client config in `src/integrations/`
+- Supabase table `game_state` policies. `20260814_lock_game_state.sql` closed
+  anon WRITE on the row a live night runs on, and `engine_admins` is the
+  boundary. Do not reopen anon writes to it for any reason.
+- `src/integrations/` Supabase client config.
 
 ## Tech Stack
 - React 18 + TypeScript + Vite (keep existing — do NOT migrate to Next.js)
@@ -54,8 +80,7 @@ src/
 │   ├── membership/      # TierCard, ComparisonTable, FoundingBanner
 │   ├── about/           # StorySection, WhatIsPadel, Values
 │   ├── events/          # EventCard, EventGrid, PastEvents
-│   ├── community/       # PhotoGrid, InstagramEmbed
-│   └── manage/          # ❌ DO NOT TOUCH
+│   └── community/       # PhotoGrid, InstagramEmbed
 ├── pages/
 │   ├── Index.tsx         # Homepage rebuild
 │   ├── About.tsx         # About page rebuild
@@ -64,10 +89,9 @@ src/
 │   ├── Events.tsx        # NEW — upcoming + past events
 │   ├── Community.tsx     # NEW — photo gallery, journal
 │   ├── Contact.tsx       # NEW — form + map
-│   ├── FAQ.tsx           # FAQ rebuild with animated accordion
-│   └── Manage.tsx        # ❌ DO NOT TOUCH
+│   └── FAQ.tsx           # FAQ rebuild with animated accordion
+├── manage/               # The Court Manager. Engine, screens, roster.
 ├── hooks/
-│   ├── useGameState.ts   # ❌ DO NOT TOUCH
 │   ├── useSmoothScroll.ts # NEW — Lenis initialization
 │   └── useScrollAnimation.ts # NEW — GSAP ScrollTrigger helpers
 └── lib/
@@ -82,13 +106,18 @@ src/
 - Do NOT add too many CTAs — maximum 2 per section, usually 1
 - Do NOT make animations fast — minimum 500ms, prefer 700ms for entrances
 - Do NOT use stock photography descriptions — use placeholder divs with aspect ratios
-- Do NOT import from manage/ components — they are a separate system
-- Do NOT break existing routes — /manage MUST continue working with passcode 9999
+- Do NOT import from `src/manage/` into the public site, or the reverse. The
+  manager uses inline styles and its own token object, not Tailwind.
+- Do NOT break `/manage` — it MUST keep working with passcode 9999
 
 ## Commands
 - `npm run dev` — start dev server
 - `npm run build` — production build
 - `npm run lint` — check for errors
+- `npm run gauntlet` — the real gate: typecheck, lint, tests, build
+- `npx tsc --noEmit -p tsconfig.app.json` — the root tsconfig has `"files": []`
+  and compiles NOTHING, so a bare `tsc --noEmit` always passes and proves
+  nothing. Use the `-p` form.
 
 ## Key Dependencies to Install
 ```bash

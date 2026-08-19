@@ -16,21 +16,20 @@ const Community = lazy(() => import("./pages/Community"));
 const Partners = lazy(() => import("./pages/Partners"));
 const SkillsLab = lazy(() => import("./pages/SkillsLab"));
 const Install = lazy(() => import("./pages/Install"));
-const Manage = lazy(() => import("./pages/Manage"));
-const Manage2 = lazy(() => import("./pages/Manage2"));
-const ManageNext = lazy(() => import("./pages/ManageNext"));
-const ManageAmericano = lazy(() => import("./pages/ManageAmericano"));
-// The rebuilt manager, from the wireframes. Lives beside the old ones until
-// it has been walked end to end; then it takes /manage and they go.
+// Court Manager. There is one now.
+//
+// v1 (/manage-classic), v2 (/manage2), v3 (/manage) and v4 (/manage4) are gone,
+// along with their engines, their components and their tests. Four managers
+// meant four answers to "what happened on court 1 tonight", and the operator
+// had to know which URL they were on before they could trust the screen.
 const ManageApp = lazy(() => import("./manage/ManageApp"));
+// Not a manager. This is /admin/playoffs, a standalone bracket tool that shares
+// nothing with the engines above, which is why it outlived them.
 const ManualPlayoffs = lazy(() => import("./pages/ManualPlayoffs"));
-const Simulate = lazy(() => import("./pages/Simulate"));
-const EngineTest = lazy(() => import("./pages/EngineTest"));
 const SeasonReset = lazy(() => import("./pages/admin/SeasonReset"));
 const SessionHistory = lazy(() => import("./pages/admin/SessionHistory"));
 const SessionDetail = lazy(() => import("./pages/admin/SessionDetail"));
 const Set01Tournament = lazy(() => import("./pages/admin/Set01Tournament"));
-const Login = lazy(() => import("./pages/Login"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Club = lazy(() => import("./pages/Club"));
 const ClubRoomPreview = lazy(() => import("./pages/ClubRoomPreview"));
@@ -74,18 +73,18 @@ const App = () => (
           {/* Dev-only visual harness for the room (redirects in prod) */}
           <Route path="/club/preview" element={<ClubRoomPreview />} />
 
-          {/* Manage routes — completely isolated, no public layout.
-                /manage now serves Court Manager v3 (games-first rebuild).
-                /manage-classic keeps the legacy manager as the courtside
-                escape hatch until the rebuild reaches full parity. */}
-            <Route path="/manage" element={<ManageNext />} />
-          {/* Court Manager v4 (Americano) — robots-blocked via the /manage prefix */}
-          <Route path="/manage4" element={<ManageAmericano />} />
-          <Route path="/manage-next" element={<ManageApp />} />
-            <Route path="/manage-classic" element={<Manage />} />
-            <Route path="/manage2" element={<Manage2 />} />
-            <Route path="/manage/simulate" element={<Simulate />} />
-            <Route path="/manage/test" element={<EngineTest />} />
+          {/* The manager. Isolated, no public layout, robots-blocked by prefix.
+                The passcode is the door; there is no sign-in and no inbox. */}
+            <Route path="/manage" element={<ManageApp />} />
+            {/* The old managers' URLs. An operator with /manage4 on their home
+                screen taps it tonight and must land on the manager, not on a
+                blank page, so these redirect rather than 404. */}
+            <Route path="/manage4" element={<Navigate to="/manage" replace />} />
+            <Route path="/manage-next" element={<Navigate to="/manage" replace />} />
+            <Route path="/manage-classic" element={<Navigate to="/manage" replace />} />
+            <Route path="/manage2" element={<Navigate to="/manage" replace />} />
+            <Route path="/manage/simulate" element={<Navigate to="/manage" replace />} />
+            <Route path="/manage/test" element={<Navigate to="/manage" replace />} />
             {/* Player-facing rankings are DOWN until clubhouse Wave 3 puts
                 them behind a login: real names and full standings were public
                 at these URLs. The routes stay alive as redirects because
@@ -98,7 +97,6 @@ const App = () => (
             <Route path="/admin/reset" element={<SeasonReset />} />
             <Route path="/admin/history" element={<SessionHistory />} />
             <Route path="/admin/history/:id" element={<SessionDetail />} />
-            <Route path="/login" element={<Login />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -78,6 +78,61 @@ export default function ManageApp() {
   const [lateCourt, setLateCourt] = useState<number | null>(null);
   const [playoffScreen, setPlayoffScreen] = useState<null | "bracket" | "match">(null);
 
+  /* ── where the render below is heading ─────────────────────────── */
+  //
+  // Pure reads off the session, hoisted above the passcode gate because hooks
+  // cannot live under an early return and the effect at the end of this block
+  // has to know which screen the render lands on.
+
+  const running = s.session.status === "running";
+  const view = s.views.find((v) => v.court.number === court) ?? s.views[0];
+  const playoffOn = view?.court.playoffSeeded ?? false;
+  const live = view?.onCourt ?? null;
+
+  /**
+   * Standings for a court whose playoff is seeded IS the bracket.
+   *
+   * This was `setPlayoffScreen("bracket")` in the render body: React asked to
+   * re-enter a render it was already inside, and the operator's tap on
+   * Standings rendered a table that was thrown away before it reached glass.
+   * It never needed to be state. Nothing about it is remembered, it is read
+   * off the tab and the court every time, so deriving it is both the fix and
+   * the smaller idea. `playoffScreen` still holds what the operator chose
+   * (opening the match, coming back to the bracket); this only fills the gap
+   * where they have chosen nothing yet.
+   */
+  const screen = playoffScreen
+    ?? (tab === "standings" && playoffOn && view?.stages ? "bracket" : null);
+
+  /**
+   * Nobody on court, so put the next four on.
+   *
+   * The court screen used to call ensureOnCourt mid-render and hold a blank
+   * frame while it landed, which writes the session (and localStorage) from
+   * inside a render, twice over under StrictMode, once per render forever if
+   * the court had nothing left to draw.
+   *
+   * The condition mirrors the route below rather than simplifying it, because
+   * every screen that takes over before the court gets its say first: a court
+   * that is done, or in a playoff, or being read as standings must not have
+   * four more players drawn onto it behind the operator's back. It resolves to
+   * the court number to fill, or null, so the effect fires on the transition
+   * instead of on every render.
+   */
+  const fillCourt =
+    unlocked && !inSetup && running && atCourt && view != null &&
+    sheet !== "summary" && tab === "match" && !live &&
+    !(playoffOn && view.champion) &&
+    !(screen === "bracket" && playoffOn && view.stages) &&
+    !(view.complete && !playoffOn)
+      ? view.court.number
+      : null;
+
+  const { ensureOnCourt } = s;
+  useEffect(() => {
+    if (fillCourt != null) ensureOnCourt(fillCourt);
+  }, [fillCourt, ensureOnCourt]);
+
   /* ── the door ──────────────────────────────────────────────────── */
 
   const digit = (d: string) => {
@@ -94,9 +149,6 @@ export default function ManageApp() {
       ? <PasscodeFailed onDigit={digit} onDelete={() => setEntered((e) => e.slice(0, -1))} />
       : <Passcode entered={entered.length} onDigit={digit} onDelete={() => setEntered((e) => e.slice(0, -1))} />;
   }
-
-  const running = s.session.status === "running";
-  const view = s.views.find((v) => v.court.number === court) ?? s.views[0];
 
   /* ── home ──────────────────────────────────────────────────────── */
 
@@ -307,7 +359,6 @@ export default function ManageApp() {
   const pairLabel = (ids: readonly string[]) => ids.map(s.playerName).join(" and ");
   const pair = (ids: readonly string[]) => [s.playerName(ids[0]), s.playerName(ids[1])] as [string, string];
   const other = s.views.filter((v) => v.court.number !== view.court.number);
-  const playoffOn = view.court.playoffSeeded;
 
   /* ── the summary, reachable once the night has ended ─────────── */
 
@@ -337,7 +388,7 @@ export default function ManageApp() {
 
   /* ── playoffs ─────────────────────────────────────────────────── */
 
-  if (playoffScreen === "match" && playoffOn) {
+  if (screen === "match" && playoffOn) {
     const live = s.session.matches.find(
       (m) => m.courtNumber === view.court.number && m.stage !== null && m.status === "onCourt");
     if (live) {
@@ -380,7 +431,7 @@ export default function ManageApp() {
     );
   }
 
-  if (playoffScreen === "bracket" && playoffOn && view.stages) {
+  if (screen === "bracket" && playoffOn && view.stages) {
     const liveId = s.session.matches.find(
       (m) => m.courtNumber === view.court.number && m.stage !== null && m.status === "onCourt")?.id ?? null;
     return (
@@ -406,10 +457,6 @@ export default function ManageApp() {
         onScoreMatchOnCourt={() => setPlayoffScreen("match")}
       />
     );
-  }
-
-  if (tab === "standings" && playoffOn && view.stages) {
-    setPlayoffScreen("bracket");
   }
 
   /* ── tabs ─────────────────────────────────────────────────────── */
@@ -489,8 +536,6 @@ export default function ManageApp() {
 
   /* ── the court ────────────────────────────────────────────────── */
 
-  const live = view.onCourt;
-
   if (!live && view.complete && !playoffOn) {
     return (
       <PlayoffReadiness
@@ -509,10 +554,8 @@ export default function ManageApp() {
     );
   }
 
-  if (!live) {
-    s.ensureOnCourt(view.court.number);
-    return <div style={{ background: T.bg, minHeight: "100dvh" }} />;
-  }
+  // `fillCourt` above is drawing the next four. Hold the frame until they land.
+  if (!live) return <div style={{ background: T.bg, minHeight: "100dvh" }} />;
 
   if (sheet === "switcher" && s.views.length > 1) {
     return (
