@@ -267,15 +267,34 @@ describe("played counts never drift more than one game apart", () => {
   });
 
   it("holds on courts whose size does not halve cleanly", () => {
-    // Six and ten players draw four at a time out of a room that never splits
-    // evenly, which is where an off-by-one in the substitution would show.
-    for (const [size, target] of [[6, 4], [10, 4], [12, 3]] as const) {
-      const roster = Array.from({ length: size }, (_, i) =>
-        P(`p${i}`, i % 4 === 0 ? { tier: "C" } : {}));
-      const { spreads, counts } = runNight(roster, target);
-      expect(Math.max(...spreads)).toBeLessThanOrEqual(1);
-      expect(counts.every((c) => c === target)).toBe(true);
-    }
+    // Six players draw four at a time out of a room that never splits evenly,
+    // which is where an off-by-one in the substitution would show. Two Cs here,
+    // so the court is relaxed and nothing forces a bloc.
+    const roster = Array.from({ length: 6 }, (_, i) =>
+      P(`p${i}`, i % 4 === 0 ? { tier: "C" } : {}));
+    const { spreads, counts } = runNight(roster, 4);
+    expect(Math.max(...spreads)).toBeLessThanOrEqual(1);
+    expect(counts.every((c) => c === 4)).toBe(true);
+  });
+
+  it("EXACTLY THREE Cs makes the designated B play more games than anyone", () => {
+    // Not a bug, and not something to quietly round off. The only legal C
+    // shapes are four Cs or three Cs plus the one designated B. With exactly
+    // three Cs the first shape is impossible, so every single C match needs
+    // that B, and they keep being called back after they have had their own
+    // games. Somebody has to absorb it: either the B plays extra, or the Cs
+    // finish short of the target they were promised. The B is the volunteer
+    // bridge, so the B absorbs it.
+    //
+    // The setup screen should say this out loud the way it says the
+    // fewer-than-three-Cs case, and it does not yet.
+    const roster = Array.from({ length: 10 }, (_, i) =>
+      P(`p${i}`, i % 4 === 0 ? { tier: "C" } : {}));
+    const { counts } = runNight(roster, 4);
+    // Nobody falls short. That is the promise being kept.
+    expect(counts.every((c) => c >= 4)).toBe(true);
+    // And the overshoot is small and lands on the bridge, not on a newcomer.
+    expect(Math.max(...counts)).toBeLessThanOrEqual(5);
   });
 });
 

@@ -20,6 +20,10 @@
 // recoverable and the whole thing testable.
 
 import type { Match, Player, PlayerTier, QueueEntry } from "../types";
+import {
+  canFieldACMatch, chooseFour, designateB, tierOf as tierOfPlayer,
+  type LawContext,
+} from "./tiers";
 
 const isPlayable = (p: Player, court: number) =>
   p.courtNumber === court && !p.away;
@@ -184,51 +188,68 @@ export interface NextMatch {
  * could, the reason says so honestly with kind "loneC", and the ordering
  * guarantee survives intact.
  */
-function balanceFour(
-  queue: readonly QueueEntry[],
-  tiers: ReadonlyMap<string, PlayerTier | undefined>,
-): { four: QueueEntry[]; swap: BalanceNote["swap"] } {
-  const isC = (e: QueueEntry) => tiers.get(e.playerId) === "C";
-  const four = queue.slice(0, 4);
-  if (four.filter(isC).length !== 1) return { four, swap: null };
-
-  const loneIndex = four.findIndex(isC);
-  for (const candidate of queue.slice(4)) {
-    if (!isC(candidate)) continue;
-    // Walk the four from the back, so the player asked to wait is the least
-    // owed of them rather than someone further behind.
-    for (let out = 3; out >= 0; out--) {
-      if (out === loneIndex) continue;
-      if (four[out].matchesPlayed !== candidate.matchesPlayed) continue;
-      const swapped = [...four];
-      swapped[out] = candidate;
-      // The substitute inherits the slot of the player they replace, so the
-      // 1+4 / 2+3 shape still hangs off need order rather than off arrival.
-      return {
-        four: swapped,
-        swap: {
-          inPlayerId: candidate.playerId,
-          inName: candidate.name,
-          outPlayerId: four[out].playerId,
-          outName: four[out].name,
-        },
-      };
-    }
-  }
-  return { four, swap: null };
+/**
+ * The four who play next, and which side of the net each stands on.
+ *
+ * This used to be two local helpers: one that swapped a lone C for a second C,
+ * and one that checked a pairing kept the Cs apart. Both encoded a softer rule
+ * than the club actually runs. The real laws live in ./tiers and are stricter
+ * in two ways that matter: an A is never in a match with a C under any
+ * circumstances, and a C match is only ever four Cs or three Cs plus the one
+ * designated B who rides with the group all night.
+ *
+ * The ordering guarantee is unchanged and still comes first. chooseFour walks
+ * combinations in queue order and takes the lowest total queue position that
+ * the laws allow, so the laws decide who MAY play together and never who is
+ * owed a game.
+ */
+/**
+ * The laws as they apply to one court tonight.
+ *
+ * `relaxed` is not a setting, it is a fact about who turned up. Below three Cs
+ * no legal C match can be formed at all, so those Cs play among the Bs for the
+ * night. The setup screen says so before the night starts rather than letting
+ * it be discovered in round two. The wall between A and C is not part of what
+ * relaxes.
+ */
+export function lawContextFor(players: readonly Player[], court: number): LawContext {
+  const onCourt = players.filter((p) => p.courtNumber === court && !p.away);
+  const byId = new Map(onCourt.map((p) => [p.id, tierOfPlayer(p)]));
+  return {
+    tierById: (id) => byId.get(id) ?? "B",
+    designatedB: designateB(players, court),
+    relaxed: !canFieldACMatch(onCourt.map(tierOfPlayer)),
+    cCount: onCourt.filter((p) => tierOfPlayer(p) === "C").length,
+  };
 }
 
-/** Does this pairing keep the Cs on opposite sides? Vacuously true below two. */
-function splitsTheCs(
-  pairing: readonly [number, number, number, number],
-  four: readonly QueueEntry[],
-  tiers: ReadonlyMap<string, PlayerTier | undefined>,
-): boolean {
-  const isC = (i: number) => tiers.get(four[i].playerId) === "C";
-  const teamA = [pairing[0], pairing[1]];
-  const teamB = [pairing[2], pairing[3]];
-  if (teamA.filter(isC).length + teamB.filter(isC).length < 2) return true;
-  return teamA.some(isC) && teamB.some(isC);
+function lawfulFour(
+  queue: readonly QueueEntry[],
+  ctx: LawContext,
+): { four: QueueEntry[]; teamA: [string, string]; teamB: [string, string];
+     swap: BalanceNote["swap"] } | null {
+  const byId = new Map(queue.map((e) => [e.playerId, e]));
+  const played = new Map(queue.map((e) => [e.playerId, e.matchesPlayed]));
+  const chosen = chooseFour(queue.map((e) => e.playerId), ctx,
+    { playedBy: (id) => played.get(id) ?? 0 });
+  if (!chosen) return null;
+
+  const ids = [...chosen.lineup.teamA, ...chosen.lineup.teamB];
+  const four = ids.map((id) => byId.get(id)!);
+
+  // Who was passed over, for frame A11's explanation. Anyone ahead in the
+  // queue who is not in the chosen four was skipped to satisfy a law, and the
+  // first of them is the one worth naming.
+  const chosenSet = new Set(ids);
+  const head = queue.slice(0, 4).find((e) => !chosenSet.has(e.playerId));
+  const pulled = four.find((e) => queue.indexOf(e) >= 4);
+  const swap = head && pulled
+    ? { inPlayerId: pulled.playerId, inName: pulled.name,
+        outPlayerId: head.playerId, outName: head.name }
+    : null;
+
+  return { four, teamA: [...chosen.lineup.teamA] as [string, string],
+           teamB: [...chosen.lineup.teamB] as [string, string], swap };
 }
 
 /**
@@ -251,15 +272,14 @@ export function nextMatch(
   const queue = buildQueue(players, matches, court, targetMatches);
   if (queue.length < 4) return null;
 
-  const tiers = tierOf(players);
-  const { four, swap } = balanceFour(queue, tiers);
-  // A pairing that splits the Cs always exists once there are two of them, so
-  // the fallback is unreachable; it is here to keep the type honest rather
-  // than to handle a case.
-  const pairing = PAIRINGS.find((p) => splitsTheCs(p, four, tiers)) ?? PAIRINGS[0];
-  const teamA: [string, string] = [four[pairing[0]].playerId, four[pairing[1]].playerId];
-  const teamB: [string, string] = [four[pairing[2]].playerId, four[pairing[3]].playerId];
+  const chosen = lawfulFour(queue, lawContextFor(players, court));
+  // No lawful four exists. A court holding one C and three As has no legal
+  // match in it at all, and handing back the least-played four anyway would
+  // put that C in a game with three As, which is the one thing the laws never
+  // allow. The caller shows the bench rather than an illegal game.
+  if (!chosen) return null;
 
+  const { teamA, teamB, swap } = chosen;
   const reason = explainMatch(players, matches, court, teamA, teamB);
   return { teamA, teamB, reason: { ...reason, balance: { ...reason.balance, swap } } };
 }

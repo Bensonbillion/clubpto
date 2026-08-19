@@ -1,115 +1,149 @@
 # The night, as it actually runs
 
-Benson's walkthrough of a full two-court night, 2026-08-19. This is the
-authoritative description of the system's behaviour. Where this document and
-the code disagree, the code is wrong.
+Benson's own description of the system, 2026-08-19. This is the authoritative
+account of its behaviour. Where this document and the code disagree, the code
+is wrong.
 
-Sixteen people, two courts, real roster names.
+The frames it refers to are in `docs/design/v3/frames/` and
+`docs/design/v3/wireframes-A.html` / `-B.html`.
 
-## 7:00, the split
+## The one line
 
-Setup asks who is here, then hands you the court screen. You drag names by
-feel. Court 2 takes the stronger end of the room, Court 1 takes the rest.
+The round robin is long, so that is where people need protecting. The playoff
+is short, earned and partnered, so that is where everyone mixes. Beginners get
+a guarded night and still end it in the same tournament as everyone else, and
+points are points, so a C who runs their pool clean can top the table over an
+A who did not.
 
-Three tiers onto two courts cannot be a clean sort, so it is a gradient: one
-court skews newer, one skews stronger, and the middle goes wherever the counts
-need it. The tier chips help exactly where they are honest. A player with a
-real assessment carries a real A or C chip; nearly everyone else reads "Not
-assessed", because that is the truth of the data.
+## The tiers
 
-You are not executing a policy, you are eyeballing two rooms. The screen just
-keeps the counts even.
+A is the competitive end, C is the newest, B is the middle.
 
-## Why nobody gets buried
+**Everyone unassessed counts as B.** That is not a shortcut, it is
+load-bearing. B is the only tier with no restrictions on it, so defaulting a
+few hundred unknown players to the bridge is the least damaging wrong guess
+the system can make.
 
-Fairness inside a court is the balance rule, and it is worth being precise
-about what it does:
+Tiers are set per night, on the way in (frame 06). Last week's carries over as
+a default. B this week can be A the next: form moves, and nothing already
+played changes. They are a private note for whoever is splitting the courts.
+They show in the roster and on the split screen, and **never on court, in a
+game, or in standings** (frame 29).
 
-**No player is ever on court as the only C-tier player in the match.** If a
-C-tier player is up, another C is across the net rather than alongside. The
-newest player always has a counterpart on the other team, so no game turns
-into three people hunting the weak fourth.
+## The two balance laws
 
-That is the mechanism that lets a gradient court run without anyone having a
-bad night, and it is why the courts do not need to be pure.
+Same shape, one at each end of the room.
 
-## The middle two hours
+**If a match holds both A's and B's, each team has a B.** No B is ever the lone
+weaker player being hunted.
 
-Both courts run the same loop independently.
+**If a match holds any C, there is no A anywhere in it, a C stands on each
+team, and at most one B is allowed in.** So legal C matches are exactly two
+shapes: four C's, or three C's plus one B.
 
-Eight players at target three is six matches per court: 8 x 3 = 24
-player-games, four to a match.
+**That one B is the same person all night.** One designated B rides with the
+beginner group for the whole session, so the C's see one consistent stronger
+face instead of a rotating cast, and no player ends up playing with more than
+one B this way in a night.
 
-The phone shows one court at a time. The switcher chips say at a glance which
-court is mid-match and which is waiting on a score. Each court view is one
-card: the pair on the left, the pair on the right, the score slat at 00 00,
-and underneath, the four waiting, by name.
+Underneath all of it, least-played-first still picks who goes on next, so
+nobody drifts behind on games.
 
-On an eight-player court, least-played-first has a hard property worth saying
-out loud: **played counts can never drift more than one game apart.** The four
-watching are effectively on next. In an earlier test night one player reached
-three games while another sat on one. That failure is structurally impossible
-here.
+The laws hold whether the group is spread over three courts or sharing one.
+On a single court for everyone, the A-and-B mixing stays as it is, and C plays
+only with other C's or with one B, never in a game with an A (frame 11).
 
-Score a match, two taps, and the next card is up before the players have left
-the court.
+## Courts
 
-## 9:00, the tables settle
+The split arrives pre-sorted and you adjust by hand. **Tier suggests, it never
+gates.**
 
-Each court has its own standings. Two players level on points and on score
-difference are separated by whoever reached that score first: no flip, no
-judgement call. The row says why, and the reason stays on the row for the rest
-of the night.
+The suggestion follows the counts rather than a fixed rule. A typical night
+puts A and B together and gives C their own court (frame 07). A night of 16 A,
+4 B and 10 C splits as all-A on one court and B-with-C on the other, because B
+is the bridge and the C court needs B's to fill it (frame 31). Some nights
+have no C at all. The point is flexibility, so nothing here is a gate.
 
-The table is final the moment the last score lands.
+**If fewer than three C's show up, no legal C match can form.** Those C's play
+among the B's for the night, still walled off from A's, and the setup screen
+says so before the night starts rather than letting it be discovered in round
+two.
 
-## Two endings, chosen per court
+## Scoring
 
-Each court decides on the night, and the other court is unaffected.
+**Enter both scores** (frame 12). The higher score takes the 3 points, so 7-6
+wins exactly like 7-0. The margin only feeds score difference.
 
-### The doubles bracket
+A win is 3, a loss is 0. Nobody earns points for sitting out, ever.
 
-Readiness says the targets are met, one button: seed.
+## The schedule
 
-**Pairing splits adjacent seeds: 1+3, 2+4, 5+7, 6+8.** Seeds 1 and 2 do not
-pair. Pairing the top two builds a superteam and makes the final a coronation.
-Splitting gives every pair one high seed and one lower, so any pair can beat
-any pair.
+Every match is drawn up front and **nothing has to happen in order** (frame
+12b). Tap any row to jump straight to it. The arrows on the match screen walk
+the same list.
 
-Semis cross top against bottom: the first pair meets the last, the second
-meets the third. Winners meet in the final.
+**A skipped game never disappears.** It waits until you come back to it, and
+it comes back before the table settles.
 
-Three matches, everyone on the court plays, about half an hour, same two-tap
-scoring. The champion screen keeps "Back to bracket" visible so a mistyped
-final stays fixable.
+## Both courts, one device
 
-### One more round
+**Both courts run at once** (frame 13). The court chips flip instantly, mid
+match, mid score, mid anything. Each court keeps its own schedule and picks up
+exactly where it was. Finishing one court is never a condition for looking at
+the other.
 
-No bracket. Everyone plays one more match, and whoever tops the table is the
-individual champion. Same length of evening, different flavour.
+Moving a player mid-night moves them and nothing else (frame 28): everything
+they have played stays on the old court's table, and they join the new court's
+queue. No points move courts, so both tables stay honest.
 
-## The close
+## Standings
 
-Two celebrations, and deliberately **no crossover final** between the courts'
-winners. A crossover re-ranks the courts and crowns one court's pair the real
-champion, which is the hierarchy the whole design refuses. Court 1's champion
-and Court 2's champions are equally the story of the night.
+Ties break on score difference, then on whoever reached the total first,
+decided by the order results were recorded. No coin flip and no judgement
+call. The table explains itself on the row: "Behind on score difference",
+"First to this score". The moment the last score lands, the order is final.
+
+## The playoff, where the walls come down
+
+Seeding comes straight off the standings. Full field, everyone in, and **from
+here tier is irrelevant**. You earned your seed; you play whoever the bracket
+gives you.
+
+Pairs form by splitting adjacent seeds: 1 with 3, 2 with 4, 5 with 7, 6 with
+8. Never 1 with 2, so there is no superteam coronation. The bracket crosses
+top against bottom: 1+3 meets 6+8, 2+4 meets 5+7, winners to the final.
+
+A C who scrapes in eighth gets seed six as a partner, and **that partner is
+the protection now. The pairing is the shield, not the wall.**
+
+Each court runs its own bracket and crowns its own champions. **There is no
+crossover final between courts**, because a crossover would rank the courts
+against each other, and that is the hierarchy the whole club refuses.
+
+Any court can instead take the alternative ending: one more round for
+everyone, and the top of the table is the individual champion.
 
 ## The awkward headcounts
 
 The app states the consequence rather than hiding the maths.
 
 **Twenty, ten a side.** Target must be 4, because ten by three does not divide
-into fours. Ten matches per court. The playoff makes five pairs: seeds 1 to 6
-pair normally, 9+10 form the fifth pair, and pairs four and five play one
-play-in for the last semi slot.
+into fours. Ten matches per court. The playoff makes five pairs: 9+10 form the
+fifth, and pairs four and five play one play-in for the last semi slot.
 
 **Eighteen, nine a side.** Target 4 again. The ninth seed joins the fourth
 pair as a rotating trio, so nobody watches the climax.
 
-**Sixteen or twenty-four.** Eight or twelve a side divides cleanly at either
-target. Nothing to explain.
+**Sixteen or twenty-four.** Eight or twelve a side divides cleanly. Nothing to
+explain.
+
+## The night menu
+
+One tap from any screen, either court, all night (frame 25b): session summary,
+one more round for a court, start tonight over, end the night.
+
+**Start over clears every game and bracket. The roster and tiers stay.**
 
 ## The door
 
-No sign-in to use the manager. The passcode, and nothing else.
+No sign-in. The passcode, and nothing else.
