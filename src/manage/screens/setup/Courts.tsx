@@ -1,178 +1,182 @@
-// Frame 07 — Courts. Step 3 of 4.
+// Frame 07, Split the courts. Step 3 of 4.
 //
-// Players stay on their court all night, so this split is the one setup
-// decision that cannot be undone later without moving somebody mid-night.
-// That is why the whole roster is on screen as chips rather than behind a
-// count: the manager reads the two lists and fixes the split by tapping.
+// Players stay on their court all night, so this is the one setup decision
+// that cannot be undone later without moving somebody mid-night. That is why
+// the whole room is on screen as chips rather than behind a count: the
+// operator reads the two lists and fixes the split by tapping.
 //
-// The seeding letter is a setup-time hint only. It rides inside the chip in
-// faint ink and never appears again once the night starts.
+// The split ARRIVES pre-sorted, from the tiers set on the way in, and the
+// operator adjusts it by hand. The spec's phrase for the whole screen is "tier
+// suggests, it never gates": a typical night puts A and B on one court and
+// gives C their own, but a night of 16 A, 4 B and 10 C splits the other way,
+// because B is the bridge and the C court needs B's to fill it. So nothing
+// here refuses a move, and nothing here moves anybody on the operator's
+// behalf once they start dragging.
+//
+// A tier tag rides a chip only where somebody was actually assessed, and the
+// footer sentence says exactly that. Everyone else is unlabelled, which is not
+// a gap: an unassessed player counts as B everywhere it matters, B is the tier
+// with no restrictions on it, and printing a guess on their chip would dress a
+// default up as a judgement somebody made.
 
-import { Fragment } from "react";
+import type { PlayerTier } from "../../types";
 import {
-  Body, Card, FooterBar, Num, PrimaryButton, Screen, SecondaryButton, T,
+  Body, Card, FooterBar, PrimaryButton, Screen, SecondaryButton, T, Tag,
 } from "../../ui/primitives";
-import { H1, pad2, QuietLine, SETUP, StepCounter, Sub, TopBar } from "./shell";
+import { Chip, SetupHeader, Why } from "./shell";
+
+/** The counts frame 07 offers. Three courts is drawn, so three is offered. */
+const COUNT_OPTIONS = [1, 2, 3] as const;
 
 /**
- * v2 offers exactly these. Three-court support is out of scope until the
- * option is added back explicitly, so this is a constant rather than a prop.
+ * Spelled out, because frame 27b writes "drop back to two courts" rather than
+ * "to 2 courts". Only the counts this screen can offer need a word.
  */
-const COUNT_OPTIONS = [1, 2] as const;
+const COUNT_WORDS: Record<number, string> = { 1: "one court", 2: "two courts" };
 
 export interface CourtChip {
   playerId: string;
   displayName: string;
-  /** Optional. Most chips carry none. */
-  seedLetter: "A" | "B" | "C" | null;
+  /**
+   * Tonight's tier, where somebody set one. Null is the common case and draws
+   * no tag at all: the balance rules treat an unassessed player as B, but that
+   * is a default the engine applies, not an assessment this chip may claim.
+   */
+  tier: PlayerTier | null;
 }
 
 export interface SetupCourt {
   courtNumber: number;
   /** "Court 1". The rest of the app keys on this identity. */
   label: string;
-  /** The default split is balanced; tapping a chip rebalances it by hand. */
+  /** The split as it stands. Tapping a name moves it to the next court. */
   players: CourtChip[];
 }
 
 export interface CourtsProps {
   /** One entry per court at the current count, in court order. */
   courts: SetupCourt[];
-  /** 1 or 2. Changing it re-splits everyone and re-renders the cards. */
+  /** 1, 2 or 3. Changing it re-splits everyone and re-renders the cards. */
   courtCount: number;
   onCourtCountChange: (count: number) => void;
-  /** Moves that player to the other court. */
+  /** Moves that player to the next court, wrapping back to the first. */
   onMovePlayer: (playerId: string) => void;
   /** The empty court card's only action. */
   onAssignPlayers: (courtNumber: number) => void;
   /** Back returns to frame 06. */
-  onBack: () => void;
+  onBack?: () => void;
   onNext: () => void;
 }
 
-const Chip = ({ chip, onMove }: { chip: CourtChip; onMove: (() => void) | null }) => {
-  const inside = (
-    <>
-      {chip.displayName}
-      {chip.seedLetter != null && <span style={{ color: T.ink45 }}> {chip.seedLetter}</span>}
-    </>
-  );
-  const skin = {
-    font: "600 14px Inter, sans-serif", whiteSpace: "nowrap" as const,
-    border: `1px solid ${SETUP.lineChip}`, borderRadius: 999, padding: "6px 11px",
-    background: "transparent", color: T.ink,
-  };
-  // With one court there is nowhere to move to, so the chip is not a control.
-  return onMove == null
-    ? <span style={skin}>{inside}</span>
-    : <button type="button" onClick={onMove} style={{ ...skin, cursor: "pointer" }}>{inside}</button>;
-};
-
-const EmptyCourt = ({ court, onAssign }: { court: SetupCourt; onAssign: () => void }) => (
-  // v1 frame 24b. The dashed card replaces the whole court card, count and all.
-  <Card style={{
-    border: `1px dashed ${SETUP.lineDashed}`, padding: "26px 16px",
-    alignItems: "center", gap: 12,
-  }}>
-    <span style={{ font: "800 16px Inter, sans-serif" }}>{court.label}</span>
-    <p style={{
-      font: "400 14px/1.5 Inter, sans-serif", color: T.ink60, margin: 0, textAlign: "center",
-    }}>
-      No one on {court.label} yet.
-    </p>
-    <SecondaryButton onClick={onAssign} style={{ width: "auto", minHeight: 46, padding: "8px 22px" }}>
-      Assign players
-    </SecondaryButton>
-  </Card>
+/** One name, with what the club knows about them riding inside the pill. */
+const PlayerChip = ({ chip, onMove }: { chip: CourtChip; onMove: (() => void) | null }) => (
+  <Chip
+    onClick={onMove ?? undefined}
+    style={{ minHeight: 36, padding: "4px 13px", fontSize: 14, gap: 7 }}
+  >
+    {chip.displayName}
+    {chip.tier != null && <Tag size="sm">{chip.tier}</Tag>}
+  </Chip>
 );
+
+/** Frame 27b. The dashed card replaces the court card, count and all. */
+const EmptyCourt = ({ court, courtCount, onAssign }: {
+  court: SetupCourt; courtCount: number; onAssign: () => void;
+}) => {
+  // The second clause is an offer to undo the court that is empty, so it only
+  // exists while there is a smaller split to drop back to.
+  const fallback = COUNT_WORDS[courtCount - 1];
+
+  return (
+    <Card style={{
+      border: `1.5px dashed ${T.line}`, padding: "28px 18px", alignItems: "center", gap: 12,
+    }}>
+      <span style={{ fontFamily: T.fontHead, fontWeight: 400, fontSize: 18 }}>{court.label}</span>
+      <p style={{
+        font: `400 14.5px/1.6 ${T.fontBody}`, color: T.mut, margin: 0, textAlign: "center",
+      }}>
+        Nobody on {court.label} yet. Drag names across
+        {fallback != null ? `, or drop back to ${fallback}` : ""}.
+      </p>
+      <SecondaryButton onClick={onAssign} style={{ width: "auto", minHeight: 46, padding: "8px 24px" }}>
+        Assign players
+      </SecondaryButton>
+    </Card>
+  );
+};
 
 export const Courts = ({
   courts, courtCount, onCourtCountChange, onMovePlayer, onAssignPlayers, onBack, onNext,
-}: CourtsProps) => {
-  const sizes = courts.map((c) => c.players.length);
-  const even = courts.length > 1 && sizes.every((n) => n === sizes[0]);
+}: CourtsProps) => (
+  <Screen>
+    <SetupHeader title="Split the courts" step="3 of 4" onBack={onBack} />
+    {/* The frame writes this with a dash where the colon is. Same sentence,
+        same clause order, and no em dash in the codebase. */}
+    <Why>
+      Started from the suggested split: A and B share a court, C get their own.
+      Drag anything; the counts follow you.
+    </Why>
 
-  /*
-    Only the even two-court sentence is drawn. The spec directs deriving the
-    rest from the same shape: one declarative line, no em dash. Both derived
-    forms state the split plainly and still need sign-off.
-  */
-  const helper = even ? (
-    <>Both courts are even at <Num size={22}>{sizes[0]}</Num>.</>
-  ) : (
-    <>
-      {courts.map((court, i) => (
-        <Fragment key={court.courtNumber}>
-          {i > 0 && ", "}{court.label} has <Num size={22}>{court.players.length}</Num>
-        </Fragment>
-      ))}.
-    </>
-  );
+    <Body style={{ padding: "18px 22px", display: "flex", flexDirection: "column", gap: 14 }}>
+      <div role="radiogroup" style={{ display: "flex", gap: 10 }}>
+        {COUNT_OPTIONS.map((n) => (
+          <Chip
+            key={n}
+            radio
+            on={n === courtCount}
+            onClick={() => onCourtCountChange(n)}
+            style={{ flex: 1, minHeight: 52 }}
+          >
+            {/* The digit is a value, so it wears the display face; the word
+                beside it is part of a sentence and stays in body type. */}
+            <span style={{
+              fontFamily: T.fontHead, fontWeight: 400, fontSize: 20,
+              fontVariantNumeric: "tabular-nums",
+            }}>{n}</span>
+            {n === 1 ? "court" : "courts"}
+          </Chip>
+        ))}
+      </div>
 
-  return (
-    <Screen>
-      <TopBar onBack={onBack} right={<StepCounter step={3} />} />
+      {courts.map((court) => court.players.length === 0 ? (
+        <EmptyCourt
+          key={court.courtNumber}
+          court={court}
+          courtCount={courtCount}
+          onAssign={() => onAssignPlayers(court.courtNumber)}
+        />
+      ) : (
+        <Card key={court.courtNumber} style={{ gap: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+            <span style={{ fontFamily: T.fontHead, fontWeight: 400, fontSize: 18 }}>
+              {court.label}
+            </span>
+            {/* Sage, because the count is the number the operator is levelling. */}
+            <span style={{
+              fontFamily: T.fontHead, fontWeight: 400, fontSize: 20,
+              fontVariantNumeric: "tabular-nums", color: T.acc,
+            }}>{court.players.length}</span>
+          </div>
 
-      <Body style={{ padding: 18, display: "flex", flexDirection: "column", gap: 10 }}>
-        <H1>How many courts?</H1>
-        <Sub>Two courts means two sets of standings.</Sub>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {court.players.map((chip) => (
+              <PlayerChip
+                key={chip.playerId}
+                chip={chip}
+                // With one court there is nowhere to move to, so the chip is
+                // not a control.
+                onMove={courts.length > 1 ? () => onMovePlayer(chip.playerId) : null}
+              />
+            ))}
+          </div>
+        </Card>
+      ))}
+    </Body>
 
-        <div role="radiogroup" style={{ display: "flex", gap: 10 }}>
-          {COUNT_OPTIONS.map((n) => {
-            const on = n === courtCount;
-            return (
-              <button
-                key={n}
-                type="button"
-                role="radio"
-                aria-checked={on}
-                onClick={() => onCourtCountChange(n)}
-                style={{
-                  flex: 1, height: 56, borderRadius: T.radius, cursor: "pointer",
-                  boxSizing: "border-box",
-                  border: on ? `2px solid ${T.ink}` : `1px solid ${T.line}`,
-                  background: on ? T.lime : "transparent",
-                  color: on ? T.limeInk : T.ink,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}
-              >
-                {/* The count tiles are drawn unpadded; only the court sizes pad. */}
-                <Num size={36}>{n}</Num>
-              </button>
-            );
-          })}
-        </div>
-
-        <QuietLine>Tap a name to move it. The letter is a seeding hint and never shows on court.</QuietLine>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {courts.map((court) => court.players.length === 0 ? (
-            <EmptyCourt key={court.courtNumber} court={court} onAssign={() => onAssignPlayers(court.courtNumber)} />
-          ) : (
-            <Card key={court.courtNumber} style={{ border: `1px solid ${T.line}`, gap: 10 }}>
-              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-                <span style={{ font: "700 17px Inter, sans-serif" }}>{court.label}</span>
-                <Num size={26}>{pad2(court.players.length)}</Num>
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {court.players.map((chip) => (
-                  <Chip
-                    key={chip.playerId}
-                    chip={chip}
-                    onMove={courts.length > 1 ? () => onMovePlayer(chip.playerId) : null}
-                  />
-                ))}
-              </div>
-            </Card>
-          ))}
-        </div>
-      </Body>
-
-      <FooterBar helper={helper}>
-        <PrimaryButton onClick={onNext}>Next: matches each</PrimaryButton>
-      </FooterBar>
-    </Screen>
-  );
-};
+    <FooterBar helper="Tier chips show only where someone was actually assessed. Everyone else is unlabelled, because that is the truth of the data.">
+      <PrimaryButton onClick={onNext}>Next: matches each</PrimaryButton>
+    </FooterBar>
+  </Screen>
+);
 
 export default Courts;

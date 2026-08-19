@@ -1,18 +1,22 @@
-// Frame 16 — Correct or void a result.
+// Frame 16, Correct or void a result.
 //
-// The lime score band is the one bold element, because the sheet's first job
-// is to let you confirm you are looking at the right match. There is no lime
-// BUTTON here on purpose: a cream outline and a red outline, so neither action
-// reads as the happy path, and the destructive one is boxed off so it cannot
-// be hit while aiming for Change the score.
+// The card at the top is not decoration: the sheet's first job is to let the
+// operator confirm they are looking at the right match, so the two pairs and
+// the score they are about to change are stated before either action is.
+//
+// Neither action is filled. Frame 16 draws two ghosts, one of them outlined in
+// terracotta, so nothing on the sheet reads as the happy path and the
+// irreversible one costs a beat more attention than the reversible one. The
+// explanation sits UNDER the buttons, where it is the last thing read before
+// the tap rather than something scrolled past on the way in.
 
-import type { ReactNode } from "react";
-import { Num, Screen, Body, Sheet, Card, SecondaryButton, DangerButton, T } from "../../ui/primitives";
+import { SecondaryButton, Sheet, T } from "../../ui/primitives";
+import { pairName } from "./model";
 
 export interface CorrectOrVoidMatch {
   id: string;
-  /** Per-night match number used in the title. Not a round number. */
-  matchNumber: number;
+  /** The court's round, which is what frame 16's eyebrow names. */
+  roundNumber: number;
   /** "Court 1". */
   courtLabel: string;
   sideA: [string, string];
@@ -24,62 +28,72 @@ export interface CorrectOrVoidMatch {
 export interface CorrectOrVoidProps {
   match: CorrectOrVoidMatch;
   onChangeScore: () => void;
-  /** Opens the Void this result? confirmation. Nothing is changed yet. */
+  /** Opens the confirmation (frame 28a, in the summary-states slice). Nothing
+   *  is changed yet. */
   onVoid: () => void;
   onDismiss: () => void;
-  /** The played-matches list, rendered dimmed behind the sheet. */
-  behind?: ReactNode;
 }
 
-/** Pair names join with the word "and", never an ampersand. */
-export const pairName = (pair: readonly [string, string]): string => `${pair[0]} and ${pair[1]}`;
+export const CorrectOrVoid = ({ match, onChangeScore, onVoid, onDismiss }: CorrectOrVoidProps) => (
+  <Sheet onDismiss={onDismiss}>
+    <p
+      style={{
+        font: `600 11.5px ${T.fontBody}`,
+        letterSpacing: ".1em",
+        textTransform: "uppercase",
+        color: T.mut,
+        margin: 0,
+      }}
+    >
+      Round {match.roundNumber} &middot; {match.courtLabel}
+    </p>
 
-/** Scores render two-digit: 21, 14, 09. */
-export const padScore = (n: number): string => String(n).padStart(2, "0");
+    <div
+      style={{
+        background: T.raised,
+        border: `1.5px solid ${T.line}`,
+        borderRadius: T.radius,
+        padding: "16px 18px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+      }}
+    >
+      <span style={{ font: `600 15px ${T.fontBody}`, flex: 1, minWidth: 0 }}>
+        {pairName(match.sideA)}
+      </span>
+      <span
+        style={{
+          fontFamily: T.fontHead,
+          fontWeight: 400,
+          fontSize: 22,
+          fontVariantNumeric: "tabular-nums",
+          background: T.deep,
+          borderRadius: T.pill,
+          padding: "4px 14px",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {/* Bare numbers, not padded. Games run to whatever they run to now, so
+            a leading zero would be a digit the match never had. */}
+        {match.scoreA}&nbsp;&nbsp;{match.scoreB}
+      </span>
+      <span
+        style={{ font: `600 15px ${T.fontBody}`, color: T.soft, flex: 1, minWidth: 0, textAlign: "right" }}
+      >
+        {pairName(match.sideB)}
+      </span>
+    </div>
 
-const SideName = ({ children }: { children: ReactNode }) => (
-  <div style={{ padding: "12px 14px", font: "700 17px Inter, sans-serif" }}>{children}</div>
+    <SecondaryButton onClick={onChangeScore}>Change the score</SecondaryButton>
+    <SecondaryButton style={{ borderColor: T.bad, color: T.redInk }} onClick={onVoid}>
+      Void this result
+    </SecondaryButton>
+
+    <p style={{ font: `400 14.5px/1.6 ${T.fontBody}`, color: T.mut, margin: 0, textWrap: "pretty" }}>
+      Voiding removes the game from the standings and returns all four to the queue at their
+      previous counts.
+    </p>
+  </Sheet>
 );
-
-export const CorrectOrVoid = ({
-  match, onChangeScore, onVoid, onDismiss, behind,
-}: CorrectOrVoidProps) => (
-  // FLAG: the dimmed background is the court's played-matches list. Neither
-  // wireframe specifies that list beyond its header string, and no copy exists
-  // for its empty case, so it is passed in rather than drawn here.
-  <Screen>
-    <Body style={{ opacity: 0.35 }}>{behind}</Body>
-    <Sheet onDismiss={onDismiss}>
-      <h2 style={{ font: "700 22px Inter, sans-serif", margin: 0 }}>
-        Match <Num size={26}>{match.matchNumber}</Num>, {match.courtLabel}
-      </h2>
-
-      <Card style={{ padding: 0, gap: 0, overflow: "hidden" }}>
-        <SideName>{pairName(match.sideA)}</SideName>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1px 1fr", background: T.lime }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "6px 0" }}>
-            <Num size={56} style={{ lineHeight: 0.9, color: T.limeInk }}>{padScore(match.scoreA)}</Num>
-          </div>
-          <div style={{ background: "rgba(10,24,16,.28)" }} />
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "6px 0" }}>
-            <Num size={56} style={{ lineHeight: 0.9, color: T.limeInk }}>{padScore(match.scoreB)}</Num>
-          </div>
-        </div>
-        <SideName>{pairName(match.sideB)}</SideName>
-      </Card>
-
-      <SecondaryButton onClick={onChangeScore}>Change the score</SecondaryButton>
-
-      <Card tone="danger">
-        <div style={{ font: "700 17px Inter, sans-serif", color: T.redInk }}>Void this match</div>
-        <p style={{ font: "400 15px/1.45 Inter, sans-serif", margin: 0 }}>
-          All four players go back into the queue and this match counts for nothing. Games played
-          drops by one each.
-        </p>
-        <DangerButton onClick={onVoid}>Void it</DangerButton>
-      </Card>
-    </Sheet>
-  </Screen>
-);
-
-export default CorrectOrVoid;

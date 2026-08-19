@@ -1,77 +1,87 @@
-// Frame 10 — Court view.
+// Frame 10, Court view.
 //
-// The home screen of the night, on screen more than any other frame. First of
-// the two taps: pick the winning side, which opens frame 11.
+// The home screen of the night, on screen more than any other frame. The
+// footer holds no button: the taps are the pair cards themselves and the
+// arrows above them, so the bar is one sentence saying what the screen is for.
 
-import {
-  Body,
-  FooterBar,
-  Screen,
-  SecondaryButton,
-  T,
-  TabBar,
-  type Tab,
-} from "../../ui/primitives";
+import { Body, FooterBar, Screen, TabBar, type Tab } from "../../ui/primitives";
+import { CourtHeader } from "./CourtHeader";
 import { MatchCard } from "./MatchCard";
-import { RoundHeader } from "./RoundHeader";
+import { MatchNav } from "./MatchNav";
 import { WaitingBlock } from "./WaitingBlock";
-import type { PairSide, WaitingPlayer } from "./model";
+import type { CourtChip, PairSide, WaitingPlayer } from "./model";
 
 export interface CourtViewProps {
+  /** Every court, as header chips. The one carrying a dot owes a score. */
+  courts: CourtChip[];
+  activeCourtNumber: number;
+  onSelectCourt: (courtNumber: number) => void;
+  /** The ellipsis chip. Opens the night menu, frame 25b. */
+  onOpenNightMenu: () => void;
+  /** Position in this court's schedule, which is not the round. */
+  matchNumber: number;
+  matchesTotal: number;
   round: number;
-  totalRounds: number;
-  courtNumber: number;
+  onPreviousMatch: () => void;
+  onNextMatch: () => void;
   sideA: PairSide;
   sideB: PairSide;
   waiting: WaitingPlayer[];
-  /** Opens frame 11 with the other side as the score subject. */
-  onPickWinner: (side: "A" | "B") => void;
+  /** Opens frame 12 with that side's score box focused. */
+  onScore: (side: "A" | "B") => void;
+  /** Opens frame 11 off the match line. See MatchNav for why it hangs there. */
+  onWhyThisFour?: () => void;
   activeTab?: Tab;
   onTabChange: (tab: Tab) => void;
 }
 
 export const CourtView = ({
+  courts,
+  activeCourtNumber,
+  onSelectCourt,
+  onOpenNightMenu,
+  matchNumber,
+  matchesTotal,
   round,
-  totalRounds,
-  courtNumber,
+  onPreviousMatch,
+  onNextMatch,
   sideA,
   sideB,
   waiting,
-  onPickWinner,
+  onScore,
+  onWhyThisFour,
   activeTab = "match",
   onTabChange,
 }: CourtViewProps) => (
   <Screen>
-    <RoundHeader round={round} totalRounds={totalRounds} courtNumber={courtNumber} />
+    <CourtHeader
+      courts={courts}
+      activeCourtNumber={activeCourtNumber}
+      onSelectCourt={onSelectCourt}
+      onOpenNightMenu={onOpenNightMenu}
+    />
 
-    <Body
-      style={{
-        padding: "16px 18px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 14,
-        overflow: "hidden",
-      }}
-    >
-      <MatchCard sideA={sideA} sideB={sideB} />
-      <WaitingBlock waiting={waiting} showOnNextLine />
+    <MatchNav
+      matchNumber={matchNumber}
+      matchesTotal={matchesTotal}
+      round={round}
+      onPreviousMatch={onPreviousMatch}
+      onNextMatch={onNextMatch}
+      onExplain={onWhyThisFour}
+    />
+
+    {/* The match is centred in whatever is left between header and bench, which
+        is what keeps the slat at thumb height on a 390x844 phone. */}
+    <Body style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <MatchCard sideA={sideA} sideB={sideB} onScore={onScore} />
     </Body>
 
-    <FooterBar
-      helper={
-        <span style={{ font: "600 16px/1.35 Inter, sans-serif", color: T.ink }}>
-          Tap the winning side to score.
-        </span>
-      }
-    >
-      <div style={{ display: "flex", gap: 10 }}>
-        <SecondaryButton style={{ flex: 1, width: "auto" }} onClick={() => onPickWinner("A")}>
-          {sideA.pairLabel}
-        </SecondaryButton>
-        <SecondaryButton style={{ flex: 1, width: "auto" }} onClick={() => onPickWinner("B")}>
-          {sideB.pairLabel}
-        </SecondaryButton>
-      </div>
+    <WaitingBlock waiting={waiting} />
+
+    {/* The frame joins these with an em dash. The house voice does not use one,
+        so it is three sentences instead and no word changes. */}
+    <FooterBar helper="Arrows move through the schedule. Skip a game and it waits. Enter both scores when it ends.">
+      {null}
     </FooterBar>
 
     <TabBar active={activeTab} onChange={onTabChange} />

@@ -1,73 +1,66 @@
-// Frame 20 — the bracket, as a VERTICAL STAGE LIST.
+// Frame 21: the bracket, as a VERTICAL STAGE LIST.
 //
 // Never a horizontal tree, never an SVG connector diagram. Each stage is a
-// section with an uppercase label; each tie is a full-width row underneath it;
-// the stages scroll as one group. A phone held one-handed at the side of a
+// section with a muted uppercase label, each tie is a full-width row under it,
+// and the stages scroll as one group. A phone held one-handed at the side of a
 // court cannot pan a tree, and a tree at 390px either shrinks the names to
-// nothing or hides half the draw off-screen.
+// nothing or hides half the draw off screen.
 //
-// The intro line and every row's seed label read the same stored pairing, so
-// the sentence and the rows can never disagree about who was seeded with whom.
+// The stage label is the one place the eyebrow is not sage. Sage on a section
+// heading would read as a place in the flow, and these are just labels over
+// rows.
+//
+// The screen ends on the card that explains the pairing, because the pairing is
+// the thing an operator gets asked about at the net. Splitting adjacent seeds
+// looks arbitrary until someone says why, so frame 21 says why on the screen
+// where the question comes up.
 
-import { Fragment } from "react";
-import { Body, FooterBar, Num, PrimaryButton, Screen, T } from "../../ui/primitives";
+import {
+  Body,
+  Card,
+  Eyebrow,
+  FooterBar,
+  PrimaryButton,
+  Screen,
+  T,
+  TabBar,
+  type Tab,
+} from "../../ui/primitives";
 import { BracketRow } from "./BracketRow";
-import { PlayoffHeader } from "./PlayoffHeader";
-import { topHalfSeedPairs } from "./model";
-import type { BracketStage, SeedPair } from "./model";
+import { CourtLabel, Heading, PlayoffHeader } from "./PlayoffHeader";
+import type { BracketStage } from "./model";
 
-/** A skeleton row stands at the height of a formed row: two teams and a band. */
-const SKELETON_ROW_HEIGHT = 132;
+/** A skeleton row stands at the height of a formed row: two sides and a column. */
+const SKELETON_ROW_HEIGHT = 92;
 
 export interface BracketProps {
   courtNumber: number;
-  /** The `8` in `All 8 players are in.` */
-  playersInPlayoff: number;
-  /**
-   * The pairing rule as pairs of seed numbers, in row order:
-   * `[[1,3],[6,8],[2,4],[5,7]]`. One source for the intro line and the labels.
-   */
-  seedPairs: SeedPair[];
   /** In play order. Stage names come from the court size. */
   stages: BracketStage[];
-  /** The playoff match physically on court now. Null hides the footer bar. */
+  /** The playoff match physically on court now. Null drops the bar. */
   matchOnCourtId: string | null;
   /**
-   * What the row on court is: "Semifinal", "Play-in", "Final". The footer used
-   * to say "The final is on court now" unconditionally, which was true only
-   * while a bracket was a single match. A full court plays up to four.
+   * The singular stage word for the row on court: `Semifinal`, `Play-in`,
+   * `Final`. It is the only part of the bar's label that is not fixed, and
+   * without it the bar is dropped rather than guessing a stage.
    */
   liveStageName?: string;
   loading?: boolean;
-  /** A live or next-up row opens frame 21. */
+  /** A live or next row opens frame 22. */
   onOpenMatch: (matchId: string) => void;
-  /** A completed row opens the correct/void flow (frame 16, other slice). */
+  /** A completed row opens the correct or void flow, which is another slice. */
   onOpenResult?: (matchId: string) => void;
-  /** Footer: jumps to whichever playoff match is on court. */
+  /** The bar: jumps to whichever playoff match is on court. */
   onScoreMatchOnCourt: () => void;
+  onSelectTab: (t: Tab) => void;
 }
 
 // FLAG: no error state is rendered here. A partial bracket is worse than none,
-// so a failed fetch is the states-slice error frame INSTEAD of this component.
-// FLAG: no empty state exists either — frame 20 is unreachable before seeding.
-
-const StageLabel = ({ children }: { children: string }) => (
-  <div
-    style={{
-      font: "800 13px Inter, sans-serif",
-      letterSpacing: ".1em",
-      textTransform: "uppercase",
-      color: T.ink45,
-    }}
-  >
-    {children}
-  </div>
-);
+// so a failed read is the states-slice error frame INSTEAD of this component.
+// FLAG: no empty state exists either. Frame 21 is unreachable before seeding.
 
 export const Bracket = ({
   courtNumber,
-  playersInPlayoff,
-  seedPairs,
   stages,
   matchOnCourtId,
   liveStageName,
@@ -75,83 +68,71 @@ export const Bracket = ({
   onOpenMatch,
   onOpenResult,
   onScoreMatchOnCourt,
+  onSelectTab,
 }: BracketProps) => (
   <Screen>
-    <PlayoffHeader title="Playoff" courtNumber={courtNumber} />
+    <PlayoffHeader
+      left={<Heading>Playoff</Heading>}
+      right={<CourtLabel>Court {courtNumber}</CourtLabel>}
+    />
 
-    <Body
-      style={{
-        padding: "16px 18px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 18,
-      }}
-    >
-      {/* FLAG: the intro line is dropped while loading. It states counts that
-          are not known yet, and no loading wording is drawn for it. */}
-      {!loading && (
-        <div style={{ font: "400 15px/1.4 Inter, sans-serif", color: T.ink60 }}>
-          All <Num size={20}>{playersInPlayoff}</Num> players are in. Seeds pair{" "}
-          {topHalfSeedPairs(seedPairs).map((pair, i) => (
-            <Fragment key={`${pair[0]}+${pair[1]}`}>
-              {i > 0 ? " and " : null}
-              <Num size={20}>{pair[0]}</Num>+<Num size={20}>{pair[1]}</Num>
-            </Fragment>
-          ))}
-          .
-        </div>
-      )}
-
+    <Body style={{ padding: "16px 22px 24px", display: "flex", flexDirection: "column", gap: 20 }}>
       {stages.map((stage) => (
-        <div key={stage.name} style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <StageLabel>{stage.name}</StageLabel>
+        <div key={stage.name}>
+          <Eyebrow style={{ color: T.mut, margin: "0 0 10px" }}>{stage.name}</Eyebrow>
 
-          {loading
-            ? stage.matches.map((match) => (
-                <div
-                  key={match.matchId}
-                  style={{
-                    border: `1px solid ${T.line}`,
-                    borderRadius: T.radius,
-                    height: SKELETON_ROW_HEIGHT,
-                  }}
-                />
-              ))
-            : stage.matches.map((match) => (
-                <BracketRow
-                  key={match.matchId}
-                  match={match}
-                  onOpen={
-                    match.status === "complete"
-                      ? onOpenResult && (() => onOpenResult(match.matchId))
-                      : match.status === "pending"
-                        ? undefined
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {loading
+              ? stage.matches.map((match) => (
+                  <div
+                    key={match.matchId}
+                    style={{
+                      border: `1.5px solid ${T.line}`,
+                      borderRadius: T.radiusPanel,
+                      height: SKELETON_ROW_HEIGHT,
+                    }}
+                  />
+                ))
+              : stage.matches.map((match) => (
+                  <BracketRow
+                    key={match.matchId}
+                    match={match}
+                    onOpen={
+                      match.status === "complete"
+                        ? onOpenResult && (() => onOpenResult(match.matchId))
                         : () => onOpenMatch(match.matchId)
-                  }
-                />
-              ))}
+                    }
+                  />
+                ))}
+          </div>
         </div>
       ))}
+
+      {!loading && (
+        <Card>
+          <p style={{ fontFamily: T.fontHead, fontSize: 17, margin: "0 0 8px" }}>
+            Why 1 and 2 are not partners
+          </p>
+          <p style={{ font: `400 14.5px/1.6 ${T.fontBody}`, color: T.mut, margin: 0 }}>
+            Pairing the top two builds a superteam and makes the final a coronation.
+            Splitting adjacent seeds gives every pair one high seed and one lower, so
+            any pair can beat any pair.
+          </p>
+        </Card>
+      )}
     </Body>
 
-    {/* The whole bar goes when no playoff match is playable: all stages done
+    {/* The whole bar goes when no playoff match is playable: every stage done
         means the champion frame is the destination, not a dead button. */}
-    {!loading && matchOnCourtId != null && (
-      <FooterBar
-        helper={
-          <span style={{ font: "600 16px/1.35 Inter, sans-serif", color: T.ink }}>
-            {liveStageName ? `The ${liveStageName.toLowerCase()} is on court now.` : "A match is on court now."}
-          </span>
-        }
-      >
-        <PrimaryButton
-          onClick={onScoreMatchOnCourt}
-          style={{ height: 56, font: "700 18px Inter, sans-serif" }}
-        >
-          Score that match
+    {!loading && matchOnCourtId != null && liveStageName != null && (
+      <FooterBar>
+        <PrimaryButton onClick={onScoreMatchOnCourt}>
+          Score the live {liveStageName.toLowerCase()}
         </PrimaryButton>
       </FooterBar>
     )}
+
+    <TabBar active="match" onChange={onSelectTab} />
   </Screen>
 );
 

@@ -1,117 +1,142 @@
-// Frame 08 — How many matches each. Step 4 of 4.
+// Frame 08, Matches each. Step 4 of 4.
 //
 // Every game needs four players, so a court of N running a target of T plays
 // N*T/4 matches, and that has to land on a whole number or somebody finishes
 // the night a game short. `validTargets` is the same arithmetic the rotation
-// engine runs, imported rather than repeated so the screen can never offer a
+// engine runs, imported rather than repeated so this screen can never offer a
 // target the engine would refuse.
 //
-// Targets that do not divide stay on screen, greyed, carrying the reason. The
-// whole point of the frame is that the manager reads why a number is gone
-// instead of wondering where it went.
+// Frame 26 sets the rule this screen exists to follow: the app states the
+// consequence rather than hiding the maths. So a target that does not divide
+// stays on screen carrying its reason in full ("10 players by 3 does not
+// divide into fours"), and a target that does divide says how many matches
+// that actually buys. Ten a side reads its way to a target of 4 without the
+// operator doing any arithmetic and without a number silently disappearing.
 
+import type { CSSProperties } from "react";
 import { totalMatches, validTargets } from "../../engine/rotation";
-import { Body, FooterBar, Num, PrimaryButton, Screen, T } from "../../ui/primitives";
-import { H1, QuietLine, SETUP, StepCounter, Sub, TopBar } from "./shell";
+import { Body, FooterBar, PrimaryButton, Screen, T } from "../../ui/primitives";
+import { SetupHeader, Why } from "./shell";
 
-/** The four targets the frame draws. Availability is decided per court size. */
-const OFFERED = [2, 3, 4, 5];
-
-/**
- * Descriptive copy exists for these three only. A target with no line drawn
- * against it renders its numeral alone rather than borrowed wording.
- */
-const REASONS: Record<number, string> = {
-  3: "The usual on two courts.",
-  4: "Long night. Extend later if there is time.",
-};
+/** The three targets frame 08 draws. Availability is decided per court size. */
+const OFFERED = [3, 4, 5];
 
 export interface MatchesEachProps {
-  /** "Court 1". The sub line and the footer sentence both name it. */
-  courtLabel: string;
-  /** Players on that court, from step 3. Every target divides into this. */
+  /**
+   * Players on a court. The frame assumes the courts are even, which is what
+   * frame 07 spends its whole screen keeping true, so one size describes them
+   * all.
+   */
   courtSize: number;
+  /** How many courts run this target. Turns "per court" into "on the night". */
+  courtCount: number;
   /** The chosen target. */
   selected: number;
   onSelect: (target: number) => void;
-  /** Fills the `2` row. Null when no estimate exists. */
+  /**
+   * Rough length of one match, used only to say what a longer target costs in
+   * time. Null and that clause is dropped rather than estimated.
+   */
   minutesPerMatch: number | null;
   /** Back returns to frame 07. */
-  onBack: () => void;
+  onBack?: () => void;
   onNext: () => void;
 }
 
-// FLAG: no loading or error variant is drawn for this frame. Nothing rendered.
-
 export const MatchesEach = ({
-  courtLabel, courtSize, selected, onSelect, minutesPerMatch, onBack, onNext,
+  courtSize, courtCount, selected, onSelect, minutesPerMatch, onBack, onNext,
 }: MatchesEachProps) => {
   const available = validTargets(courtSize);
-  // The drawn reason names the nearest target that does divide, which is the
-  // smallest valid one: "15 players needs a target of 4."
-  const nearest = available.length > 0 ? available[0] : null;
+  // The shortest target that divides is the night's baseline: it is the one
+  // that keeps its own name, and every longer option is priced against it.
+  const shortest = available.length > 0 ? available[0] : null;
+  const shortestMatches = shortest != null ? totalMatches(courtSize, shortest) : 0;
 
-  const label = (target: number) => {
-    if (!available.includes(target)) {
-      // FLAG: with no valid target at all the sentence has no number to name,
-      // so the row carries its numeral and nothing else. Needs copy.
-      if (nearest == null) return null;
-      return (
-        <>
-          <Num size={20}>{courtSize}</Num>{" "}players needs a target of{" "}
-          <Num size={20}>{nearest}</Num>.
-        </>
-      );
+  const title = (target: number): string => {
+    if (!available.includes(target)) return "Unavailable";
+    if (target === selected || shortest == null || target === shortest) {
+      return `${target} matches each`;
     }
-    if (target === 2) {
-      // FLAG: the `2` row is entirely the minutes estimate. Without one there
-      // is no sentence to print, so the row shows its numeral alone.
-      if (minutesPerMatch == null) return null;
-      return <>Short night, about <Num size={20}>{minutesPerMatch}</Num> minutes each.</>;
-    }
-    // FLAG: target 5 has no descriptive line anywhere in either wireframe. It
-    // is drawn only in its unavailable state, so when it divides cleanly the
-    // row renders bare. Needs copy.
-    return REASONS[target] ?? null;
+    return "Longer night";
   };
 
-  const blocked = available.length === 0;
-  // A target that does not divide has no whole match count to state, so the
-  // sentence waits for a selection the arithmetic actually supports.
-  const stateable = available.includes(selected);
+  const body = (target: number): string => {
+    if (!available.includes(target)) {
+      // The frame spells the numbers out because it is a mockup with one
+      // headcount in it. Digits here, because the real ones are whatever
+      // walked through the door.
+      return `${courtSize} players by ${target} does not divide into fours.`;
+    }
+
+    const perCourt = totalMatches(courtSize, target);
+    const parts = [
+      courtCount > 1
+        ? `${perCourt} matches per court, ${perCourt * courtCount} on the night.`
+        : `${perCourt} matches on the night.`,
+    ];
+
+    if (target === selected) parts.push("Partners rotate every round.");
+
+    const extra = (perCourt - shortestMatches) * (minutesPerMatch ?? 0);
+    if (minutesPerMatch != null && extra > 0) parts.push(`Adds about ${extra} minutes.`);
+
+    return parts.join(" ");
+  };
+
+  // A target the arithmetic refuses cannot be started, so the forward action
+  // waits for one that works and leaves the reasons on screen.
+  const ready = available.includes(selected);
 
   return (
     <Screen>
-      <TopBar onBack={onBack} right={<StepCounter step={4} />} />
+      <SetupHeader title="How many matches each?" step="4 of 4" onBack={onBack} />
+      <Why>Every game needs four players, so the target has to divide the court.</Why>
 
-      <Body style={{ padding: 18, display: "flex", flexDirection: "column", gap: 14 }}>
-        <H1>How many matches each?</H1>
-        <Sub>
-          {courtLabel} has <Num size={20}>{courtSize}</Num> players. Every target below has to
-          divide into fours.
-        </Sub>
-
-        <div role="radiogroup" style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+      <Body style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div role="radiogroup" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {OFFERED.map((target) => {
-            const on = target === selected;
             const usable = available.includes(target);
-            const body = (
+            const on = usable && target === selected;
+
+            // The chosen target is the one filled card on the screen. Both the
+            // other rows sit at half strength whether they are merely unchosen
+            // or genuinely impossible, exactly as the frame draws them: the
+            // copy is what separates the two, not the treatment.
+            //
+            // The card geometry is written out here rather than reached for
+            // through the Card primitive, because a sage FILL is not one of the
+            // three tones a card has and a card wrapped around a button would
+            // put the tap target inside the shape instead of on it.
+            const skin: CSSProperties = {
+              display: "flex", alignItems: "center", gap: 18, width: "100%",
+              boxSizing: "border-box", textAlign: "left",
+              background: on ? T.acc : T.raised,
+              border: `${on ? 2 : 1.5}px solid ${on ? T.acc : T.line}`,
+              borderRadius: T.radius, padding: "16px 18px",
+              color: on ? T.accInk : T.ink,
+              opacity: on ? 1 : 0.5,
+            };
+
+            const inside = (
               <>
-                <Num size={34} style={{ width: 34, flexShrink: 0 }}>{target}</Num>
                 <span style={{
-                  font: on ? "600 15px Inter, sans-serif" : "400 15px Inter, sans-serif",
-                  // Greyed rows keep full-colour text so the reason stays readable.
-                  color: on ? T.limeInk : usable ? T.ink60 : T.ink,
-                }}>
-                  {label(target)}
+                  fontFamily: T.fontHead, fontWeight: 400, fontSize: on ? 44 : 38,
+                  fontVariantNumeric: "tabular-nums", width: 44, textAlign: "center",
+                  flexShrink: 0,
+                }}>{target}</span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={on ? {
+                    display: "block", fontFamily: T.fontHead, fontWeight: 400, fontSize: 18,
+                  } : {
+                    display: "block", font: `600 16px ${T.fontBody}`,
+                  }}>{title(target)}</span>
+                  <span style={{
+                    display: "block", font: `400 14px/1.45 ${T.fontBody}`,
+                    color: on ? T.accInk : T.mut, marginTop: 3,
+                  }}>{body(target)}</span>
                 </span>
               </>
             );
-            const skin = {
-              borderRadius: T.radius, padding: "14px 16px", boxSizing: "border-box" as const,
-              display: "flex", alignItems: "center", gap: 14, width: "100%",
-              textAlign: "left" as const,
-            };
 
             return usable ? (
               <button
@@ -120,43 +145,17 @@ export const MatchesEach = ({
                 role="radio"
                 aria-checked={on}
                 onClick={() => onSelect(target)}
-                style={{
-                  ...skin, cursor: "pointer",
-                  border: on ? `2px solid ${T.ink}` : `1px solid ${T.line}`,
-                  background: on ? T.lime : "transparent",
-                  color: on ? T.limeInk : T.ink,
-                }}
-              >{body}</button>
+                style={{ ...skin, cursor: "pointer" }}
+              >{inside}</button>
             ) : (
-              <div
-                key={target}
-                aria-disabled
-                style={{
-                  ...skin, border: `1px dashed ${SETUP.lineDashed}`, opacity: 0.55,
-                  background: "transparent", color: T.ink,
-                }}
-              >{body}</div>
+              <div key={target} aria-disabled style={skin}>{inside}</div>
             );
           })}
         </div>
-
-        <QuietLine style={{ marginTop: "auto" }}>
-          Greyed targets stay visible so the reason is readable, not hidden.
-        </QuietLine>
       </Body>
 
-      {/*
-        FLAG: when no target divides there is no state to restate, and no copy
-        is drawn for it, so the status line is dropped and Next is blocked
-        with the reasons left on screen.
-      */}
-      <FooterBar helper={!stateable ? undefined : (
-        <>
-          <Num size={22}>{selected}</Num>{" "}each means{" "}
-          <Num size={22}>{totalMatches(courtSize, selected)}</Num> matches on {courtLabel}.
-        </>
-      )}>
-        <PrimaryButton disabled={blocked} onClick={onNext}>Next: review</PrimaryButton>
+      <FooterBar helper="The guide updates as people arrive or leave.">
+        <PrimaryButton disabled={!ready} onClick={onNext}>Next: ready</PrimaryButton>
       </FooterBar>
     </Screen>
   );

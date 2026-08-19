@@ -1,24 +1,30 @@
-// Frame 03 — Home, nothing running (v2 `1d`).
+// Frame 03. Home, nothing running.
 //
-// Visual weight runs: giant serif title → muted lead → (gap) → outlined card →
-// lime button. Exactly two actions on the screen, and only one of them is lime.
+// Two sentences in the middle of an empty screen, three things in the bar. The
+// club's name is the only display type on the frame, which is what makes the
+// screen read as a door rather than as a dashboard with nothing in it.
+//
+// The bar's order is deliberate and is why this screen does not use FooterBar's
+// helper slot: the sentence sits UNDER both buttons, because it explains the
+// ghost above it rather than the action the screen is asking for.
 
-import { Body, Card, Eyebrow, FooterBar, PrimaryButton, Screen, T } from "../../ui/primitives";
+import { Body, FooterBar, PrimaryButton, Screen, SecondaryButton, T } from "../../ui/primitives";
 
 export interface HomeNothingRunningProps {
   /**
-   * Weekday of the most recent session, e.g. `Wednesday`. Fixture data in the
-   * wireframe, not a constant. Null when there is no previous session to copy —
-   * the card is then hidden outright, since there is no disabled-card treatment.
+   * Weekday of the most recent session, e.g. `Wednesday`, filling
+   * `Copy last Wednesday`. Null when there is no previous session to copy: the
+   * ghost and its sentence are then dropped together, since the frame draws no
+   * spent state for either.
    */
   lastSessionDayName?: string | null;
   /**
-   * The "is a night live, what was the last one" query is still out. Title and
-   * lead paint immediately; the card and footer helper are held back so
-   * `Start tonight` never follows `Resume the night` on screen.
+   * The "is a night live, and what was the last one" query is still out. The
+   * title and lead paint immediately; the copy action is held back so
+   * `Start tonight` can never appear beside a stale night.
    */
   loading?: boolean;
-  /** → frame 05 `Which night`, step 1 of the four-step setup. */
+  /** → frame 05 `Which night`, step 1 of four. */
   onStartTonight: () => void;
   /** → the wizard, pre-filled with the last session's day and roster. */
   onCopyLastSession?: () => void;
@@ -30,56 +36,39 @@ export const HomeNothingRunning = ({
   onStartTonight,
   onCopyLastSession,
 }: HomeNothingRunningProps) => {
-  const showCopyCard = !loading && Boolean(lastSessionDayName);
+  const showCopy = !loading && Boolean(lastSessionDayName);
 
   return (
     <Screen>
       <Body style={{
-        display: "flex", flexDirection: "column", gap: 16,
-        padding: "34px 20px", boxSizing: "border-box",
+        display: "flex", flexDirection: "column", justifyContent: "center",
+        padding: "0 26px", gap: 10, boxSizing: "border-box",
       }}>
-        <Eyebrow>Court manager</Eyebrow>
-
-        {/* The one bold element: 40px, two lines, breaking exactly here. */}
-        <h1 style={{
-          fontFamily: "'Playfair Display', serif", fontSize: 40, fontWeight: 600,
-          lineHeight: 1.05, margin: 0,
-        }}>Nothing<br />running yet</h1>
+        <p style={{
+          fontFamily: T.fontHead, fontWeight: 400, fontSize: 42, lineHeight: 1.05, margin: 0,
+        }}>Club PTO</p>
 
         <p style={{
-          fontSize: 16, lineHeight: 1.45, color: T.ink68, maxWidth: 300,
-          textWrap: "pretty", margin: 0,
+          font: `400 16px/1.55 ${T.fontBody}`, color: T.mut, margin: 0, textWrap: "pretty",
         }}>
-          Pick the night, tick off who is here, and Manage builds every match for you.
+          No night is running. Start one and the app walks you through it.
         </p>
-
-        {showCopyCard && (
-          <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
-            <button
-              type="button"
-              onClick={onCopyLastSession}
-              style={{
-                border: "none", background: "transparent", padding: 0, margin: 0,
-                width: "100%", textAlign: "left", color: "inherit", cursor: "pointer",
-                display: "block",
-              }}
-            >
-              {/* A quiet card, not a lime button. Frame geometry: .18 border, 16/18 pad, 4 gap. */}
-              <Card style={{ border: `1px solid ${T.line}`, padding: "16px 18px", gap: 4 }}>
-                <span style={{ font: "700 18px Inter, sans-serif" }}>
-                  Copy last {lastSessionDayName}
-                </span>
-                <span style={{ font: "400 15px Inter, sans-serif", color: T.ink60 }}>
-                  Same people, new night.
-                </span>
-              </Card>
-            </button>
-          </div>
-        )}
       </Body>
 
-      <FooterBar helper={loading ? undefined : "Five steps to a running night."}>
+      <FooterBar>
         <PrimaryButton onClick={onStartTonight}>Start tonight</PrimaryButton>
+
+        {showCopy && (
+          <>
+            <SecondaryButton onClick={onCopyLastSession}>
+              Copy last {lastSessionDayName}
+            </SecondaryButton>
+            <p style={{
+              font: `400 14.5px/1.45 ${T.fontBody}`, color: T.mut, margin: 0,
+              textAlign: "center", textWrap: "pretty",
+            }}>Same people, new night.</p>
+          </>
+        )}
       </FooterBar>
     </Screen>
   );
