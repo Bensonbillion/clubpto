@@ -3,8 +3,10 @@ import { Link } from "react-router-dom";
 import { clubhouse as supabase } from "@/clubhouse/supabaseClient";
 import logoWordmarkCream from "@/assets/logo-wordmark-cream.png";
 import {
+  acceptLinkInvite,
   ensureProfile,
   getMyIdentity,
+  getMyInvite,
   getMyProfile,
   requestPasswordSetup,
   setNewPassword,
@@ -13,6 +15,7 @@ import {
   signUpWithPassword,
   updateMyProfile,
   type ClubIdentity,
+  type LinkInvite,
   type MemberProfile,
 } from "@/clubhouse/auth/api";
 
@@ -31,6 +34,7 @@ type Stage =
   | "confirmSent"
   | "resetSent"
   | "setPassword"
+  | "consentLink"
   | "home"
   | "revoked";
 
@@ -154,6 +158,8 @@ const Club = () => {
   const [error, setError] = useState<string | null>(null);
   const [identity, setIdentity] = useState<ClubIdentity | null>(null);
   const [profile, setProfile] = useState<MemberProfile | null>(null);
+  const [invite, setInvite] = useState<LinkInvite | null>(null);
+  const [consented, setConsented] = useState(false);
 
   const loadProfile = async () => {
     setProfile(await getMyProfile());
@@ -174,7 +180,30 @@ const Club = () => {
     // so this never overwrites anything.
     await ensureProfile();
     await loadProfile();
+    // The club may have assigned this account a playing record; the member
+    // decides, with the consent text in front of them, before it links.
+    if (!id.playerId) {
+      const pending = await getMyInvite();
+      if (pending) {
+        setInvite(pending);
+        setStage("consentLink");
+        return;
+      }
+    }
     setStage("home");
+  };
+
+  const acceptInvite = async () => {
+    if (!invite) return;
+    setBusy(true);
+    setError(null);
+    const res = await acceptLinkInvite(invite.playerId);
+    setBusy(false);
+    if (res.error) setError(res.error);
+    else {
+      setInvite(null);
+      resolve();
+    }
   };
 
   useEffect(() => {
@@ -457,6 +486,62 @@ const Club = () => {
                 </button>
               </div>
             </form>
+          </>
+        )}
+
+        {stage === "consentLink" && invite && (
+          <>
+            <p className="rly-kicker">
+              <span className="rly-dot" /> Your playing record
+            </p>
+            <h1 className="rly-display rly-page__title">
+              That's <span className="rly-script">you.</span>
+            </h1>
+            <div className="rly-prose" style={{ marginTop: "1.6rem" }}>
+              <p>
+                The club connected your account to
+                {invite.displayName ? ` ${invite.displayName}'s` : " your"} playing
+                record. Say the word and your nights, stats and streaks are
+                yours in the room.
+              </p>
+            </div>
+            <div className="rly-form" style={{ marginTop: "2rem" }}>
+              <label
+                style={{ flexDirection: "row", alignItems: "flex-start", gap: "0.8rem", textTransform: "none", letterSpacing: 0, fontFamily: "var(--f-body)", fontSize: 14, lineHeight: 1.5 }}
+              >
+                <input
+                  type="checkbox"
+                  checked={consented}
+                  onChange={(e) => setConsented(e.target.checked)}
+                  style={{ marginTop: 3, width: "auto" }}
+                />
+                <span style={{ color: "var(--chalk-dim)" }}>
+                  I'm good with Club PTO showing my name and my session results
+                  (games, wins, championships, streaks, milestones) inside the
+                  members-only clubhouse. If I win a championship, my name can
+                  appear on the public page that week. I can switch to a
+                  nickname or hide my profile completely at any time.
+                </span>
+              </label>
+              <div className="rly-cta-row" style={{ marginTop: 0 }}>
+                <button
+                  type="button"
+                  className="rly-pill"
+                  disabled={busy || !consented}
+                  onClick={acceptInvite}
+                >
+                  {busy ? "Linking" : "That's me ↗"}
+                </button>
+                <button
+                  type="button"
+                  className="rly-pill rly-pill--ghost"
+                  disabled={busy}
+                  onClick={() => setStage("home")}
+                >
+                  Later
+                </button>
+              </div>
+            </div>
           </>
         )}
 
