@@ -16,7 +16,7 @@ import { createSessionStore, type SessionStore, type SyncStatus } from "@/court-
 import type { Court, Match, Player, Session } from "./types";
 import { buildQueue, nextMatch, courtComplete, matchesPlayedBy } from "./engine/rotation";
 import { computeStandings, type PlayedMatch, type StandingsRow } from "./engine/standings";
-import { buildStages, champion, orderedPlayerIds, readiness, seedPairs, type Stage } from "./engine/playoff";
+import { buildStages, champion, orderedPlayerIds, readiness, seedPairs, seedPlayoffMatch, type Stage } from "./engine/playoff";
 
 const STORAGE_KEY = "cm_manage_session";
 const SCHEMA_VERSION = 1;
@@ -203,17 +203,13 @@ export function useManageSession() {
       const pairs = seedPairs(ordered);
       if (!pairs) return s;
       const index = s.matches.filter((m) => m.courtNumber === courtNumber).length + 1;
-      const semi: Match = {
-        id: `po-${courtNumber}-semi-${Date.now().toString(36)}`,
-        courtNumber, matchIndex: index,
-        teamA: pairs[0].playerIds, teamB: pairs[1].playerIds,
-        scoreA: null, scoreB: null, status: "onCourt",
-        startedAt: Date.now(), completedAt: null, stage: "semi",
-      };
+      // The engine mints it, so the stage tag it writes is the same one the
+      // bracket reads back. Building the match here is what let the two drift.
+      const final = seedPlayoffMatch(courtNumber, pairs, index, Date.now());
       return {
         ...s,
         courts: s.courts.map((c) => c.number === courtNumber ? { ...c, playoffSeeded: true } : c),
-        matches: [...s.matches, semi],
+        matches: [...s.matches, final],
       };
     }), [commit]);
 

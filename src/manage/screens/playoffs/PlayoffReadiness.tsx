@@ -185,11 +185,10 @@ export const PlayoffReadiness = ({
         // button is specified, so nothing is asserted about readiness yet.
         undefined
       : ready
-        // FLAG: v1 writes `Quarterfinals first. Pairs are seeded top with
-        // bottom.` while v2 pairs seeds 1+3 and 2+4, which is not top with
-        // bottom. The spec resolves only the stage word (data-driven off the
-        // stage list); the rest is v1's sentence, unedited.
-        ? `${firstStageName} first. Pairs are seeded top with bottom.`
+        // The wireframes wrote this for a multi-round bracket. The playoff is
+        // the top four in one final, so the sentence says that rather than
+        // promising a round the night never plays.
+        ? `${firstStageName}. Pairs are seeded top with bottom.`
         : "Seeding is held until games played are even.";
 
   return (

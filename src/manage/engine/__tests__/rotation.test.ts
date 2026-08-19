@@ -96,6 +96,17 @@ describe("the next four", () => {
     expect(nextMatch(three, [], 1, 4)).toBeNull();
   });
 
+  it("STOPS at the target — a four-round night never draws a fifth", () => {
+    seq = 0;
+    // Four players, target 2, both rounds played: everyone is owed nothing.
+    const ms = [played(["a", "b", "c", "d"]), played(["a", "c"].concat(["b", "d"]))];
+    const four = ["a", "b", "c", "d"].map((x) => P(x));
+    expect(courtComplete(four, ms, 1, 2)).toBe(true);
+    expect(nextMatch(four, ms, 1, 2)).toBeNull();
+    // …and raising the target puts them straight back on.
+    expect(nextMatch(four, ms, 1, 3)).not.toBeNull();
+  });
+
   it("is deterministic — same court, same state, same four", () => {
     seq = 0;
     const ms = [played(["a", "b", "c", "d"])];

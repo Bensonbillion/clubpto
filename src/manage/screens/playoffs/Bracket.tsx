@@ -132,11 +132,11 @@ export const Bracket = ({
     {!loading && matchOnCourtId != null && (
       <FooterBar
         helper={
-          // FLAG: this sentence is drawn once and never templated. A live first
-          // semifinal or a live final has no wording of its own in either
-          // wireframe, so the drawn line is what ships.
+          // The wireframe drew this line for a bracket with a semi in it. The
+          // bracket has one stage, so the line names that stage instead of a
+          // round that is never played.
           <span style={{ font: "600 16px/1.35 Inter, sans-serif", color: T.ink }}>
-            The second semifinal is on court now.
+            The final is on court now.
           </span>
         }
       >

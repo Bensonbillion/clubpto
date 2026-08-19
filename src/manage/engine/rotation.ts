@@ -79,6 +79,11 @@ export function nextMatch(
   court: number,
   targetMatches: number,
 ): NextMatch | null {
+  // Nobody owed a game means the round robin is over. Without this the court
+  // happily drew a fifth round of a four-round night — the queue always has
+  // four names in it, so "are there four people" is not the question. The
+  // question is whether anyone is still owed.
+  if (courtComplete(players, matches, court, targetMatches)) return null;
   const queue = buildQueue(players, matches, court, targetMatches);
   if (queue.length < 4) return null;
   const [a, b, c, d] = queue.slice(0, 4).map((q) => q.playerId);

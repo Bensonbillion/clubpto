@@ -16,8 +16,13 @@ import { Num, T } from "../../ui/primitives";
 import { ScoreBand } from "./ScoreBand";
 import type { BracketMatch, PlayoffTeam } from "./model";
 
-/** The only wording drawn for a side that its feeding stage has not filled. */
-const WAITING_LINE = "Waiting on the second semifinal";
+/**
+ * Drawn for a side no pair has been seeded into. With a top-four final both
+ * sides are filled the moment the playoff is seeded, so this is a guard for
+ * malformed data rather than a state the night reaches — and it no longer
+ * names a semi-final that is never played.
+ */
+const WAITING_LINE = "Waiting on a seeded pair";
 
 const DASHED_BORDER = "1px dashed rgba(244,237,224,.25)";
 

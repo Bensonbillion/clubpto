@@ -16,9 +16,11 @@ import { validTargets, totalMatches } from "./engine/rotation";
 import { POINTS_PER_WIN } from "./engine/standings";
 import { Passcode, PasscodeFailed, HomeNothingRunning, HomeNightInProgress } from "./screens/door-home";
 import { WhichNight, WhoIsHere, Courts, MatchesEach, Ready } from "./screens/setup";
-import { CourtView, ScoreEntry } from "./screens/play";
-import { PlayersTab } from "./screens/people";
+import { CourtView, ScoreEntry, CourtSwitcher } from "./screens/play";
+import { PlayersTab, LateArrival, Extend, CorrectOrVoid } from "./screens/people";
 import { StandingsTab } from "./screens/standings";
+import { PlayoffReadiness, Bracket, PlayoffMatch, Champion } from "./screens/playoffs";
+import { SessionSummary, ConfirmVoidResult } from "./screens/summary-states";
 import type { Tab } from "./ui/primitives";
 
 const PASSCODE = "9999";
@@ -50,6 +52,13 @@ export default function ManageApp() {
   const [scoring, setScoring] = useState<"A" | "B" | null>(null);
   // Home is a destination you choose, not somewhere Start throws you.
   const [atCourt, setAtCourt] = useState(false);
+  // Overlays and side-trips. All navigation, none of it part of the night.
+  const [sheet, setSheet] = useState<null | "extend" | "late" | "switcher" | "summary">(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [confirmVoid, setConfirmVoid] = useState<string | null>(null);
+  const [lateName, setLateName] = useState("");
+  const [lateCourt, setLateCourt] = useState<number | null>(null);
+  const [playoffScreen, setPlayoffScreen] = useState<null | "bracket" | "match">(null);
 
   /* ── the door ──────────────────────────────────────────────────── */
 
@@ -211,21 +220,150 @@ export default function ManageApp() {
   if (!view) return <div style={{ background: T.bg, minHeight: "100dvh" }} />;
 
   const pairLabel = (ids: readonly string[]) => ids.map(s.playerName).join(" and ");
+  const pair = (ids: readonly string[]) => [s.playerName(ids[0]), s.playerName(ids[1])] as [string, string];
+  const other = s.views.filter((v) => v.court.number !== view.court.number);
+  const playoffOn = view.court.playoffSeeded;
+
+  /* ── the summary, reachable once the night has ended ─────────── */
+
+  if (sheet === "summary") {
+    return (
+      <SessionSummary
+        dayLabel={s.session.dayLabel || night}
+        matchesPlayed={s.session.matches.filter((m) => m.status === "played").length}
+        playersIn={s.session.players.length}
+        voidedCount={s.session.matches.filter((m) => m.status === "voided").length}
+        champions={s.views.flatMap((v) => v.champion
+          ? [{ courtNumber: v.court.number, playerA: s.playerName(v.champion[0]), playerB: s.playerName(v.champion[1]) }]
+          : [])}
+        standingsByCourt={s.views.map((v) => ({
+          courtNumber: v.court.number,
+          rows: v.standings.map((r) => ({
+            rank: r.rank, playerName: s.playerName(r.playerId),
+            played: r.matchesPlayed, diff: r.scoreDiff, points: r.points,
+            tieBreakNote: r.separatedBy === "reachedFirst" ? "reached it later" : null,
+          })),
+        }))}
+        onClose={() => setSheet(null)}
+        onCopy={(payload) => void navigator.clipboard?.writeText(payload)}
+      />
+    );
+  }
+
+  /* ── playoffs ─────────────────────────────────────────────────── */
+
+  if (playoffScreen === "match" && playoffOn) {
+    const live = s.session.matches.find(
+      (m) => m.courtNumber === view.court.number && m.stage !== null && m.status === "onCourt");
+    if (live) {
+      return (
+        <PlayoffMatch
+          courtNumber={view.court.number}
+          stageLabel="Final"
+          stageMatchNumber={null}
+          teamA={{ name: pairLabel(live.teamA), seedLabel: "1+4" }}
+          teamB={{ name: pairLabel(live.teamB), seedLabel: "2+3" }}
+          scoreA={live.scoreA}
+          scoreB={live.scoreB}
+          winnerMeetsTeamName={null}
+          othersOnSecondCourt={other[0]?.court.number ?? null}
+          onPickWinner={(side) => { s.recordScore(live.id, side, 0, 21); setPlayoffScreen("bracket"); }}
+          onBackToBracket={() => setPlayoffScreen("bracket")}
+        />
+      );
+    }
+  }
+
+  if (playoffOn && view.champion) {
+    const finalMatch = s.session.matches.find(
+      (m) => m.courtNumber === view.court.number && m.stage === "final" && m.status === "played");
+    const won = Math.max(finalMatch?.scoreA ?? 0, finalMatch?.scoreB ?? 0);
+    const lost = Math.min(finalMatch?.scoreA ?? 0, finalMatch?.scoreB ?? 0);
+    return (
+      <Champion
+        courtNumber={view.court.number}
+        championNames={pair(view.champion)}
+        scoreWinner={won}
+        scoreLoser={lost}
+        runnerUpTeamName={finalMatch
+          ? pairLabel(finalMatch.scoreA! > finalMatch.scoreB! ? finalMatch.teamB : finalMatch.teamA)
+          : ""}
+        otherCourtStillPlaying={other.find((v) => !v.complete)?.court.number ?? null}
+        onGoToOtherCourt={() => { const o = other[0]; if (o) setCourt(o.court.number); }}
+        onBackToBracket={() => setPlayoffScreen("bracket")}
+      />
+    );
+  }
+
+  if (playoffScreen === "bracket" && playoffOn && view.stages) {
+    const liveId = s.session.matches.find(
+      (m) => m.courtNumber === view.court.number && m.stage !== null && m.status === "onCourt")?.id ?? null;
+    return (
+      <Bracket
+        courtNumber={view.court.number}
+        playersInPlayoff={4}
+        seedPairs={[[1, 4], [2, 3]]}
+        stages={view.stages.map((st) => ({
+          name: st.label,
+          matches: st.ties.map((t, i) => ({
+            matchId: `${st.key}-${i}`,
+            teamA: t.sideA ? { name: pairLabel(t.sideA), seedLabel: "1+4" } : null,
+            teamB: t.sideB ? { name: pairLabel(t.sideB), seedLabel: "2+3" } : null,
+            scoreA: t.scoreA, scoreB: t.scoreB,
+            status: t.settled ? ("complete" as const)
+              : t.sideA && t.sideB ? ("live" as const) : ("pending" as const),
+            winnerSide: t.settled && t.scoreA != null && t.scoreB != null
+              ? (t.scoreA > t.scoreB ? ("A" as const) : ("B" as const)) : null,
+          })),
+        }))}
+        matchOnCourtId={liveId}
+        onOpenMatch={() => setPlayoffScreen("match")}
+        onScoreMatchOnCourt={() => setPlayoffScreen("match")}
+      />
+    );
+  }
+
+  if (tab === "standings" && playoffOn && view.stages) {
+    setPlayoffScreen("bracket");
+  }
+
+  /* ── tabs ─────────────────────────────────────────────────────── */
 
   if (tab === "players") {
     return (
-      <PlayersTab
-        players={s.session.players.map((p) => ({
-          id: p.id, displayName: p.name, gamesPlayed: s.matchesPlayedBy(p.id),
-          status: p.away ? ("left" as const) : ("here" as const),
-        }))}
-        attendanceCount={s.session.players.filter((p) => !p.away).length}
-        onMarkArrived={(id) => s.setAway(id, false)}
-        onMarkLeft={(id) => s.setAway(id, true)}
-        onMarkHere={(id) => s.setAway(id, false)}
-        onAddPlayer={() => { setInSetup(true); setStep("who"); }}
-        onChangeTab={setTab}
-      />
+      <>
+        <PlayersTab
+          players={s.session.players.map((p) => ({
+            id: p.id, displayName: p.name, gamesPlayed: s.matchesPlayedBy(p.id),
+            status: p.away ? ("left" as const) : ("here" as const),
+          }))}
+          attendanceCount={s.session.players.filter((p) => !p.away).length}
+          onMarkArrived={(id) => s.setAway(id, false)}
+          onMarkLeft={(id) => s.setAway(id, true)}
+          onMarkHere={(id) => s.setAway(id, false)}
+          onAddPlayer={() => { setLateName(""); setLateCourt(view.court.number); setSheet("late"); }}
+          onChangeTab={setTab}
+        />
+        {sheet === "late" && (
+          <LateArrival
+            name={lateName}
+            onNameChange={setLateName}
+            foundInRoster={false}
+            courts={s.views.map((v) => ({
+              courtNumber: v.court.number, label: `Court ${v.court.number}`,
+              playingCount: v.players.filter((p) => !p.away).length,
+            }))}
+            selectedCourtNumber={lateCourt}
+            onSelectCourt={setLateCourt}
+            onCancel={() => setSheet(null)}
+            onAdd={() => {
+              const n = lateName.trim();
+              if (n) { s.addPlayer(n, true); }
+              setSheet(null); setLateName("");
+            }}
+          />
+        )}
+      </>
     );
   }
 
@@ -246,18 +384,60 @@ export default function ManageApp() {
         }))}
         shortfall={null}
         seedingEnabled={view.ready.ready}
-        onSeedPlayoff={() => s.seedPlayoff(view.court.number)}
+        onSeedPlayoff={() => { s.seedPlayoff(view.court.number); setPlayoffScreen("bracket"); }}
         onSelectTab={setTab}
       />
     );
   }
 
+  /* ── the court ────────────────────────────────────────────────── */
+
   const live = view.onCourt;
+
+  if (!live && view.complete && !playoffOn) {
+    return (
+      <PlayoffReadiness
+        courtNumber={view.court.number}
+        otherCourtNumbers={other.map((v) => v.court.number)}
+        liveMatchOnCourt={false}
+        playersOwedMatches={[]}
+        blocker={view.ready.blocker === "matchesOutstanding"
+          ? { kind: "owedMatches", playerNames: view.queue.filter((q) => q.owed > 0).map((q) => q.name),
+              othersMatchesPlayed: view.court.targetMatches, canDrawMatch: true }
+          : null}
+        firstStageName="Straight to the final"
+        onResolveBlocker={() => s.ensureOnCourt(view.court.number)}
+        onSeedPlayoff={() => { s.seedPlayoff(view.court.number); setPlayoffScreen("bracket"); }}
+      />
+    );
+  }
+
   if (!live) {
-    // Nothing on court yet — put the next four up rather than showing a blank.
     s.ensureOnCourt(view.court.number);
     return <div style={{ background: T.bg, minHeight: "100dvh" }} />;
   }
+
+  if (sheet === "switcher" && s.views.length > 1) {
+    return (
+      <CourtSwitcher
+        courts={s.views.map((v) => ({
+          number: v.court.number,
+          scoreDue: v.onCourt != null,
+        }))}
+        activeCourtNumber={view.court.number}
+        sideA={{ pairLabel: pairLabel(live.teamA), score: live.scoreA }}
+        sideB={{ pairLabel: pairLabel(live.teamB), score: live.scoreB }}
+        waiting={view.queue.slice(0, 6).map((q, i) => ({ playerId: q.playerId, name: q.name, isOnNext: i < 4 }))}
+        onSelectCourt={(n) => { setCourt(n); setSheet(null); }}
+        activeTab={tab}
+        onTabChange={setTab}
+      />
+    );
+  }
+
+  const lastPlayed = [...s.session.matches]
+    .filter((m) => m.courtNumber === view.court.number && m.status === "played" && m.stage === null)
+    .sort((a, b) => b.matchIndex - a.matchIndex)[0];
 
   return (
     <>
@@ -288,6 +468,37 @@ export default function ManageApp() {
             setScoring(null);
             setTimeout(() => s.ensureOnCourt(view.court.number), 0);
           }}
+        />
+      )}
+      {sheet === "extend" && (
+        <Extend
+          courtLabel={`Court ${view.court.number}`}
+          targetNow={view.court.targetMatches}
+          otherCourtLabels={other.map((v) => `Court ${v.court.number}`)}
+          minutesPerRound={12}
+          onAddRound={() => { s.extend(view.court.number, 1); setSheet(null); }}
+          onDismiss={() => setSheet(null)}
+        />
+      )}
+      {editing && lastPlayed && (
+        <CorrectOrVoid
+          match={{
+            id: lastPlayed.id, matchNumber: lastPlayed.matchIndex,
+            courtLabel: `Court ${view.court.number}`,
+            sideA: pair(lastPlayed.teamA), sideB: pair(lastPlayed.teamB),
+            scoreA: lastPlayed.scoreA ?? 0, scoreB: lastPlayed.scoreB ?? 0,
+          }}
+          onChangeScore={() => { setEditing(null); setScoring("A"); }}
+          onVoid={() => { setConfirmVoid(lastPlayed.id); setEditing(null); }}
+          onDismiss={() => setEditing(null)}
+        />
+      )}
+      {confirmVoid && lastPlayed && (
+        <ConfirmVoidResult
+          pairA={pair(lastPlayed.teamA)} scoreA={lastPlayed.scoreA ?? 0}
+          pairB={pair(lastPlayed.teamB)} scoreB={lastPlayed.scoreB ?? 0}
+          onVoid={() => { s.voidMatch(confirmVoid); setConfirmVoid(null); }}
+          onKeep={() => setConfirmVoid(null)}
         />
       )}
     </>

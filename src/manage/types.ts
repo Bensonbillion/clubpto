@@ -39,7 +39,11 @@ export interface Match {
   stage: PlayoffStage | null;
 }
 
-export type PlayoffStage = "semi" | "final";
+// The playoff is a single final between the top four, so "final" is the only
+// stage there is. It was briefly a union with "semi", and that union is exactly
+// how a seeded match came to be tagged one thing while the bracket looked it up
+// as another: both spellings type-checked. One member, one spelling.
+export type PlayoffStage = "final";
 
 export interface Court {
   number: CourtNumber;

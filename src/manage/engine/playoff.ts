@@ -2,9 +2,13 @@
 //
 // The bracket is a VERTICAL STAGE LIST, and that is a data decision as much as
 // a layout one: a stage is an ordered list of ties, and a tie is two pairs. No
-// tree, no left/right children, no positional arithmetic. Frame 20 renders
-// exactly this shape, which is why it can render a semi and a final with the
-// same row component.
+// tree, no left/right children, no positional arithmetic.
+//
+// And there is exactly one stage. Seeding takes the top four, four players are
+// two pairs, and two pairs play each other once — so the playoff is a FINAL.
+// The code used to also build a semi-final, which produced a bracket that
+// could not be finished: the final waited on a second semi that could never be
+// played. Nothing here pretends to a larger bracket than it can seed.
 //
 // Seeding reads straight off the standings, and standings are now total:
 // points, then score difference, then who reached the total first. There is no
@@ -106,10 +110,13 @@ export interface Tie {
 }
 
 export interface Stage {
-  key: "semi" | "final";
+  key: "final";
   label: string;
   ties: Tie[];
 }
+
+/** The one stage a playoff has. Written once, read everywhere. */
+export const PLAYOFF_STAGE = "final" as const;
 
 const winnerOf = (t: Tie): [string, string] | null => {
   if (!t.settled || t.scoreA == null || t.scoreB == null) return null;
@@ -118,44 +125,59 @@ const winnerOf = (t: Tie): [string, string] | null => {
 
 /**
  * The bracket as the frames draw it: an ordered list of stages, each a list of
- * full-width ties. The final's sides stay null until both semis are settled,
- * which is exactly what the "waiting" row in frame 20 renders.
+ * full-width ties. One stage, one tie, both sides filled from the moment it is
+ * seeded — there is nothing for a row to wait on.
  */
 export function buildStages(
   pairs: readonly SeededPair[],
   playoffMatches: readonly Match[],
 ): Stage[] {
-  const find = (stage: "semi" | "final", i: number) =>
-    playoffMatches.filter((m) => m.stage === stage).sort((a, b) => a.matchIndex - b.matchIndex)[i];
+  const played = playoffMatches
+    .filter((m) => m.stage === PLAYOFF_STAGE)
+    .sort((a, b) => a.matchIndex - b.matchIndex)[0];
 
-  const semiTies: Tie[] = pairs.length === 2
-    ? [{
-        id: "semi-1",
-        sideA: pairs[0].playerIds,
-        sideB: pairs[1].playerIds,
-        scoreA: find("semi", 0)?.scoreA ?? null,
-        scoreB: find("semi", 0)?.scoreB ?? null,
-        settled: find("semi", 0)?.status === "played",
-      }]
-    : [];
+  return [{
+    key: PLAYOFF_STAGE,
+    label: "Final",
+    ties: [{
+      id: "final-1",
+      sideA: pairs[0]?.playerIds ?? null,
+      sideB: pairs[1]?.playerIds ?? null,
+      scoreA: played?.scoreA ?? null,
+      scoreB: played?.scoreB ?? null,
+      settled: played?.status === "played",
+    }],
+  }];
+}
 
-  // With one semi the "final" IS that tie, so a four-player court plays a
-  // single match. Larger fields add semis; the shape does not change.
-  const semiWinner = semiTies[0] ? winnerOf(semiTies[0]) : null;
-  const finalMatch = find("final", 0);
-  const finalTie: Tie = {
-    id: "final-1",
-    sideA: semiWinner,
-    sideB: null,
-    scoreA: finalMatch?.scoreA ?? null,
-    scoreB: finalMatch?.scoreB ?? null,
-    settled: finalMatch?.status === "played",
+/**
+ * Build the match a seeded playoff puts on court.
+ *
+ * This exists so the stage tag is written in ONE place. It used to be written
+ * at the call site as the string "semi" while the bracket read the tie back as
+ * "final": the match was created, the score was recorded, and the row it
+ * belonged to stayed empty at 00-00 with no champion. Nothing on screen looked
+ * broken, which is what made it expensive.
+ */
+export function seedPlayoffMatch(
+  courtNumber: number,
+  pairs: readonly SeededPair[],
+  matchIndex: number,
+  now: number,
+): Match {
+  return {
+    id: `po-${courtNumber}-${PLAYOFF_STAGE}-${now.toString(36)}`,
+    courtNumber,
+    matchIndex,
+    teamA: pairs[0].playerIds,
+    teamB: pairs[1].playerIds,
+    scoreA: null,
+    scoreB: null,
+    status: "onCourt",
+    startedAt: now,
+    completedAt: null,
+    stage: PLAYOFF_STAGE,
   };
-
-  return [
-    { key: "semi", label: "Semi-final", ties: semiTies },
-    { key: "final", label: "Final", ties: [finalTie] },
-  ];
 }
 
 /** The crowned pair, or null while the final is unplayed. */
