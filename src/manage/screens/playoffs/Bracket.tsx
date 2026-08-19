@@ -32,6 +32,12 @@ export interface BracketProps {
   stages: BracketStage[];
   /** The playoff match physically on court now. Null hides the footer bar. */
   matchOnCourtId: string | null;
+  /**
+   * What the row on court is: "Semifinal", "Play-in", "Final". The footer used
+   * to say "The final is on court now" unconditionally, which was true only
+   * while a bracket was a single match. A full court plays up to four.
+   */
+  liveStageName?: string;
   loading?: boolean;
   /** A live or next-up row opens frame 21. */
   onOpenMatch: (matchId: string) => void;
@@ -64,6 +70,7 @@ export const Bracket = ({
   seedPairs,
   stages,
   matchOnCourtId,
+  liveStageName,
   loading,
   onOpenMatch,
   onOpenResult,
@@ -132,11 +139,8 @@ export const Bracket = ({
     {!loading && matchOnCourtId != null && (
       <FooterBar
         helper={
-          // The wireframe drew this line for a bracket with a semi in it. The
-          // bracket has one stage, so the line names that stage instead of a
-          // round that is never played.
           <span style={{ font: "600 16px/1.35 Inter, sans-serif", color: T.ink }}>
-            The final is on court now.
+            {liveStageName ? `The ${liveStageName.toLowerCase()} is on court now.` : "A match is on court now."}
           </span>
         }
       >

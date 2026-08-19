@@ -16,7 +16,8 @@ import { createSessionStore, type SessionStore, type SyncStatus } from "@/court-
 import type { Court, Match, Player, Session } from "./types";
 import { buildQueue, nextMatch, courtComplete, matchesPlayedBy } from "./engine/rotation";
 import { computeStandings, type PlayedMatch, type StandingsRow } from "./engine/standings";
-import { buildStages, champion, orderedPlayerIds, readiness, seedPairs, seedPlayoffMatch, type Stage } from "./engine/playoff";
+import { buildStages, champion, nextTie, orderedPlayerIds, readiness, seedPairs, seedPlayoffMatch,
+  type SeededPair, type Stage } from "./engine/playoff";
 import { appearsInAMatch } from "./engine/roster-guard";
 import type { RosterName } from "./roster/names";
 
@@ -56,7 +57,8 @@ export interface CourtView {
   standings: StandingsRow[];
   complete: boolean;
   stages: Stage[] | null;
-  champion: [string, string] | null;
+  /** The winning side. An array, because a nine-player court can seed a trio. */
+  champion: string[] | null;
   ready: ReturnType<typeof readiness>;
 }
 
@@ -247,21 +249,52 @@ export function useManageSession() {
 
   /* ── playoffs ──────────────────────────────────────────────────── */
 
-  const seedPlayoff = useCallback((courtNumber: number) =>
+  /**
+   * Put the next playable playoff row on court.
+   *
+   * A bracket is no longer one match. Every player on the court is seeded,
+   * pairs split adjacent seeds, and a full court plays a play-in, two
+   * semi-finals and a final. So this runs on seeding AND again after every
+   * playoff score: whichever row now has both sides resolved goes up next.
+   *
+   * nextTie returns only rows that are playable, meaning both sides are known,
+   * nothing is already live on them and they are not settled. That is what
+   * stops a semi-final going on court while the play-in that feeds it is still
+   * being played, without this function having to know the bracket's shape.
+   */
+  const advancePlayoff = useCallback((courtNumber: number) =>
     commit((s) => {
       const ordered = orderedPlayerIds(s.players, s.matches, courtNumber);
       const pairs = seedPairs(ordered);
       if (!pairs) return s;
+
+      const played = s.matches.filter((m) => m.courtNumber === courtNumber && m.stage !== null);
+      // Something is already on court. Two playoff rows live at once on one
+      // court is not a state the bracket can draw, and it is not a state four
+      // people standing on a court can play.
+      if (played.some((m) => m.status === "onCourt")) return s;
+
+      const tie = nextTie(buildStages(pairs, played));
+      if (!tie) {
+        // Nothing playable left. Either the final is done, or the bracket is
+        // waiting on a row that has not been scored, and neither wants a match.
+        return { ...s, courts: s.courts.map((c) =>
+          c.number === courtNumber ? { ...c, playoffSeeded: true } : c) };
+      }
+
       const index = s.matches.filter((m) => m.courtNumber === courtNumber).length + 1;
-      // The engine mints it, so the stage tag it writes is the same one the
-      // bracket reads back. Building the match here is what let the two drift.
-      const final = seedPlayoffMatch(courtNumber, pairs, index, Date.now());
+      // The engine mints it and reads the stage off the tie, so the tag on the
+      // match and the tag the bracket looks it up by cannot drift apart.
+      const match = seedPlayoffMatch(courtNumber, tie, index, Date.now(), played);
       return {
         ...s,
         courts: s.courts.map((c) => c.number === courtNumber ? { ...c, playoffSeeded: true } : c),
-        matches: [...s.matches, final],
+        matches: [...s.matches, match],
       };
     }), [commit]);
+
+  /** Seeding is just the first advance, so there is one code path, not two. */
+  const seedPlayoff = advancePlayoff;
 
   const deletePlayoff = useCallback((courtNumber: number) =>
     commit((s) => ({
@@ -296,7 +329,7 @@ export function useManageSession() {
       standings: computeStandings(ids, groupPlayed(session.matches, court.number)),
       complete: courtComplete(session.players, session.matches, court.number, court.targetMatches),
       stages,
-      champion: stages ? champion(stages) : null,
+      champion: stages ? (champion(stages)?.playerIds ?? null) : null,
       ready: readiness(session.players, session.matches, court.number, court.targetMatches),
     };
   }), [session]);
@@ -311,7 +344,7 @@ export function useManageSession() {
     matchesPlayedBy: (id: string) => matchesPlayedBy(session.matches, id),
     setDayLabel, addRosterPlayer, addWalkIn, removePlayer, assignCourt, setCourts, setTarget, extend, start,
     ensureOnCourt, recordScore, correctScore, voidMatch, setAway,
-    seedPlayoff, deletePlayoff, endNight,
+    seedPlayoff, advancePlayoff, deletePlayoff, endNight,
   };
 }
 

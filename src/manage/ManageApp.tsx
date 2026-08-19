@@ -359,6 +359,16 @@ export default function ManageApp() {
   const pairLabel = (ids: readonly string[]) => ids.map(s.playerName).join(" and ");
   const pair = (ids: readonly string[]) => [s.playerName(ids[0]), s.playerName(ids[1])] as [string, string];
   const other = s.views.filter((v) => v.court.number !== view.court.number);
+  /**
+   * How many matches this court plays in total.
+   *
+   * NOT the per-player target. Those two numbers happen to be equal on a court
+   * of four, which is why "ROUND 5 OF 4" only showed up the first time a real
+   * eight-player court was walked. Eight players at a target of four play
+   * eight matches, because every match uses four of them.
+   */
+  const roundsOnThisCourt = totalMatches(
+    view.players.filter((p) => !p.away).length, view.court.targetMatches);
 
   /* ── the summary, reachable once the night has ended ─────────── */
 
@@ -391,19 +401,36 @@ export default function ManageApp() {
   if (screen === "match" && playoffOn) {
     const live = s.session.matches.find(
       (m) => m.courtNumber === view.court.number && m.stage !== null && m.status === "onCourt");
+    // The bracket row this match belongs to, so the screen can name its stage
+    // and show the right seed tags instead of assuming a final.
+    const liveTie = view.stages
+      ?.flatMap((st) => st.ties)
+      .find((t) => t.matchId === live?.id && t.sideA && t.sideB);
     if (live) {
       return (
         <PlayoffMatch
           courtNumber={view.court.number}
-          stageLabel="Final"
+          // The label follows the row on court. It was hardcoded to "Final"
+          // from when a bracket was one match.
+          stageLabel={liveTie?.stage === "playIn" ? "Play-in"
+            : liveTie?.stage === "semi" ? "Semifinal" : "Final"}
           stageMatchNumber={null}
-          teamA={{ name: pairLabel(live.teamA), seedLabel: "1+4" }}
-          teamB={{ name: pairLabel(live.teamB), seedLabel: "2+3" }}
+          teamA={{ name: pairLabel(live.teamA),
+                   seedLabel: liveTie?.sideA.seeds.join("+") ?? "" }}
+          teamB={{ name: pairLabel(live.teamB),
+                   seedLabel: liveTie?.sideB.seeds.join("+") ?? "" }}
           scoreA={live.scoreA}
           scoreB={live.scoreB}
           winnerMeetsTeamName={null}
           othersOnSecondCourt={other[0]?.court.number ?? null}
-          onPickWinner={(side) => { s.recordScore(live.id, side, 0, 21); setPlayoffScreen("bracket"); }}
+          onPickWinner={(side) => {
+            s.recordScore(live.id, side, 0, 21);
+            // A bracket is up to four matches, so scoring one has to put the
+            // next playable row on court. Without this the bracket stalls with
+            // a resolved semi-final and nothing to tap.
+            setTimeout(() => s.advancePlayoff(view.court.number), 0);
+            setPlayoffScreen("bracket");
+          }}
           onBackToBracket={() => setPlayoffScreen("bracket")}
         />
       );
@@ -418,7 +445,7 @@ export default function ManageApp() {
     return (
       <Champion
         courtNumber={view.court.number}
-        championNames={pair(view.champion)}
+        championNames={view.champion.map(s.playerName)}
         scoreWinner={won}
         scoreLoser={lost}
         runnerUpTeamName={finalMatch
@@ -437,22 +464,36 @@ export default function ManageApp() {
     return (
       <Bracket
         courtNumber={view.court.number}
-        playersInPlayoff={4}
-        seedPairs={[[1, 4], [2, 3]]}
+        // Everyone on the court is in it. This read 4, hardcoded, from when
+        // seeding took only the top four.
+        playersInPlayoff={view.players.filter((p) => !p.away).length}
+        seedPairs={view.stages[0]?.ties.flatMap((t) =>
+          [t.sideA, t.sideB].filter(Boolean).map((side) => side!.seeds)) ?? []}
         stages={view.stages.map((st) => ({
           name: st.label,
-          matches: st.ties.map((t, i) => ({
-            matchId: `${st.key}-${i}`,
-            teamA: t.sideA ? { name: pairLabel(t.sideA), seedLabel: "1+4" } : null,
-            teamB: t.sideB ? { name: pairLabel(t.sideB), seedLabel: "2+3" } : null,
+          matches: st.ties.map((t) => ({
+            // The tie's own id, not its position. Positions renumber when a
+            // stage changes shape; the row has to keep its identity so a score
+            // lands on the row that showed it.
+            matchId: t.id,
+            // Seed labels come off the same object as the names, so a row can
+            // never show one pair's names beside another pair's seeds.
+            teamA: t.sideA ? { name: pairLabel(t.sideA.playerIds), seedLabel: t.sideA.seeds.join("+") } : null,
+            teamB: t.sideB ? { name: pairLabel(t.sideB.playerIds), seedLabel: t.sideB.seeds.join("+") } : null,
             scoreA: t.scoreA, scoreB: t.scoreB,
             status: t.settled ? ("complete" as const)
-              : t.sideA && t.sideB ? ("live" as const) : ("pending" as const),
+              : t.live ? ("live" as const)
+              : t.sideA && t.sideB ? ("next" as const)
+              : ("pending" as const),
             winnerSide: t.settled && t.scoreA != null && t.scoreB != null
               ? (t.scoreA > t.scoreB ? ("A" as const) : ("B" as const)) : null,
           })),
         }))}
         matchOnCourtId={liveId}
+        liveStageName={(() => {
+          const t = view.stages?.flatMap((st) => st.ties).find((x) => x.matchId === liveId);
+          return t?.stage === "playIn" ? "Play-in" : t?.stage === "semi" ? "Semifinal" : "Final";
+        })()}
         onOpenMatch={() => setPlayoffScreen("match")}
         onScoreMatchOnCourt={() => setPlayoffScreen("match")}
       />
@@ -583,7 +624,7 @@ export default function ManageApp() {
     <>
       <CourtView
         round={live.matchIndex}
-        totalRounds={view.court.targetMatches}
+        totalRounds={roundsOnThisCourt}
         courtNumber={view.court.number}
         sideA={{ pairLabel: pairLabel(live.teamA), score: live.scoreA }}
         sideB={{ pairLabel: pairLabel(live.teamB), score: live.scoreB }}
@@ -597,7 +638,7 @@ export default function ManageApp() {
       {scoring && (
         <ScoreEntry
           round={live.matchIndex}
-          totalRounds={view.court.targetMatches}
+          totalRounds={roundsOnThisCourt}
           courtNumber={view.court.number}
           winnerPairLabel={pairLabel(scoring === "A" ? live.teamA : live.teamB)}
           loserPairLabel={pairLabel(scoring === "A" ? live.teamB : live.teamA)}

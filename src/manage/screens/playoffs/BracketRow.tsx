@@ -22,7 +22,7 @@ import type { BracketMatch, PlayoffTeam } from "./model";
  * malformed data rather than a state the night reaches — and it no longer
  * names a semi-final that is never played.
  */
-const WAITING_LINE = "Waiting on a seeded pair";
+const WAITING_LINE = "Waits for the semifinals";
 
 const DASHED_BORDER = "1px dashed rgba(244,237,224,.25)";
 

@@ -21,7 +21,13 @@ export interface PlayoffTeam {
 }
 
 /** Two player seeds combined into one team, e.g. `[1, 3]`. */
-export type SeedPair = readonly [number, number];
+/**
+ * The seeds on one side of a tie, e.g. [1, 3].
+ *
+ * Not a fixed pair. A court of nine seeds one side as a rotating trio so that
+ * nobody sits out the climax, so a side can carry three seeds.
+ */
+export type SeedPair = readonly number[];
 
 export type BracketMatchStatus = "complete" | "live" | "next" | "pending";
 

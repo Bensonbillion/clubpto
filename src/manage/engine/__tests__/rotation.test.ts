@@ -1,14 +1,18 @@
-// "Whoever is owed a game is at the top" — the queue rule, asserted by name.
+// "Whoever is owed a game is at the top", the queue rule, asserted by name.
 //
 // The cases that matter are the ones where "owed" and "least played" diverge:
 // a late arrival, an extended target, and a player marked away. Those are the
 // three things that happen on a real Wednesday and the three that a naive
 // least-played sort gets wrong.
+//
+// The second half of the file is the balance rule (frame 11), and it is
+// written the same way: every test names the night it stops going wrong.
 
 import { describe, expect, it } from "vitest";
 import type { Match, Player } from "../../types";
 import {
-  buildQueue, courtComplete, nextMatch, totalMatches, validTargets,
+  buildQueue, courtComplete, explainMatch, matchesPlayedBy, nextMatch,
+  totalMatches, validTargets,
 } from "../rotation";
 
 const P = (id: string, over: Partial<Player> = {}): Player => ({
@@ -24,6 +28,37 @@ const played = (ids: string[]): Match => ({
 });
 
 const eight = () => ["a", "b", "c", "d", "e", "f", "g", "h"].map((x) => P(x));
+
+/** The same eight, with C chips on the two players named. */
+const eightWithCs = (...cs: string[]) =>
+  eight().map((p) => (cs.includes(p.id) ? { ...p, tier: "C" as const } : p));
+
+/**
+ * Run a court to exhaustion, recording the played-count spread after every
+ * match. Nothing here knows the rules; it only replays what nextMatch decides.
+ */
+const runNight = (roster: Player[], target: number) => {
+  const matches: Match[] = [];
+  const spreads: number[] = [];
+  // A court of this size cannot legitimately need more rounds than this, so
+  // the bound turns "the engine never stops" into a failed assertion rather
+  // than a hung test run.
+  for (let guard = 0; guard < 40; guard++) {
+    const next = nextMatch(roster, matches, 1, target);
+    if (!next) break;
+    matches.push({
+      id: `sim${matches.length}`, courtNumber: 1, matchIndex: matches.length + 1,
+      teamA: next.teamA, teamB: next.teamB,
+      scoreA: 2, scoreB: 0, status: "played", startedAt: 0, completedAt: 0, stage: null,
+    });
+    const counts = roster.map((p) => matchesPlayedBy(matches, p.id));
+    spreads.push(Math.max(...counts) - Math.min(...counts));
+  }
+  return { matches, spreads, counts: roster.map((p) => matchesPlayedBy(matches, p.id)) };
+};
+
+const tiersOf = (roster: readonly Player[], m: Match) =>
+  [...m.teamA, ...m.teamB].filter((id) => roster.find((p) => p.id === id)?.tier === "C");
 
 describe("the queue puts whoever is owed a game at the top", () => {
   it("with nobody played, everyone is owed the same and roster order holds", () => {
@@ -42,7 +77,7 @@ describe("the queue puts whoever is owed a game at the top", () => {
     expect(q[7].owed).toBe(3);
   });
 
-  it("A LATE ARRIVAL goes straight to the top — they are owed the most", () => {
+  it("A LATE ARRIVAL goes straight to the top, because they are owed the most", () => {
     seq = 0;
     // Eight players have each had two games; a ninth walks in at match 5.
     const ms = [
@@ -75,7 +110,7 @@ describe("the queue puts whoever is owed a game at the top", () => {
     expect(q).toHaveLength(7);
   });
 
-  it("players on another court are never queued — they stay put all night", () => {
+  it("players on another court are never queued, they stay put all night", () => {
     seq = 0;
     const roster = [...eight(), P("other", { courtNumber: 2 })];
     expect(buildQueue(roster, [], 1, 4).map((x) => x.playerId)).not.toContain("other");
@@ -96,7 +131,7 @@ describe("the next four", () => {
     expect(nextMatch(three, [], 1, 4)).toBeNull();
   });
 
-  it("STOPS at the target — a four-round night never draws a fifth", () => {
+  it("STOPS at the target, so a four-round night never draws a fifth", () => {
     seq = 0;
     // Four players, target 2, both rounds played: everyone is owed nothing.
     const ms = [played(["a", "b", "c", "d"]), played(["a", "c"].concat(["b", "d"]))];
@@ -107,10 +142,184 @@ describe("the next four", () => {
     expect(nextMatch(four, ms, 1, 3)).not.toBeNull();
   });
 
-  it("is deterministic — same court, same state, same four", () => {
+  it("STOPS at the target with tiers in play too, so the balance rule cannot mint a round", () => {
+    // The balance rule reaches further down the queue than the plain draw does,
+    // so it is exactly the kind of change that could resurrect a finished
+    // court by finding four names after the target was met. Cs on court, night
+    // fully played, still nothing to draw.
+    const roster = eightWithCs("a", "f");
+    const { matches } = runNight(roster, 3);
+    expect(matches).toHaveLength(6);
+    expect(courtComplete(roster, matches, 1, 3)).toBe(true);
+    expect(nextMatch(roster, matches, 1, 3)).toBeNull();
+  });
+
+  it("is deterministic: same court, same state, same four", () => {
     seq = 0;
     const ms = [played(["a", "b", "c", "d"])];
     expect(nextMatch(eight(), ms, 1, 4)).toEqual(nextMatch(eight(), ms, 1, 4));
+  });
+});
+
+describe("the balance rule: nobody is the only C on court", () => {
+  it("PULLS A SECOND C IN rather than leaving one alone against three", () => {
+    // Without this the first round of frame 07's Court 1 is Abiola on his own
+    // against three unassessed players, which is the "three people hunting the
+    // weak fourth" game the rule exists to prevent.
+    const roster = eightWithCs("a", "f");
+    const m = nextMatch(roster, [], 1, 4)!;
+    const four = [...m.teamA, ...m.teamB];
+    expect(four).toContain("a");
+    expect(four).toContain("f");
+    expect(m.reason.balance.kind).toBe("acrossTheNet");
+    // The rule names who moved, so the screen can say it out loud.
+    expect(m.reason.balance.swap).toEqual({
+      inPlayerId: "f", inName: "F", outPlayerId: "d", outName: "D",
+    });
+  });
+
+  it("puts two Cs ACROSS THE NET when the house pairing would sit them together", () => {
+    // 1+4 / 2+3 would make B and C partners here. Pairing them is the failure:
+    // one team carries both newcomers and the match is over before it starts.
+    const roster = eightWithCs("b", "c");
+    const m = nextMatch(roster, [], 1, 4)!;
+    expect(m.teamA.includes("b") ? m.teamB : m.teamA).toContain("c");
+    expect(m.reason.balance.kind).toBe("acrossTheNet");
+    expect(m.reason.balance.cPlayers.map((c) => c.side).sort()).toEqual(["A", "B"]);
+  });
+
+  it("splits Cs that the house pairing would put together at the ENDS of the four", () => {
+    // The other way the default pairing fails: seats 1 and 4 are teamA, so Cs
+    // sitting first and fourth in the queue would be partners.
+    const roster = eightWithCs("a", "d");
+    const m = nextMatch(roster, [], 1, 4)!;
+    expect(m.teamA.includes("a") ? m.teamB : m.teamA).toContain("d");
+    expect(m.reason.balance.kind).toBe("acrossTheNet");
+  });
+
+  it("never sits two Cs on the same side across a whole night", () => {
+    // A single-match assertion would pass on a rule that only works in round
+    // one. Every round of a full night has to hold.
+    const roster = eightWithCs("a", "f");
+    const { matches } = runNight(roster, 3);
+    for (const m of matches) {
+      const cs = tiersOf(roster, m);
+      if (cs.length < 2) continue;
+      expect(m.teamA.filter((id) => cs.includes(id))).toHaveLength(1);
+      expect(m.teamB.filter((id) => cs.includes(id))).toHaveLength(1);
+    }
+  });
+
+  it("LEAST PLAYED WINS when the only other C is a game further on", () => {
+    // The deliberate limit. Reaching past the played band to fetch a
+    // counterpart would put someone a game ahead of a player who has been
+    // waiting longer, and the spec makes that impossible by design. So the
+    // lone C plays, and the reason says so instead of pretending otherwise.
+    seq = 0;
+    const roster = eightWithCs("a", "e");
+    const ms = [played(["e", "f", "g", "h"])];
+    const m = nextMatch(roster, ms, 1, 4)!;
+    expect([...m.teamA, ...m.teamB].sort()).toEqual(["a", "b", "c", "d"]);
+    expect(m.reason.balance.kind).toBe("loneC");
+    expect(m.reason.balance.swap).toBeNull();
+  });
+
+  it("a court with ONE C overall still plays them, every round", () => {
+    // The documented choice, stated as a test. Deferring the lone C would mean
+    // the rule written to protect the newest player is the thing keeping them
+    // off court, and with no second C anywhere it would repeat all night.
+    const roster = eightWithCs("a");
+    const { matches, counts } = runNight(roster, 3);
+    expect(matches).toHaveLength(6);
+    // Three games, exactly like everyone else. Not deferred, not short-changed.
+    expect(counts).toEqual([3, 3, 3, 3, 3, 3, 3, 3]);
+    const first = nextMatch(roster, [], 1, 3)!;
+    expect([...first.teamA, ...first.teamB]).toContain("a");
+    expect(first.reason.balance.kind).toBe("loneC");
+  });
+
+  it("an ALL-UNASSESSED court is untouched by any of this", () => {
+    // Most real courts carry no chips at all, so the balance rule has to be
+    // invisible there: same four, same 1+4 / 2+3 pairing, same six matches.
+    const roster = eight();
+    const m = nextMatch(roster, [], 1, 3)!;
+    expect(m.teamA).toEqual(["a", "d"]);
+    expect(m.teamB).toEqual(["b", "c"]);
+    expect(m.reason.balance.kind).toBe("noAssessedC");
+    expect(m.reason.balance.cPlayers).toEqual([]);
+    const { matches, counts } = runNight(roster, 3);
+    expect(matches).toHaveLength(6);
+    expect(counts).toEqual([3, 3, 3, 3, 3, 3, 3, 3]);
+  });
+});
+
+describe("played counts never drift more than one game apart", () => {
+  it("holds after EVERY match of a full eight-player, six-match night", () => {
+    // The spec's hardest promise, and the failure it replaced: on an earlier
+    // test night one player reached three games while another sat on one. The
+    // balance rule is the change most likely to bring that back, so the check
+    // runs on a court that exercises it.
+    const roster = eightWithCs("a", "f");
+    const { matches, spreads, counts } = runNight(roster, 3);
+    expect(matches).toHaveLength(6);
+    expect(counts).toEqual([3, 3, 3, 3, 3, 3, 3, 3]);
+    expect(Math.max(...spreads)).toBeLessThanOrEqual(1);
+  });
+
+  it("holds on courts whose size does not halve cleanly", () => {
+    // Six and ten players draw four at a time out of a room that never splits
+    // evenly, which is where an off-by-one in the substitution would show.
+    for (const [size, target] of [[6, 4], [10, 4], [12, 3]] as const) {
+      const roster = Array.from({ length: size }, (_, i) =>
+        P(`p${i}`, i % 4 === 0 ? { tier: "C" } : {}));
+      const { spreads, counts } = runNight(roster, target);
+      expect(Math.max(...spreads)).toBeLessThanOrEqual(1);
+      expect(counts.every((c) => c === target)).toBe(true);
+    }
+  });
+});
+
+describe("the court can explain itself", () => {
+  it("hands frame 11 the four names, in queue order, with their counts", () => {
+    // The screen must never re-derive this. Two places computing "who is on
+    // and why" is two places to disagree in front of a player who asked.
+    seq = 0;
+    const roster = eight();
+    const ms = [played(["a", "b", "c", "d"])];
+    const m = nextMatch(roster, ms, 1, 3)!;
+    expect(m.reason.leastPlayed.map((p) => p.playerId)).toEqual(["e", "f", "g", "h"]);
+    expect(m.reason.leastPlayed.map((p) => p.name)).toEqual(["E", "F", "G", "H"]);
+    expect(m.reason.leastPlayed.every((p) => p.matchesPlayed === 0)).toBe(true);
+    expect(m.reason.courtSpread).toBe(1);
+    expect(m.reason.withinOneGame).toBe(true);
+  });
+
+  it("names the C players and the side each is on", () => {
+    // Frame 11's second card is "Chizea is C-tier, so Abiola is across the net
+    // rather than alongside", which needs both names and both sides.
+    const roster = eightWithCs("a", "f");
+    const m = nextMatch(roster, [], 1, 4)!;
+    const cs = m.reason.balance.cPlayers;
+    expect(cs.map((c) => c.playerId).sort()).toEqual(["a", "f"]);
+    expect(new Set(cs.map((c) => c.side)).size).toBe(2);
+  });
+
+  it("describes a match it did not choose without flattering it", () => {
+    // explainMatch also runs on matches already on court, including any a
+    // future hand-swap screen rearranges. Reporting two Cs as partners is the
+    // honest answer there; calling it balanced would be a lie in the
+    // operator's own voice.
+    const roster = eightWithCs("a", "b");
+    const r = explainMatch(roster, [], 1, ["a", "b"], ["c", "d"]);
+    expect(r.balance.kind).toBe("alongside");
+    expect(r.balance.swap).toBeNull();
+  });
+
+  it("reports a spread of zero for an empty court rather than -Infinity", () => {
+    // Math.max on an empty list is -Infinity, and this number is printed.
+    const r = explainMatch([], [], 9, ["a", "b"], ["c", "d"]);
+    expect(r.courtSpread).toBe(0);
+    expect(r.withinOneGame).toBe(true);
   });
 });
 
@@ -140,7 +349,7 @@ describe("a court is complete when everyone has had their games", () => {
     expect(courtComplete(eight(), all, 1, 1)).toBe(true);
   });
 
-  it("an empty court is not 'complete' — it has not started", () => {
+  it("an empty court is not 'complete', it has not started", () => {
     expect(courtComplete([], [], 1, 4)).toBe(false);
   });
 });

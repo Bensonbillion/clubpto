@@ -30,7 +30,8 @@ const INK70 = "rgba(244,237,224,.7)";
 export interface ChampionProps {
   courtNumber: number;
   /** Exactly two. Drawn as `{a}`, a hard line break, then `and {b}`. */
-  championNames: [string, string];
+  /** Two names, or three when the winning side was a rotating trio. */
+  championNames: readonly string[];
   /** The final's numbers. The winner's is the champions'. */
   scoreWinner: number;
   scoreLoser: number;
@@ -86,9 +87,9 @@ export const Champion = ({
           fontWeight: 600,
         }}
       >
-        {championNames[0]}
+        {championNames.slice(0, -1).join(", ")}
         <br />
-        and {championNames[1]}
+        and {championNames[championNames.length - 1]}
       </div>
 
       <ScoreBand

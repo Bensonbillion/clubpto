@@ -7,6 +7,17 @@
 
 export type CourtNumber = number;
 
+// An assessment someone actually made, not a guess the app filled in.
+//
+// Absence is the default and the common case: frame 07 shows two chips across
+// a sixteen-player night and reads "Not assessed" for everyone else, because
+// that is the truth of the data. A tier is only ever written when a human
+// judged a player, so `undefined` here means nobody has judged them, never
+// "average". Code that needs a tier must handle its absence rather than
+// substituting a middle value, which would invent an assessment that does not
+// exist and quietly hand it to the balance rule.
+export type PlayerTier = "A" | "B" | "C";
+
 export interface Player {
   id: string;
   name: string;
@@ -18,6 +29,8 @@ export interface Player {
   away: boolean;
   /** Set when someone joins after the night started (frame 14). */
   joinedAtMatchIndex: number | null;
+  /** Assessed tier. Optional, and unset for most of the real roster. */
+  tier?: PlayerTier;
 }
 
 export type MatchStatus = "onCourt" | "played" | "voided";
@@ -39,11 +52,21 @@ export interface Match {
   stage: PlayoffStage | null;
 }
 
-// The playoff is a single final between the top four, so "final" is the only
-// stage there is. It was briefly a union with "semi", and that union is exactly
-// how a seeded match came to be tagged one thing while the bracket looked it up
-// as another: both spellings type-checked. One member, one spelling.
-export type PlayoffStage = "final";
+// The stages a playoff match can belong to.
+//
+// This was a single member, "final", and the comment here used to explain that
+// a one-member union made it impossible to tag a match one thing and read it
+// back as another. That bug was real: a seeded match was written as "semi"
+// while the bracket looked its tie up as "final", so a recorded score never
+// landed on its row and no champion could be crowned.
+//
+// The union has to widen, because the bracket is no longer one match. Every
+// player on the court is seeded, pairs split adjacent seeds, and a full court
+// plays a play-in, two semi-finals and a final. What replaces the one-spelling
+// guarantee is narrower and stronger: engine/playoff.ts is the ONLY place that
+// mints a playoff match, it reads the stage off the tie it was handed, and the
+// same tie identity reads that match back. The tag is never typed twice.
+export type PlayoffStage = "playIn" | "semi" | "final";
 
 export interface Court {
   number: CourtNumber;
@@ -52,7 +75,12 @@ export interface Court {
   /** Set once the bracket is seeded. */
   playoffSeeded: boolean;
   /** Set when the final has a recorded score. */
-  champion: [string, string] | null;
+  /**
+   * The winning side. An array rather than a pair, because a court of nine
+   * seeds one side as a rotating trio so that nobody sits out the climax, and
+   * a trio can win.
+   */
+  champion: string[] | null;
 }
 
 export type SessionStatus = "setup" | "running" | "ended";
