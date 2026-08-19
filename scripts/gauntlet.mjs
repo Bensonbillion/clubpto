@@ -12,7 +12,10 @@ import { execSync, spawnSync } from "node:child_process";
 const PROJECT = "tsconfig.app.json";
 
 /** Errors tsc reports that predate this work and live in scope-guarded code. */
-const KNOWN_PREEXISTING = ["src/court-manager/supabase.ts"];
+// Nothing is grandfathered any more. The one long-standing typecheck error
+// lived in src/court-manager/supabase.ts, which went with the old managers,
+// so the bar is now simply zero.
+const KNOWN_PREEXISTING = [];
 
 const step = (name) => `\x1b[1m${name}\x1b[0m`;
 const ok = (s) => `\x1b[32m${s}\x1b[0m`;
@@ -58,8 +61,11 @@ run("typecheck: no new errors", `npx tsc --noEmit -p ${PROJECT}`, {
 });
 
 // 2. LINT the surfaces this project owns.
-run("lint", "npx eslint src/lib/americano src/hooks/useAmericanoSession.ts " +
-  "src/pages/ManageAmericano.tsx src/types/americano.ts src/site");
+//
+// The old list named the v4 Americano files one by one. There is one manager
+// now, so this names its tree instead, and a new file inside it is covered the
+// day it is written rather than the day somebody remembers to add it here.
+run("lint", "npx eslint src/manage src/site");
 
 // 3. TESTS.
 run("tests", "npx vitest run");
@@ -67,10 +73,13 @@ run("tests", "npx vitest run");
 // 4. BUILD.
 run("build", "npm run build");
 
-// 5. The v3 engine sims — the live-night fallback must stay green.
-run("v3 sims", "npx tsx src/court-manager/sim/run.ts", {
-  allow: (out) => out.includes("GREEN"),
-});
+// 5. There is no separate sim step any more.
+//
+// It ran the v3 engine's simulator, which was the live-night fallback while
+// four managers existed. The v3 engine is gone, and the rebuilt engine is
+// covered by the vitest run in step 3: rotation, standings, the playoff and
+// the roster are all pure modules with no DOM, which is why they can be tested
+// there rather than by a separate harness nobody remembers to run.
 
 console.log(failed === 0 ? ok("\nGAUNTLET GREEN") : bad(`\nGAUNTLET FAILED (${failed})`));
 process.exit(failed === 0 ? 0 : 1);
