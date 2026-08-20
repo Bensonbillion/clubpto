@@ -219,6 +219,14 @@ export interface PlayableTie extends Tie {
 export interface Stage {
   key: PlayoffStage;
   label: string;
+  /**
+   * The singular stage word for one row of this stage: "Quarterfinal",
+   * "Play-in", "Semifinal", "Final". It lives here rather than in a key-to-word
+   * map in the shell because the first stage's name depends on the SHAPE, not
+   * the key: eight pairs open with quarterfinals, six with play-ins, and both
+   * store their matches under the key "playIn".
+   */
+  word: string;
   ties: Tie[];
 }
 
@@ -341,7 +349,18 @@ export function buildStages(
     const ties = block
       .slice(0, surplus)
       .map((top, i) => makeTie("playIn", i, top, block[block.length - 1 - i], matches));
-    stages.push({ key: "playIn", label: ties.length > 1 ? "Play-ins" : "Play-in", ties });
+    // When nobody is seeded through, every pair enters here and the round is
+    // not a play-in at all: eight pairs opening 1v8, 2v7, 3v6, 4v5 are
+    // quarterfinals, and a live walk caught the card calling them a play-in.
+    // The key stays "playIn" either way, because minted matches are stored
+    // under it and renaming the key would orphan a bracket in flight.
+    const quarterfinals = seededThrough === 0 && ties.length === 4;
+    stages.push({
+      key: "playIn",
+      label: quarterfinals ? "Quarterfinals" : ties.length > 1 ? "Play-ins" : "Play-in",
+      word: quarterfinals ? "Quarterfinal" : "Play-in",
+      ties,
+    });
     field = [...field, ...ties.map(winnerOf)];
   }
 
@@ -351,13 +370,14 @@ export function buildStages(
       makeTie("semi", 0, field[0], field[3], matches),
       makeTie("semi", 1, field[1], field[2], matches),
     ];
-    stages.push({ key: "semi", label: "Semifinals", ties });
+    stages.push({ key: "semi", label: "Semifinals", word: "Semifinal", ties });
     field = ties.map(winnerOf);
   }
 
   stages.push({
     key: "final",
     label: "Final",
+    word: "Final",
     ties: [makeTie("final", 0, field[0], field[1], matches)],
   });
   return stages;

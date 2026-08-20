@@ -66,11 +66,10 @@ const NIGHTS = [
 const MINUTES_PER_MATCH = 12;
 
 /**
- * The singular stage word the frames use, per stage key.
- *
- * `Stage.label` is the heading over a list and is plural where a stage holds
- * two rows ("Semifinals"). Frames 21 and 22 name the row on court in the
- * singular, so the two cannot be the same string.
+ * Fallback singular stage word per stage key, for a tie whose stage cannot be
+ * found in the built bracket. The real word comes off `Stage.word`, because
+ * the first stage's name depends on the shape: eight pairs open with
+ * quarterfinals, six with play-ins, both stored under the key "playIn".
  */
 const STAGE_WORD: Record<PlayoffStage, string> = {
   playIn: "Play-in",
@@ -838,10 +837,7 @@ export default function ManageApp() {
         dayName={night}
         playersIn={s.session.players.length}
         courtSizes={setupCourts.map((c) => c.size)}
-        // The review table has one row for this and the targets are per court,
-        // so when they differ the row carries the smallest: it is the only
-        // number every player in the room is actually promised.
-        matchesEach={setupCourts.length > 0 ? Math.min(...setupCourts.map((c) => c.target)) : 0}
+        matchTargets={setupCourts.map((c) => c.target)}
         matchesInTotal={setupCourts.reduce(
           (sum, c) => sum + (validTargets(c.size).includes(c.target) ? totalMatches(c.size, c.target) : 0), 0)}
         pointsForAWin={POINTS_PER_WIN}
@@ -1598,6 +1594,8 @@ export default function ManageApp() {
     (m) => m.courtNumber === courtNumber && m.stage !== null && m.status === "onCourt") ?? null;
   const tieOf = (matchId: string | null) =>
     stages?.flatMap((st) => st.ties).find((t) => t.matchId === matchId) ?? null;
+  const wordOf = (key: PlayoffStage): string =>
+    stages?.find((st) => st.key === key)?.word ?? STAGE_WORD[key];
 
   if (view.court.playoffSeeded && stages) {
     if (ui.pane === "playoffMatch" && livePlayoff) {
@@ -1608,7 +1606,7 @@ export default function ManageApp() {
           <PlayoffMatch
             header={courtHeader}
             courtNumber={courtNumber}
-            stageLabel={tie ? STAGE_WORD[tie.stage] : STAGE_WORD.final}
+            stageLabel={tie ? wordOf(tie.stage) : wordOf("final")}
             stageMatchNumber={stage && stage.ties.length > 1
               ? stage.ties.findIndex((x) => x.id === tie?.id) + 1
               : null}
@@ -1668,7 +1666,7 @@ export default function ManageApp() {
               // than printing a row number that could be the wrong one.
               const feeder = stages[stageIndex - 1];
               const waits = (which: "A" | "B") => feeder == null ? null : {
-                stageLabel: STAGE_WORD[feeder.key],
+                stageLabel: feeder.word,
                 position: st.key === "final" && feeder.key === "semi"
                   ? (which === "A" ? 1 : 2)
                   : null,
@@ -1703,7 +1701,7 @@ export default function ManageApp() {
             }),
           }))}
           matchOnCourtId={liveTie?.id ?? null}
-          liveStageName={liveTie ? STAGE_WORD[liveTie.stage] : undefined}
+          liveStageName={liveTie ? wordOf(liveTie.stage) : undefined}
           loading={s.loading}
           onOpenMatch={() => here({ pane: "playoffMatch" })}
           onOpenResult={(id) => {
@@ -1742,10 +1740,15 @@ export default function ManageApp() {
             bracketShape={(() => {
               const pairs = seedPairs(view.players.filter((pl) => !pl.away).map((pl) => pl.id)) ?? [];
               const stages = buildStages(pairs, []);
+              // The engine names the first stage from its shape, so the card
+              // reads the name off the stage rather than re-deriving the rule.
+              const first = stages.find((st) => st.key === "playIn");
+              const quarterfinals = first?.word === "Quarterfinal";
               return {
                 pairs: pairs.length,
                 matches: stages.reduce((sum, st) => sum + st.ties.length, 0),
-                hasPlayIn: stages.some((st) => st.key === "playIn"),
+                quarterfinals,
+                playIns: quarterfinals ? 0 : first?.ties.length ?? 0,
                 hasTrio: pairs.some(isTrio),
               };
             })()}

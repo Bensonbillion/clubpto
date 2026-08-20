@@ -41,7 +41,14 @@ import { ordinalWord } from "./model";
 export interface BracketShape {
   pairs: number;
   matches: number;
-  hasPlayIn: boolean;
+  /**
+   * True when the first round is a full one, nobody seeded through: eight
+   * pairs opening 1v8, 2v7, 3v6, 4v5. A live walk caught this card offering
+   * a court of sixteen "a play-in", which is a bye that does not exist.
+   */
+  quarterfinals: boolean;
+  /** How many genuine play-ins the bracket owes. Zero when quarterfinals. */
+  playIns: number;
   hasTrio: boolean;
 }
 
@@ -162,7 +169,13 @@ export const HowThisCourtEnds = ({
         <Title>Doubles bracket</Title>
         <Detail>
           {wordFor(bracketShape.pairs)} pairs,{" "}
-          {bracketShape.hasPlayIn ? "a play-in, two semis" : bracketShape.pairs === 2 ? "one final" : "two semis"}
+          {bracketShape.quarterfinals ? "quarterfinals, two semis"
+            // Three pairs play down to a final with no semifinals in between,
+            // so the play-in is the only thing to name before it.
+            : bracketShape.pairs === 3 ? "a play-in"
+              : bracketShape.playIns > 1 ? `${lowerWord(bracketShape.playIns)} play-ins, two semis`
+                : bracketShape.playIns === 1 ? "a play-in, two semis"
+                  : bracketShape.pairs === 2 ? "one final" : "two semis"}
           {bracketShape.pairs > 2 ? ", a final" : ""}.{" "}
           {bracketShape.matches === 1 ? "One match" : `${wordFor(bracketShape.matches)} matches`}, everyone on court plays,
           about half an hour.

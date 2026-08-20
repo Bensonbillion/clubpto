@@ -288,3 +288,31 @@ describe("readiness is never blocked by a tie", () => {
     expect(seedPairs(r.eligible)).not.toBeNull();
   });
 });
+
+describe("a full first round is quarterfinals, not play-ins", () => {
+  it("sixteen players, eight pairs: the first stage says Quarterfinals", () => {
+    // Found on a live walk: the ending card offered a court of sixteen
+    // "Eight pairs, a play-in, two semis". With eight pairs nobody has a
+    // bye, so 1v8, 2v7, 3v6, 4v5 is a quarterfinal round and every surface
+    // that names the stage should say so. The stored key stays "playIn" so
+    // a bracket already minted keeps claiming its matches.
+    const stages = buildStages(pairsFor(16), []);
+    expect(stages.map((s) => s.key)).toEqual(["playIn", "semi", "final"]);
+    expect(stages[0].ties).toHaveLength(4);
+    expect(stages[0].label).toBe("Quarterfinals");
+    expect(stages.map((s) => s.word)).toEqual(["Quarterfinal", "Semifinal", "Final"]);
+  });
+
+  it("a first round with byes keeps the play-in name, counted honestly", () => {
+    // Ten players: one play-in, seeds one to three wait. Fourteen players,
+    // seven pairs: three play-ins, only the top pair waits. Both are real
+    // play-ins because somebody enters the bracket a round late.
+    const ten = buildStages(pairsFor(10), []);
+    expect(ten[0].label).toBe("Play-in");
+    expect(ten[0].word).toBe("Play-in");
+    const fourteen = buildStages(pairsFor(14), []);
+    expect(fourteen[0].label).toBe("Play-ins");
+    expect(fourteen[0].ties).toHaveLength(3);
+    expect(fourteen[0].word).toBe("Play-in");
+  });
+});

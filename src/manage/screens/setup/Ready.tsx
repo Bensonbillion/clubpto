@@ -24,8 +24,14 @@ export interface ReadyProps {
    * sizes when they are not.
    */
   courtSizes: number[];
-  /** The step 4 target. */
-  matchesEach: number;
+  /**
+   * The step 4 target per court, in the same court order as `courtSizes`.
+   * One number when every court agrees; "3 + 4" beside a courts row of
+   * "16 + 14" when they differ, so the row states both targets plainly
+   * instead of quoting the smallest and letting the other court's players
+   * find out on the night.
+   */
+  matchTargets: number[];
   /** Matches every court plays, summed. */
   matchesInTotal: number;
   /** From config, not hard-coded: the standings screens quote the same number. */
@@ -60,7 +66,7 @@ const Value = ({ children }: { children: ReactNode }) => (
 );
 
 export const Ready = ({
-  dayName, playersIn, courtSizes, matchesEach, matchesInTotal, pointsForAWin,
+  dayName, playersIn, courtSizes, matchTargets, matchesInTotal, pointsForAWin,
   starting, onBack, onStart,
 }: ReadyProps) => {
   const even = courtSizes.length > 0 && courtSizes.every((n) => n === courtSizes[0]);
@@ -68,6 +74,9 @@ export const Ready = ({
   // no drawn wording, so it lists the courts in the same register rather than
   // claiming a multiplication that is not true.
   const courts = even ? `${courtSizes.length} × ${courtSizes[0]}` : courtSizes.join(" + ");
+  const targets = matchTargets.every((n) => n === matchTargets[0])
+    ? `${matchTargets[0] ?? 0}`
+    : matchTargets.join(" + ");
 
   return (
     <Screen>
@@ -79,7 +88,7 @@ export const Ready = ({
         </Row>
         <Row label="Players"><Value>{playersIn}</Value></Row>
         <Row label="Courts"><Value>{courts}</Value></Row>
-        <Row label="Matches each"><Value>{matchesEach}</Value></Row>
+        <Row label="Matches each"><Value>{targets}</Value></Row>
         <Row label="Matches in total" last><Value>{matchesInTotal}</Value></Row>
 
         <p style={{
