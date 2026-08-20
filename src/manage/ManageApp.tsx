@@ -43,7 +43,7 @@ import {
 import type { Match, PlayerTier, PlayoffStage } from "./types";
 import { Passcode, PasscodeFailed, HomeNothingRunning, HomeNightInProgress } from "./screens/door-home";
 import { WhichNight, WhoIsHere, Courts, MatchesEach, Ready, Chip } from "./screens/setup";
-import { CourtHeader, BalanceRule, CourtView, CourtSwitcher, Schedule, ScoreEntry } from "./screens/play";
+import { CourtHeader, BalanceRule, CourtView, CourtSwitcher, Schedule, ScoreEntry , startValue } from "./screens/play";
 import { CorrectOrVoid, Extend, LateArrival, LeavesEarly, MoveCourts, PlayersTab } from "./screens/people";
 import { StandingsTab, TieBrokenByOrder, type StandingsTabRow } from "./screens/standings";
 import {
@@ -94,14 +94,24 @@ interface CourtUi {
   tab: Tab;
   pane: Pane;
   /**
-   * Score entry, and which of the two boxes it opened on.
+   * Score entry: which box is focused AND the digits typed so far.
    *
-   * Per court because frame 13 says the flip happens mid-score. The digits
-   * themselves stay inside ScoreEntry, so a flip away and back reopens the
-   * sheet with empty boxes rather than half a number: a half-typed score is
-   * not part of the night and this file will not pretend it is.
+   * Per court because frame 13 says the flip happens mid-score, and the
+   * DIGITS live here too, which is a reversal worth explaining. They used to
+   * die with the sheet on a flip, on the theory that a half-typed score is
+   * not part of the night. Script 2 overruled it: the operator flips away
+   * with one number staged and the sheet must come back exactly as left,
+   * because on a real night the flip happens BECAUSE somebody shouted from
+   * the other court, not because the number was wrong.
    */
-  scoring: { matchId: string; side: "A" | "B" } | null;
+  scoring: { matchId: string; side: "A" | "B"; a: string; b: string } | null;
+  /**
+   * The pager: which schedule slot the match card is showing, or null for the
+   * live match. Past slots page back through recorded results; forward from
+   * the live match shows exactly ONE projected row, labelled as such, and
+   * nothing beyond it.
+   */
+  pagerSlot: number | null;
   /** A recorded result opened for correction (frame 16). */
   editingMatchId: string | null;
   /** The same result, one step further, at frame 28a. */
@@ -126,6 +136,7 @@ const FRESH_COURT_UI: CourtUi = {
   tab: "match",
   pane: "match",
   scoring: null,
+  pagerSlot: null,
   editingMatchId: null,
   voidingMatchId: null,
   leavingPlayerId: null,
@@ -1018,6 +1029,7 @@ export default function ManageApp() {
     else s.recordScore(matchId, scoreA, scoreB);
     here({
       scoring: null,
+      pagerSlot: null,
       // A scored bracket row goes back to the court's default view, which is
       // the bracket until the final lands and the champion once it has. Left
       // pinned to "bracket" the celebration never appeared: the operator would
@@ -1271,7 +1283,9 @@ export default function ManageApp() {
             scoreA: editing.scoreA ?? 0, scoreB: editing.scoreB ?? 0,
           }}
           onChangeScore={() => here({
-            editingMatchId: null, scoring: { matchId: editing.id, side: "A" },
+            editingMatchId: null,
+            scoring: { matchId: editing.id, side: "A",
+              a: startValue(editing.scoreA), b: startValue(editing.scoreB) },
           })}
           onVoid={() => here({ editingMatchId: null, voidingMatchId: editing.id })}
           onDismiss={() => here({ editingMatchId: null })}
@@ -1330,9 +1344,10 @@ export default function ManageApp() {
           onSelectCourt={setCourt}
           pairA={pairOf(scoringMatch.teamA)}
           pairB={pairOf(scoringMatch.teamB)}
-          initialSide={ui.scoring.side}
-          scoreA={scoringMatch.scoreA}
-          scoreB={scoringMatch.scoreB}
+          side={ui.scoring.side}
+          a={ui.scoring.a}
+          b={ui.scoring.b}
+          onEntry={(next) => here({ scoring: { matchId: scoringMatch.id, ...next } })}
           onSave={(a, b) => saveScore(scoringMatch.id, a, b)}
           onDismiss={() => here({ scoring: null })}
         />
@@ -1601,7 +1616,7 @@ export default function ManageApp() {
             teamB={{ name: pairOf(livePlayoff.teamB), seedLabel: tie?.sideB?.seeds.join("+") ?? "" }}
             scoreA={livePlayoff.scoreA}
             scoreB={livePlayoff.scoreB}
-            onScoreSide={(side) => here({ scoring: { matchId: livePlayoff.id, side } })}
+            onScoreSide={(side) => here({ scoring: { matchId: livePlayoff.id, side, a: "", b: "" } })}
             onSelectTab={(t) => here({ tab: t })}
             // This frame has no chip row, so the sheet is the way across. On a
             // one-court night there is nowhere to go and the chip is a label.
@@ -1822,7 +1837,18 @@ export default function ManageApp() {
     return <div style={{ background: T.bg, minHeight: "100dvh" }} />;
   }
 
-  /* ── the court ────────────────────────────────────────────────── */
+  /* ── the court, and the pager's coordinates ───────────────────── */
+
+  const currentSlot = view.currentSlot ?? live.matchIndex;
+  const playedSlots = view.schedule
+    .filter((r) => r.status === "played")
+    .map((r) => r.slot)
+    .sort((x, y) => x - y);
+  // A stale page (rows renumbered, result voided) silently falls back to the
+  // live match rather than drawing a row that no longer exists.
+  const paged = ui.pagerSlot != null && ui.pagerSlot !== currentSlot
+    ? view.schedule.find((r) => r.slot === ui.pagerSlot) ?? null
+    : null;
 
   return (
     <>
@@ -1833,22 +1859,49 @@ export default function ManageApp() {
         // one tap on the court view that does nothing today, so it is spent on
         // the list rather than on a new control with words of its own.
         onSelectCourt={(n) => (n === courtNumber ? here({ pane: "schedule" }) : setCourt(n))}
-        matchNumber={view.currentSlot ?? live.matchIndex}
+        matchNumber={paged ? paged.slot : (view.currentSlot ?? live.matchIndex)}
         matchesTotal={view.matchesTotal}
         round={view.round}
-        // The arrows walk the card, and walking is a move: the row stepped away
-        // from is parked as skipped and comes back before the table settles.
-        // useSession works out which row is either side, wrap included.
+        pagerFlag={paged ? (paged.status === "played" ? "Result" : "Projected") : undefined}
+        // The arrows are a PAGER, not a move (script 2's contract): back walks
+        // the recorded results in order, forward from the live match shows
+        // exactly one projected row, and nothing beyond it. Skipping a game is
+        // the schedule's job and the change sheet's, not the arrows'.
         onPreviousMatch={() => {
-          if (view.previousSlot != null) s.goToMatch(courtNumber, view.previousSlot);
+          const at = ui.pagerSlot ?? currentSlot;
+          const back = playedSlots.filter((n) => n < at).pop();
+          if (ui.pagerSlot != null && ui.pagerSlot > currentSlot) here({ pagerSlot: null });
+          else if (back != null) here({ pagerSlot: back });
         }}
         onNextMatch={() => {
-          if (view.nextSlot != null) s.goToMatch(courtNumber, view.nextSlot);
+          if (ui.pagerSlot == null) {
+            // One look ahead. The projection past the live match, if any.
+            const ahead = view.schedule.find((r) =>
+              r.slot > currentSlot && r.status !== "played" && r.teamA != null);
+            if (ahead) here({ pagerSlot: ahead.slot });
+            return;
+          }
+          if (ui.pagerSlot > currentSlot) return; // never more than one ahead
+          const fwd = playedSlots.find((n) => n > ui.pagerSlot!);
+          here({ pagerSlot: fwd != null && fwd < currentSlot ? fwd : null });
         }}
-        sideA={{ pairLabel: pairOf(live.teamA), score: live.scoreA }}
-        sideB={{ pairLabel: pairOf(live.teamB), score: live.scoreB }}
+        sideA={paged
+          ? { pairLabel: pairOf(paged.teamA ?? []), score: paged.scoreA }
+          : { pairLabel: pairOf(live.teamA), score: live.scoreA }}
+        sideB={paged
+          ? { pairLabel: pairOf(paged.teamB ?? []), score: paged.scoreB }
+          : { pairLabel: pairOf(live.teamB), score: live.scoreB }}
         waiting={view.queue.slice(0, 6).map((q) => ({ playerId: q.playerId, name: q.name }))}
-        onScore={(side) => here({ scoring: { matchId: live.id, side } })}
+        onScore={(side) => {
+          if (paged) {
+            // A result opens its correction; a projection is a look, not a tap.
+            if (paged.status === "played" && paged.matchId) {
+              here({ editingMatchId: paged.matchId, pagerSlot: null });
+            }
+            return;
+          }
+          here({ scoring: { matchId: live.id, side, a: "", b: "" } });
+        }}
         onWhyThisFour={() => here({ pane: "why" })}
         activeTab={ui.tab}
         onTabChange={(t) => here({ tab: t })}

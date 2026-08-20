@@ -19,6 +19,12 @@ export interface MatchNavProps {
   onPreviousMatch: () => void;
   onNextMatch: () => void;
   /**
+   * The pager's state word: "Result" on a page back through what was played,
+   * "Projected" on the single look ahead. Absent on the live match, because
+   * the live match is not a state, it is the night.
+   */
+  flag?: string;
+  /**
    * Frame 11, "Why this four".
    *
    * No frame draws an entry point for it, so rather than invent a control with
@@ -49,11 +55,12 @@ export const MatchNav = ({
   round,
   onPreviousMatch,
   onNextMatch,
+  flag,
   onExplain,
 }: MatchNavProps) => {
   const where = (
     <Eyebrow>
-      Match {matchNumber} of {matchesTotal} &middot; Round {round}
+      Match {matchNumber} of {matchesTotal} &middot; {flag ?? `Round ${round}`}
     </Eyebrow>
   );
 
