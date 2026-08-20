@@ -781,6 +781,18 @@ export function useManageSession() {
   const startOver = useCallback(() =>
     commit((s) => startOverSession(s, Date.now())), [commit]);
 
+  /**
+   * Back to a blank app: every player, tier, game and bracket goes.
+   *
+   * Start-over is the reset for a night that went wrong; this is the reset for
+   * a DEVICE that has the wrong club on it, a test session to clean off, or a
+   * fresh start the operator actually wants to be fresh. It is the one action
+   * in the app that loses the roster, which is why the confirm sheet in the
+   * shell names exactly that.
+   */
+  const resetEverything = useCallback(() =>
+    commit(() => emptySession()), [commit]);
+
   /** End the night, from any screen, at any time (frames 25b and 28c). */
   const endNight = useCallback(() =>
     commit((s) => ({ ...s, status: "ended", endedAt: Date.now() })), [commit]);
@@ -859,7 +871,7 @@ export function useManageSession() {
     setDayLabel, addRosterPlayer, addWalkIn, removePlayer, assignCourt, setTier,
     setCourts, setTarget, extend, start,
     ensureOnCourt, skipMatch, goToMatch, recordScore, correctScore, voidMatch, setAway,
-    seedPlayoff, advancePlayoff, deletePlayoff, setEnding, beginNewNight, startOver, endNight,
+    seedPlayoff, advancePlayoff, deletePlayoff, setEnding, beginNewNight, startOver, resetEverything, endNight,
   };
 }
 
