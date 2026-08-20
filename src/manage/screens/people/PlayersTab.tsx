@@ -66,6 +66,13 @@ export interface PlayersTabProps {
    *  explained and the decision is actually taken. */
   onMarkLeft: (playerId: string) => void;
   onMarkHere: (playerId: string) => void;
+  /**
+   * Opens frame B28's move sheet for this row. Omitted on a one-court night,
+   * where there is nowhere to move anybody to and the ghost would be a lie.
+   */
+  onMoveCourts?: (playerId: string) => void;
+  /** Opens frame B29's tier sheet for this row. */
+  onSetTier?: (playerId: string) => void;
   onAddPlayer: () => void;
   onChangeTab: (tab: Tab) => void;
 }
@@ -98,6 +105,8 @@ export const PlayersTab = ({
   onMarkArrived,
   onMarkLeft,
   onMarkHere,
+  onMoveCourts,
+  onSetTier,
   onAddPlayer,
   onChangeTab,
 }: PlayersTabProps) => {
@@ -149,53 +158,76 @@ export const PlayersTab = ({
       <Body style={{ marginTop: 12 }}>
         {ordered.map((player) => {
           const open = player.id === openPlayerId;
+          const ghost = {
+            width: "auto", minHeight: 40, font: `600 13.5px ${T.fontBody}`, padding: "4px 15px",
+          } as const;
           return (
             <div
               key={player.id}
               style={{
                 display: "flex",
-                alignItems: "center",
-                gap: 12,
+                flexDirection: "column",
+                gap: 10,
                 padding: "14px 22px",
                 borderBottom: `1px solid ${T.line}`,
               }}
             >
-              {/* The name block is the control, not the whole row: an action
-                  button cannot be nested inside another button, and the count
-                  on the right is a reading, not a target. */}
-              <button
-                type="button"
-                onClick={() => onOpenPlayer(open ? null : player.id)}
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  border: "none",
-                  background: "transparent",
-                  color: T.ink,
-                  padding: "4px 0",
-                  textAlign: "left",
-                  cursor: "pointer",
-                }}
-              >
-                <p style={{ font: `600 16px ${T.fontBody}`, margin: 0 }}>{player.displayName}</p>
-                <p style={{ font: `400 13.5px ${T.fontBody}`, color: T.mut, margin: "2px 0 0" }}>
-                  {player.tier ? `Tier ${player.tier}` : "Not assessed"} &middot;{" "}
-                  {statusWord(player.status)}
-                </p>
-              </button>
-
-              {open && (
-                <SecondaryButton
-                  style={{ width: "auto", minHeight: 40, font: `600 13.5px ${T.fontBody}`, padding: "4px 15px" }}
-                  onClick={() => act(player)}
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                {/* The name block is the control, not the whole row: an action
+                    button cannot be nested inside another button, and the count
+                    on the right is a reading, not a target. */}
+                <button
+                  type="button"
+                  onClick={() => onOpenPlayer(open ? null : player.id)}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    border: "none",
+                    background: "transparent",
+                    color: T.ink,
+                    padding: "4px 0",
+                    textAlign: "left",
+                    cursor: "pointer",
+                  }}
                 >
-                  {actionLabel(player.status)}
-                </SecondaryButton>
-              )}
+                  <p style={{ font: `600 16px ${T.fontBody}`, margin: 0 }}>{player.displayName}</p>
+                  <p style={{ font: `400 13.5px ${T.fontBody}`, color: T.mut, margin: "2px 0 0" }}>
+                    {player.tier ? `Tier ${player.tier}` : "Not assessed"} &middot;{" "}
+                    {statusWord(player.status)}
+                  </p>
+                </button>
 
-              <Num size={22} style={{ display: "inline-block", width: 30, textAlign: "right" }}>
-                {player.gamesPlayed}
-              </Num>
+                {open && (
+                  <SecondaryButton style={ghost} onClick={() => act(player)}>
+                    {actionLabel(player.status)}
+                  </SecondaryButton>
+                )}
+
+                <Num size={22} style={{ display: "inline-block", width: 30, textAlign: "right" }}>
+                  {player.gamesPlayed}
+                </Num>
+              </div>
+
+              {/* Frames B28 and B29 open FROM this tab and draw no entry point
+                  of their own, so the open row grows two more ghosts in the
+                  same register as frame 14's "Mark left". They sit on a second
+                  line because three ghosts beside a name and a count do not
+                  fit a 390px row. The labels are not drawn on any frame; each
+                  names the sheet it opens and nothing more. */}
+              {open && (onMoveCourts != null || onSetTier != null) && (
+                <div style={{ display: "flex", gap: 8 }}>
+                  {onMoveCourts != null && (
+                    <SecondaryButton style={ghost} onClick={() => onMoveCourts(player.id)}>
+                      Move courts
+                    </SecondaryButton>
+                  )}
+                  {onSetTier != null && (
+                    <SecondaryButton style={ghost} onClick={() => onSetTier(player.id)}>
+                      Set tier
+                    </SecondaryButton>
+                  )}
+                </div>
+              )}
             </div>
           );
         })}

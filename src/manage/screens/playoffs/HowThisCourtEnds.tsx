@@ -30,8 +30,23 @@ import type { ChosenEnding, OneMoreRound } from "../../engine/endings";
 import { Heading, PlayoffHeader } from "./PlayoffHeader";
 import { ordinalWord } from "./model";
 
+/**
+ * What the bracket will actually be for this court's headcount, so the card
+ * can say it instead of reciting frame 19's eight-player example. The frame's
+ * sentence, "Four pairs, two semis, a final. Three matches", is only true for
+ * eight; ten a side plays a play-in first and nine seeds a trio, and the app's
+ * own promise is that it states the consequence rather than hiding the maths.
+ */
+export interface BracketShape {
+  pairs: number;
+  matches: number;
+  hasPlayIn: boolean;
+  hasTrio: boolean;
+}
+
 export interface HowThisCourtEndsProps {
   courtNumber: number;
+  bracketShape: BracketShape;
   /**
    * Straight from engine/endings.ts `oneMoreRoundChange(courtSize, target)`.
    * `targetMatches` is the raised target, which is the "fourth" in "Everyone
@@ -49,6 +64,10 @@ export interface HowThisCourtEndsProps {
   /** A tap on the "One more round" card. */
   onChooseOneMoreRound: () => void;
 }
+
+/** Frame 19 writes its numbers as words, so these follow suit. */
+const wordFor = (n: number): string =>
+  ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight"][n] ?? String(n);
 
 const CardButton = ({ onClick, tone, children }: {
   onClick?: () => void; tone?: "plain" | "live"; children: ReactNode;
@@ -92,6 +111,7 @@ const otherCourtLine = (
 export const HowThisCourtEnds = ({
   courtNumber, oneMoreRound, otherCourt,
   onChooseDoublesBracket, onChooseOneMoreRound,
+  bracketShape,
 }: HowThisCourtEndsProps) => (
   <Screen>
     <PlayoffHeader
@@ -110,8 +130,12 @@ export const HowThisCourtEnds = ({
       <CardButton tone="live" onClick={onChooseDoublesBracket}>
         <Title>Doubles bracket</Title>
         <Detail>
-          Four pairs, two semis, a final. Three matches, everyone on court plays,
+          {wordFor(bracketShape.pairs)} pairs,{" "}
+          {bracketShape.hasPlayIn ? "a play-in, two semis" : bracketShape.pairs === 2 ? "one final" : "two semis"}
+          {bracketShape.pairs > 2 ? ", a final" : ""}.{" "}
+          {wordFor(bracketShape.matches)} matches, everyone on court plays,
           about half an hour.
+          {bracketShape.hasTrio ? " The last pair rotates three players so nobody watches." : ""}
         </Detail>
       </CardButton>
 

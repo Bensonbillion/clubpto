@@ -22,32 +22,35 @@
 // views or from a pure engine function; this file chooses a screen and hands
 // the answer over.
 
-import { useEffect, useState } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { ensureManageFonts } from "./ui/fonts";
 import {
-  DangerButton, SecondaryButton, Sheet, T, TertiaryButton, type Tab,
+  DangerButton, PrimaryButton, SecondaryButton, Sheet, T, TertiaryButton, type Tab,
 } from "./ui/primitives";
 import { useManageSession } from "./useSession";
 import { useRoster } from "./roster/useRoster";
 import { dedupeWalkIn } from "./roster/merge";
 import { explainMatch, validTargets, totalMatches } from "./engine/rotation";
+import { suggestSplit, suggestTarget, type SplitNote } from "./engine/split";
+import { MIN_CS_FOR_A_C_MATCH, tierOf } from "./engine/tiers";
 import { POINTS_PER_WIN, type StandingsRow } from "./engine/standings";
-import { seedPairs } from "./engine/playoff";
+import { buildStages, isTrio, seedPairs } from "./engine/playoff";
 import {
-  chooseEnding, endingFor, individualChampion, mayChooseEnding, oneMoreRoundChange,
+  endingFor, individualChampion, mayChooseEnding, oneMoreRoundChange,
   type CourtEndings,
 } from "./engine/endings";
 import type { Match, PlayerTier, PlayoffStage } from "./types";
 import { Passcode, PasscodeFailed, HomeNothingRunning, HomeNightInProgress } from "./screens/door-home";
-import { WhichNight, WhoIsHere, Courts, MatchesEach, Ready } from "./screens/setup";
+import { WhichNight, WhoIsHere, Courts, MatchesEach, Ready, Chip } from "./screens/setup";
 import { BalanceRule, CourtView, CourtSwitcher, Schedule, ScoreEntry } from "./screens/play";
-import { CorrectOrVoid, Extend, LateArrival, LeavesEarly, PlayersTab } from "./screens/people";
+import { CorrectOrVoid, Extend, LateArrival, LeavesEarly, MoveCourts, PlayersTab } from "./screens/people";
 import { StandingsTab, TieBrokenByOrder, type StandingsTabRow } from "./screens/standings";
 import {
   Bracket, Champion, HowThisCourtEnds, IndividualChampion, PlayoffMatch, PlayoffReadiness,
   joinPair,
 } from "./screens/playoffs";
 import {
+  ConfirmDeletePlayoff,
   buildWhatsAppPayload, ConfirmEndNight, ConfirmVoidResult, SessionSummary,
   type SummaryChampion,
 } from "./screens/summary-states";
@@ -104,6 +107,10 @@ interface CourtUi {
   voidingMatchId: string | null;
   /** Frame 16c, opened by the players tab's "Mark left". */
   leavingPlayerId: string | null;
+  /** Frame B28, opened by the players tab's "Move courts". */
+  movingPlayerId: string | null;
+  /** Frame B29, opened by the players tab's "Set tier". */
+  tierPlayerId: string | null;
   /** The row of the players tab showing its action (frame 14). */
   openPlayerId: string | null;
   /** Frame 18, opened off the standings row whose reason line is drawn. */
@@ -117,12 +124,14 @@ const FRESH_COURT_UI: CourtUi = {
   editingMatchId: null,
   voidingMatchId: null,
   leavingPlayerId: null,
+  movingPlayerId: null,
+  tierPlayerId: null,
   openPlayerId: null,
   tiePlayerId: null,
 };
 
 /** Night-wide overlays. One at a time, and none of them belongs to a court. */
-type NightSheet = "nightMenu" | "summary" | "endNight" | "extend" | "lateArrival" | "courtSwitcher";
+type NightSheet = "nightMenu" | "summary" | "endNight" | "extend" | "lateArrival" | "courtSwitcher" | "deleteBracket";
 
 /**
  * Frame 25b, the night menu.
@@ -133,7 +142,7 @@ type NightSheet = "nightMenu" | "summary" | "endNight" | "extend" | "lateArrival
  * When that slice grows a NightMenu this should move there unchanged.
  */
 const NightMenu = ({
-  dayLabel, onSessionSummary, onOneMoreRound, onStartOver, onEndNight, onClose,
+  dayLabel, onSessionSummary, onOneMoreRound, onStartOver, onEndNight, onClose, onDeleteBracket,
 }: {
   dayLabel: string;
   onSessionSummary: () => void;
@@ -141,6 +150,8 @@ const NightMenu = ({
   onStartOver: () => void;
   onEndNight: () => void;
   onClose: () => void;
+  /** Only passed while the active court has a seeded bracket. */
+  onDeleteBracket?: () => void;
 }) => (
   <Sheet onDismiss={onClose}>
     <p style={{ fontFamily: T.fontHead, fontWeight: 400, fontSize: 18, margin: 0 }}>{dayLabel}</p>
@@ -160,8 +171,76 @@ const NightMenu = ({
     }}>
       Start over clears every game and bracket. The roster and tiers stay.
     </p>
+    {/*
+      Not on frame 25b. It exists because a mistakenly seeded bracket had no
+      way out at all: ConfirmDeletePlayoff was built and nothing opened it. It
+      only renders while the active court actually has a bracket, so on most
+      nights the menu is exactly the frame.
+    */}
+    {onDeleteBracket && (
+      <SecondaryButton onClick={onDeleteBracket} style={{ borderColor: T.bad, color: T.redInk }}>
+        Delete this court's bracket
+      </SecondaryButton>
+    )}
     <DangerButton onClick={onEndNight}>End the night</DangerButton>
     <TertiaryButton onClick={onClose}>Close</TertiaryButton>
+  </Sheet>
+);
+
+/** Frame B29's four options in its own order. Null is "Not assessed". */
+const TIER_OPTIONS: (PlayerTier | null)[] = ["A", "B", "C", null];
+
+/**
+ * Frame B29, set a tier mid-night.
+ *
+ * It lives here for the same reason NightMenu does: the players tab raises the
+ * callback and no slice exports the sheet yet. Every word is frame B29's own.
+ * The frame draws the sheet over a screen headed "Roster", and the players tab
+ * is the only roster a running night has, so that is where it opens from.
+ * When the people slice grows a SetTier this should move there unchanged.
+ */
+const SetTierSheet = ({ playerName, draft, onSelect, onSave, onCancel }: {
+  playerName: string;
+  /** The choice as it stands on the sheet, committed only by Save. */
+  draft: PlayerTier | null;
+  onSelect: (tier: PlayerTier | null) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}) => (
+  <Sheet onDismiss={onCancel}>
+    <p style={{ fontFamily: T.fontHead, fontWeight: 400, fontSize: 18, margin: 0 }}>
+      {playerName}&#39;s tier
+    </p>
+    <p style={{ font: `400 14.5px/1.6 ${T.fontBody}`, color: T.mut, margin: 0, textWrap: "pretty" }}>
+      A quiet note for you when splitting courts. It never shows on court, in games, or in standings.
+    </p>
+    <div role="radiogroup" style={{ display: "flex", gap: 10 }}>
+      {TIER_OPTIONS.map((tier) => (
+        <Chip
+          key={tier ?? "none"}
+          radio
+          on={tier === draft}
+          onClick={() => onSelect(tier)}
+          // The frame draws the three letters as values in the display face
+          // and gives "Not assessed" the wider chip, because it is a sentence
+          // rather than a letter.
+          style={tier == null
+            ? { flex: 1.7, minHeight: 56, fontSize: 13.5, whiteSpace: "nowrap" }
+            : { flex: 1, minHeight: 56, fontFamily: T.fontHead, fontWeight: 400, fontSize: 24 }}
+        >
+          {tier ?? "Not assessed"}
+        </Chip>
+      ))}
+    </div>
+    {/* The frame joins the two middle sentences with an em dash. Restructured
+        to a full stop, no word changed. */}
+    <p style={{ font: `400 13.5px/1.5 ${T.fontBody}`, color: T.mut, margin: 0, textWrap: "pretty" }}>
+      Set it when you add someone to the roster, or change it any week from this
+      same sheet. B this week can be A the next. Form moves, and nothing already
+      played changes.
+    </p>
+    <PrimaryButton onClick={onSave}>Save tier</PrimaryButton>
+    <TertiaryButton onClick={onCancel}>Cancel</TertiaryButton>
   </Sheet>
 );
 
@@ -187,7 +266,6 @@ export default function ManageApp() {
   const [night, setNight] = useState("Wednesday");
   const [query, setQuery] = useState("");
   const [courtCount, setCourtCount] = useState(2);
-  const [target, setTargetLocal] = useState(4);
   const [tierPromptId, setTierPromptId] = useState<string | null>(null);
   const [court, setCourt] = useState(1);
   // Home is a destination you choose, not somewhere Start throws you.
@@ -198,6 +276,10 @@ export default function ManageApp() {
   const [lateName, setLateName] = useState("");
   const [lateCourt, setLateCourt] = useState<number | null>(null);
   const [lateTier, setLateTier] = useState<PlayerTier | null>(null);
+  /** Frame B28's chosen destination, set on open so the title can name it. */
+  const [moveTo, setMoveTo] = useState<number | null>(null);
+  /** Frame B29's choice as it stands on the sheet. Save is what commits it. */
+  const [tierDraft, setTierDraft] = useState<PlayerTier | null>(null);
 
   /**
    * Which ending each court picked (frame 19).
@@ -208,7 +290,13 @@ export default function ManageApp() {
    * the session either way, the target rises or the bracket is seeded, so a
    * reload loses the question and never the answer.
    */
-  const [endings, setEndings] = useState<CourtEndings>({});
+  // Derived from the session, not held here: the shell's memory dies with a
+  // reload, and a refreshed phone used to be re-offered a choice the court had
+  // already made.
+  const endings: CourtEndings = useMemo(
+    () => Object.fromEntries(
+      s.session.courts.filter((c) => c.ending != null).map((c) => [c.number, c.ending!])),
+    [s.session.courts]);
 
   const ui = uiByCourt[court] ?? FRESH_COURT_UI;
   const patch = (courtNumber: number, next: Partial<CourtUi>) =>
@@ -229,9 +317,44 @@ export default function ManageApp() {
    * what stops a visit to the roster from quietly deleting a court.
    */
   const enterSetup = (to: Step = "night") => {
+    // Starting on top of an ENDED night begins a new one: games and brackets
+    // go, the roster and its tiers stay. Without this the wizard inherited
+    // last week's matches and every court arrived already complete.
+    if (s.session.status === "ended") {
+      s.beginNewNight();
+      setUiByCourt({});
+    }
     if (s.session.courts.length > 0) setCourtCount(s.session.courts.length);
     setInSetup(true);
     setStep(to);
+  };
+
+  /**
+   * The suggested split, applied (frames A07 and B31).
+   *
+   * engine/split.ts works out where everyone starts and what each court's
+   * target should be; this only writes its answer into the session. Placement
+   * normally touches only players with no court at this count, because tier
+   * suggests and never gates: a name the operator has dragged stays where it
+   * was dragged. `everyone` is the exception, for the court-count chips, where
+   * every placement was made against a shape that no longer exists.
+   *
+   * Targets are seeded only while the night has not started. The wizard is
+   * reachable mid-night as the way to the roster, and a running court's
+   * target is the night's, possibly already extended, so re-seeding it would
+   * rewrite a promise the room is playing to.
+   */
+  const applySuggestedSplit = (count: number, everyone: boolean) => {
+    const suggestion = suggestSplit(s.session.players, count);
+    const fresh = s.session.status !== "running";
+    for (const p of s.session.players) {
+      const to = suggestion.assignment.get(p.id);
+      // A court number above the count points at a court that no longer
+      // exists, so a player carrying one is unplaced, not placed.
+      const placed = p.courtNumber != null && p.courtNumber <= count;
+      if (to != null && ((everyone && fresh) || !placed)) s.assignCourt(p.id, to);
+    }
+    if (fresh) for (const [number, t] of suggestion.targets) s.setTarget(number, t);
   };
 
   /* ── keeping every court playing ───────────────────────────────── */
@@ -434,6 +557,10 @@ export default function ManageApp() {
             // Adding already wrote to the session, so there is nothing left to
             // reconcile. This list is a view of the night, not a form.
             s.setCourts(Array.from({ length: courtCount }, (_, i) => i + 1));
+            // The next screen opens on the suggested split, which is frame
+            // A07's first sentence. Only the unplaced are moved, so walking
+            // back through this step cannot undo a drag.
+            applySuggestedSplit(courtCount, false);
             setStep("courts");
           }}
         />
@@ -447,24 +574,51 @@ export default function ManageApp() {
       const courts = Array.from({ length: courtCount }, (_, i) => ({
         courtNumber: i + 1, label: `Court ${i + 1}`, players: chips(i + 1),
       }));
+
+      // The setup warnings, read off the split AS IT STANDS, drags included.
+      // suggestSplit can only speak about its own assignment, so freezing the
+      // notes it returned on the way in would keep warning about a court the
+      // operator has already fixed. The same three facts are therefore derived
+      // live, with the module's own constant and suggestTarget so the
+      // thresholds cannot drift from engine/split.ts.
+      const csIn = s.session.players.filter((p) => tierOf(p) === "C");
+      const splitNotes: SplitNote[] = [];
+      if (csIn.length > 0 && csIn.length < MIN_CS_FOR_A_C_MATCH) {
+        splitNotes.push({ kind: "tooFewCs", cCount: csIn.length });
+      }
+      const cCourt = csIn.find((p) => p.courtNumber != null)?.courtNumber;
+      if (csIn.length === MIN_CS_FOR_A_C_MATCH && cCourt != null) {
+        splitNotes.push({ kind: "exactlyThreeCs", courtNumber: cCourt });
+      }
+      for (const c of courts) {
+        // An empty court is not noted: the dashed card frame 27b draws in its
+        // place already says nobody is on it and what to do about that.
+        if (c.players.length > 0 && suggestTarget(c.players.length) === null) {
+          splitNotes.push({ kind: "courtTooSmall", courtNumber: c.courtNumber, size: c.players.length });
+        }
+      }
+
       return (
         <Courts
           courts={courts}
+          notes={splitNotes}
           courtCount={courtCount}
           onCourtCountChange={(c) => {
             setCourtCount(c);
             s.setCourts(Array.from({ length: c }, (_, i) => i + 1));
+            // The screen's contract: changing the count re-splits everyone,
+            // because every drag so far answered a question that is no longer
+            // being asked.
+            applySuggestedSplit(c, true);
           }}
           onMovePlayer={(id) => {
             const p = s.session.players.find((x) => x.id === id);
             const now = p?.courtNumber ?? 0;
             s.assignCourt(id, now >= courtCount ? 1 : now + 1);
           }}
-          onAssignPlayers={() => {
-            // Deal the unassigned round-robin so no court starts empty.
-            const loose = s.session.players.filter((p) => p.courtNumber == null);
-            loose.forEach((p, i) => s.assignCourt(p.id, (i % courtCount) + 1));
-          }}
+          // The empty court card's action. Only the unplaced move, so it can
+          // never undo a drag; the suggestion decides where they land.
+          onAssignPlayers={() => applySuggestedSplit(courtCount, false)}
           onBack={() => setStep("who")}
           onNext={() => setStep("target")}
         />
@@ -472,30 +626,40 @@ export default function ManageApp() {
     }
 
     if (step === "target") {
-      const size = s.session.players.filter((p) => p.courtNumber === 1).length;
+      // Targets are per court (frame B31): each card reads its own size off
+      // the split and holds its own answer, seeded by applySuggestedSplit on
+      // the way into the previous step.
       return (
         <MatchesEach
-          courtSize={size}
-          courtCount={courtCount}
-          selected={target}
+          courts={s.session.courts.map((c) => ({
+            courtNumber: c.number,
+            label: `Court ${c.number}`,
+            size: s.session.players.filter((p) => p.courtNumber === c.number && !p.away).length,
+            selected: c.targetMatches,
+          }))}
           minutesPerMatch={MINUTES_PER_MATCH}
-          onSelect={(t) => { setTargetLocal(t); s.session.courts.forEach((c) => s.setTarget(c.number, t)); }}
+          onSelect={(courtNumber, t) => s.setTarget(courtNumber, t)}
           onBack={() => setStep("courts")}
           onNext={() => setStep("ready")}
         />
       );
     }
 
-    const courtSizes = s.session.courts.map(
-      (c) => s.session.players.filter((p) => p.courtNumber === c.number).length);
+    const setupCourts = s.session.courts.map((c) => ({
+      size: s.session.players.filter((p) => p.courtNumber === c.number && !p.away).length,
+      target: c.targetMatches,
+    }));
     return (
       <Ready
         dayName={night}
         playersIn={s.session.players.length}
-        courtSizes={courtSizes}
-        matchesEach={target}
-        matchesInTotal={courtSizes.reduce(
-          (sum, size) => sum + (validTargets(size).includes(target) ? totalMatches(size, target) : 0), 0)}
+        courtSizes={setupCourts.map((c) => c.size)}
+        // The review table has one row for this and the targets are per court,
+        // so when they differ the row carries the smallest: it is the only
+        // number every player in the room is actually promised.
+        matchesEach={setupCourts.length > 0 ? Math.min(...setupCourts.map((c) => c.target)) : 0}
+        matchesInTotal={setupCourts.reduce(
+          (sum, c) => sum + (validTargets(c.size).includes(c.target) ? totalMatches(c.size, c.target) : 0), 0)}
         pointsForAWin={POINTS_PER_WIN}
         onBack={() => setStep("target")}
         onStart={() => {
@@ -640,6 +804,12 @@ export default function ManageApp() {
   const voiding = ui.voidingMatchId != null
     ? s.session.matches.find((m) => m.id === ui.voidingMatchId)
     : undefined;
+  const moving = ui.movingPlayerId != null
+    ? s.session.players.find((p) => p.id === ui.movingPlayerId)
+    : undefined;
+  const tiering = ui.tierPlayerId != null
+    ? s.session.players.find((p) => p.id === ui.tierPlayerId)
+    : undefined;
 
   /**
    * One save path for every score on the night.
@@ -652,6 +822,11 @@ export default function ManageApp() {
   const saveScore = (matchId: string, scoreA: number, scoreB: number) => {
     const m = s.session.matches.find((x) => x.id === matchId);
     if (!m) return;
+    // The writer refuses a draw, so closing the sheet here would look like a
+    // save while nothing was saved. The sheet stays up with both numbers still
+    // showing, which is the only honest thing a screen can do with a refusal
+    // the frames draw no wording for.
+    if (scoreA === scoreB) return;
     if (m.status === "played") s.correctScore(matchId, scoreA, scoreB);
     else s.recordScore(matchId, scoreA, scoreB);
     here({
@@ -684,12 +859,24 @@ export default function ManageApp() {
           // Start over clears every game and bracket, so every screen the
           // operator was on is about a night that no longer exists. The ending
           // each court had chosen goes with them.
-          onStartOver={() => { s.startOver(); setSheet(null); setUiByCourt({}); setEndings({}); }}
+          // startOverSession clears each court's stored ending itself.
+          onStartOver={() => { s.startOver(); setSheet(null); setUiByCourt({}); }}
           onEndNight={() => setSheet("endNight")}
+          onDeleteBracket={view.court.playoffSeeded
+            ? () => setSheet("deleteBracket")
+            : undefined}
           onClose={() => setSheet(null)}
         />
       )}
 
+      {sheet === "deleteBracket" && (
+        <ConfirmDeletePlayoff
+          courtNumber={courtNumber}
+          otherCourtNumber={other[0]?.court.number ?? null}
+          onDelete={() => { s.deletePlayoff(courtNumber); setSheet(null); here({ pane: "match" }); }}
+          onKeep={() => setSheet(null)}
+        />
+      )}
       {sheet === "extend" && (
         <Extend
           courtLabel={`Court ${courtNumber}`}
@@ -756,6 +943,46 @@ export default function ManageApp() {
             }
             setSheet(null); setLateName(""); setLateTier(null);
           }}
+        />
+      )}
+
+      {moving && moveTo != null && (
+        <MoveCourts
+          playerName={moving.name}
+          fromCourtNumber={moving.courtNumber ?? courtNumber}
+          courts={s.views.map((v) => ({
+            courtNumber: v.court.number,
+            label: `Court ${v.court.number}`,
+            // Frame B28's chips show the room AFTER the move: every court's
+            // count as it would stand once the mover lands on the selected
+            // one. A mover already marked away moves without changing either
+            // count, because they were not in either court's headcount.
+            countAfterMove: v.players.filter((p) => !p.away && p.id !== moving.id).length
+              + (v.court.number === moveTo && !moving.away ? 1 : 0),
+          }))}
+          selectedCourtNumber={moveTo}
+          onSelectCourt={setMoveTo}
+          onMove={() => {
+            // assignCourt moves the person and nothing else. Matches reference
+            // ids, so everything already played stays on the old court's
+            // table, which is the honesty frame B28 promises out loud.
+            s.assignCourt(moving.id, moveTo);
+            here({ movingPlayerId: null, openPlayerId: null });
+          }}
+          onKeep={() => here({ movingPlayerId: null })}
+        />
+      )}
+
+      {tiering && (
+        <SetTierSheet
+          playerName={tiering.name}
+          draft={tierDraft}
+          onSelect={setTierDraft}
+          onSave={() => {
+            s.setTier(tiering.id, tierDraft);
+            here({ tierPlayerId: null });
+          }}
+          onCancel={() => here({ tierPlayerId: null })}
         />
       )}
 
@@ -852,6 +1079,21 @@ export default function ManageApp() {
           // actually taken, so this opens it rather than marking anyone away.
           onMarkLeft={(id) => here({ leavingPlayerId: id })}
           onMarkHere={(id) => s.setAway(id, false)}
+          // Frame B28. On a one-court night there is nowhere to move anybody,
+          // so the ghost is not offered at all. The sheet opens with the first
+          // other court already chosen, because its title and its button both
+          // name a destination.
+          onMoveCourts={other.length > 0 ? (id) => {
+            const from = s.session.players.find((x) => x.id === id)?.courtNumber;
+            setMoveTo(s.views.map((v) => v.court.number).find((n) => n !== from) ?? courtNumber);
+            here({ movingPlayerId: id });
+          } : undefined}
+          // Frame B29. The sheet opens on the assessment as it stands, and
+          // only Save writes anything back.
+          onSetTier={(id) => {
+            setTierDraft(s.session.players.find((x) => x.id === id)?.tier ?? null);
+            here({ tierPlayerId: id });
+          }}
           onAddPlayer={() => {
             setLateName(""); setLateTier(null); setLateCourt(courtNumber); setSheet("lateArrival");
           }}
@@ -865,10 +1107,20 @@ export default function ManageApp() {
   /* ── the standings tab ────────────────────────────────────────── */
 
   if (ui.tab === "standings") {
-    /** The clock time a row reached its final total, for frames 17 and 18. */
-    const reachedAt = (row: StandingsRow | undefined) => clockTime(row && s.session.matches.find(
-      (m) => m.courtNumber === courtNumber && m.stage === null
-        && m.status === "played" && m.matchIndex === row.reachedAt)?.completedAt);
+    /**
+     * The clock time a row reached its final total, for frames 17 and 18.
+     *
+     * row.reachedAt is a RECORDED-ORDER index: standings renumber the played
+     * rows by completedAt, because the card can be played out of order and the
+     * third tie-break is explicitly the order results were recorded. Looking
+     * it up against matchIndex, a card SLOT number, printed the completion
+     * time of whatever happened to sit in that slot.
+     */
+    const playedInRecordedOrder = s.session.matches
+      .filter((m) => m.courtNumber === courtNumber && m.stage === null && m.status === "played")
+      .sort((a, b) => (a.completedAt ?? 0) - (b.completedAt ?? 0));
+    const reachedAt = (row: StandingsRow | undefined) =>
+      clockTime(row ? playedInRecordedOrder[row.reachedAt - 1]?.completedAt : undefined);
 
     /**
      * Why this row sits where it does.
@@ -1155,6 +1407,19 @@ export default function ManageApp() {
         <>
           <HowThisCourtEnds
             courtNumber={courtNumber}
+            // The real shape for THIS headcount, from the same engine that
+            // will build the bracket, so the card cannot promise eight-player
+            // maths to a court of ten.
+            bracketShape={(() => {
+              const pairs = seedPairs(view.players.filter((pl) => !pl.away).map((pl) => pl.id)) ?? [];
+              const stages = buildStages(pairs, []);
+              return {
+                pairs: pairs.length,
+                matches: stages.reduce((sum, st) => sum + st.ties.length, 0),
+                hasPlayIn: stages.some((st) => st.key === "playIn"),
+                hasTrio: pairs.some(isTrio),
+              };
+            })()}
             // engine/endings.ts already carries the raised target and whether
             // the raise divides into fours. Ten a side is the case that bites.
             oneMoreRound={oneMoreRoundChange(size, view.court.targetMatches)}
@@ -1164,12 +1429,11 @@ export default function ManageApp() {
               const chosen = endingFor(endings, o.court.number);
               return chosen === "undecided" ? null : { courtNumber: o.court.number, ending: chosen };
             })()}
-            onChooseDoublesBracket={() =>
-              setEndings((e) => chooseEnding(e, courtNumber, "doublesBracket"))}
+            onChooseDoublesBracket={() => s.setEnding(courtNumber, "doublesBracket")}
             // The whole ending is one number: the target goes up by one, and
             // rotation puts everyone back in the queue owed exactly one game.
             onChooseOneMoreRound={() => {
-              setEndings((e) => chooseEnding(e, courtNumber, "oneMoreRound"));
+              s.setEnding(courtNumber, "oneMoreRound");
               s.extend(courtNumber, 1);
             }}
           />
@@ -1211,7 +1475,15 @@ export default function ManageApp() {
         <>
           <PlayoffReadiness
             courtNumber={courtNumber}
-            blocker={view.ready.ready ? null : { kind: "undrawn" }}
+            // Frame 20a's card exists for exactly one blocker the operator can
+            // act on: a match is on court and its score is not in. Everything
+            // else that holds seeding has no drawn wording, so it stays the
+            // spent-button hold.
+            blocker={view.ready.ready ? null
+              : live
+                ? { kind: "outstandingScore", round: view.round,
+                    teamA: pairOf(live.teamA), teamB: pairOf(live.teamB) }
+                : { kind: "undrawn" }}
             playersOnCourt={size}
             matchesEach={view.court.targetMatches}
             // engine/playoff.ts splits adjacent seeds. The bar lists what it

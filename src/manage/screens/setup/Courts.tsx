@@ -19,6 +19,7 @@
 // with no restrictions on it, and printing a guess on their chip would dress a
 // default up as a judgement somebody made.
 
+import type { SplitNote } from "../../engine/split";
 import type { PlayerTier } from "../../types";
 import {
   Body, Card, FooterBar, PrimaryButton, Screen, SecondaryButton, T, Tag,
@@ -56,6 +57,12 @@ export interface SetupCourt {
 export interface CourtsProps {
   /** One entry per court at the current count, in court order. */
   courts: SetupCourt[];
+  /**
+   * What engine/split.ts wants the operator to hear before the night starts,
+   * not in round two. Kept current against the split as it stands, so a note
+   * the operator has dragged their way out of stops being drawn.
+   */
+  notes?: SplitNote[];
   /** 1, 2 or 3. Changing it re-splits everyone and re-renders the cards. */
   courtCount: number;
   onCourtCountChange: (count: number) => void;
@@ -67,6 +74,27 @@ export interface CourtsProps {
   onBack?: () => void;
   onNext: () => void;
 }
+
+/**
+ * The words for one setup warning.
+ *
+ * The frames draw no exact wording for any of the three, so the sentences are
+ * the spec's facts kept in the frames' register: short and declarative, the
+ * consequence stated rather than the maths hidden.
+ */
+const noteWords = (note: SplitNote): string => {
+  switch (note.kind) {
+    case "tooFewCs":
+      return `Only ${note.cCount === 1 ? "one C" : "two C's"} tonight, so no legal C match can form. `
+        + "They play among the B's, still never with an A.";
+    case "exactlyThreeCs":
+      return `Three C's tonight, so every C match on Court ${note.courtNumber} needs the designated B. `
+        + "That B plays more games than their own target.";
+    case "courtTooSmall":
+      return `Only ${note.size === 1 ? "one player" : note.size === 2 ? "two players" : "three players"}`
+        + ` on Court ${note.courtNumber}, and a match needs four. It cannot run until someone moves.`;
+  }
+};
 
 /** One name, with what the club knows about them riding inside the pill. */
 const PlayerChip = ({ chip, onMove }: { chip: CourtChip; onMove: (() => void) | null }) => (
@@ -106,7 +134,7 @@ const EmptyCourt = ({ court, courtCount, onAssign }: {
 };
 
 export const Courts = ({
-  courts, courtCount, onCourtCountChange, onMovePlayer, onAssignPlayers, onBack, onNext,
+  courts, notes = [], courtCount, onCourtCountChange, onMovePlayer, onAssignPlayers, onBack, onNext,
 }: CourtsProps) => (
   <Screen>
     <SetupHeader title="Split the courts" step="3 of 4" onBack={onBack} />
@@ -137,6 +165,21 @@ export const Courts = ({
           </Chip>
         ))}
       </div>
+
+      {/* Setup warnings, drawn between the count and the cards so they are
+          read before anybody starts dragging. A court that cannot run wears
+          the destructive ink because the night cannot start around it; the
+          two C notes are facts about how the night will play, not blockers,
+          so they stay in the muted body tone. */}
+      {notes.map((note) => (
+        <p
+          key={`${note.kind}-${"courtNumber" in note ? note.courtNumber : note.cCount}`}
+          style={{
+            font: `400 14px/1.5 ${T.fontBody}`, margin: 0, textWrap: "pretty",
+            color: note.kind === "courtTooSmall" ? T.redInk : T.mut,
+          }}
+        >{noteWords(note)}</p>
+      ))}
 
       {courts.map((court) => court.players.length === 0 ? (
         <EmptyCourt

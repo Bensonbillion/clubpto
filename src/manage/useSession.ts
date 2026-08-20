@@ -379,7 +379,8 @@ export const startOverSession = (session: Session, now: number): Session => ({
   startedAt: session.status === "setup" ? session.startedAt : now,
   endedAt: null,
   matches: [],
-  courts: session.courts.map((c) => ({ ...c, playoffSeeded: false, champion: null })),
+  courts: session.courts.map((c) =>
+    ({ ...c, playoffSeeded: false, champion: null, ending: null })),
   players: session.players.map((p) => ({ ...p, joinedAtMatchIndex: null })),
 });
 
@@ -738,9 +739,41 @@ export function useManageSession() {
     commit((s) => ({
       ...s,
       courts: s.courts.map((c) =>
-        c.number === courtNumber ? { ...c, playoffSeeded: false, champion: null } : c),
+        // Deleting the bracket un-chooses the ending too: the choice was "run
+        // this bracket", and the bracket no longer exists to be run.
+        c.number === courtNumber
+          ? { ...c, playoffSeeded: false, champion: null, ending: null }
+          : c),
       matches: s.matches.filter((m) => !(m.courtNumber === courtNumber && m.stage !== null)),
     })), [commit]);
+
+  /** Record how one court chose to end. The other courts' entries are untouched. */
+  const setEnding = useCallback((courtNumber: number, ending: "doublesBracket" | "oneMoreRound") =>
+    commit((s) => ({
+      ...s,
+      courts: s.courts.map((c) => (c.number === courtNumber ? { ...c, ending } : c)),
+    })), [commit]);
+
+  /**
+   * A fresh night on top of an ended one.
+   *
+   * endNight only sets status, and nothing on the Start-tonight path cleared
+   * the matches, so ending Wednesday and starting the next week handed the
+   * wizard a night where every court was already complete with last week's
+   * standings. This is startOver with the status put back to setup: games and
+   * brackets go, the roster and its tiers stay, and the date moves to today.
+   */
+  const beginNewNight = useCallback(() =>
+    commit((s) => {
+      const today = new Date().toISOString().slice(0, 10);
+      return {
+        ...startOverSession(s, Date.now()),
+        id: `night-${today}`,
+        date: today,
+        status: "setup" as const,
+        startedAt: null,
+      };
+    }), [commit]);
 
   /* ── the night menu (frame 25b) ────────────────────────────────── */
 
@@ -826,7 +859,7 @@ export function useManageSession() {
     setDayLabel, addRosterPlayer, addWalkIn, removePlayer, assignCourt, setTier,
     setCourts, setTarget, extend, start,
     ensureOnCourt, skipMatch, goToMatch, recordScore, correctScore, voidMatch, setAway,
-    seedPlayoff, advancePlayoff, deletePlayoff, startOver, endNight,
+    seedPlayoff, advancePlayoff, deletePlayoff, setEnding, beginNewNight, startOver, endNight,
   };
 }
 

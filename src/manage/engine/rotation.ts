@@ -134,24 +134,6 @@ export interface MatchReason {
 const tierOf = (players: readonly Player[]): ReadonlyMap<string, PlayerTier | undefined> =>
   new Map(players.map((p) => [p.id, p.tier]));
 
-/**
- * The three ways to split four players into two pairs, in preference order.
- *
- * The first is the house pairing, 1+4 against 2+3: taking the top four by need
- * and then splitting them evenly keeps one court from becoming "the good pair
- * versus the other two" every single round. It is the cheapest fairness that
- * does not require tracking partner history, and the frames never promise
- * more than that.
- *
- * The other two exist only for the balance rule. Any specific pair of players
- * sits together in exactly one of the three, so whenever two Cs would end up
- * alongside each other, at least one of the remaining pairings splits them.
- */
-const PAIRINGS: readonly (readonly [number, number, number, number])[] = [
-  [0, 3, 1, 2],
-  [0, 2, 1, 3],
-  [0, 1, 2, 3],
-];
 
 export interface NextMatch {
   teamA: [string, string];

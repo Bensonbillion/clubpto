@@ -22,7 +22,7 @@ export { Courts } from "./Courts";
 export type { CourtsProps, SetupCourt, CourtChip } from "./Courts";
 
 export { MatchesEach } from "./MatchesEach";
-export type { MatchesEachProps } from "./MatchesEach";
+export type { MatchesEachProps, MatchesEachCourt } from "./MatchesEach";
 
 export { Ready } from "./Ready";
 export type { ReadyProps } from "./Ready";

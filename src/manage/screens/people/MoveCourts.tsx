@@ -60,10 +60,18 @@ export const MoveCourts = ({
         Move {playerName}{to ? ` to ${to.label}` : ""}
       </p>
 
+      {/*
+        Frame A16b wrote "points travel with" here, and frame B28 wrote the
+        opposite. The spec settles it, and B28 is the truthful one: matches
+        reference player ids and never move, so everything already played
+        stays on the old court's table and no points cross. The screen has to
+        say what the data actually does.
+      */}
       <p style={{ font: `400 14.5px/1.6 ${T.fontBody}`, color: T.mut, margin: 0, textWrap: "pretty" }}>
-        Played games and points travel with {playerName}.
-        {from != null && ` ${from.label} drops to ${from.countAfterMove}, so its target guide updates;`}
-        {to != null && ` ${to.label} queues them next at their current count.`}
+        Everything {playerName} has played stays
+        {from != null ? ` on ${from.label}'s table` : " where it is"}.
+        {to != null && ` ${playerName} joins ${to.label}'s queue and is on next.`}
+        {" "}No points move courts, so both tables stay honest.
       </p>
 
       <div style={{ display: "flex", gap: 10 }}>

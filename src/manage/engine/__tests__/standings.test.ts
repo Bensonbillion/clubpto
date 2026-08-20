@@ -2,7 +2,7 @@
 //   points, then score difference, then whoever reached the total first.
 //
 // The third key is the one that replaces the coin flip, so it gets the most
-// attention here — including the case where a player passes through their
+// attention here, including the case where a player passes through their
 // final total, drops below it, and comes back. Only the FIRST arrival counts,
 // and getting that wrong silently reorders a table nobody can audit.
 
@@ -68,7 +68,7 @@ describe("score difference breaks a points tie", () => {
   });
 });
 
-describe("whoever reached the total first — the coin flip's replacement", () => {
+describe("whoever reached the total first, the coin flip's replacement", () => {
   it("separates two players level on BOTH points and difference", () => {
     seq = 0;
     // early wins match 1; late wins match 3. Both finish 1W, +2.
@@ -104,7 +104,7 @@ describe("whoever reached the total first — the coin flip's replacement", () =
     expect(rank(rows).indexOf("dip")).toBeLessThan(rank(rows).indexOf("steady"));
   });
 
-  it("is deterministic — the same night always produces the same table", () => {
+  it("is deterministic, the same night always produces the same table", () => {
     seq = 0;
     const ms = [
       M(["a", "b"], ["c", "d"], 2, 0),
@@ -118,7 +118,7 @@ describe("whoever reached the total first — the coin flip's replacement", () =
     expect(shuffled).toEqual(forward);
   });
 
-  it("never asks anyone to run a coin — no row is ever left unranked", () => {
+  it("never asks anyone to run a coin, no row is ever left unranked", () => {
     seq = 0;
     // Four players, identical records by construction: same points, same diff.
     const rows = computeStandings(["w", "x", "y", "z"], [

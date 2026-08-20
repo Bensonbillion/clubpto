@@ -103,6 +103,13 @@ export interface Court {
    * a trio can win.
    */
   champion: string[] | null;
+  /**
+   * How this court chose to end (frame 19), or nothing yet. Persisted here
+   * rather than held in the shell, because the shell's memory dies with a
+   * reload: a phone refreshed after the one-more-round finished used to
+   * re-offer the choice instead of showing the champion.
+   */
+  ending?: "doublesBracket" | "oneMoreRound" | null;
 }
 
 export type SessionStatus = "setup" | "running" | "ended";
