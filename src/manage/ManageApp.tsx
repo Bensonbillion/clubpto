@@ -1664,7 +1664,8 @@ export default function ManageApp() {
                   // Seeds come off the same object as the names, so a row can
                   // never show one pair's names beside another pair's seeds.
                   team: seeded
-                    ? { name: pairOf(seeded.playerIds), seedLabel: seeded.seeds.join("+") }
+                    ? { name: pairOf(seeded.playerIds), seedLabel: seeded.seeds.join("+"),
+                        trio: isTrio(seeded) }
                     : null,
                   waitsFor: seeded ? null : waits(which),
                 };
