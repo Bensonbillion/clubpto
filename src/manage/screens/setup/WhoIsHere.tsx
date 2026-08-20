@@ -123,6 +123,40 @@ export const WhoIsHere = ({
 
       {/* Frame 27a drops the why line: with a query typed and no answer, the
           screen is explaining itself rather than asking. */}
+      {/*
+        The strip sits ABOVE the results branches on purpose. It used to live
+        inside the no-query branch only, so with a query still in the box the
+        prompt for the player just added was invisible: the operator saw the
+        same "Add as a walk-in" offer redrawn instead, and taps meant for the
+        tier landed nowhere. A prompt that exists renders, whatever the box
+        holds.
+      */}
+{tierPrompt != null && (
+            <div style={{
+              margin: "12px 22px 0", background: T.raised, borderRadius: T.radiusPanel,
+              padding: "12px 16px", display: "flex", alignItems: "center", gap: 10,
+              flexWrap: "wrap",
+            }}>
+              <span style={{ font: `400 14px ${T.fontBody}`, color: T.mut }}>
+                {tierPrompt.displayName} added. Tier tonight?
+              </span>
+              {TIERS.map((tier) => (
+                <Chip
+                  key={tier}
+                  radio
+                  // Nobody assessed counts as B, so B is what the strip offers
+                  // pre-selected rather than leaving the operator a blank.
+                  on={(tierPrompt.tier ?? "B") === tier}
+                  onClick={() => onSetTier(tierPrompt.playerId, tier)}
+                  style={{ minHeight: 36, padding: "4px 13px", fontSize: 13 }}
+                >{tier}</Chip>
+              ))}
+              <Chip onClick={onSkipTier} style={{ minHeight: 36, padding: "4px 13px", fontSize: 13 }}>
+                Skip
+              </Chip>
+            </div>
+          )}
+
       {!noMatches && (
         <Why>
           Type a name: matches pop up from the booking list, anything new becomes
@@ -204,32 +238,6 @@ export const WhoIsHere = ({
                   </Chip>
                 </button>
               ))}
-            </div>
-          )}
-
-          {tierPrompt != null && (
-            <div style={{
-              margin: "12px 22px 0", background: T.raised, borderRadius: T.radiusPanel,
-              padding: "12px 16px", display: "flex", alignItems: "center", gap: 10,
-              flexWrap: "wrap",
-            }}>
-              <span style={{ font: `400 14px ${T.fontBody}`, color: T.mut }}>
-                {tierPrompt.displayName} added. Tier tonight?
-              </span>
-              {TIERS.map((tier) => (
-                <Chip
-                  key={tier}
-                  radio
-                  // Nobody assessed counts as B, so B is what the strip offers
-                  // pre-selected rather than leaving the operator a blank.
-                  on={(tierPrompt.tier ?? "B") === tier}
-                  onClick={() => onSetTier(tierPrompt.playerId, tier)}
-                  style={{ minHeight: 36, padding: "4px 13px", fontSize: 13 }}
-                >{tier}</Chip>
-              ))}
-              <Chip onClick={onSkipTier} style={{ minHeight: 36, padding: "4px 13px", fontSize: 13 }}>
-                Skip
-              </Chip>
             </div>
           )}
 

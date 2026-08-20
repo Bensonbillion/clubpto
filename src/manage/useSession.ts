@@ -494,6 +494,42 @@ export const restartSetupSession = (session: Session): Session => ({
  * only: a voided match already counts for nothing, and a live or skipped row
  * without a score is not yet a result anyone recorded.
  */
+/**
+ * Add a walk-in, idempotently by name.
+ *
+ * Found on the live site: after an add the search box kept its query, the
+ * empty-search branch drew the "Add as a walk-in" offer AGAIN, and a second
+ * tap minted a second copy of the same person. Two ids for one human splits
+ * their night in two, which is the exact failure the roster dedupe exists to
+ * prevent, but that dedupe checks the catalogue and a walk-in is by
+ * definition not in it. So the writer refuses: a name already in tonight's
+ * session, compared case-insensitively and trimmed, hands back the EXISTING
+ * player's id and adds nobody. Matching a person who is already here is what
+ * the second tap almost always means.
+ */
+export const addWalkInSession = (
+  session: Session,
+  name: string,
+  now: number,
+): { session: Session; id: string } => {
+  const trimmed = name.trim();
+  const existing = session.players.find(
+    (p) => p.name.trim().toLowerCase() === trimmed.toLowerCase(),
+  );
+  if (existing) return { session, id: existing.id };
+  const id = `w-${now.toString(36)}-${session.players.length}`;
+  return {
+    id,
+    session: {
+      ...session,
+      players: [...session.players, {
+        id, name: trimmed, walkIn: true, courtNumber: null, away: false,
+        joinedAtMatchIndex: session.status === "running" ? session.matches.length + 1 : null,
+      }],
+    },
+  };
+};
+
 export const recordedResultCount = (session: Session): number =>
   session.matches.filter((m) => m.status === "played").length;
 
@@ -599,6 +635,9 @@ export function useManageSession() {
   }, []);
 
   /** Every mutation goes through here, so nothing can write without saving. */
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+
   const commit = useCallback((next: (s: Session) => Session) => {
     setSession((prev) => {
       const updated = next(prev);
@@ -644,16 +683,11 @@ export function useManageSession() {
    * this person in the same tap. The late-arrival sheet asks which court, and
    * the answer has nowhere to land without it.
    */
-  const walkInSeq = useRef(0);
   const addWalkIn = useCallback((name: string): string => {
-    const id = `w-${Date.now().toString(36)}-${walkInSeq.current++}`;
-    commit((s) => ({
-      ...s,
-      players: [...s.players, {
-        id, name, walkIn: true, courtNumber: null, away: false,
-        joinedAtMatchIndex: s.status === "running" ? s.matches.length + 1 : null,
-      }],
-    }));
+    // The pure transform decides; this only supplies the clock. See
+    // addWalkInSession for why a repeated name hands back the existing id.
+    const { session: next, id } = addWalkInSession(sessionRef.current, name, Date.now());
+    if (next !== sessionRef.current) commit(() => next);
     return id;
   }, [commit]);
 
