@@ -141,12 +141,25 @@ const bySlot = (matches: readonly Match[], court: CourtNumber): Map<number, Matc
  * Floored, because a headcount that stops dividing by four (frame 16c, someone
  * leaves at half nine) cannot make a whole last match, and never below the
  * highest slot already used, because a card may not hide a game that happened.
+ *
+ * And never so few that somebody present finishes short. Found on the live
+ * site: a late arrival absorbed mid-flight was owed one more game when the
+ * last row was played, the count could not grow, and the court bricked in the
+ * readiness hold with a spent button. So the card grows enough PENDING rows
+ * for the most owed present player, and the overshoot lands on people who
+ * already had their games, the same trade the designated-B rule already
+ * makes: nobody finishes short, and nobody exceeds anyone by more than the
+ * disruptions explain.
  */
 const slotCount = (session: Session, court: Court): number => {
-  const size = playableOn(session.players, court.number).length;
-  const whole = Math.floor(totalMatches(size, court.targetMatches));
-  const used = [...bySlot(session.matches, court.number).keys()];
-  return Math.max(whole, ...used, 0);
+  const present = playableOn(session.players, court.number);
+  const whole = Math.floor(totalMatches(present.length, court.targetMatches));
+  const held = bySlot(session.matches, court.number);
+  const used = [...held.keys()];
+  const spentRows = [...held.values()].filter((m) => m.status === "played").length;
+  const maxOwed = present.reduce((worst, p) => Math.max(
+    worst, court.targetMatches - matchesPlayedBy(session.matches, p.id)), 0);
+  return Math.max(whole, ...used, 0, spentRows + maxOwed);
 };
 
 /**
@@ -835,10 +848,25 @@ export function useManageSession() {
     commit((s) => redrawLive(s, courtNumber, Date.now())), [commit]);
 
   const setAway = useCallback((playerId: string, away: boolean) =>
-    commit((s) => ({
-      ...s,
-      players: s.players.map((p) => (p.id === playerId ? { ...p, away } : p)),
-    })), [commit]);
+    commit((s) => {
+      const next: Session = {
+        ...s,
+        players: s.players.map((p) => (p.id === playerId ? { ...p, away } : p)),
+      };
+      if (!away) return next;
+      // The leaves-early sheet promises "unplayed games rebalance", and a live
+      // UNSCORED match holding the leaver is exactly an unplayed game: left
+      // alone it sits waiting for a score that can never arrive. Found on the
+      // live site with A3 still fielded after being marked left. A scored
+      // match is untouched, because a result that happened belongs to the four
+      // who played it.
+      const live = s.matches.find((m) =>
+        m.status === "onCourt" && m.stage === null
+        && m.scoreA == null && m.scoreB == null
+        && (m.teamA.includes(playerId) || m.teamB.includes(playerId)));
+      if (!live) return next;
+      return redrawLive(next, live.courtNumber, Date.now());
+    }), [commit]);
 
   /* ── playoffs ──────────────────────────────────────────────────── */
 
