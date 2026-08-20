@@ -372,3 +372,38 @@ describe("a court is complete when everyone has had their games", () => {
     expect(courtComplete([], [], 1, 4)).toBe(false);
   });
 });
+
+describe("partners rotate every round", () => {
+  // Found on a live production walk: a court of four re-sorts to seat order
+  // after every match, so the house split dealt the IDENTICAL teams three
+  // times while the Ready screen promised rotation. The variety preference
+  // ranks below fairness and the laws, so it can never cost anyone a game.
+  it("a court of four at target three plays three distinct pairings", () => {
+    const roster = ["a", "b", "c", "d"].map((id) => P(id));
+    const ms: Match[] = [];
+    const seen = new Set<string>();
+    for (let n = 0; n < 3; n++) {
+      const m = nextMatch(roster, ms, 1, 3)!;
+      seen.add([...m.teamA].sort().join("+"));
+      ms.push({ id: `v${n}`, courtNumber: 1, matchIndex: n + 1,
+        teamA: m.teamA, teamB: m.teamB, scoreA: 7, scoreB: 5,
+        status: "played", startedAt: n, completedAt: n, stage: null });
+    }
+    expect(seen.size).toBe(3);
+  });
+
+  it("variety never outranks fairness: the least played still go on", () => {
+    // Six players. After two matches the two who sat out are most owed, and
+    // they go on even though it repeats nothing and proves nothing about
+    // variety: the point is the ordering of the ranking keys.
+    const roster = ["a", "b", "c", "d", "e", "f"].map((id) => P(id));
+    const ms: Match[] = [];
+    const m1 = nextMatch(roster, ms, 1, 3)!;
+    ms.push({ id: "x1", courtNumber: 1, matchIndex: 1, teamA: m1.teamA, teamB: m1.teamB,
+      scoreA: 7, scoreB: 5, status: "played", startedAt: 1, completedAt: 1, stage: null });
+    const m2 = nextMatch(roster, ms, 1, 3)!;
+    const rested = roster.map((p) => p.id)
+      .filter((id) => ![...m1.teamA, ...m1.teamB].includes(id));
+    for (const id of rested) expect([...m2.teamA, ...m2.teamB]).toContain(id);
+  });
+});

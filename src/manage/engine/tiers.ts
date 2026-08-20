@@ -233,25 +233,40 @@ function softPenalty(lineup: Lineup, ctx: LawContext): number {
 export function chooseFour(
   queue: readonly string[],
   ctx: LawContext,
-  options: { windowSize?: number; playedBy?: (playerId: string) => number } = {},
+  options: {
+    windowSize?: number;
+    playedBy?: (playerId: string) => number;
+    /**
+     * How many times two players have already been PARTNERS tonight. Ranked
+     * below fairness and below the laws, above queue position: on a court of
+     * four the queue re-sorts to the same order after every match, so without
+     * this the house split dealt the identical teams all night, while the
+     * Ready screen promised that partners rotate every round. With it, a court
+     * of four at target three plays exactly the three distinct splits.
+     */
+    partnered?: (a: string, b: string) => number;
+  } = {},
 ): Chosen | null {
-  const { windowSize = 12, playedBy } = options;
+  const { windowSize = 12, playedBy, partnered } = options;
   const window = queue.slice(0, Math.max(4, windowSize));
   let best: Chosen | null = null;
   // Ranked in this order, and the order is the whole fairness argument:
   //   1. games already played, so the people owed a game go on;
   //   2. the soft C preference, which only ever separates equals;
-  //   3. queue position, so the result is deterministic.
+  //   3. repeated partnerships, so the same two are not dealt together again
+  //      while an untried split costs nothing in fairness;
+  //   4. queue position, so the result is deterministic.
   // The fairness key is the four players' played counts SORTED, compared
   // lexicographically, not their sum. A sum lets [0,0,3,3] tie with [1,1,2,2],
   // which would put somebody on their fourth game while somebody else was
   // still on their first: exactly the drift the court is supposed to prevent.
   // Sorted-and-lexicographic makes "the least played four" precise, and any
   // other four with the same vector is equally fair by definition.
-  let bestKey: { played: number[]; penalty: number; position: number } | null = null;
+  let bestKey: { played: number[]; penalty: number; repeats: number; position: number } | null = null;
   const games = playedBy ?? (() => 0);
+  const together = partnered ?? (() => 0);
   const better = (
-    k: { played: number[]; penalty: number; position: number },
+    k: { played: number[]; penalty: number; repeats: number; position: number },
     b: typeof bestKey,
   ): boolean => {
     if (!b) return true;
@@ -259,6 +274,7 @@ export function chooseFour(
       if (k.played[n] !== b.played[n]) return k.played[n] < b.played[n];
     }
     if (k.penalty !== b.penalty) return k.penalty < b.penalty;
+    if (k.repeats !== b.repeats) return k.repeats < b.repeats;
     return k.position < b.position;
   };
 
@@ -272,7 +288,13 @@ export function chooseFour(
           for (const [x, y, z, w] of SPLITS) {
             const lineup: Lineup = { teamA: [ids[x], ids[y]], teamB: [ids[z], ids[w]] };
             if (!isLegal(lineup, ctx)) continue;
-            const key = { played, penalty: softPenalty(lineup, ctx), position };
+            const key = {
+              played,
+              penalty: softPenalty(lineup, ctx),
+              repeats: together(lineup.teamA[0], lineup.teamA[1])
+                + together(lineup.teamB[0], lineup.teamB[1]),
+              position,
+            };
             if (better(key, bestKey)) {
               best = { lineup, positions: [i, j, k, l] };
               bestKey = key;
