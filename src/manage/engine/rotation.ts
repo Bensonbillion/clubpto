@@ -208,12 +208,22 @@ export function lawContextFor(players: readonly Player[], court: number): LawCon
 function lawfulFour(
   queue: readonly QueueEntry[],
   ctx: LawContext,
+  matches: readonly Match[],
+  court: number,
 ): { four: QueueEntry[]; teamA: [string, string]; teamB: [string, string];
      swap: BalanceNote["swap"] } | null {
   const byId = new Map(queue.map((e) => [e.playerId, e]));
   const played = new Map(queue.map((e) => [e.playerId, e.matchesPlayed]));
+  // Partnership counts feed the variety preference: who has already stood on
+  // the same side of the net tonight. Group matches only, and voided ones
+  // count for nothing here the same way they count for nothing everywhere.
+  const partnered = (x: string, y: string) =>
+    matches.filter((m) => m.courtNumber === court && m.stage === null
+      && m.status !== "voided"
+      && ((m.teamA.includes(x) && m.teamA.includes(y))
+        || (m.teamB.includes(x) && m.teamB.includes(y)))).length;
   const chosen = chooseFour(queue.map((e) => e.playerId), ctx,
-    { playedBy: (id) => played.get(id) ?? 0 });
+    { playedBy: (id) => played.get(id) ?? 0, partnered });
   if (!chosen) return null;
 
   const ids = [...chosen.lineup.teamA, ...chosen.lineup.teamB];
@@ -254,7 +264,7 @@ export function nextMatch(
   const queue = buildQueue(players, matches, court, targetMatches);
   if (queue.length < 4) return null;
 
-  const chosen = lawfulFour(queue, lawContextFor(players, court));
+  const chosen = lawfulFour(queue, lawContextFor(players, court), matches, court);
   // No lawful four exists. A court holding one C and three As has no legal
   // match in it at all, and handing back the least-played four anyway would
   // put that C in a game with three As, which is the one thing the laws never
