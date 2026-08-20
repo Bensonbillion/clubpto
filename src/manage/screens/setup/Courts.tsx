@@ -76,9 +76,19 @@ export interface CourtsProps {
 }
 
 /**
+ * "Kate", "Kate and Sam", "Kate, Sam and Priya". A stranding warning has to
+ * NAME who is stuck, because a sentence that only counts them sends the
+ * operator hunting through the chips for the person it means.
+ */
+const listNames = (names: readonly string[]): string =>
+  names.length <= 1
+    ? names[0] ?? ""
+    : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+
+/**
  * The words for one setup warning.
  *
- * The frames draw no exact wording for any of the three, so the sentences are
+ * The frames draw no exact wording for any of these, so the sentences are
  * the spec's facts kept in the frames' register: short and declarative, the
  * consequence stated rather than the maths hidden.
  */
@@ -93,6 +103,16 @@ const noteWords = (note: SplitNote): string => {
     case "courtTooSmall":
       return `Only ${note.size === 1 ? "one player" : note.size === 2 ? "two players" : "three players"}`
         + ` on Court ${note.courtNumber}, and a match needs four. It cannot run until someone moves.`;
+    case "stranded":
+      // The shell derives this one after every drag (see engine/substitutes.ts):
+      // a second B dragged onto the C court, or a C left among A's, has nobody
+      // the laws allow them on court with, and the honest moment to say so is
+      // now, before the night starts, not in round two when their name never
+      // comes up. FLAG: no frame draws wording for it, so the sentence is
+      // invented in the same register as the notes above.
+      return `${listNames(note.names)} ${note.names.length === 1 ? "has" : "have"} no legal game`
+        + ` on Court ${note.courtNumber}: the balance laws leave them nobody to play with.`
+        + " Move them, or bring company across.";
   }
 };
 
@@ -167,16 +187,17 @@ export const Courts = ({
       </div>
 
       {/* Setup warnings, drawn between the count and the cards so they are
-          read before anybody starts dragging. A court that cannot run wears
-          the destructive ink because the night cannot start around it; the
-          two C notes are facts about how the night will play, not blockers,
-          so they stay in the muted body tone. */}
+          read before anybody starts dragging. A court that cannot run, and a
+          player nobody can legally stand with, wear the destructive ink
+          because the night cannot honestly start around either; the two C
+          notes are facts about how the night will play, not blockers, so
+          they stay in the muted body tone. */}
       {notes.map((note) => (
         <p
           key={`${note.kind}-${"courtNumber" in note ? note.courtNumber : note.cCount}`}
           style={{
             font: `400 14px/1.5 ${T.fontBody}`, margin: 0, textWrap: "pretty",
-            color: note.kind === "courtTooSmall" ? T.redInk : T.mut,
+            color: note.kind === "courtTooSmall" || note.kind === "stranded" ? T.redInk : T.mut,
           }}
         >{noteWords(note)}</p>
       ))}

@@ -25,12 +25,13 @@
 import { useMemo, useEffect, useState } from "react";
 import { ensureManageFonts } from "./ui/fonts";
 import {
-  DangerButton, PrimaryButton, SecondaryButton, Sheet, T, TertiaryButton, type Tab,
+  DangerButton, PrimaryButton, SecondaryButton, Sheet, T, Tag, TertiaryButton, type Tab,
 } from "./ui/primitives";
-import { useManageSession } from "./useSession";
+import { recordedResultCount, useManageSession } from "./useSession";
 import { useRoster } from "./roster/useRoster";
 import { dedupeWalkIn } from "./roster/merge";
-import { explainMatch, validTargets, totalMatches } from "./engine/rotation";
+import { explainMatch, lawContextFor, validTargets, totalMatches } from "./engine/rotation";
+import { legalSubstitutes, strandedPlayers } from "./engine/substitutes";
 import { suggestSplit, suggestTarget, type SplitNote } from "./engine/split";
 import { MIN_CS_FOR_A_C_MATCH, tierOf } from "./engine/tiers";
 import { POINTS_PER_WIN, type StandingsRow } from "./engine/standings";
@@ -115,6 +116,10 @@ interface CourtUi {
   openPlayerId: string | null;
   /** Frame 18, opened off the standings row whose reason line is drawn. */
   tiePlayerId: string | null;
+  /** The live unscored match opened for a swap or redraw. See ChangeMatchSheet. */
+  changingMatchId: string | null;
+  /** The seat chosen to step out, once the sheet's first question is answered. */
+  changeOutId: string | null;
 }
 
 const FRESH_COURT_UI: CourtUi = {
@@ -128,10 +133,12 @@ const FRESH_COURT_UI: CourtUi = {
   tierPlayerId: null,
   openPlayerId: null,
   tiePlayerId: null,
+  changingMatchId: null,
+  changeOutId: null,
 };
 
 /** Night-wide overlays. One at a time, and none of them belongs to a court. */
-type NightSheet = "nightMenu" | "summary" | "endNight" | "extend" | "lateArrival" | "courtSwitcher" | "deleteBracket" | "resetEverything";
+type NightSheet = "nightMenu" | "summary" | "endNight" | "extend" | "lateArrival" | "courtSwitcher" | "deleteBracket" | "restartSetup" | "resetEverything";
 
 /**
  * Frame 25b, the night menu.
@@ -142,12 +149,14 @@ type NightSheet = "nightMenu" | "summary" | "endNight" | "extend" | "lateArrival
  * When that slice grows a NightMenu this should move there unchanged.
  */
 const NightMenu = ({
-  dayLabel, onSessionSummary, onOneMoreRound, onStartOver, onEndNight, onClose, onDeleteBracket,
-  onResetEverything,
+  dayLabel, onSessionSummary, onOneMoreRound, onRestartSetup, onStartOver, onEndNight, onClose,
+  onDeleteBracket, onResetEverything,
 }: {
   dayLabel: string;
   onSessionSummary: () => void;
   onOneMoreRound: () => void;
+  /** Back to the wizard at the courts step, roster kept, results deleted. */
+  onRestartSetup: () => void;
   onStartOver: () => void;
   onEndNight: () => void;
   onClose: () => void;
@@ -163,6 +172,16 @@ const NightMenu = ({
     </p>
     <SecondaryButton onClick={onSessionSummary}>Session summary</SecondaryButton>
     <SecondaryButton onClick={onOneMoreRound}>One more round for a court</SecondaryButton>
+    {/*
+      Not on frame 25b. Start over keeps the night running, so a night whose
+      COURTS were dealt wrong, the wrong split or the wrong targets, had no
+      way back into the wizard without ending it and losing the roster's
+      momentum. This is that way back, and it costs recorded results, so it
+      wears the destructive outline and opens a confirm that counts them.
+    */}
+    <SecondaryButton onClick={onRestartSetup} style={{ borderColor: T.bad, color: T.redInk }}>
+      Restart setup
+    </SecondaryButton>
     {/* Frame 25b outlines this one in the destructive colour without making it
         the danger button. The roster survives, and the sentence under it is
         what carries the warning. */}
@@ -196,6 +215,98 @@ const NightMenu = ({
       Reset everything
     </TertiaryButton>
     <TertiaryButton onClick={onClose}>Close</TertiaryButton>
+  </Sheet>
+);
+
+/** A name row inside a sheet: the name, and a tier tag only where one was set. */
+const NameOption = ({ name, tier, onPick }: {
+  name: string; tier: PlayerTier | null; onPick: () => void;
+}) => (
+  <SecondaryButton
+    onClick={onPick}
+    style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+  >
+    {name}
+    {/* Unassessed stays unlabelled, the same rule as every chip in the
+        manager: the engine treats them as B, but that is a default it
+        applies, not a judgement this row may claim somebody made. */}
+    {tier != null && <Tag size="sm">{tier}</Tag>}
+  </SecondaryButton>
+);
+
+/**
+ * Change the live match: one seat swapped, or the whole four thrown back.
+ *
+ * It lives here for the same reason NightMenu does: the play slice raises the
+ * tap and no slice exports the sheet yet. FLAG: this is an INVENTED entry
+ * point with invented words. No frame draws a way to change a live lineup,
+ * and the need is real: a player turns an ankle two points in, or the four on
+ * the card are not the four who actually walked on. The schedule's live row
+ * was the one tap in that list that did nothing but leave the screen, so the
+ * tap is spent opening this rather than on a new control with words of its
+ * own. When the play slice grows a ChangeMatch this should move there
+ * unchanged.
+ *
+ * Two questions, one sheet: who steps out, then who steps in. The second list
+ * is ONLY the legal substitutes, straight from engine/substitutes.ts, because
+ * a name offered here that the next match would refuse means this file has
+ * re-derived the laws by hand, which is exactly the drift that module exists
+ * to prevent. An empty second list is said out loud rather than shown as a
+ * blank, because this sheet refuses nothing silently.
+ */
+const ChangeMatchSheet = ({
+  seats, out, substitutes, onPickOut, onPickIn, onRedraw, onBack, onClose,
+}: {
+  /** The four on court, team A's seats then team B's. */
+  seats: { id: string; name: string; tier: PlayerTier | null }[];
+  /** The seat stepping out, or null while the first question is open. */
+  out: { id: string; name: string } | null;
+  /** Everyone the laws allow into that seat. Empty is a real answer. */
+  substitutes: { id: string; name: string; tier: PlayerTier | null }[];
+  onPickOut: (playerId: string) => void;
+  onPickIn: (playerId: string) => void;
+  /** Deletes the live row and deals it fresh; all four rejoin the queue. */
+  onRedraw: () => void;
+  /** Back to the first question, sheet still open. */
+  onBack: () => void;
+  onClose: () => void;
+}) => (
+  <Sheet onDismiss={onClose}>
+    {out == null ? (
+      <>
+        <p style={{ fontFamily: T.fontHead, fontWeight: 400, fontSize: 18, margin: 0 }}>
+          Change this match
+        </p>
+        <p style={{ font: `400 14.5px/1.6 ${T.fontBody}`, color: T.mut, margin: 0, textWrap: "pretty" }}>
+          Tap who steps out. The other three stay where they stand.
+        </p>
+        {seats.map((p) => (
+          <NameOption key={p.id} name={p.name} tier={p.tier} onPick={() => onPickOut(p.id)} />
+        ))}
+        <SecondaryButton onClick={onRedraw}>Redraw this match</SecondaryButton>
+        <p style={{
+          font: `400 13.5px/1.5 ${T.fontBody}`, color: T.mut, margin: 0, textAlign: "center",
+        }}>
+          Redraw sends all four back to the queue and deals the row fresh.
+        </p>
+        <TertiaryButton onClick={onClose}>Close</TertiaryButton>
+      </>
+    ) : (
+      <>
+        <p style={{ fontFamily: T.fontHead, fontWeight: 400, fontSize: 18, margin: 0 }}>
+          Who steps in for {out.name}?
+        </p>
+        <p style={{ font: `400 14.5px/1.6 ${T.fontBody}`, color: T.mut, margin: 0, textWrap: "pretty" }}>
+          {substitutes.length > 0
+            ? "Only players the balance laws allow are offered."
+            : "Nobody waiting can legally take this seat. Pick a different seat, or redraw the match."}
+        </p>
+        {substitutes.map((p) => (
+          <NameOption key={p.id} name={p.name} tier={p.tier} onPick={() => onPickIn(p.id)} />
+        ))}
+        <TertiaryButton onClick={onBack}>Back</TertiaryButton>
+      </>
+    )}
   </Sheet>
 );
 
@@ -444,11 +555,36 @@ export default function ManageApp() {
   /* ── home ──────────────────────────────────────────────────────── */
 
   if (!inSetup && !running) {
+    // After an ENDED night the session still holds the roster and the day it
+    // ran, so the ghost has something real to copy. A fresh device has
+    // neither, and null drops the ghost and its sentence together.
+    const lastDay = s.session.status === "ended" ? s.session.dayLabel || null : null;
     return (
       <HomeNothingRunning
         loading={s.loading}
-        lastSessionDayName={null}
+        lastSessionDayName={lastDay}
         onStartTonight={() => enterSetup()}
+        onCopyLastSession={lastDay == null ? undefined : () => {
+          // "Same people, new night", made literal: beginNewNight keeps the
+          // roster and its tiers and clears the games, and the wizard opens
+          // at WHO IS HERE so the list arrives already ticked. The away
+          // flags are cleared by hand because away means "left early
+          // TONIGHT", and tonight has not happened yet; carried over, last
+          // week's early leavers arrived unticked on a list promising
+          // everyone was in.
+          s.beginNewNight();
+          for (const p of s.session.players) {
+            if (p.away) s.setAway(p.id, false);
+          }
+          setUiByCourt({});
+          if (s.session.dayLabel) setNight(s.session.dayLabel);
+          // Same guard as enterSetup: courtCount is local state that starts
+          // at 2, and walking the wizard forward on a three court night
+          // would otherwise quietly drop court 3.
+          if (s.session.courts.length > 0) setCourtCount(s.session.courts.length);
+          setInSetup(true);
+          setStep("who");
+        }}
       />
     );
   }
@@ -608,6 +744,24 @@ export default function ManageApp() {
         // place already says nobody is on it and what to do about that.
         if (c.players.length > 0 && suggestTarget(c.players.length) === null) {
           splitNotes.push({ kind: "courtTooSmall", courtNumber: c.courtNumber, size: c.players.length });
+        }
+        // Stranding is created and cured by drags, so it is judged here after
+        // every one of them, never frozen at suggestion time: a second B
+        // dragged onto the C court, or a C left among A's, has to be named
+        // NOW, because on the night the symptom is only a player whose name
+        // never comes up. suggestSplit deliberately does not emit this note
+        // (its comment in engine/split.ts says why), and a court below four
+        // players is left to the courtTooSmall note above rather than
+        // doubling one fact into two warnings.
+        if (c.players.length >= 4) {
+          const stuck = strandedPlayers(s.session.players, c.courtNumber);
+          if (stuck.length > 0) {
+            splitNotes.push({
+              kind: "stranded",
+              courtNumber: c.courtNumber,
+              names: stuck.map((p) => p.name),
+            });
+          }
         }
       }
 
@@ -823,6 +977,20 @@ export default function ManageApp() {
   const tiering = ui.tierPlayerId != null
     ? s.session.players.find((p) => p.id === ui.tierPlayerId)
     : undefined;
+  const changingHeld = ui.changingMatchId != null
+    ? s.session.matches.find((m) => m.id === ui.changingMatchId)
+    : undefined;
+  // A score arriving closes the question: a recorded number belongs to the
+  // four who played it, so a match carrying one shows no change affordance at
+  // all, and the sheet vanishing the moment a number lands is that refusal
+  // rather than a silent one. The writer refuses the same swap, so this guard
+  // is about honesty on screen, not safety.
+  const changing = changingHeld != null && changingHeld.status === "onCourt"
+    && changingHeld.scoreA === null && changingHeld.scoreB === null
+    ? changingHeld
+    : undefined;
+  /** The tier a sheet row may show: only one somebody actually set. */
+  const tierShown = (id: string) => s.session.players.find((p) => p.id === id)?.tier ?? null;
 
   /**
    * One save path for every score on the night.
@@ -877,6 +1045,7 @@ export default function ManageApp() {
           dayLabel={s.session.dayLabel || night}
           onSessionSummary={() => setSheet("summary")}
           onOneMoreRound={() => setSheet("extend")}
+          onRestartSetup={() => setSheet("restartSetup")}
           // Start over clears every game and bracket, so every screen the
           // operator was on is about a night that no longer exists. The ending
           // each court had chosen goes with them.
@@ -890,6 +1059,48 @@ export default function ManageApp() {
           onClose={() => setSheet(null)}
         />
       )}
+
+      {sheet === "restartSetup" && (() => {
+        // Counted at render, not at tap, so the number on the sheet is the
+        // number the button will actually delete even if a score lands on
+        // the other court while the sheet is open.
+        const results = recordedResultCount(s.session);
+        return (
+          <Sheet tone="danger" onDismiss={() => setSheet(null)}>
+            <p style={{ fontFamily: T.fontHead, fontWeight: 400, fontSize: 18, margin: 0 }}>
+              Restart setup?
+            </p>
+            {/* Frame 26's guidance: every destructive action names exactly
+                what will be lost. Here that is a count of results, and zero
+                is said as zero rather than dressed up as a risk. */}
+            <p style={{ font: `400 14.5px/1.6 ${T.fontBody}`, color: T.mut, margin: 0 }}>
+              {results === 0
+                ? "Tonight's roster stays, and no result has been recorded yet, so there is nothing to lose. "
+                : results === 1
+                  ? "Tonight's roster stays. One recorded result will be deleted, and nothing brings it back. "
+                  : `Tonight's roster stays. ${results} recorded results will be deleted, and nothing brings them back. `}
+              The wizard reopens at the courts step, every court and target as it was.
+            </p>
+            <SecondaryButton onClick={() => setSheet(null)}>Keep playing</SecondaryButton>
+            <DangerButton onClick={() => {
+              s.restartSetup();
+              setSheet(null);
+              // Every screen the operator was on is about matches that no
+              // longer exist, so the per-court memory goes with them.
+              setUiByCourt({});
+              // Same guard as enterSetup: courtCount is local state that
+              // starts at 2, and landing a three court night on the courts
+              // step without it would quietly drop court 3.
+              if (s.session.courts.length > 0) setCourtCount(s.session.courts.length);
+              setInSetup(true);
+              setStep("courts");
+              setAtCourt(false);
+            }}>
+              Restart setup
+            </DangerButton>
+          </Sheet>
+        );
+      })()}
 
       {sheet === "resetEverything" && (
         <Sheet tone="danger" onDismiss={() => setSheet(null)}>
@@ -1068,6 +1279,37 @@ export default function ManageApp() {
           pairB={tuple(voiding.teamB)} scoreB={voiding.scoreB ?? 0}
           onVoid={() => { s.voidMatch(voiding.id); here({ voidingMatchId: null }); }}
           onKeep={() => here({ voidingMatchId: null })}
+        />
+      )}
+
+      {changing && (
+        <ChangeMatchSheet
+          seats={[...changing.teamA, ...changing.teamB].map((id) => ({
+            id, name: name(id), tier: tierShown(id),
+          }))}
+          out={ui.changeOutId != null ? { id: ui.changeOutId, name: name(ui.changeOutId) } : null}
+          // engine/substitutes.ts judges the exact lineup each swap would
+          // create, under the same context the match was dealt in. Nothing
+          // about who is legal is decided in this file.
+          substitutes={ui.changeOutId != null
+            ? legalSubstitutes(
+              changing, ui.changeOutId, s.session.players,
+              lawContextFor(s.session.players, changing.courtNumber),
+            ).map((p) => ({ id: p.id, name: p.name, tier: p.tier ?? null }))
+            : []}
+          onPickOut={(id) => here({ changeOutId: id })}
+          onPickIn={(id) => {
+            // The guard repeats the render condition rather than asserting,
+            // because a stale tap on a sheet mid-dismiss must change nothing.
+            if (ui.changeOutId != null) s.swapInLiveMatch(changing.courtNumber, ui.changeOutId, id);
+            here({ changingMatchId: null, changeOutId: null });
+          }}
+          onRedraw={() => {
+            s.redrawLiveMatch(changing.courtNumber);
+            here({ changingMatchId: null, changeOutId: null });
+          }}
+          onBack={() => here({ changeOutId: null })}
+          onClose={() => here({ changingMatchId: null, changeOutId: null })}
         />
       )}
     </>
@@ -1305,6 +1547,17 @@ export default function ManageApp() {
               here({ editingMatchId: slot.matchId });
               return;
             }
+            // The LIVE row opens the change sheet: swap one seat or redraw
+            // the four. FLAG: an invented entry, no frame draws one, and it
+            // is spent on this row because tapping it used to do nothing but
+            // leave the list (goToMatch refuses a live slot). Only while no
+            // score is in, because a recorded number belongs to the four who
+            // played it, so a scored match shows no change affordance at all.
+            if (slot.status === "live" && slot.matchId
+              && slot.scoreA == null && slot.scoreB == null) {
+              here({ changingMatchId: slot.matchId, changeOutId: null });
+              return;
+            }
             // Anything else jumps the court to that row. Whatever was on court
             // is parked as skipped and waits to be returned to.
             s.goToMatch(courtNumber, slot.slot);
@@ -1451,11 +1704,16 @@ export default function ManageApp() {
 
     if (view.complete && ending === "undecided"
       && mayChooseEnding(s.session.players, s.session.matches, courtNumber, view.court.targetMatches).mayChoose) {
+      // Named once so the card and the choice handler read the SAME answer:
+      // the card saying "two more each" while the handler extended by one is
+      // exactly the kind of drift a second call invites.
+      const oneMore = oneMoreRoundChange(size, view.court.targetMatches);
       return (
         <>
           <HowThisCourtEnds
             header={courtHeader}
             courtNumber={courtNumber}
+            playersOnCourt={size}
             // The real shape for THIS headcount, from the same engine that
             // will build the bracket, so the card cannot promise eight-player
             // maths to a court of ten.
@@ -1469,9 +1727,10 @@ export default function ManageApp() {
                 hasTrio: pairs.some(isTrio),
               };
             })()}
-            // engine/endings.ts already carries the raised target and whether
-            // the raise divides into fours. Ten a side is the case that bites.
-            oneMoreRound={oneMoreRoundChange(size, view.court.targetMatches)}
+            // engine/endings.ts already carries the smallest add that divides
+            // this court into fours and the target that raise reaches. Ten a
+            // side is the case that bites: two more each, not one.
+            oneMoreRound={oneMore}
             otherCourt={(() => {
               const o = other[0];
               if (!o) return null;
@@ -1479,11 +1738,13 @@ export default function ManageApp() {
               return chosen === "undecided" ? null : { courtNumber: o.court.number, ending: chosen };
             })()}
             onChooseDoublesBracket={() => s.setEnding(courtNumber, "doublesBracket")}
-            // The whole ending is one number: the target goes up by one, and
-            // rotation puts everyone back in the queue owed exactly one game.
+            // The whole ending is one number, and the number is the engine's:
+            // the smallest add that keeps the schedule whole. Hardcoding 1
+            // here is the bug this replaces, a court of ten promised "one
+            // more" that its card could not deal.
             onChooseOneMoreRound={() => {
               s.setEnding(courtNumber, "oneMoreRound");
-              s.extend(courtNumber, 1);
+              s.extend(courtNumber, oneMore.addEach);
             }}
           />
           {overlays}

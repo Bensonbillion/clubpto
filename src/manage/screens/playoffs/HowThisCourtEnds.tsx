@@ -6,9 +6,10 @@
 //
 // engine/endings.ts models the whole decision. This screen reads it and draws
 // it: `oneMoreRound` arrives from `oneMoreRoundChange` already carrying the
-// raised target and whether the raise divides into fours at all, so nothing is
-// re-derived here. Ten a side is the case that bites, and the engine, not this
-// file, is what knows it.
+// smallest add that divides this court into fours and the target that raise
+// reaches, so nothing is re-derived here. Ten a side is the case that bites,
+// two more each rather than one, and the engine, not this file, is what
+// knows it.
 //
 // WHY THERE ARE TWO CONTROLS AND ONE BUTTON. The frame highlights the bracket
 // card and puts "Build the bracket" in the bar, so the bar's action is the
@@ -59,10 +60,18 @@ export interface HowThisCourtEndsProps {
   courtNumber: number;
   bracketShape: BracketShape;
   /**
+   * How many are on this court. The multi-add sentence's reason clause needs
+   * it: "one more does not divide ten players into fours" cannot be said
+   * without the ten, and OneMoreRound deliberately does not carry the size it
+   * was computed from.
+   */
+  playersOnCourt: number;
+  /**
    * Straight from engine/endings.ts `oneMoreRoundChange(courtSize, target)`.
    * `targetMatches` is the raised target, which is the "fourth" in "Everyone
-   * plays a fourth match"; `possible` is false when the raise does not divide
-   * into fours.
+   * plays a fourth match"; `addEach` is the smallest raise that divides this
+   * court into fours, usually 1; `possible` is false only on a court of fewer
+   * than four players, where no match of any kind can be dealt.
    */
   oneMoreRound: OneMoreRound;
   /**
@@ -76,9 +85,18 @@ export interface HowThisCourtEndsProps {
   onChooseOneMoreRound: () => void;
 }
 
-/** Frame 19 writes its numbers as words, so these follow suit. */
+/**
+ * Frame 19 writes its numbers as words, so these follow suit. The list runs
+ * to sixteen because the multi-add sentence names a headcount and a match
+ * count, and an eleven-player court adds eleven matches; stopping at eight
+ * had that sentence switching to digits halfway through.
+ */
 const wordFor = (n: number): string =>
-  ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight"][n] ?? String(n);
+  ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
+    "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen"][n] ?? String(n);
+
+/** The same word inside a sentence, where frame 19 writes it lower case. */
+const lowerWord = (n: number): string => wordFor(n).toLowerCase();
 
 const CardButton = ({ onClick, tone, children }: {
   onClick?: () => void; tone?: "plain" | "live"; children: ReactNode;
@@ -121,7 +139,7 @@ const otherCourtLine = (
 
 export const HowThisCourtEnds = ({
   header,
-  courtNumber, oneMoreRound, otherCourt,
+  courtNumber, playersOnCourt, oneMoreRound, otherCourt,
   onChooseDoublesBracket, onChooseOneMoreRound,
   bracketShape,
 }: HowThisCourtEndsProps) => (
@@ -152,15 +170,34 @@ export const HowThisCourtEnds = ({
         </Detail>
       </CardButton>
 
-      {/* A court whose raised target does not divide into fours cannot give
-          everyone one more game. The frames draw no wording for that, so the
-          card is drawn and left inert rather than captioned with an excuse. */}
+      {/* `possible` is false only on a court of fewer than four players,
+          where no match of any kind can be dealt. The frames draw no wording
+          for that, so the card is drawn and left inert rather than captioned
+          with an excuse. */}
       <CardButton onClick={oneMoreRound.possible ? onChooseOneMoreRound : undefined}>
         <Title>One more round</Title>
         <Detail>
-          Everyone plays a {ordinalWord(oneMoreRound.targetMatches)} match and whoever
-          tops the table is the individual champion. Same length of evening,
-          different flavour.
+          {oneMoreRound.addEach > 1 ? (
+            // The smallest legal add is not always one. Ten a side takes two
+            // more each, because ten by five is twelve matches and a half.
+            // FLAG: frame 19 writes wording only for the add-one case, so
+            // this sentence is invented in its register: the add, its reason
+            // and its cost stated in one line, no apology, the same posture
+            // as the awkward-headcount sections of the spec.
+            <>
+              {wordFor(oneMoreRound.addEach)} more each, because one more does
+              not divide {lowerWord(playersOnCourt)} players into fours.{" "}
+              {wordFor(oneMoreRound.matchesAdded)} extra{" "}
+              {oneMoreRound.matchesAdded === 1 ? "match" : "matches"}, and
+              whoever tops the table is the individual champion.
+            </>
+          ) : (
+            <>
+              Everyone plays a {ordinalWord(oneMoreRound.targetMatches)} match and whoever
+              tops the table is the individual champion. Same length of evening,
+              different flavour.
+            </>
+          )}
         </Detail>
       </CardButton>
     </Body>

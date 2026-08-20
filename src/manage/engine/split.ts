@@ -43,7 +43,21 @@ export type SplitNote =
    * A court's size has no valid target at all (fewer than four players), so it
    * cannot run. The operator has to move people before starting.
    */
-  | { kind: "courtTooSmall"; courtNumber: number; size: number };
+  | { kind: "courtTooSmall"; courtNumber: number; size: number }
+  /**
+   * Somebody on this court has no legal foursome at all: no three companions
+   * exist for them in any arrangement the laws allow. The second B dragged
+   * onto a C court is the usual way, because only the designated B may join C
+   * matches and two B's alone cannot make a match of four.
+   *
+   * suggestSplit never emits this note, and the shell must not expect it to.
+   * Stranding is a fact about the court AS IT STANDS, created and cured by
+   * hand drags, and the courts screen already re-derives its warnings live
+   * because a note frozen at suggestion time keeps warning about a court the
+   * operator has fixed. The shell judges it after each drag with
+   * engine/substitutes.ts strandedPlayers and phrases the names it gets back.
+   */
+  | { kind: "stranded"; courtNumber: number; names: string[] };
 
 /**
  * The suggested target for a court of this size.

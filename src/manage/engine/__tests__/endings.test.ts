@@ -24,7 +24,7 @@ import {
   type CourtEndings,
 } from "../endings";
 import { readiness } from "../playoff";
-import { buildQueue, courtComplete } from "../rotation";
+import { buildQueue, courtComplete, validTargets } from "../rotation";
 import { computeStandings, type PlayedMatch } from "../standings";
 
 const P = (id: string, court: number): Player => ({
@@ -128,17 +128,74 @@ describe("a court cannot choose an ending before its targets are met", () => {
   });
 });
 
-describe("one more round raises the target by exactly one", () => {
-  it("raises by one, and adds one game each and no more", () => {
-    // Eight players at target three is six matches. One more round is two
-    // further matches, which is eight player games, which is one each. A
-    // raise of two would read as a whole second round robin and the court
+describe("one more round offers the smallest add that keeps the schedule whole", () => {
+  it("adds one each on eight players, and no more", () => {
+    // Eight players at target three is six matches. One more each is two
+    // further matches, which is eight player games, which is one each. An add
+    // of two here would read as a whole second round robin and the court
     // would still be playing at eleven.
     const change = oneMoreRoundChange(8, 3);
+    expect(change.addEach).toBe(1);
     expect(change.targetMatches).toBe(4);
-    expect(change.extraMatches).toBe(2);
-    expect(change.extraMatches).toBe(8 / 4);
+    expect(change.matchesAdded).toBe(2);
+    expect(change.matchesAdded).toBe(8 / 4);
     expect(change.possible).toBe(true);
+  });
+
+  it("adds two each on ten players, because one each does not divide", () => {
+    // The case that used to leave the card inert. Ten by five is twelve
+    // matches and a half, so the old answer was possible=false and the
+    // operator was told nothing. The honest offer is the next add that
+    // divides: two more each, ten by six is fifteen matches, five more than
+    // the ten already owed.
+    const ten = oneMoreRoundChange(10, 4);
+    expect(ten.possible).toBe(true);
+    expect(ten.addEach).toBe(2);
+    expect(ten.targetMatches).toBe(6);
+    expect(ten.matchesAdded).toBe(5);
+  });
+
+  it("finds the smallest add across the awkward headcounts", () => {
+    // The table the spec's arithmetic implies, pinned so the search can never
+    // quietly overshoot: offering three more games each to a court that could
+    // have played one more each is a forty five minute mistake on a real
+    // night. Sizes divisible by four take every raise, even sizes need an
+    // even raised target, and odd sizes wait for a raised target that is
+    // itself a multiple of four.
+    expect(oneMoreRoundChange(8, 3)).toMatchObject({ addEach: 1, targetMatches: 4, matchesAdded: 2 });
+    expect(oneMoreRoundChange(10, 4)).toMatchObject({ addEach: 2, targetMatches: 6, matchesAdded: 5 });
+    expect(oneMoreRoundChange(11, 4)).toMatchObject({ addEach: 4, targetMatches: 8, matchesAdded: 11 });
+    expect(oneMoreRoundChange(12, 3)).toMatchObject({ addEach: 1, targetMatches: 4, matchesAdded: 3 });
+  });
+
+  it("always lands on a whole number of matches, from any target the app issues", () => {
+    // The reason the add exists at all. If any size and target pair slipped
+    // through with a fractional match count, one game would be owed to fewer
+    // than four people and the court could never finish. Targets come from
+    // validTargets and nowhere else, so those pairs are the whole input space
+    // a running court can present.
+    for (let size = 4; size <= 24; size++) {
+      for (const target of validTargets(size)) {
+        const change = oneMoreRoundChange(size, target);
+        expect(change.possible).toBe(true);
+        expect(change.addEach).toBeGreaterThanOrEqual(1);
+        expect(change.addEach).toBeLessThanOrEqual(4);
+        expect(Number.isInteger(change.matchesAdded)).toBe(true);
+        expect(change.matchesAdded).toBeGreaterThan(0);
+        expect((size * change.targetMatches) % 4).toBe(0);
+      }
+    }
+  });
+
+  it("refuses only a court too small to play at all", () => {
+    // Under four players no match of any kind exists, so no add fixes it.
+    // The impossible answer must also carry no raise: a caller that forgot
+    // to check possible would otherwise extend a court that cannot run.
+    const tiny = oneMoreRoundChange(3, 3);
+    expect(tiny.possible).toBe(false);
+    expect(tiny.addEach).toBe(0);
+    expect(tiny.matchesAdded).toBe(0);
+    expect(tiny.targetMatches).toBe(3);
   });
 
   it("puts every player back in the queue owed exactly one game", () => {
@@ -169,19 +226,6 @@ describe("one more round raises the target by exactly one", () => {
     // quietly counting for more than it says.
     const twice = oneMoreRoundChange(8, oneMoreRoundChange(8, 3).targetMatches);
     expect(twice.targetMatches).toBe(5);
-  });
-
-  it("says so when a court cannot give everyone one more game", () => {
-    // Ten a side, the case from frame 26. Ten by four is ten matches, ten by
-    // five is twelve and a half, so there is no round that gives all ten a
-    // game. Reporting this as possible would leave two players short and the
-    // court unable to finish.
-    const ten = oneMoreRoundChange(10, 4);
-    expect(ten.possible).toBe(false);
-    expect(ten.extraMatches).toBe(0);
-
-    // Nine a side is the same shape and the same answer.
-    expect(oneMoreRoundChange(9, 4).possible).toBe(false);
   });
 });
 
@@ -227,10 +271,10 @@ describe("the individual champion is one person, off the top of the table", () =
 
     const change = oneMoreRoundChange(4, 3);
     expect(change.targetMatches).toBe(4);
-    expect(change.extraMatches).toBe(1);
+    expect(change.matchesAdded).toBe(1);
 
     const withExtra = [...roundRobin, played(1, ["a", "c"], ["b", "d"], 2, 0)];
-    expect(withExtra).toHaveLength(roundRobin.length + change.extraMatches);
+    expect(withExtra).toHaveLength(roundRobin.length + change.matchesAdded);
     expect(individualChampion(table(ids, withExtra))!.playerId).toBe("a");
   });
 
