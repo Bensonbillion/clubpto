@@ -21,6 +21,13 @@ export interface PlayoffTeam {
   name: string;
   /** The side's seeds exactly as drawn: `1+3`. Stored, not recomputed. */
   seedLabel: string;
+  /**
+   * True when this side holds three players who rotate two onto the court
+   * each match. An odd seed count makes one (a court of nine or eleven), and
+   * the stress script asks for it to be NAMED on the bracket rather than
+   * left as three names the operator has to puzzle over.
+   */
+  trio?: boolean;
 }
 
 /**

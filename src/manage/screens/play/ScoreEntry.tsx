@@ -15,7 +15,7 @@
 // writes a result.
 
 import { useState } from "react";
-import { Screen, Sheet, T } from "../../ui/primitives";
+import { PrimaryButton, SecondaryButton, Screen, Sheet, T } from "../../ui/primitives";
 import { CourtHeader } from "./CourtHeader";
 import type { CourtChip } from "./model";
 
@@ -42,6 +42,9 @@ export interface ScoreEntryProps {
 const startValue = (score: number | null | undefined): string =>
   score == null ? "" : String(score);
 
+/** Past this, a number is far more often a mistap than a result. */
+const BIG_SCORE = 20;
+
 export const ScoreEntry = ({
   courts,
   activeCourtNumber,
@@ -56,6 +59,16 @@ export const ScoreEntry = ({
   onDismiss,
 }: ScoreEntryProps) => {
   const [side, setSide] = useState<"A" | "B">(initialSide);
+  /**
+   * The big-score nudge. Found on a live walk: a mistap recorded 75-0 and the
+   * night carried a +74 score difference nobody meant. Games at the club go
+   * to about seven, so anything past this line is far more often a typo than
+   * a result. It is a nudge and never a wall: the operator can keep any
+   * number, because the app does not get to overrule a score the room saw.
+   */
+  const [confirmBig, setConfirmBig] = useState(false);
+  // Any edit withdraws the nudge: the number it asked about no longer exists.
+  const unNudge = () => setConfirmBig(false);
   const [a, setA] = useState(() => startValue(scoreA));
   const [b, setB] = useState(() => startValue(scoreB));
 
@@ -159,10 +172,36 @@ export const ScoreEntry = ({
 
         {/* The frame joins the first two clauses with an em dash. The house
             voice does not use one, so it takes the night spec's own "so". */}
-        <p style={{ font: `400 14px/1.55 ${T.fontBody}`, color: T.mut, margin: 0, textWrap: "pretty" }}>
-          Higher score takes the 3 points, so 7-6 wins like 7-0. The margin only feeds score
-          difference.
-        </p>
+        {confirmBig ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {/* No frame draws this state. The sentence names the number and
+                what to do, and never apologises. Fixing is the filled action
+                because keeping a typo is the one that costs the standings. */}
+            <p style={{ font: `600 14.5px/1.5 ${T.fontBody}`, color: T.ink, margin: 0 }}>
+              {Number(a) > Number(b) ? a : b} points is a big score for one game.
+              Keep it, or fix it before it lands in the standings.
+            </p>
+            <div style={{ display: "flex", gap: 10 }}>
+              <PrimaryButton
+                style={{ flex: 1, minHeight: 48 }}
+                onClick={() => setConfirmBig(false)}
+              >
+                Fix the score
+              </PrimaryButton>
+              <SecondaryButton
+                style={{ flex: 1, minHeight: 48 }}
+                onClick={() => onSave(Number(a), Number(b))}
+              >
+                Keep {a}-{b}
+              </SecondaryButton>
+            </div>
+          </div>
+        ) : (
+          <p style={{ font: `400 14px/1.55 ${T.fontBody}`, color: T.mut, margin: 0, textWrap: "pretty" }}>
+            Higher score takes the 3 points, so 7-6 wins like 7-0. The margin only feeds score
+            difference.
+          </p>
+        )}
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
           {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((d) => key(d, () => digit(d)))}
@@ -170,7 +209,14 @@ export const ScoreEntry = ({
           {key("0", () => digit("0"))}
           {key(
             "Save",
-            () => { if (ready) onSave(Number(a), Number(b)); },
+            () => {
+              if (!ready) return;
+              if (Math.max(Number(a), Number(b)) > BIG_SCORE && !confirmBig) {
+                setConfirmBig(true);
+                return;
+              }
+              onSave(Number(a), Number(b));
+            },
             {
               font: `700 16px ${T.fontBody}`,
               border: "none",

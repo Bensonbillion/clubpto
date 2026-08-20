@@ -50,6 +50,13 @@ const SideLine = ({ side, dim }: { side: BracketSide; dim: boolean }) => {
       <span style={{ ...NAME, color: dim ? T.soft : T.ink }}>
         {side.team.name}{" "}
         <Tag size="sm">{side.team.seedLabel}</Tag>
+        {/* Three names alone read as a mistake. The label says what the side
+            IS, so nobody stops the night to ask why five people are in a
+            doubles match. No frame draws this wording; it is the shortest
+            sentence that answers the question the row raises. */}
+        {side.team.trio && (
+          <Tag size="sm" tone="quiet">Rotating trio, two play each match</Tag>
+        )}
       </span>
     );
   }
