@@ -669,6 +669,12 @@ export default function ManageApp() {
         if (!trimmed) return;
         const hit = dedupeWalkIn(roster.names, trimmed);
         setTierPromptId(hit ? s.addRosterPlayer(hit) : s.addWalkIn(trimmed));
+        // The query clears on add. It used to survive, a habit from the old
+        // checkbox list where the leftover filter was the confirmation. In the
+        // typeahead it re-drew the "Add as a walk-in" offer for a person just
+        // added, and a double tap minted them twice. The confirmation now is
+        // the tier strip and the count, both visible the moment the box empties.
+        setQuery("");
       };
 
       const prompted = tierPromptId != null
