@@ -1,20 +1,28 @@
-// Frame 01 — Passcode (v2 `1b`).
+// Frame 01, Passcode.
 //
-// Four dots, no submit. The fourth digit verifies. The dot row is the only
-// thing that moves, so it is the one bold element; there is no title bar and
-// no spinner anywhere in this design.
+// Four slots, no submit: the fourth digit verifies. One line of instruction
+// above them and the keypad below, and nothing else on the screen. There is no
+// title, no footer bar and no spinner in this design, so the only thing that
+// moves while the operator types is the row of slots.
 
-import { Body, Dots, FooterBar, Keypad, Screen, T } from "../../ui/primitives";
+import { Body, Dots, Keypad, Screen, T } from "../../ui/primitives";
 
-/** Four dots, four slots. */
+/** Four slots, four digits. */
 export const PASSCODE_LENGTH = 4;
 
 export interface PasscodeProps {
-  /** How many digits are in the buffer, 0 to 4. Dots fill left to right. */
+  /** How many digits are in the buffer, 0 to 4. Slots fill left to right. */
   entered: number;
   /**
+   * The buffer itself, drawn unmasked. Frame 01 shows the typed digits rather
+   * than dots, so pass this and the screen matches the frame. Omit it and a
+   * filled slot shows a mark instead, which is what a code being read over
+   * someone's shoulder in a sports hall wants.
+   */
+  digits?: string;
+  /**
    * The instant between the fourth tap and the result. Holds the four filled
-   * dots and kills the keypad. No spinner.
+   * slots and kills the keypad. No spinner.
    */
   verifying?: boolean;
   /** Appends one digit. On the fourth, the caller auto-verifies. */
@@ -23,31 +31,23 @@ export interface PasscodeProps {
   onDelete: () => void;
 }
 
-export const Passcode = ({ entered, verifying, onDigit, onDelete }: PasscodeProps) => {
-  const filled = Math.max(0, Math.min(PASSCODE_LENGTH, entered));
+export const Passcode = ({ entered, digits, verifying, onDigit, onDelete }: PasscodeProps) => {
+  const filled = Math.max(0, Math.min(PASSCODE_LENGTH, digits?.length ?? entered));
 
   return (
     <Screen>
       <Body style={{
-        display: "flex", flexDirection: "column", alignItems: "center",
-        justifyContent: "center", gap: 26, padding: 24, boxSizing: "border-box",
+        display: "flex", flexDirection: "column", justifyContent: "center",
+        padding: "0 26px", gap: 28, boxSizing: "border-box",
       }}>
-        <p style={{ font: "600 17px Inter, sans-serif", margin: 0, textAlign: "center" }}>
+        <p style={{ font: `600 18px ${T.fontBody}`, textAlign: "center", margin: 0 }}>
           Enter tonight's passcode.
         </p>
 
-        <Dots filled={filled} of={PASSCODE_LENGTH} />
-
-        {/* FLAG: the spec asks for a sub-120ms press state on the digit keys.
-            That belongs in the Keypad primitive, which this slice does not own. */}
-        <Keypad onDigit={onDigit} onDelete={onDelete} disabled={verifying} />
+        <Dots filled={filled} of={PASSCODE_LENGTH} digits={digits} />
       </Body>
 
-      <FooterBar>
-        <p style={{ fontSize: 14, color: T.ink50, textAlign: "center", margin: 0 }}>
-          Court view and check-in need no code.
-        </p>
-      </FooterBar>
+      <Keypad onDigit={onDigit} onDelete={onDelete} disabled={verifying} />
     </Screen>
   );
 };

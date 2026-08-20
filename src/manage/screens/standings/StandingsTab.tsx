@@ -1,43 +1,53 @@
-// Frame 17 — Standings tab.
+// Frame 17: Standings.
 //
-// The table is the screen. One filled surface only: the lime `Seed the
-// playoff` button in the action bar. Everything above it is text on the dark
-// ground, separated by hairlines.
+// The table is the screen. Nothing on it is filled: the only control is the
+// ghost "Session summary" in the bar, because the decision that used to live
+// here, seeding the playoff, moved to frames 19 and 20 where the court chooses
+// how it ends. A sage "Seed the playoff" on this screen would spend the one
+// fill on a tap the frame no longer draws here.
 //
 // Standings are PER COURT, not per session. The caller computes one view per
-// court and hands it in already sorted (points desc, then score difference
-// desc, then whoever reached the total first). This component never re-sorts —
-// the order it receives is the record.
+// court and hands it in already sorted (points, then score difference, then
+// whoever reached the total first). This component never re-sorts: the order it
+// receives is the record.
+//
+// The reason line under a tied row is the night's own record and it STAYS on
+// the row for the rest of the night (night-spec, "the tables settle"). There is
+// no timer here and no dismissal, because there is nothing to dismiss: once the
+// caller sets a row's reason it keeps passing it, and this component keeps
+// drawing it.
 
 import type { CSSProperties, ReactNode } from "react";
 import {
   Body,
   FooterBar,
   Num,
-  PrimaryButton,
   Screen,
+  SecondaryButton,
+  StatLabel,
   T,
   TabBar,
   type Tab,
 } from "../../ui/primitives";
-
-/** Row hairline. Lighter than T.lineSoft — the frame separates rows at .08. */
-const ROW_LINE = "rgba(244,237,224,.08)";
-
-/** The disabled `Seed the playoff` fill, as drawn on frame 19. */
-const DISABLED_FILL = "rgba(244,237,224,.1)";
-const DISABLED_INK = "rgba(244,237,224,.4)";
+import { ScreenHead } from "./ScreenHead";
 
 /**
- * The only sub-lines that exist. Composing a new one is not allowed — if a
+ * The only sub-lines that exist. Composing a new one is not allowed: if a
  * situation has no line here, the row carries no reason.
+ *
+ * The two tie lines are drawn on frame 17. "Behind on score difference" is not
+ * drawn there but the spec names it as one of the two ways the table explains
+ * itself on the row, so it is carried verbatim from the spec rather than
+ * reworded.
+ *
+ * The clock time is a formatted string rather than a timestamp because the
+ * frames draw "8:41" and the manager runs on one phone in one room. Formatting
+ * it here would put a locale decision inside a presentational component.
  */
 export type StandingsReason =
-  | { kind: "behindOnDiff" }
-  | { kind: "gotThereFirst"; matchNumber: number }
-  | { kind: "gotThereSecond"; matchNumber: number }
-  | { kind: "arrivedLate" }
-  | { kind: "leftEarly" };
+  | { kind: "firstToThisScore"; atClockTime: string }
+  | { kind: "reachedItLater"; atClockTime: string }
+  | { kind: "behindOnDiff" };
 
 export interface StandingsTabRow {
   /** 1-based, already resolved by the caller. */
@@ -54,107 +64,110 @@ export interface StandingsTabRow {
   pointDifference: number;
   /** Pts */
   points: number;
-  /** The match at which this player first hit their current (points, diff). */
-  reachedTotalAtMatchNumber: number;
   reason: StandingsReason | null;
   /** Set on both sides of an order-broken tie; what frame 18 opens on. */
   tiedWithPlayerId: string | null;
 }
 
-export interface StandingsShortfall {
-  /** How many players are short. */
-  playerCount: number;
-  /** How many matches those players have played. */
-  matchesPlayed: number;
-}
-
 export interface StandingsTabProps {
   /** The active court's name, e.g. "Court 1". Read-only label. */
   courtLabel: string;
-  /** Drives "A win is 3." */
-  pointsPerWin: number;
+  /**
+   * True once every score on this court has landed. The table is final the
+   * moment the last one does (night-spec), and frame 17 says so by writing the
+   * eyebrow as "Court 2 · final". While it is false the eyebrow is the court
+   * alone: the frames draw no word for a table still moving.
+   */
+  tableFinal?: boolean;
   /** Pre-sorted. Never re-sorted here. */
   rows: StandingsTabRow[];
-  /** Null when everyone has played the same number of matches. */
-  shortfall: StandingsShortfall | null;
-  seedingEnabled: boolean;
+  /**
+   * What every player on this court has played, when they have all played the
+   * same. It is the "three" in "Everyone played three." Null when the counts
+   * differ, which frame 17 draws no wording for, so that sentence is dropped
+   * rather than reworded.
+   */
+  matchesEach: number | null;
   /** Placeholder rows while the table loads. */
   loading?: boolean;
-  onSeedPlayoff: () => void;
+  /** The bar's ghost action. */
+  onOpenSessionSummary: () => void;
   onSelectTab: (t: Tab) => void;
   /**
-   * Opens frame 18. Not drawn in the wireframe — the recommended trigger is a
-   * tap on a row whose reason line is `Got there first` / `Reached it`.
+   * Opens frame 18. The trigger is a tap on a row whose reason line is drawn,
+   * which is exactly the pair of rows frame 18 explains.
    */
   onOpenTie?: (row: StandingsTabRow) => void;
 }
 
-// FLAG: no error state. Standings has no error copy in either wireframe, and
-// the score/bookings error copy belongs to a different slice. Nothing rendered.
+// FLAG: no error state. Standings has no error copy in the frames, and the
+// score and booking failures belong to the states slice. Nothing rendered.
 
 const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 
+// Frame 17 writes the count as a word, "Everyone played three.", because it
+// reads as a sentence rather than as a value.
+// FLAG: nothing past twelve is drawn, so it falls back to the numeral.
 const COUNT_WORDS = [
-  "Zero", "One", "Two", "Three", "Four", "Five", "Six",
-  "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve",
+  "zero", "one", "two", "three", "four", "five", "six",
+  "seven", "eight", "nine", "ten", "eleven", "twelve",
 ];
+const countWord = (n: number) => COUNT_WORDS[n] ?? `${n}`;
 
-// FLAG: the frame draws the plural ("Two players have played 2."). The
-// singular inflection and any count past twelve are inferred, not drawn.
-const spellCount = (n: number) => (n < COUNT_WORDS.length ? COUNT_WORDS[n] : `${n}`);
-
-const reasonText = (reason: StandingsReason): string => {
+const reasonLine = (reason: StandingsReason): string => {
   switch (reason.kind) {
+    case "firstToThisScore":
+      return `First to this score, ${reason.atClockTime}.`;
+    case "reachedItLater":
+      return `Reached it at ${reason.atClockTime}.`;
     case "behindOnDiff":
       return "Behind on score difference.";
-    case "gotThereFirst":
-      return `Got there first, in match ${reason.matchNumber}.`;
-    case "gotThereSecond":
-      return `Reached it in match ${reason.matchNumber}, so second.`;
-    case "arrivedLate":
-      return "Arrived late.";
-    case "leftEarly":
-      return "Left early.";
   }
 };
 
-const isOrderBrokenTie = (row: StandingsTabRow) =>
-  row.reason != null &&
-  (row.reason.kind === "gotThereFirst" || row.reason.kind === "gotThereSecond");
+// The player who got there first gets the sage line, everyone the table had to
+// demote gets the muted one. Frame 17 draws exactly that pairing, and it is the
+// whole reason the two tied rows read as one explanation rather than as two
+// unrelated notes.
+const reasonInk = (reason: StandingsReason) =>
+  reason.kind === "firstToThisScore" ? T.acc : T.mut;
 
-const COL: Record<"p" | "w" | "l" | "diff" | "pts", CSSProperties> = {
-  p: { width: 32, textAlign: "right" },
-  w: { width: 30, textAlign: "right" },
-  l: { width: 30, textAlign: "right" },
-  diff: { width: 40, textAlign: "right" },
+/** Column widths, straight off frame 17 so the header and the rows cannot drift. */
+const COL: Record<"rank" | "p" | "w" | "l" | "diff" | "pts", CSSProperties> = {
+  rank: { width: 26 },
+  p: { width: 26, textAlign: "right" },
+  w: { width: 26, textAlign: "right" },
+  l: { width: 26, textAlign: "right" },
+  diff: { width: 42, textAlign: "right" },
   pts: { width: 38, textAlign: "right" },
 };
 
 const ColumnHeaders = () => (
-  <div style={{
-    display: "flex", padding: "8px 18px",
-    font: "800 11px Inter, sans-serif", letterSpacing: ".06em",
-    textTransform: "uppercase", color: T.ink45,
-    borderBottom: `1px solid ${T.lineSoft}`,
-  }}>
-    <span style={{ width: 24 }}>#</span>
-    <span style={{ flex: 1 }}>Player</span>
-    <span style={COL.p}>P</span>
-    <span style={COL.w}>W</span>
-    <span style={COL.l}>L</span>
-    <span style={COL.diff}>Diff</span>
-    <span style={COL.pts}>Pts</span>
+  <div style={{ display: "flex", gap: 6, padding: "14px 22px 6px" }}>
+    <span style={COL.rank}><StatLabel>#</StatLabel></span>
+    <span style={{ flex: 1, minWidth: 0 }}><StatLabel>Player</StatLabel></span>
+    <span style={COL.p}><StatLabel>P</StatLabel></span>
+    <span style={COL.w}><StatLabel>W</StatLabel></span>
+    <span style={COL.l}><StatLabel>L</StatLabel></span>
+    <span style={COL.diff}><StatLabel>Diff</StatLabel></span>
+    <span style={COL.pts}><StatLabel>Pts</StatLabel></span>
   </div>
 );
 
-const RowShell = ({ onClick, children }: { onClick?: () => void; children: ReactNode }) => {
+const RowShell = ({ last, onClick, children }: {
+  last: boolean; onClick?: () => void; children: ReactNode;
+}) => {
   const shell: CSSProperties = {
-    display: "block", width: "100%", textAlign: "left", boxSizing: "border-box",
-    padding: "11px 18px", borderBottom: `1px solid ${ROW_LINE}`,
-    background: "transparent", color: "inherit",
+    display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6,
+    width: "100%", boxSizing: "border-box", textAlign: "left",
+    padding: "11px 22px",
+    // The last row drops its rule so the table does not end on a line that
+    // looks like the start of another row.
+    borderBottom: last ? "none" : `1px solid ${T.line}`,
+    background: "transparent", color: T.ink,
   };
   return onClick ? (
-    <button type="button" onClick={onClick} style={{ ...shell, border: "none", borderBottom: `1px solid ${ROW_LINE}`, cursor: "pointer" }}>
+    <button type="button" onClick={onClick} style={{ ...shell, border: "none", borderBottom: shell.borderBottom, cursor: "pointer" }}>
       {children}
     </button>
   ) : (
@@ -162,110 +175,81 @@ const RowShell = ({ onClick, children }: { onClick?: () => void; children: React
   );
 };
 
-const StandingsRowView = ({ row, onOpenTie }: {
-  row: StandingsTabRow; onOpenTie?: (row: StandingsTabRow) => void;
+const StandingsRowView = ({ row, last, onOpenTie }: {
+  row: StandingsTabRow; last: boolean; onOpenTie?: (row: StandingsTabRow) => void;
 }) => {
-  // A player on 0 points renders the whole row — numerals included — at 60%.
-  const dimRow = row.points === 0;
-  // A player who left early keeps their real numbers; only the name dims.
-  const dimName = row.reason != null && row.reason.kind === "leftEarly";
-  const tappable = onOpenTie && row.tiedWithPlayerId != null && isOrderBrokenTie(row);
+  const tappable = onOpenTie != null && row.tiedWithPlayerId != null && row.reason != null;
 
   return (
-    <RowShell onClick={tappable ? () => onOpenTie(row) : undefined}>
-      <div style={{
-        display: "flex", alignItems: "baseline",
-        color: dimRow ? T.ink60 : T.ink,
-      }}>
-        <Num size={24} style={{ width: 24 }}>{row.position}</Num>
-        <span style={{
-          flex: 1, font: "700 17px Inter, sans-serif",
-          color: dimName ? T.ink60 : "inherit",
-        }}>{row.displayName}</span>
-        <Num size={24} style={COL.p}>{row.matchesPlayed}</Num>
-        <Num size={24} style={COL.w}>{row.wins}</Num>
-        <Num size={24} style={COL.l}>{row.losses}</Num>
-        <Num size={24} style={COL.diff}>{signed(row.pointDifference)}</Num>
-        <Num size={24} style={COL.pts}>{row.points}</Num>
-      </div>
+    <RowShell last={last} onClick={tappable ? () => onOpenTie(row) : undefined}>
+      <Num size={19} style={{ ...COL.rank, color: T.acc }}>{row.position}</Num>
+      <span style={{ flex: 1, minWidth: 0, font: `600 15.5px ${T.fontBody}` }}>
+        {row.displayName}
+      </span>
+      <Num size={18} style={COL.p}>{row.matchesPlayed}</Num>
+      <Num size={18} style={COL.w}>{row.wins}</Num>
+      <Num size={18} style={COL.l}>{row.losses}</Num>
+      <Num size={18} style={COL.diff}>{signed(row.pointDifference)}</Num>
+      <Num size={22} style={COL.pts}>{row.points}</Num>
       {row.reason != null && (
-        <div style={{
-          font: "400 14px Inter, sans-serif", color: T.ink55,
-          marginTop: 3, paddingLeft: 24,
-        }}>{reasonText(row.reason)}</div>
+        <span style={{
+          width: "100%", paddingLeft: 28,
+          font: `400 13px ${T.fontBody}`, color: reasonInk(row.reason),
+        }}>{reasonLine(row.reason)}</span>
       )}
     </RowShell>
   );
 };
 
 const PlaceholderRows = () => (
-  <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+  <div style={{ padding: "16px 22px", display: "flex", flexDirection: "column", gap: 10 }}>
     {[0, 1, 2].map((i) => (
-      <div key={i} style={{ border: `1px solid ${T.line}`, borderRadius: T.radius, height: 44 }} />
+      <div key={i} style={{ border: `1.5px solid ${T.line}`, borderRadius: T.radius, height: 44 }} />
     ))}
   </div>
 );
 
 export const StandingsTab = ({
-  courtLabel, pointsPerWin, rows, shortfall, seedingEnabled, loading,
-  onSeedPlayoff, onSelectTab, onOpenTie,
+  courtLabel, tableFinal, rows, matchesEach, loading,
+  onOpenSessionSummary, onSelectTab, onOpenTie,
 }: StandingsTabProps) => (
   <Screen>
-    <div style={{
-      padding: "14px 18px 10px", borderBottom: `1px solid ${T.lineSoft}`,
-      display: "flex", flexDirection: "column", gap: 6,
-    }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-        <span style={{ font: "700 20px Inter, sans-serif" }}>Standings</span>
-        <span style={{ font: "600 16px Inter, sans-serif" }}>{courtLabel}</span>
-      </div>
-      <div style={{ font: "400 14px Inter, sans-serif", color: T.ink55 }}>
-        A win is <Num size={18}>{pointsPerWin}</Num>. Points first, then score difference.
-      </div>
-    </div>
+    <ScreenHead
+      title="Standings"
+      step={tableFinal === true ? `${courtLabel} · final` : courtLabel}
+    />
 
-    {/* FLAG: the column strip is dropped while loading — headers over no table. */}
+    {/* FLAG: the column strip is dropped while loading. Headers over no table
+        name columns that are not there yet. */}
     {!loading && <ColumnHeaders />}
 
     <Body>
       {loading ? (
         <PlaceholderRows />
       ) : (
-        <>
-          {/* Session just started: every row arrives as zeros, in roster order,
-              with no reason lines. No headline is drawn for it, so none is
-              invented — the table simply renders the zeros. */}
-          {rows.map((row) => (
-            <StandingsRowView key={row.playerId} row={row} onOpenTie={onOpenTie} />
-          ))}
-          {shortfall != null && shortfall.playerCount > 0 && (
-            <div style={{
-              padding: "8px 18px", font: "400 14px/1.4 Inter, sans-serif", color: T.ink50,
-            }}>
-              {spellCount(shortfall.playerCount)}{" "}
-              {shortfall.playerCount === 1 ? "player has" : "players have"} played{" "}
-              <Num size={18}>{shortfall.matchesPlayed}</Num>. No points for sitting out.
-            </div>
-          )}
-        </>
+        // A night that has just started arrives as zeros in roster order with
+        // no reason lines. The frames draw no headline for that, so none is
+        // invented: the table simply renders the zeros.
+        rows.map((row, i) => (
+          <StandingsRowView
+            key={row.playerId}
+            row={row}
+            last={i === rows.length - 1}
+            onOpenTie={onOpenTie}
+          />
+        ))
       )}
     </Body>
 
-    <FooterBar helper={
-      <span style={{ font: "600 16px Inter, sans-serif", color: T.ink }}>
-        Ties go to whoever got there first.
-      </span>
-    }>
-      <PrimaryButton
-        onClick={onSeedPlayoff}
-        disabled={!seedingEnabled}
-        style={seedingEnabled
-          ? { height: 56, font: "700 18px Inter, sans-serif" }
-          : {
-              height: 56, font: "700 18px Inter, sans-serif",
-              background: DISABLED_FILL, color: DISABLED_INK, opacity: 1,
-            }}
-      >Seed the playoff</PrimaryButton>
+    <FooterBar
+      helper={
+        <>
+          Points, then score difference, then who got there first.
+          {matchesEach != null && ` Everyone played ${countWord(matchesEach)}.`}
+        </>
+      }
+    >
+      <SecondaryButton onClick={onOpenSessionSummary}>Session summary</SecondaryButton>
     </FooterBar>
 
     <TabBar active="standings" onChange={onSelectTab} />

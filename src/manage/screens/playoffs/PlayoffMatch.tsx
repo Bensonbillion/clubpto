@@ -1,78 +1,88 @@
-// Frame 21 — a playoff match on court.
+// Frame 22: a playoff match on court.
 //
-// The same three-band anatomy as a bracket row, scaled up until it reads from
-// the bench: 22px names, a 96px score band. It is the one bold element and the
-// only thing on the screen.
+// Two named cards with the slat between them, filling the middle of the screen.
+// The cards ARE the scoring control: "Tap to score" is written under each name,
+// and a tap hands that side to score entry. There is no button in the bar,
+// because a third way to say the same thing is a third way to mis-tap.
 //
-// Scoring is two taps and this frame is tap one: pick the winning side, by the
-// named button or by that side's half of the band, and score entry (frame 11,
-// other slice) attaches the numbers. The `00 / 00` band is the pre-score state,
-// not an editable field — nothing on this frame types a number.
+// The 00 / 00 slat is the pre-score state, not an editable field. Nothing on
+// this frame types a number.
 //
-// v1 had no winner buttons and no way back; it relied on hitting a 108px score
-// half. v2 names both sides explicitly and adds `Back to bracket`, because a
-// mis-tap on a playoff match is the most expensive mis-tap of the night.
+// Playoff games score exactly like league games, which the bar says out loud.
+// It is the one sentence on the screen and it exists because the operator has
+// spent two hours in a different flow and is about to wonder whether this one
+// is different.
 
-import type { ReactNode } from "react";
+import type { CSSProperties } from "react";
 import {
-  Body,
+  Eyebrow,
   FooterBar,
-  Num,
   Screen,
-  SecondaryButton,
   T,
-  TertiaryButton,
+  TabBar,
+  type Tab,
 } from "../../ui/primitives";
-import { PlayoffHeader } from "./PlayoffHeader";
+import { CourtChip, PlayoffHeader } from "./PlayoffHeader";
 import { ScoreBand } from "./ScoreBand";
-import { countWord, winnerFromScores } from "./model";
+import { winnerFromScores } from "./model";
 import type { PlayoffTeam } from "./model";
 
-/** Long pair names drop a point so both buttons keep one line. */
-const LONG_NAME = 15;
+/** The slat's numerals, at the size frame 22 draws them. */
+const SLAT_SIZE = 86;
 
 export interface PlayoffMatchProps {
   courtNumber: number;
-  /** `Semifinal`, `Final` — the singular stage word, not the stage list's. */
+  /** `Semifinal`, `Play-in`, `Final`: the singular stage word. */
   stageLabel: string;
-  /** The `2` in `Semifinal 2`. Null on a stage that holds one match. */
+  /** The "2" in "Semifinal 2". Null on a stage that holds one match. */
   stageMatchNumber: number | null;
   teamA: PlayoffTeam;
   teamB: PlayoffTeam;
-  /** Null until the result is recorded. The band renders null as 00. */
+  /** Null until the result is recorded. The slat renders null as 00. */
   scoreA: number | null;
   scoreB: number | null;
   /**
-   * The side already through, for `Winner meets {team} in the final.` Null on a
-   * final: nothing feeds off it, so the sentence is dropped rather than reworded.
+   * A tap on one of the two cards. The side says which card was tapped, not
+   * who won: score entry types BOTH numbers and the higher one takes the
+   * points, so nothing is decided here.
    */
-  winnerMeetsTeamName: string | null;
-  /**
-   * How many players are on the other court right now. Null when they are not
-   * all on one other court — the sentence must be true or absent.
-   */
-  othersOnSecondCourt: number | null;
-  /** Tap one of two: picks the winning side and hands off to score entry. */
-  onPickWinner: (side: "A" | "B") => void;
-  /** Back to frame 20. No state change. */
-  onBackToBracket: () => void;
+  onScoreSide: (side: "A" | "B") => void;
+  onSelectTab: (t: Tab) => void;
+  /** The court chip is the switcher on this frame. Omit it and it is a label. */
+  onOpenCourtSwitcher?: () => void;
 }
 
-const TeamLine = ({ team, dim }: { team: PlayoffTeam; dim: boolean }) => (
-  <div
+const SideCard = ({ team, dim, onPick, style }: {
+  team: PlayoffTeam; dim: boolean; onPick?: () => void; style: CSSProperties;
+}) => (
+  <button
+    type="button"
+    onClick={onPick}
+    disabled={onPick == null}
     style={{
-      padding: "16px 18px",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
+      ...style,
+      padding: 22, textAlign: "center",
+      border: `1.5px solid ${T.lineChip}`, borderRadius: T.radius,
+      background: "transparent", color: dim ? T.soft : T.ink,
+      cursor: onPick == null ? "default" : "pointer",
+      display: "block", width: "auto",
     }}
   >
-    <span style={{ font: "700 22px Inter, sans-serif", color: dim ? T.ink55 : T.ink }}>
+    <span style={{ fontFamily: T.fontHead, fontSize: 28, lineHeight: 1.15 }}>
       {team.name}
     </span>
-    <Num size={22} style={{ color: T.ink50 }}>{team.seedLabel}</Num>
-  </div>
+    {/* "Tap to score", not "Tap if they won". The tap opens score entry, where
+        BOTH numbers are typed and the higher one takes the points, so a prompt
+        promising the tap records a win would be describing the old flow.
+        FLAG: a match whose score is already in draws no replacement for this
+        line. The prompt disappears with the tap it describes. */}
+    {onPick != null && (
+      <p style={{
+        font: `600 12px ${T.fontBody}`, letterSpacing: ".08em",
+        textTransform: "uppercase", color: T.soft, margin: "8px 0 0",
+      }}>Tap to score</p>
+    )}
+  </button>
 );
 
 export const PlayoffMatch = ({
@@ -83,112 +93,48 @@ export const PlayoffMatch = ({
   teamB,
   scoreA,
   scoreB,
-  winnerMeetsTeamName,
-  othersOnSecondCourt,
-  onPickWinner,
-  onBackToBracket,
+  onScoreSide,
+  onSelectTab,
+  onOpenCourtSwitcher,
 }: PlayoffMatchProps) => {
   const winner = winnerFromScores(scoreA, scoreB);
   const scored = winner != null;
 
-  const title: ReactNode =
-    stageMatchNumber == null ? (
-      stageLabel
-    ) : (
-      <>
-        {stageLabel} <Num size={20}>{stageMatchNumber}</Num>
-      </>
-    );
-
-  const sentences = [
-    winnerMeetsTeamName == null ? null : `Winner meets ${winnerMeetsTeamName} in the final.`,
-    othersOnSecondCourt == null
-      ? null
-      : `Nobody sits out: the other ${countWord(othersOnSecondCourt)} are on the second court.`,
-  ].filter((s): s is string => s != null);
-
   return (
     <Screen>
-      <PlayoffHeader title={title} courtNumber={courtNumber} stage />
+      <PlayoffHeader
+        flush
+        left={
+          <Eyebrow>
+            {stageMatchNumber == null ? stageLabel : `${stageLabel} ${stageMatchNumber}`}
+          </Eyebrow>
+        }
+        right={<CourtChip onClick={onOpenCourtSwitcher}>Court {courtNumber}</CourtChip>}
+      />
 
-      <Body
-        style={{
-          padding: "16px 18px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 14,
-        }}
-      >
-        <div style={{ border: `1px solid ${T.line}`, borderRadius: T.radius, overflow: "hidden" }}>
-          <TeamLine team={teamA} dim={winner === "B"} />
-          <ScoreBand
-            scoreA={scoreA}
-            scoreB={scoreB}
-            size={96}
-            cellPadding={10}
-            onTapSide={scored ? undefined : onPickWinner}
-          />
-          <TeamLine team={teamB} dim={winner === "A"} />
-        </div>
+      {/* The match takes the middle of the screen rather than sitting under the
+          header, so the slat lands where a thumb rests. */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+        <SideCard
+          team={teamA}
+          dim={winner === "B"}
+          onPick={scored ? undefined : () => onScoreSide("A")}
+          style={{ margin: "14px 14px 12px" }}
+        />
+        <ScoreBand scoreA={scoreA} scoreB={scoreB} size={SLAT_SIZE} />
+        <SideCard
+          team={teamB}
+          dim={winner === "A"}
+          onPick={scored ? undefined : () => onScoreSide("B")}
+          style={{ margin: "12px 14px 14px" }}
+        />
+      </div>
 
-        {sentences.length > 0 && (
-          <div style={{ font: "400 15px/1.4 Inter, sans-serif", color: T.ink60 }}>
-            {sentences.join(" ")}
-          </div>
-        )}
-      </Body>
+      {/* The bar carries a sentence and no action. Frame 22 draws no button
+          here, so the slot is empty rather than filled with one. */}
+      <FooterBar helper="Playoff games score exactly like league games.">{null}</FooterBar>
 
-      {/* FLAG: revisiting a match whose score is already in drops the whole
-          footer bar. `Tap the winning side to score.` is no longer true, and the
-          correct/void entry point the spec puts here has no drawn label on this
-          frame — its copy belongs to frame 16. Nothing is worded in its place;
-          `Back to bracket` stays. */}
-      {!scored && (
-        <FooterBar
-          helper={
-            <span style={{ font: "600 16px/1.35 Inter, sans-serif", color: T.ink }}>
-              Tap the winning side to score.
-            </span>
-          }
-        >
-          <div style={{ display: "flex", gap: 10 }}>
-            <SecondaryButton
-              onClick={() => onPickWinner("A")}
-              style={{
-                flex: 1,
-                width: "auto",
-                height: 56,
-                font: `700 ${teamA.name.length > LONG_NAME ? 16 : 17}px Inter, sans-serif`,
-              }}
-            >
-              {teamA.name}
-            </SecondaryButton>
-            <SecondaryButton
-              onClick={() => onPickWinner("B")}
-              style={{
-                flex: 1,
-                width: "auto",
-                height: 56,
-                font: `700 ${teamB.name.length > LONG_NAME ? 16 : 17}px Inter, sans-serif`,
-              }}
-            >
-              {teamB.name}
-            </SecondaryButton>
-          </div>
-        </FooterBar>
-      )}
-
-      <TertiaryButton
-        onClick={onBackToBracket}
-        style={{
-          minHeight: 0,
-          padding: "12px 18px 18px",
-          textDecoration: "none",
-          font: "600 15px Inter, sans-serif",
-        }}
-      >
-        Back to bracket
-      </TertiaryButton>
+      <TabBar active="match" onChange={onSelectTab} />
     </Screen>
   );
 };

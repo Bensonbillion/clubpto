@@ -1,122 +1,88 @@
-// Frame 00 — Index (v2 `1a`).
+// Frame 00, Index.
 //
-// The wireframe's own frame index, not an operator screen. It ships behind the
-// manage route as a dev/QA navigation page, or not at all. It lives here
+// The wireframe's own contents page, not an operator screen. It ships behind
+// the manage route as a dev and QA jump list, or not at all. It lives here
 // because it carries the canonical frame names every other screen's nav copy
-// has to agree with.
+// has to agree with, and those names changed wholesale in v3: what was
+// "Courts" is now "Split the courts", what was "Champion" is now two frames.
+//
+// The mockup lays the list out in two columns because it is drawn 580px wide
+// on a desktop canvas. On a 390px phone it is one column, which is the same
+// list with the same order.
 
-import { Body, Eyebrow, Num, Screen, T } from "../../ui/primitives";
+import { Body, Screen, T } from "../../ui/primitives";
 
 export interface FrameLink {
-  /** Two-digit frame number, as printed. */
+  /**
+   * The frame number as printed. Not always two digits: the set grew a 12b and
+   * a 25b rather than renumbering thirty screens, so this is a label and never
+   * an index.
+   */
   id: string;
   label: string;
 }
 
-export interface FrameGroup {
-  heading: string;
-  frames: FrameLink[];
-}
-
-/** The canonical frame list. v2 names — these are what the rest of the app labels these screens. */
-export const FRAME_INDEX: FrameGroup[] = [
-  {
-    heading: "Job 0 · Get in",
-    frames: [
-      { id: "01", label: "Passcode" },
-      { id: "02", label: "Passcode failed" },
-    ],
-  },
-  {
-    heading: "Job 1 · Roster and start",
-    frames: [
-      { id: "03", label: "Home, nothing running" },
-      { id: "04", label: "Home, night in progress" },
-      { id: "05", label: "Which night" },
-      { id: "06", label: "Who is here" },
-      { id: "07", label: "Courts" },
-      { id: "08", label: "How many matches each" },
-      { id: "09", label: "Ready" },
-    ],
-  },
-  {
-    heading: "Job 2 · Score the games",
-    frames: [
-      { id: "10", label: "Court view" },
-      { id: "11", label: "Score entry" },
-      { id: "12", label: "Court switcher" },
-      { id: "13", label: "Players tab" },
-      { id: "14", label: "Late arrival" },
-      { id: "15", label: "Extend" },
-      { id: "16", label: "Correct or void a result" },
-    ],
-  },
-  {
-    heading: "Job 3 · Standings",
-    frames: [
-      { id: "17", label: "Standings tab" },
-      { id: "18", label: "Tie broken by order" },
-    ],
-  },
-  {
-    heading: "Job 4 · Playoffs",
-    frames: [
-      { id: "19", label: "Playoff readiness, blocked" },
-      { id: "20", label: "Bracket" },
-      { id: "21", label: "Playoff match" },
-      { id: "22", label: "Champion" },
-      { id: "23", label: "Session summary" },
-    ],
-  },
-  {
-    heading: "States",
-    frames: [
-      { id: "24", label: "Empty, roster search" },
-      { id: "25", label: "Empty, court unassigned" },
-      { id: "26", label: "Error, score would not save" },
-      { id: "27", label: "Confirmation, end the night" },
-    ],
-  },
+/** The canonical frame list, verbatim from frame 00. */
+export const FRAME_INDEX: FrameLink[] = [
+  { id: "01", label: "Passcode, four digits" },
+  { id: "02", label: "Passcode failed" },
+  { id: "03", label: "Home, nothing running" },
+  { id: "04", label: "Home, night in progress" },
+  { id: "05", label: "Which night" },
+  { id: "06", label: "Who is here + tiers" },
+  { id: "07", label: "Split the courts" },
+  { id: "08", label: "Matches each" },
+  { id: "09", label: "Ready" },
+  { id: "10", label: "Court view" },
+  { id: "11", label: "Balance rule, why this four" },
+  { id: "12", label: "Score entry, both sides" },
+  { id: "12b", label: "Schedule, skip + return" },
+  { id: "13", label: "Both courts, one device" },
+  { id: "14", label: "Players tab" },
+  { id: "15", label: "Late arrival" },
+  { id: "16", label: "Correct, void, move, leave" },
+  { id: "17", label: "Standings" },
+  { id: "18", label: "Tie, first to this score" },
+  { id: "19", label: "How this court ends" },
+  { id: "20", label: "Playoff readiness, both" },
+  { id: "21", label: "Bracket, seeds split" },
+  { id: "22", label: "Playoff match" },
+  { id: "23", label: "Court 2 champions" },
+  { id: "24", label: "Court 1 champion" },
+  { id: "25", label: "Session summary" },
+  { id: "25b", label: "Night menu, end or restart" },
+  { id: "26", label: "Awkward headcounts" },
+  { id: "27", label: "Empty + error states" },
+  { id: "28", label: "Confirmation sheets" },
 ];
 
 export interface FrameIndexProps {
-  /** Opens a frame. Routing is the caller's job — this screen imports no router. */
+  /** Opens a frame. Routing is the caller's job: this screen imports no router. */
   onOpen?: (frameId: string) => void;
 }
 
 export const FrameIndex = ({ onOpen }: FrameIndexProps) => (
   <Screen>
-    <Body style={{ padding: "24px 20px 28px", boxSizing: "border-box" }}>
-      <h1 style={{
-        fontFamily: "'Playfair Display', serif", fontSize: 30, fontWeight: 600,
-        lineHeight: 1.1, margin: 0,
-      }}>Manage</h1>
-      <p style={{
-        fontSize: 15, lineHeight: 1.4, color: T.ink68, marginTop: 6, marginBottom: 0,
-      }}>Club PTO court manager. 27 frames, five jobs.</p>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 18, marginTop: 22 }}>
-        {FRAME_INDEX.map((group) => (
-          <div key={group.heading} style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-            <Eyebrow>{group.heading}</Eyebrow>
-            {group.frames.map((frame) => (
-              <div key={frame.id} style={{ display: "flex", gap: 10, fontSize: 15 }}>
-                {/* The number is a VALUE, so VT323. Lime-free here — plain ink. */}
-                <Num size={19} style={{ width: 24, flexShrink: 0 }}>{frame.id}</Num>
-                <button
-                  type="button"
-                  onClick={() => onOpen?.(frame.id)}
-                  style={{
-                    border: "none", background: "transparent", padding: 0, margin: 0,
-                    color: "inherit", font: "400 15px Inter, sans-serif", textAlign: "left",
-                    textDecoration: "none", cursor: "pointer",
-                  }}
-                >{frame.label}</button>
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
+    <Body style={{ padding: "22px 26px 26px", boxSizing: "border-box" }}>
+      {FRAME_INDEX.map((frame) => (
+        <button
+          key={frame.id}
+          type="button"
+          onClick={() => onOpen?.(frame.id)}
+          style={{
+            width: "100%", display: "flex", justifyContent: "space-between", gap: 10,
+            padding: "10px 0", border: "none", borderBottom: `1px solid ${T.line}`,
+            background: "transparent", color: T.ink, textAlign: "left", cursor: "pointer",
+          }}
+        >
+          <span style={{ font: `600 14px ${T.fontBody}` }}>{frame.label}</span>
+          {/* The number is a VALUE, so it wears the display face, and sage, as drawn. */}
+          <span style={{
+            fontFamily: T.fontHead, fontWeight: 400, fontSize: 15,
+            fontVariantNumeric: "tabular-nums", color: T.acc, flexShrink: 0,
+          }}>{frame.id}</span>
+        </button>
+      ))}
     </Body>
   </Screen>
 );

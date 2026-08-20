@@ -1,78 +1,107 @@
-// Frame 12 — Court switcher.
+// Frame 13, Both courts, one device.
 //
-// Not a modal. It is the court view with the persistent court strip in place of
-// the round header, plus a footer nudge toward the court that owes a score.
-// Switching preserves state on the court you leave, including a half-open
-// score sheet — that is the caller's job, not this component's.
+// The chip row in the header already flips courts in one tap, so this sheet is
+// not the switch, it is the answer to "what is the other court doing". That is
+// the whole of it: which court is mid-match, which is waiting on a score, and
+// the round each of them is on.
+//
+// So the status line is not decoration. A row with an activity always prints
+// one, and a court owing a score also wears the terracotta tag, because that
+// is the court the night is waiting on.
 
-import {
-  Body,
-  FooterBar,
-  PrimaryButton,
-  Screen,
-  T,
-  TabBar,
-  type Tab,
-} from "../../ui/primitives";
-import { CourtStrip } from "./CourtStrip";
-import { MatchCard } from "./MatchCard";
-import { WaitingBlock } from "./WaitingBlock";
-import type { CourtSummary, PairSide, WaitingPlayer } from "./model";
+import { Card, Sheet, T, Tag } from "../../ui/primitives";
+import { courtActivityLine, type CourtSummary } from "./model";
 
 export interface CourtSwitcherProps {
-  /** Every court, not just the focused one — the strip renders the whole list. */
+  /** Every court, not just the focused one. */
   courts: CourtSummary[];
   activeCourtNumber: number;
-  sideA: PairSide;
-  sideB: PairSide;
-  waiting: WaitingPlayer[];
   onSelectCourt: (courtNumber: number) => void;
-  activeTab?: Tab;
-  onTabChange: (tab: Tab) => void;
+  onDismiss: () => void;
 }
 
 export const CourtSwitcher = ({
   courts,
   activeCourtNumber,
-  sideA,
-  sideB,
-  waiting,
   onSelectCourt,
-  activeTab = "match",
-  onTabChange,
-}: CourtSwitcherProps) => {
-  // The first other court with a score due drives both the sentence and the
-  // button label. With none, the footer band collapses.
-  const due = courts.find((court) => court.scoreDue && court.number !== activeCourtNumber);
+  onDismiss,
+}: CourtSwitcherProps) => (
+  <Sheet onDismiss={onDismiss}>
+    <p style={{ fontFamily: T.fontHead, fontWeight: 400, fontSize: 18, margin: 0 }}>
+      Both courts run at once
+    </p>
 
-  return (
-    <Screen>
-      <CourtStrip
-        courts={courts}
-        activeCourtNumber={activeCourtNumber}
-        onSelectCourt={onSelectCourt}
-      />
+    {courts.map((court) => {
+      const here = court.number === activeCourtNumber;
+      const scoreDue = court.activity?.kind === "scoreDue";
 
-      <Body style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
-        <MatchCard sideA={sideA} sideB={sideB} compact slatSize={78} />
-        <WaitingBlock waiting={waiting} />
-      </Body>
-
-      {due != null && (
-        <FooterBar
-          helper={
-            <span style={{ font: "600 16px Inter, sans-serif", color: T.ink }}>
-              Court {due.number} has a score to record.
-            </span>
-          }
+      const row = (
+        <Card
+          tone={here ? "live" : "plain"}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+          }}
         >
-          <PrimaryButton onClick={() => onSelectCourt(due.number)}>
-            Go to Court {due.number}
-          </PrimaryButton>
-        </FooterBar>
-      )}
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontFamily: T.fontHead, fontWeight: 400, fontSize: 17, margin: 0 }}>
+              Court {court.number}
+            </p>
+            {/* A court with nobody on it has no line in frame 13, so it gets none. */}
+            {court.activity && (
+              <p style={{ font: `400 14px ${T.fontBody}`, color: T.mut, margin: "3px 0 0" }}>
+                {courtActivityLine(court.activity)}
+              </p>
+            )}
+          </div>
+          {/* The court you are standing on says so; any other court that owes a
+              score says that instead. Both at once is the court you are on, and
+              "You are here" is the more useful of the two. */}
+          {here ? (
+            <Tag>You are here</Tag>
+          ) : scoreDue ? (
+            <Tag tone="live">Score due</Tag>
+          ) : null}
+        </Card>
+      );
 
-      <TabBar active={activeTab} onChange={onTabChange} />
-    </Screen>
-  );
-};
+      // The active row is not a control. Tapping the court you are already on
+      // would close the sheet and look like a switch that did nothing.
+      return here ? (
+        <div key={court.number}>{row}</div>
+      ) : (
+        <button
+          key={court.number}
+          type="button"
+          onClick={() => onSelectCourt(court.number)}
+          style={{
+            display: "block",
+            width: "100%",
+            padding: 0,
+            border: "none",
+            background: "transparent",
+            textAlign: "left",
+            cursor: "pointer",
+          }}
+        >
+          {row}
+        </button>
+      );
+    })}
+
+    <p
+      style={{
+        font: `400 14.5px/1.45 ${T.fontBody}`,
+        color: T.mut,
+        textAlign: "center",
+        textWrap: "pretty",
+        margin: "2px 0 0",
+      }}
+    >
+      Flip mid-match, mid-score, mid-anything. Each court keeps its own schedule and picks up
+      exactly where it was.
+    </p>
+  </Sheet>
+);

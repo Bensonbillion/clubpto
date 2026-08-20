@@ -13,7 +13,7 @@
 // "Reached the total first" replaces all of that with something already
 // sitting in the data: the moment each player arrived at their final points.
 // Two players level on points and difference are separated by who got there
-// earlier. No coin, no overlay, no gate, nothing to explain to the room — and
+// earlier. No coin, no overlay, no gate, nothing to explain to the room, and
 // it is deterministic, so the same night always produces the same table.
 
 export const POINTS_PER_WIN = 3;
@@ -25,7 +25,7 @@ export interface PlayedMatch {
   completedAt: number | null;
   teamA: readonly string[];
   teamB: readonly string[];
-  /** Games won by each side — the "score difference" input. */
+  /** Games won by each side, the "score difference" input. */
   scoreA: number;
   scoreB: number;
 }
@@ -77,7 +77,7 @@ export function computeStandings(
 
     // Walk the night forward and note the FIRST moment the running total hit
     // the final one. A player who wins, loses, then wins again passes through
-    // 3 before ending on 6 — only the arrival at 6 counts, and only the first
+    // 3 before ending on 6, only the arrival at 6 counts, and only the first
     // one. Someone still on zero reached zero at their first match.
     let running = 0;
     let reachedAt: number | null = null;

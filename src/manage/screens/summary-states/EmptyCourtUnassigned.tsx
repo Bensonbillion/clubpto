@@ -1,104 +1,63 @@
-// Frame 24b — Empty, court unassigned (v2 `1z`).
+// Frame 27b, Empty, third court.
 //
-// v2 moves this out of the setup wizard and into the LIVE court view: switcher
-// on top, tab bar underneath, and the CTA names the specific court.
+// This was a whole screen once: court switcher, a big count, a rationale
+// paragraph and a pinned footer, on the live court view. Frame 27b moves it
+// back into setup and shrinks it to one dashed card inside frame 07, "Split
+// the courts", so it is built as that card and nothing more.
 //
-// Lime appears twice here on purpose and the spec sanctions it: the selected
-// court tile is the only lime in the upper half, the CTA the only fill in the
-// lower half.
+// Replacing the screen would be the wrong shape here even though the frame is
+// drawn on a phone body. The card says "Drag names across", and the names to
+// drag are in the OTHER courts' cards on the same screen. Take those away and
+// the instruction has nothing to point at.
 
-import type { Tab } from "../../ui/primitives";
-import { Body, FooterBar, Num, PrimaryButton, Screen, T, TabBar } from "../../ui/primitives";
-import { pad2 } from "./format";
+import { SecondaryButton, T } from "../../ui/primitives";
 
-export interface CourtTile {
-  courtNumber: number;
-  assignedPlayerCount: number;
-  /** One of the drawn strings: `Mid-match`, `Nobody assigned`. */
-  statusLabel: string;
-}
+/**
+ * How many courts you drop back TO, spelled the way the frame spells it.
+ *
+ * The frame draws the three-court case, "drop back to two courts". Frame 07
+ * offers one, two or three courts, so the only other empty court possible is
+ * Court 2, and it drops back to one. Anything outside that loses the clause
+ * rather than gaining an invented one; the sentence still closes cleanly on
+ * "Drag names across."
+ */
+const DROP_BACK_TO: Record<number, string> = { 2: "one court", 3: "two courts" };
 
 export interface EmptyCourtUnassignedProps {
-  /** FLAG: more than two courts is not drawn. The row just keeps flexing. */
-  courts: CourtTile[];
-  /** The empty court. Fires this frame on `assignedPlayerCount === 0`. */
-  activeCourtNumber: number;
-  activeTab: Tab;
-  onSelectCourt: (courtNumber: number) => void;
+  /** The court with nobody on it. Named three times in the drawn copy. */
+  courtNumber: number;
+  /**
+   * Opens whatever the caller uses to move players onto this court. The frame
+   * draws one control, so dropping back to fewer courts is left to the court
+   * count chips at the top of frame 07 rather than duplicated here.
+   */
   onAssignPlayers: (courtNumber: number) => void;
-  onTabChange: (tab: Tab) => void;
 }
 
-export const EmptyCourtUnassigned = ({
-  courts,
-  activeCourtNumber,
-  activeTab,
-  onSelectCourt,
-  onAssignPlayers,
-  onTabChange,
-}: EmptyCourtUnassignedProps) => {
-  const active = courts.find((c) => c.courtNumber === activeCourtNumber);
-  // The rationale sentence names the busiest other court, since that is the
-  // one carrying the long bench.
-  const other = courts
-    .filter((c) => c.courtNumber !== activeCourtNumber)
-    .sort((a, b) => b.assignedPlayerCount - a.assignedPlayerCount)[0];
+export const EmptyCourtUnassigned = ({ courtNumber, onAssignPlayers }: EmptyCourtUnassignedProps) => {
+  const dropBack = DROP_BACK_TO[courtNumber];
 
   return (
-    <Screen>
-      <div style={{
-        padding: "14px 18px", borderBottom: `1px solid ${T.lineSoft}`,
-        display: "flex", gap: 10,
+    <div style={{
+      background: T.raised, border: `1.5px dashed ${T.line}`, borderRadius: T.radius,
+      padding: "28px 18px", display: "flex", flexDirection: "column",
+      alignItems: "center", gap: 12, boxSizing: "border-box",
+    }}>
+      <span style={{ fontFamily: T.fontHead, fontWeight: 400, fontSize: 18 }}>
+        {`Court ${courtNumber}`}
+      </span>
+
+      <p style={{
+        font: `400 14.5px/1.6 ${T.fontBody}`, color: T.mut, margin: 0,
+        textAlign: "center", textWrap: "pretty",
       }}>
-        {courts.map((c) => {
-          const on = c.courtNumber === activeCourtNumber;
-          return (
-            <button key={c.courtNumber} type="button" onClick={() => onSelectCourt(c.courtNumber)} style={{
-              flex: 1, textAlign: "left", cursor: "pointer",
-              border: on ? `2px solid ${T.ink}` : `1px solid ${T.line}`,
-              background: on ? T.lime : "transparent",
-              color: on ? T.limeInk : T.ink,
-              borderRadius: T.radius, padding: "10px 12px",
-              display: "flex", flexDirection: "column", gap: 2,
-            }}>
-              <span style={{ font: "700 16px Inter, sans-serif" }}>{`Court ${c.courtNumber}`}</span>
-              <span style={{ font: "600 13px Inter, sans-serif" }}>{c.statusLabel}</span>
-            </button>
-          );
-        })}
-      </div>
+        {`Nobody on Court ${courtNumber} yet. Drag names across${dropBack ? `, or drop back to ${dropBack}` : ""}.`}
+      </p>
 
-      <Body style={{
-        padding: "28px 18px", display: "flex", flexDirection: "column", gap: 14,
-        alignItems: "flex-start",
-      }}>
-        <Num size={64} style={{ lineHeight: 0.9 }}>{pad2(active ? active.assignedPlayerCount : 0)}</Num>
-        <div style={{ font: "700 20px/1.3 Inter, sans-serif" }}>
-          {`Court ${activeCourtNumber} has nobody on it yet.`}
-        </div>
-        {/* FLAG: the rationale asserts the other court is overloaded. When it is
-            not, no alternate sentence is approved, so nothing is rendered. */}
-        {other != null && (
-          <div style={{ font: "400 16px/1.45 Inter, sans-serif", color: T.ink68, textWrap: "pretty" }}>
-            {`Court ${other.courtNumber} is carrying `}
-            <Num size={20}>{other.assignedPlayerCount}</Num>
-            {" players, so the bench is long. Move half of them over and both courts run at once."}
-          </div>
-        )}
-      </Body>
-
-      <FooterBar helper={
-        <span style={{ font: "600 16px Inter, sans-serif", color: T.ink }}>
-          {`Court ${activeCourtNumber} is empty.`}
-        </span>
-      }>
-        <PrimaryButton
-          onClick={() => onAssignPlayers(activeCourtNumber)}
-          style={{ height: 56, font: "700 18px Inter, sans-serif" }}
-        >{`Assign players to Court ${activeCourtNumber}`}</PrimaryButton>
-      </FooterBar>
-
-      <TabBar active={activeTab} onChange={onTabChange} />
-    </Screen>
+      <SecondaryButton
+        onClick={() => onAssignPlayers(courtNumber)}
+        style={{ width: "auto", minHeight: 46, padding: "8px 24px" }}
+      >Assign players</SecondaryButton>
+    </div>
   );
 };
