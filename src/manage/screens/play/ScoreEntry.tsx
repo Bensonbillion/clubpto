@@ -28,18 +28,24 @@ export interface ScoreEntryProps {
   /** The two pairs, in the order frame 10 drew them. */
   pairA: string;
   pairB: string;
-  /** Which box the keypad starts on, from the card the operator tapped. */
-  initialSide?: "A" | "B";
-  /** Existing numbers when a recorded score is being corrected (frame 16). */
-  scoreA?: number | null;
-  scoreB?: number | null;
+  /**
+   * The whole entry lives in the CALLER, not here. Script 2's demand: flip to
+   * the other court with one number typed, and the sheet must come back with
+   * that number still staged. Component state dies with the flip, so the
+   * digits are the shell's per-court memory and this screen just draws them.
+   */
+  side: "A" | "B";
+  a: string;
+  b: string;
+  onEntry: (next: { side: "A" | "B"; a: string; b: string }) => void;
   /** Save. Both numbers, in pair order; the caller decides who won. */
   onSave: (scoreA: number, scoreB: number) => void;
   /** Frame 12 draws no cancel, so the scrim is the way out. */
   onDismiss: () => void;
 }
 
-const startValue = (score: number | null | undefined): string =>
+/** Exported for the shell, which now owns the draft it seeds from a score. */
+export const startValue = (score: number | null | undefined): string =>
   score == null ? "" : String(score);
 
 /** Past this, a number is far more often a mistap than a result. */
@@ -52,13 +58,13 @@ export const ScoreEntry = ({
   onOpenNightMenu,
   pairA,
   pairB,
-  initialSide = "A",
-  scoreA,
-  scoreB,
+  side,
+  a,
+  b,
+  onEntry,
   onSave,
   onDismiss,
 }: ScoreEntryProps) => {
-  const [side, setSide] = useState<"A" | "B">(initialSide);
   /**
    * The big-score nudge. Found on a live walk: a mistap recorded 75-0 and the
    * night carried a +74 score difference nobody meant. Games at the club go
@@ -69,11 +75,22 @@ export const ScoreEntry = ({
   const [confirmBig, setConfirmBig] = useState(false);
   // Any edit withdraws the nudge: the number it asked about no longer exists.
   const unNudge = () => setConfirmBig(false);
-  const [a, setA] = useState(() => startValue(scoreA));
-  const [b, setB] = useState(() => startValue(scoreB));
+  /**
+   * Level-score line. A draw is refused by the writer, and refusing silently
+   * looked like a save that lost the numbers. The sentence says what to do:
+   * one side won, so tap it and put the winning number right.
+   */
+  const [levelHeld, setLevelHeld] = useState(false);
 
   const current = side === "A" ? a : b;
-  const write = (next: string) => (side === "A" ? setA(next) : setB(next));
+  const write = (next: string) => {
+    setLevelHeld(false);
+    onEntry(side === "A" ? { side, a: next, b } : { side, a, b: next });
+  };
+  const setSide = (which: "A" | "B") => {
+    setLevelHeld(false);
+    onEntry({ side: which, a, b });
+  };
 
   // Two digits is the whole range a padel score reaches, and capping here is
   // what stops a stuck thumb turning 7 into 777 on a phone with no cursor.
@@ -172,7 +189,11 @@ export const ScoreEntry = ({
 
         {/* The frame joins the first two clauses with an em dash. The house
             voice does not use one, so it takes the night spec's own "so". */}
-        {confirmBig ? (
+        {levelHeld ? (
+          <p style={{ font: `600 14.5px/1.5 ${T.fontBody}`, color: T.ink, margin: 0 }}>
+            Level score. Tap the side that won and set its number.
+          </p>
+        ) : confirmBig ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {/* No frame draws this state. The sentence names the number and
                 what to do, and never apologises. Fixing is the filled action
@@ -211,6 +232,10 @@ export const ScoreEntry = ({
             "Save",
             () => {
               if (!ready) return;
+              if (Number(a) === Number(b)) {
+                setLevelHeld(true);
+                return;
+              }
               if (Math.max(Number(a), Number(b)) > BIG_SCORE && !confirmBig) {
                 setConfirmBig(true);
                 return;

@@ -12,7 +12,7 @@ export type { CourtViewProps } from "./CourtView";
 export { BalanceRule } from "./BalanceRule";
 export type { BalanceRuleProps } from "./BalanceRule";
 
-export { ScoreEntry } from "./ScoreEntry";
+export { ScoreEntry, startValue } from "./ScoreEntry";
 export type { ScoreEntryProps } from "./ScoreEntry";
 
 export { Schedule } from "./Schedule";

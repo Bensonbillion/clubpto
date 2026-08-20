@@ -24,6 +24,8 @@ export interface CourtViewProps {
   round: number;
   onPreviousMatch: () => void;
   onNextMatch: () => void;
+  /** See MatchNav. Set by the shell while the pager is off the live match. */
+  pagerFlag?: string;
   sideA: PairSide;
   sideB: PairSide;
   waiting: WaitingPlayer[];
@@ -45,6 +47,7 @@ export const CourtView = ({
   round,
   onPreviousMatch,
   onNextMatch,
+  pagerFlag,
   sideA,
   sideB,
   waiting,
@@ -67,6 +70,7 @@ export const CourtView = ({
       round={round}
       onPreviousMatch={onPreviousMatch}
       onNextMatch={onNextMatch}
+      flag={pagerFlag}
       onExplain={onWhyThisFour}
     />
 
