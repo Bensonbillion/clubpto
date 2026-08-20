@@ -131,7 +131,7 @@ const FRESH_COURT_UI: CourtUi = {
 };
 
 /** Night-wide overlays. One at a time, and none of them belongs to a court. */
-type NightSheet = "nightMenu" | "summary" | "endNight" | "extend" | "lateArrival" | "courtSwitcher" | "deleteBracket";
+type NightSheet = "nightMenu" | "summary" | "endNight" | "extend" | "lateArrival" | "courtSwitcher" | "deleteBracket" | "resetEverything";
 
 /**
  * Frame 25b, the night menu.
@@ -143,6 +143,7 @@ type NightSheet = "nightMenu" | "summary" | "endNight" | "extend" | "lateArrival
  */
 const NightMenu = ({
   dayLabel, onSessionSummary, onOneMoreRound, onStartOver, onEndNight, onClose, onDeleteBracket,
+  onResetEverything,
 }: {
   dayLabel: string;
   onSessionSummary: () => void;
@@ -152,6 +153,8 @@ const NightMenu = ({
   onClose: () => void;
   /** Only passed while the active court has a seeded bracket. */
   onDeleteBracket?: () => void;
+  /** The full wipe: players, tiers, games, brackets. Opens a confirm. */
+  onResetEverything: () => void;
 }) => (
   <Sheet onDismiss={onClose}>
     <p style={{ fontFamily: T.fontHead, fontWeight: 400, fontSize: 18, margin: 0 }}>{dayLabel}</p>
@@ -183,6 +186,15 @@ const NightMenu = ({
       </SecondaryButton>
     )}
     <DangerButton onClick={onEndNight}>End the night</DangerButton>
+    {/*
+      Not on frame 25b either. Start over keeps the roster by design, which
+      left no way to wipe a device clean: a test session, or the wrong club's
+      roster, was permanent. This is the one action that loses the roster, so
+      it opens a confirm that names exactly that.
+    */}
+    <TertiaryButton onClick={onResetEverything} style={{ color: T.redInk }}>
+      Reset everything
+    </TertiaryButton>
     <TertiaryButton onClick={onClose}>Close</TertiaryButton>
   </Sheet>
 );
@@ -454,6 +466,7 @@ export default function ManageApp() {
           : [])}
         onResume={() => setAtCourt(true)}
         onStartDifferentNight={() => enterSetup()}
+        onOpenNightMenu={() => { setAtCourt(true); setSheet("nightMenu"); }}
       />
     );
   }
@@ -865,10 +878,34 @@ export default function ManageApp() {
           onDeleteBracket={view.court.playoffSeeded
             ? () => setSheet("deleteBracket")
             : undefined}
+          onResetEverything={() => setSheet("resetEverything")}
           onClose={() => setSheet(null)}
         />
       )}
 
+      {sheet === "resetEverything" && (
+        <Sheet tone="danger" onDismiss={() => setSheet(null)}>
+          <p style={{ fontFamily: T.fontHead, fontWeight: 400, fontSize: 18, margin: 0 }}>
+            Reset everything?
+          </p>
+          {/* Frame 26's guidance: every destructive action names exactly what
+              will be lost. This one loses the most, so it says so plainly. */}
+          <p style={{ font: `400 14.5px/1.6 ${T.fontBody}`, color: T.mut, margin: 0 }}>
+            Every player, their tiers, every game and every bracket on this
+            device. The app goes back to a blank start. Nothing can bring it back.
+          </p>
+          <SecondaryButton onClick={() => setSheet(null)}>Keep the night</SecondaryButton>
+          <DangerButton onClick={() => {
+            s.resetEverything();
+            setSheet(null);
+            setUiByCourt({});
+            setInSetup(false);
+            setAtCourt(false);
+          }}>
+            Reset everything
+          </DangerButton>
+        </Sheet>
+      )}
       {sheet === "deleteBracket" && (
         <ConfirmDeletePlayoff
           courtNumber={courtNumber}

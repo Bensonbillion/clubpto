@@ -38,6 +38,12 @@ export interface HomeNightInProgressProps {
   onResume: () => void;
   /** → frame 05. Must not delete or void the in-progress night's results. */
   onStartDifferentNight: () => void;
+  /**
+   * Opens the night menu (frame 25b) without resuming. The frame says the menu
+   * is "one tap away from any screen, either court, all night", and Home is a
+   * screen: ending or resetting a night must not require walking back into it.
+   */
+  onOpenNightMenu?: () => void;
 }
 
 /** One court's clause. The frame writes these two and no others. */
@@ -52,6 +58,7 @@ export const HomeNightInProgress = ({
   loading,
   onResume,
   onStartDifferentNight,
+  onOpenNightMenu,
 }: HomeNightInProgressProps) => {
   const sentence = courts.length > 0 ? `${courts.map(clause).join(", ")}.` : null;
 
@@ -89,6 +96,9 @@ export const HomeNightInProgress = ({
       <FooterBar>
         <PrimaryButton onClick={onResume}>Resume the night</PrimaryButton>
         <TertiaryButton onClick={onStartDifferentNight}>Start a different night</TertiaryButton>
+        {onOpenNightMenu && (
+          <TertiaryButton onClick={onOpenNightMenu}>Night menu</TertiaryButton>
+        )}
       </FooterBar>
     </Screen>
   );
