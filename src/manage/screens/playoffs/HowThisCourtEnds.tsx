@@ -45,6 +45,17 @@ export interface BracketShape {
 }
 
 export interface HowThisCourtEndsProps {
+  /**
+   * The court chip row and the night menu, rendered above everything else.
+   *
+   * Found on a live walk: once a bracket existed, the operator was TRAPPED on
+   * that court. Every playoff screen drew its own head and none carried the
+   * court header, so there were no tabs to flip with and no menu to end the
+   * night from. Frame A13 promises "flip mid-match, mid-score, mid-anything"
+   * and frame 25b promises the menu "from any screen, either court, all
+   * night", and a champion screen is a screen.
+   */
+  header?: ReactNode;
   courtNumber: number;
   bracketShape: BracketShape;
   /**
@@ -109,11 +120,13 @@ const otherCourtLine = (
     : undefined;
 
 export const HowThisCourtEnds = ({
+  header,
   courtNumber, oneMoreRound, otherCourt,
   onChooseDoublesBracket, onChooseOneMoreRound,
   bracketShape,
 }: HowThisCourtEndsProps) => (
   <Screen>
+    {header}
     <PlayoffHeader
       left={<Heading>How should Court {courtNumber} end?</Heading>}
       right={<Eyebrow>Targets met</Eyebrow>}
@@ -133,7 +146,7 @@ export const HowThisCourtEnds = ({
           {wordFor(bracketShape.pairs)} pairs,{" "}
           {bracketShape.hasPlayIn ? "a play-in, two semis" : bracketShape.pairs === 2 ? "one final" : "two semis"}
           {bracketShape.pairs > 2 ? ", a final" : ""}.{" "}
-          {wordFor(bracketShape.matches)} matches, everyone on court plays,
+          {bracketShape.matches === 1 ? "One match" : `${wordFor(bracketShape.matches)} matches`}, everyone on court plays,
           about half an hour.
           {bracketShape.hasTrio ? " The last pair rotates three players so nobody watches." : ""}
         </Detail>
