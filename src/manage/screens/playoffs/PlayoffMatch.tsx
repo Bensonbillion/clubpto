@@ -13,7 +13,7 @@
 // spent two hours in a different flow and is about to wonder whether this one
 // is different.
 
-import type { CSSProperties } from "react";
+import type { CSSProperties , ReactNode } from "react";
 import {
   Eyebrow,
   FooterBar,
@@ -31,6 +31,17 @@ import type { PlayoffTeam } from "./model";
 const SLAT_SIZE = 86;
 
 export interface PlayoffMatchProps {
+  /**
+   * The court chip row and the night menu, rendered above everything else.
+   *
+   * Found on a live walk: once a bracket existed, the operator was TRAPPED on
+   * that court. Every playoff screen drew its own head and none carried the
+   * court header, so there were no tabs to flip with and no menu to end the
+   * night from. Frame A13 promises "flip mid-match, mid-score, mid-anything"
+   * and frame 25b promises the menu "from any screen, either court, all
+   * night", and a champion screen is a screen.
+   */
+  header?: ReactNode;
   courtNumber: number;
   /** `Semifinal`, `Play-in`, `Final`: the singular stage word. */
   stageLabel: string;
@@ -86,6 +97,7 @@ const SideCard = ({ team, dim, onPick, style }: {
 );
 
 export const PlayoffMatch = ({
+  header,
   courtNumber,
   stageLabel,
   stageMatchNumber,
@@ -102,6 +114,7 @@ export const PlayoffMatch = ({
 
   return (
     <Screen>
+    {header}
       <PlayoffHeader
         flush
         left={

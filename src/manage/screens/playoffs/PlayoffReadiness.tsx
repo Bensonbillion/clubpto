@@ -65,6 +65,17 @@ export type SeedingBlocker =
     };
 
 export interface PlayoffReadinessProps {
+  /**
+   * The court chip row and the night menu, rendered above everything else.
+   *
+   * Found on a live walk: once a bracket existed, the operator was TRAPPED on
+   * that court. Every playoff screen drew its own head and none carried the
+   * court header, so there were no tabs to flip with and no menu to end the
+   * night from. Frame A13 promises "flip mid-match, mid-score, mid-anything"
+   * and frame 25b promises the menu "from any screen, either court, all
+   * night", and a champion screen is a screen.
+   */
+  header?: ReactNode;
   courtNumber: number;
   /** Null renders the ready gate, frame 20b. */
   blocker: SeedingBlocker | null;
@@ -108,6 +119,7 @@ const Skeleton = () => (
 );
 
 export const PlayoffReadiness = ({
+  header,
   courtNumber,
   blocker,
   playersOnCourt,
@@ -149,6 +161,7 @@ export const PlayoffReadiness = ({
 
   return (
     <Screen>
+    {header}
       <PlayoffHeader
         left={<Heading>Playoff, Court {courtNumber}</Heading>}
         right={step != null ? <Eyebrow>{step}</Eyebrow> : undefined}

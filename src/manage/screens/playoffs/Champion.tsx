@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 // Frame 23: Court champions, the doubles bracket's ending.
 //
 // The floor drops out: this screen is --deep rather than paper, and it is the
@@ -30,6 +31,17 @@ import { joinPair, scoreText } from "./model";
 const LOSING_INK = "#5c554d";
 
 export interface ChampionProps {
+  /**
+   * The court chip row and the night menu, rendered above everything else.
+   *
+   * Found on a live walk: once a bracket existed, the operator was TRAPPED on
+   * that court. Every playoff screen drew its own head and none carried the
+   * court header, so there were no tabs to flip with and no menu to end the
+   * night from. Frame A13 promises "flip mid-match, mid-score, mid-anything"
+   * and frame 25b promises the menu "from any screen, either court, all
+   * night", and a champion screen is a screen.
+   */
+  header?: ReactNode;
   courtNumber: number;
   /**
    * Two names, or three when the winning side was a rotating trio.
@@ -48,6 +60,7 @@ export interface ChampionProps {
 }
 
 export const Champion = ({
+  header,
   courtNumber,
   championNames,
   scoreWinner,
@@ -57,6 +70,7 @@ export const Champion = ({
   onBackToBracket,
 }: ChampionProps) => (
   <Screen style={{ background: T.deep }}>
+    {header}
     <Body style={{
       display: "flex", flexDirection: "column", justifyContent: "center",
       alignItems: "center", gap: 20, padding: "0 26px", textAlign: "center",

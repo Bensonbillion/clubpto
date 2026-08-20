@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 // Frame 24: Court champion, the OTHER ending.
 //
 // A court that chose one more round has no bracket and no final. Everyone plays
@@ -32,6 +33,17 @@ export interface RunnerUpLine {
 }
 
 export interface IndividualChampionProps {
+  /**
+   * The court chip row and the night menu, rendered above everything else.
+   *
+   * Found on a live walk: once a bracket existed, the operator was TRAPPED on
+   * that court. Every playoff screen drew its own head and none carried the
+   * court header, so there were no tabs to flip with and no menu to end the
+   * night from. Frame A13 promises "flip mid-match, mid-score, mid-anything"
+   * and frame 25b promises the menu "from any screen, either court, all
+   * night", and a champion screen is a screen.
+   */
+  header?: ReactNode;
   courtNumber: number;
   championName: string;
   points: number;
@@ -77,6 +89,7 @@ const runnersUpLine = (
 };
 
 export const IndividualChampion = ({
+  header,
   courtNumber,
   championName,
   points,
@@ -92,6 +105,7 @@ export const IndividualChampion = ({
 
   return (
     <Screen style={{ background: T.deep }}>
+    {header}
       <Body style={{
         display: "flex", flexDirection: "column", justifyContent: "center",
         alignItems: "center", gap: 18, padding: "0 26px", textAlign: "center",

@@ -42,7 +42,7 @@ import {
 import type { Match, PlayerTier, PlayoffStage } from "./types";
 import { Passcode, PasscodeFailed, HomeNothingRunning, HomeNightInProgress } from "./screens/door-home";
 import { WhichNight, WhoIsHere, Courts, MatchesEach, Ready, Chip } from "./screens/setup";
-import { BalanceRule, CourtView, CourtSwitcher, Schedule, ScoreEntry } from "./screens/play";
+import { CourtHeader, BalanceRule, CourtView, CourtSwitcher, Schedule, ScoreEntry } from "./screens/play";
 import { CorrectOrVoid, Extend, LateArrival, LeavesEarly, MoveCourts, PlayersTab } from "./screens/people";
 import { StandingsTab, TieBrokenByOrder, type StandingsTabRow } from "./screens/standings";
 import {
@@ -859,6 +859,14 @@ export default function ManageApp() {
   };
 
   /**
+   * The court chip row for the screens that do not build their own header.
+   * Every playoff-phase screen takes it as a slot, because a walk of the live
+   * app found the operator trapped on a finished bracket: no tabs, no menu, no
+   * way to the other court or to ending the night.
+   */
+  const courtHeader = <CourtHeader {...headerProps} onSelectCourt={setCourt} />;
+
+  /**
    * The sheets. Rendered under every screen below, because frame 25b is one
    * tap from all of them and a correction can be opened from two places.
    */
@@ -1324,6 +1332,7 @@ export default function ManageApp() {
       return (
         <>
           <PlayoffMatch
+            header={courtHeader}
             courtNumber={courtNumber}
             stageLabel={tie ? STAGE_WORD[tie.stage] : STAGE_WORD.final}
             stageMatchNumber={stage && stage.ties.length > 1
@@ -1354,6 +1363,7 @@ export default function ManageApp() {
       return (
         <>
           <Champion
+            header={courtHeader}
             courtNumber={courtNumber}
             championNames={view.champion.map(name)}
             scoreWinner={Math.max(final?.scoreA ?? 0, final?.scoreB ?? 0)}
@@ -1371,6 +1381,7 @@ export default function ManageApp() {
     return (
       <>
         <Bracket
+            header={courtHeader}
           courtNumber={courtNumber}
           stages={stages.map((st, stageIndex) => ({
             name: st.label,
@@ -1443,6 +1454,7 @@ export default function ManageApp() {
       return (
         <>
           <HowThisCourtEnds
+            header={courtHeader}
             courtNumber={courtNumber}
             // The real shape for THIS headcount, from the same engine that
             // will build the bracket, so the card cannot promise eight-player
@@ -1485,6 +1497,7 @@ export default function ManageApp() {
         return (
           <>
             <IndividualChampion
+            header={courtHeader}
               courtNumber={courtNumber}
               championName={name(top.playerId)}
               points={top.points}
@@ -1511,6 +1524,7 @@ export default function ManageApp() {
       return (
         <>
           <PlayoffReadiness
+            header={courtHeader}
             courtNumber={courtNumber}
             // Frame 20a's card exists for exactly one blocker the operator can
             // act on: a match is on court and its score is not in. Everything

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 // Frame 21: the bracket, as a VERTICAL STAGE LIST.
 //
 // Never a horizontal tree, never an SVG connector diagram. Each stage is a
@@ -34,6 +35,17 @@ import type { BracketStage } from "./model";
 const SKELETON_ROW_HEIGHT = 92;
 
 export interface BracketProps {
+  /**
+   * The court chip row and the night menu, rendered above everything else.
+   *
+   * Found on a live walk: once a bracket existed, the operator was TRAPPED on
+   * that court. Every playoff screen drew its own head and none carried the
+   * court header, so there were no tabs to flip with and no menu to end the
+   * night from. Frame A13 promises "flip mid-match, mid-score, mid-anything"
+   * and frame 25b promises the menu "from any screen, either court, all
+   * night", and a champion screen is a screen.
+   */
+  header?: ReactNode;
   courtNumber: number;
   /** In play order. Stage names come from the court size. */
   stages: BracketStage[];
@@ -60,6 +72,7 @@ export interface BracketProps {
 // FLAG: no empty state exists either. Frame 21 is unreachable before seeding.
 
 export const Bracket = ({
+  header,
   courtNumber,
   stages,
   matchOnCourtId,
@@ -71,6 +84,7 @@ export const Bracket = ({
   onSelectTab,
 }: BracketProps) => (
   <Screen>
+    {header}
     <PlayoffHeader
       left={<Heading>Playoff</Heading>}
       right={<CourtLabel>Court {courtNumber}</CourtLabel>}
