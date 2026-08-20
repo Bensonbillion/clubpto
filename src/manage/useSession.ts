@@ -14,8 +14,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSessionStore, type SessionStore, type SyncStatus } from "@/court-manager/persistence";
 import type { Court, CourtNumber, Match, Player, PlayerTier, ScheduleSlot, Session } from "./types";
-import { buildQueue, nextMatch, courtComplete, matchesPlayedBy, totalMatches } from "./engine/rotation";
+import { buildQueue, lawContextFor, nextMatch, courtComplete, matchesPlayedBy, totalMatches } from "./engine/rotation";
 import { canFieldACMatch, designateB, tierOf as tierOfPlayer } from "./engine/tiers";
+import { legalSubstitutes, swapIntoMatch } from "./engine/substitutes";
 import { computeStandings, type PlayedMatch, type StandingsRow } from "./engine/standings";
 import { buildStages, champion, nextTie, orderedPlayerIds, readiness, seedPairs, seedPlayoffMatch,
   type SeededPair, type Stage } from "./engine/playoff";
@@ -355,6 +356,78 @@ export const writeScore = (
   };
 
 /**
+ * Replace one seat in the court's live group match, bench player in, court
+ * player out.
+ *
+ * Every refusal is a no-op rather than a throw, because a mis-tap mid-night
+ * must change nothing rather than corrupt a lineup. Refused when the court has
+ * no live group match, when the match already carries a score, and when the
+ * swap is not one the laws allow. That last gate is a single membership check
+ * against engine/substitutes.ts on purpose: legalSubstitutes already returns
+ * nobody for an outId that is not in the match and never offers a bench player
+ * the next lineup would be illegal with, so re-testing those cases here would
+ * be a second copy of the laws waiting to drift.
+ *
+ * The score refusal exists because a recorded number belongs to the four who
+ * played it. Swapping a seat under a score would file the result against
+ * somebody who never stood on the court, and the standings would carry that
+ * lie all night.
+ *
+ * The player coming out needs no bookkeeping. Only played matches count
+ * anywhere in the engine, so stepping out of a live match leaves their played
+ * count where it was and the queue re-offers them the game they are still
+ * owed.
+ */
+export const swapInLive = (
+  session: Session, courtNumber: CourtNumber, outId: string, inId: string,
+): Session => {
+  const live = groupLive(session.matches, courtNumber);
+  if (!live) return session;
+  if (live.scoreA !== null || live.scoreB !== null) return session;
+
+  const ctx = lawContextFor(session.players, courtNumber);
+  if (!legalSubstitutes(live, outId, session.players, ctx).some((p) => p.id === inId)) {
+    return session;
+  }
+  return {
+    ...session,
+    matches: session.matches.map((m) => (m.id === live.id ? swapIntoMatch(m, outId, inId) : m)),
+  };
+};
+
+/**
+ * Throw the live lineup back and draw the row afresh.
+ *
+ * DELETED, not voided, and the difference is the point. A voided match is a
+ * game that happened and was struck, and its row stays in the log saying so. A
+ * redraw says the game never happened at all: the match row goes entirely, the
+ * slot reopens as a projection, and the fresh draw is free to pick any legal
+ * four instead of being anchored to the four who were standing there.
+ *
+ * Refused once a score exists, because a scored game is history and the way
+ * back through history is to void the result (frame 16), not to erase it.
+ * Refused for a playoff row, because a bracket's lineups are seeded off the
+ * standings and are not the queue's to re-deal.
+ *
+ * The fresh draw reuses playNextSlot rather than minting a match here, so
+ * putOnCourt stays the only place a group match comes into existence and the
+ * redraw cannot invent a lineup the card would never have offered.
+ */
+export const redrawLive = (
+  session: Session, courtNumber: CourtNumber, now: number,
+): Session => {
+  const live = anythingLive(session.matches, courtNumber);
+  if (!live || live.stage !== null) return session;
+  if (live.scoreA !== null || live.scoreB !== null) return session;
+
+  const without: Session = {
+    ...session,
+    matches: session.matches.filter((m) => m.id !== live.id),
+  };
+  return playNextSlot(without, courtNumber, now);
+};
+
+/**
  * Start tonight over. "Start over clears every game and bracket. The roster
  * and tiers stay."
  *
@@ -383,6 +456,46 @@ export const startOverSession = (session: Session, now: number): Session => ({
     ({ ...c, playoffSeeded: false, champion: null, ending: null })),
   players: session.players.map((p) => ({ ...p, joinedAtMatchIndex: null })),
 });
+
+/**
+ * Back to the setup wizard with tonight's people intact.
+ *
+ * The middle ground the other two resets refuse to be. startOver stays on a
+ * running night, so it cannot reopen the wizard when the courts themselves
+ * were dealt wrong. beginNewNight is for an ENDED night and moves the id and
+ * the date to today, so reaching for it mid-Wednesday would file tonight's
+ * do-over as a different night. This one keeps the night's identity and its
+ * whole roster, tiers and court assignments included, deletes every match
+ * played or not, group and playoff alike, resets each court's seeding,
+ * champion and ending while keeping its number and target, and returns status
+ * to "setup" so the wizard reopens at the courts step.
+ *
+ * joinedAtMatchIndex clears for the same reason it clears in startOverSession:
+ * it points into a match log that no longer exists, and nobody arrived late to
+ * a night that has not been played yet.
+ */
+export const restartSetupSession = (session: Session): Session => ({
+  ...session,
+  status: "setup" as const,
+  startedAt: null,
+  endedAt: null,
+  matches: [],
+  courts: session.courts.map((c) =>
+    ({ ...c, playoffSeeded: false, champion: null, ending: null })),
+  players: session.players.map((p) => ({ ...p, joinedAtMatchIndex: null })),
+});
+
+/**
+ * How many recorded results a restart would delete, group and playoff alike.
+ *
+ * The confirm sheet must name this number, because "restart setup" reads as
+ * administrative while what it actually destroys is results, and a sheet that
+ * cannot say how many is asking the operator to confirm blind. Played rows
+ * only: a voided match already counts for nothing, and a live or skipped row
+ * without a score is not yet a result anyone recorded.
+ */
+export const recordedResultCount = (session: Session): number =>
+  session.matches.filter((m) => m.status === "played").length;
 
 /**
  * The number a playoff match is filed under.
@@ -679,6 +792,14 @@ export function useManageSession() {
       matches: s.matches.map((m) => m.id !== matchId ? m : { ...m, status: "voided" as const }),
     })), [commit]);
 
+  /** Swap one seat in the live group match. See swapInLive for the refusals. */
+  const swapInLiveMatch = useCallback((courtNumber: number, outId: string, inId: string) =>
+    commit((s) => swapInLive(s, courtNumber, outId, inId)), [commit]);
+
+  /** Delete the live unscored group match and draw a fresh legal four. */
+  const redrawLiveMatch = useCallback((courtNumber: number) =>
+    commit((s) => redrawLive(s, courtNumber, Date.now())), [commit]);
+
   const setAway = useCallback((playerId: string, away: boolean) =>
     commit((s) => ({
       ...s,
@@ -782,6 +903,13 @@ export function useManageSession() {
     commit((s) => startOverSession(s, Date.now())), [commit]);
 
   /**
+   * Back to the setup wizard, roster intact, every match gone. The confirm
+   * sheet should name recordedResultCount(session) before calling this.
+   */
+  const restartSetup = useCallback(() =>
+    commit((s) => restartSetupSession(s)), [commit]);
+
+  /**
    * Back to a blank app: every player, tier, game and bracket goes.
    *
    * Start-over is the reset for a night that went wrong; this is the reset for
@@ -871,7 +999,9 @@ export function useManageSession() {
     setDayLabel, addRosterPlayer, addWalkIn, removePlayer, assignCourt, setTier,
     setCourts, setTarget, extend, start,
     ensureOnCourt, skipMatch, goToMatch, recordScore, correctScore, voidMatch, setAway,
-    seedPlayoff, advancePlayoff, deletePlayoff, setEnding, beginNewNight, startOver, resetEverything, endNight,
+    swapInLiveMatch, redrawLiveMatch,
+    seedPlayoff, advancePlayoff, deletePlayoff, setEnding, beginNewNight, startOver,
+    restartSetup, resetEverything, endNight,
   };
 }
 
