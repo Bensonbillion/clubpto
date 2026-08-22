@@ -52,3 +52,17 @@ describe("two instances on one device never see each other's night", () => {
     expect(again.state.dayLabel).toBe("Wednesday, court 2");
   });
 });
+
+describe("each manager has its own action colour", () => {
+  it("Manager 1 keeps sage, Manager 2 is visibly different, both readable on the same ink", async () => {
+    const { INSTANCE_ACCENTS, T } = await import("../ui/primitives");
+    // The default is the sage every frame was drawn in, so nothing on /manage
+    // changes colour because /manage2 exists.
+    expect(INSTANCE_ACCENTS[1].acc).toBe("#aebf92");
+    expect(INSTANCE_ACCENTS[2].acc).not.toBe(INSTANCE_ACCENTS[1].acc);
+    // Screens reach the accent through the variable with sage as the fallback,
+    // so a screen rendered outside a manager is still sage.
+    expect(T.acc).toContain("var(--cm-acc, #aebf92)");
+    expect(T.accd).toContain("var(--cm-accd, #56633f)");
+  });
+});
