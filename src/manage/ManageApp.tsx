@@ -24,9 +24,7 @@
 
 import { useMemo, useEffect, useState } from "react";
 import { ensureManageFonts } from "./ui/fonts";
-import {
-  DangerButton, PrimaryButton, SecondaryButton, Sheet, T, Tag, TertiaryButton, type Tab,
-} from "./ui/primitives";
+import { applyInstanceAccent, DangerButton, PrimaryButton, SecondaryButton, Sheet, T, Tag, TertiaryButton, type Tab } from "./ui/primitives";
 import { recordedResultCount, storageKeyFor, useManageSession } from "./useSession";
 import { useRoster } from "./roster/useRoster";
 import { dedupeWalkIn } from "./roster/merge";
@@ -396,6 +394,9 @@ export interface ManageAppProps {
 
 export default function ManageApp({ instance = 1 }: ManageAppProps) {
   useEffect(ensureManageFonts, []);
+  // Manager 2 wears a different action colour on every screen, so two phones
+  // or two tabs are told apart at a glance. Cleans up when the manager leaves.
+  useEffect(() => applyInstanceAccent(instance), [instance]);
 
   const s = useManageSession(storageKeyFor(instance));
   // Named only on the second manager, on the door and at home, so two tabs on

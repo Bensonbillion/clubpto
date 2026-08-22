@@ -31,6 +31,45 @@ const MUT = "#c2b7a5";
 const SOFT = "#a89d8c";
 const ACC = "#aebf92";
 const ACCD = "#56633f";
+
+/**
+ * The action colour per manager instance.
+ *
+ * /manage and /manage2 are the same app, and the club runs one court on each
+ * from two phones. Everything else about them is identical, so the accent is
+ * what tells them apart at a glance: Manager 1 keeps sage, Manager 2 takes a
+ * cooler eucalyptus. Same depth and contrast against the near-black ink on the
+ * filled action, and clear of the terracottas that mean live and destructive,
+ * so nothing that meant something on one phone means something else on the
+ * other. Ground, paper and text do not move.
+ *
+ * `T.acc` and `T.accd` read these through CSS variables with sage as the
+ * fallback, so every screen follows without knowing which manager it is, and
+ * a screen rendered outside a manager (tests, the frame index) is still sage.
+ */
+export const INSTANCE_ACCENTS: Record<1 | 2, { acc: string; accd: string }> = {
+  1: { acc: ACC, accd: ACCD },
+  2: { acc: "#9db7b0", accd: "#3f5c56" },
+};
+
+const ACC_VAR = "--cm-acc";
+const ACCD_VAR = "--cm-accd";
+
+/**
+ * Point the action colour at one instance's palette for as long as that
+ * manager is mounted. Returns the cleanup that restores the default, so a
+ * route change away from the manager leaves nothing behind on the document.
+ */
+export function applyInstanceAccent(instance: 1 | 2): () => void {
+  const root = document.documentElement;
+  const palette = INSTANCE_ACCENTS[instance];
+  root.style.setProperty(ACC_VAR, palette.acc);
+  root.style.setProperty(ACCD_VAR, palette.accd);
+  return () => {
+    root.style.removeProperty(ACC_VAR);
+    root.style.removeProperty(ACCD_VAR);
+  };
+}
 const WARM = "#e0a072";
 const BAD = "#c05f36";
 const LINE = "#3d3833";
@@ -104,11 +143,11 @@ export const T = {
   // names because every screen imports them; they are sage and the near-black
   // that sits on it now. `accd` is the deep sage the system offers for a
   // pressed or settled state, which no frame draws yet.
-  lime: ACC,
+  lime: `var(${ACC_VAR}, ${ACC})`,
   limeInk: DEEP,
-  acc: ACC,
+  acc: `var(${ACC_VAR}, ${ACC})`,
   accInk: DEEP,
-  accd: ACCD,
+  accd: `var(${ACCD_VAR}, ${ACCD})`,
 
   // WARM AND DESTRUCTIVE.
   //
