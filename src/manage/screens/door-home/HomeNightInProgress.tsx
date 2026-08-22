@@ -7,7 +7,7 @@
 // coming back to the phone wants to know which court needs them, not the
 // night's arithmetic.
 
-import { Body, Card, FooterBar, PrimaryButton, Screen, T, Tag, TertiaryButton } from "../../ui/primitives";
+import { Body, Card, Eyebrow, FooterBar, PrimaryButton, Screen, T, Tag, TertiaryButton } from "../../ui/primitives";
 
 /**
  * What one court is doing, in the two shapes the frame's sentence has words
@@ -34,6 +34,8 @@ export interface HomeNightInProgressProps {
   courts?: CourtActivity[];
   /** Holds the whole card back. The club's name paints immediately. */
   loading?: boolean;
+  /** "Manager 2" above the club's name on the second manager. Omitted on the first. */
+  instanceLabel?: string;
   /** → frame 10 `Court view`, opened on the court that needs attention. */
   onResume: () => void;
   /** → frame 05. Must not delete or void the in-progress night's results. */
@@ -59,6 +61,7 @@ export const HomeNightInProgress = ({
   onResume,
   onStartDifferentNight,
   onOpenNightMenu,
+  instanceLabel,
 }: HomeNightInProgressProps) => {
   const sentence = courts.length > 0 ? `${courts.map(clause).join(", ")}.` : null;
 
@@ -68,6 +71,7 @@ export const HomeNightInProgress = ({
         display: "flex", flexDirection: "column", justifyContent: "center",
         padding: "0 26px", gap: 20, boxSizing: "border-box",
       }}>
+        {instanceLabel && <Eyebrow>{instanceLabel}</Eyebrow>}
         <p style={{
           fontFamily: T.fontHead, fontWeight: 400, fontSize: 42, lineHeight: 1.05, margin: 0,
         }}>Club PTO</p>

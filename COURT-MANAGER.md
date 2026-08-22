@@ -1,5 +1,11 @@
 # Court Manager — Complete Developer Onboarding (v3, Final)
 
+> **Historical.** This document describes managers that were deleted on
+> 2026-08-19. The live manager is `src/manage/` (see CLAUDE.md). In particular,
+> the `/manage2` it describes (passcode 7777, "PTO OPEN") no longer exists:
+> today `/manage2` is the live manager mounted a second time with its own
+> night, passcode 9999, so two phones can run one court each.
+
 Everything you need to know to build, maintain, or extend the Club PTO Court Manager. This version replaces all earlier documentation. Where older material conflicts (85-minute sessions, 7-minute games, score entry, point-differential tiebreakers), this doc wins.
 
 ---

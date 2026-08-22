@@ -27,7 +27,7 @@ import { ensureManageFonts } from "./ui/fonts";
 import {
   DangerButton, PrimaryButton, SecondaryButton, Sheet, T, Tag, TertiaryButton, type Tab,
 } from "./ui/primitives";
-import { recordedResultCount, useManageSession } from "./useSession";
+import { recordedResultCount, storageKeyFor, useManageSession } from "./useSession";
 import { useRoster } from "./roster/useRoster";
 import { dedupeWalkIn } from "./roster/merge";
 import { explainMatch, lawContextFor, validTargets, totalMatches } from "./engine/rotation";
@@ -384,10 +384,24 @@ const clockTime = (at: number | null | undefined): string => {
   return `${d.getHours() % 12 || 12}:${String(d.getMinutes()).padStart(2, "0")}`;
 };
 
-export default function ManageApp() {
+export interface ManageAppProps {
+  /**
+   * Which manager this is. /manage is instance 1 and /manage2 is instance 2,
+   * and the club can run both at once, one court on each phone, because each
+   * instance keeps its night under its own localStorage key. Instance 1 is
+   * the key every phone already has a night under, so /manage is unchanged.
+   */
+  instance?: 1 | 2;
+}
+
+export default function ManageApp({ instance = 1 }: ManageAppProps) {
   useEffect(ensureManageFonts, []);
 
-  const s = useManageSession();
+  const s = useManageSession(storageKeyFor(instance));
+  // Named only on the second manager, on the door and at home, so two tabs on
+  // one phone can be told apart. Once a night is running the court header is
+  // the operator's bearings and the URL is the instance.
+  const instanceLabel = instance === 1 ? undefined : `Manager ${instance}`;
   const roster = useRoster();
 
   // Navigation only. Nothing here is part of the night.
@@ -558,8 +572,8 @@ export default function ManageApp() {
 
   if (!unlocked) {
     return failed
-      ? <PasscodeFailed onDigit={digit} onDelete={() => setEntered((e) => e.slice(0, -1))} />
-      : <Passcode entered={entered.length} onDigit={digit} onDelete={() => setEntered((e) => e.slice(0, -1))} />;
+      ? <PasscodeFailed instanceLabel={instanceLabel} onDigit={digit} onDelete={() => setEntered((e) => e.slice(0, -1))} />
+      : <Passcode entered={entered.length} instanceLabel={instanceLabel} onDigit={digit} onDelete={() => setEntered((e) => e.slice(0, -1))} />;
   }
 
   /* ── home ──────────────────────────────────────────────────────── */
@@ -571,6 +585,7 @@ export default function ManageApp() {
     const lastDay = s.session.status === "ended" ? s.session.dayLabel || null : null;
     return (
       <HomeNothingRunning
+        instanceLabel={instanceLabel}
         loading={s.loading}
         lastSessionDayName={lastDay}
         onStartTonight={() => enterSetup()}
@@ -602,6 +617,7 @@ export default function ManageApp() {
   if (!inSetup && running && !atCourt) {
     return (
       <HomeNightInProgress
+        instanceLabel={instanceLabel}
         dayName={s.session.dayLabel || night}
         // Only a court with four people on it has anything to say here. From
         // Home the operator is standing at neither court, and "waiting on a
@@ -909,6 +925,7 @@ export default function ManageApp() {
   const summaryProps = {
     dayLabel: s.session.dayLabel || night,
     playersIn: s.session.players.length,
+    instanceLabel,
     champions: s.views.flatMap<SummaryChampion>((v) => {
       // A court that ran a bracket is named by its winning side and the final's
       // numbers; a court that took the other ending is named by one person and
@@ -1124,8 +1141,8 @@ export default function ManageApp() {
           {/* Frame 26's guidance: every destructive action names exactly what
               will be lost. This one loses the most, so it says so plainly. */}
           <p style={{ font: `400 14.5px/1.6 ${T.fontBody}`, color: T.mut, margin: 0 }}>
-            Every player, their tiers, every game and every bracket on this
-            device. The app goes back to a blank start. Nothing can bring it back.
+            Every player, their tiers, every game and every bracket in this
+            manager. The app goes back to a blank start. Nothing can bring it back.
           </p>
           <SecondaryButton onClick={() => setSheet(null)}>Keep the night</SecondaryButton>
           <DangerButton onClick={() => {

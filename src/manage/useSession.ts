@@ -23,8 +23,19 @@ import { buildStages, champion, nextTie, orderedPlayerIds, readiness, seedPairs,
 import { appearsInAMatch } from "./engine/roster-guard";
 import type { RosterName } from "./roster/names";
 
-const STORAGE_KEY = "cm_manage_session";
+export const STORAGE_KEY = "cm_manage_session";
 const SCHEMA_VERSION = 1;
+
+/**
+ * The localStorage key one manager instance keeps its night under.
+ *
+ * The club can run /manage and /manage2 at the same time, one court on each,
+ * and the only thing that makes them two managers rather than one is that
+ * each writes its own key. Instance 1 keeps the bare key, which is the key
+ * every phone already has a night under: nothing about /manage changes.
+ */
+export const storageKeyFor = (instance: number): string =>
+  instance <= 1 ? STORAGE_KEY : `${STORAGE_KEY}_${instance}`;
 
 const emptySession = (): Session => ({
   id: `night-${new Date().toISOString().slice(0, 10)}`,
@@ -625,7 +636,7 @@ export interface CourtView {
   ready: ReturnType<typeof readiness>;
 }
 
-export function useManageSession() {
+export function useManageSession(storageKey: string = STORAGE_KEY) {
   const [session, setSession] = useState<Session>(emptySession);
   const [loading, setLoading] = useState(true);
   const [sync, setSync] = useState<SyncStatus>("synced");
@@ -633,7 +644,7 @@ export function useManageSession() {
 
   useEffect(() => {
     const store = createSessionStore<Session>({
-      storageKey: STORAGE_KEY,
+      storageKey,
       schemaVersion: SCHEMA_VERSION,
       storage: window.localStorage,
       remote: null, // wired to Supabase once the route ships; local-first works today
@@ -645,7 +656,7 @@ export function useManageSession() {
       setSession(state);
       setLoading(false);
     });
-  }, []);
+  }, [storageKey]);
 
   /** Every mutation goes through here, so nothing can write without saving. */
   const sessionRef = useRef(session);

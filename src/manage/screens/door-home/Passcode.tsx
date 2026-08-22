@@ -5,7 +5,7 @@
 // title, no footer bar and no spinner in this design, so the only thing that
 // moves while the operator types is the row of slots.
 
-import { Body, Dots, Keypad, Screen, T } from "../../ui/primitives";
+import { Body, Dots, Eyebrow, Keypad, Screen, T } from "../../ui/primitives";
 
 /** Four slots, four digits. */
 export const PASSCODE_LENGTH = 4;
@@ -29,9 +29,15 @@ export interface PasscodeProps {
   onDigit: (digit: string) => void;
   /** Removes the last digit. No-op at zero. */
   onDelete: () => void;
+  /**
+   * "Manager 2" on the second manager's door, so two tabs on one phone can be
+   * told apart before either has a night. The first manager passes nothing
+   * and the door is frame 01 exactly.
+   */
+  instanceLabel?: string;
 }
 
-export const Passcode = ({ entered, digits, verifying, onDigit, onDelete }: PasscodeProps) => {
+export const Passcode = ({ entered, digits, verifying, onDigit, onDelete, instanceLabel }: PasscodeProps) => {
   const filled = Math.max(0, Math.min(PASSCODE_LENGTH, digits?.length ?? entered));
 
   return (
@@ -40,9 +46,12 @@ export const Passcode = ({ entered, digits, verifying, onDigit, onDelete }: Pass
         display: "flex", flexDirection: "column", justifyContent: "center",
         padding: "0 26px", gap: 28, boxSizing: "border-box",
       }}>
-        <p style={{ font: `600 18px ${T.fontBody}`, textAlign: "center", margin: 0 }}>
-          Enter tonight's passcode.
-        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {instanceLabel && <Eyebrow style={{ textAlign: "center" }}>{instanceLabel}</Eyebrow>}
+          <p style={{ font: `600 18px ${T.fontBody}`, textAlign: "center", margin: 0 }}>
+            Enter tonight's passcode.
+          </p>
+        </div>
 
         <Dots filled={filled} of={PASSCODE_LENGTH} digits={digits} />
       </Body>
