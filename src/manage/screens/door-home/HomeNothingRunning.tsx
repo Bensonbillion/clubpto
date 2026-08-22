@@ -8,7 +8,7 @@
 // helper slot: the sentence sits UNDER both buttons, because it explains the
 // ghost above it rather than the action the screen is asking for.
 
-import { Body, FooterBar, PrimaryButton, Screen, SecondaryButton, T } from "../../ui/primitives";
+import { Body, Eyebrow, FooterBar, PrimaryButton, Screen, SecondaryButton, T } from "../../ui/primitives";
 
 export interface HomeNothingRunningProps {
   /**
@@ -28,6 +28,8 @@ export interface HomeNothingRunningProps {
   onStartTonight: () => void;
   /** → the wizard, pre-filled with the last session's day and roster. */
   onCopyLastSession?: () => void;
+  /** "Manager 2" above the club's name on the second manager. Omitted on the first. */
+  instanceLabel?: string;
 }
 
 export const HomeNothingRunning = ({
@@ -35,6 +37,7 @@ export const HomeNothingRunning = ({
   loading,
   onStartTonight,
   onCopyLastSession,
+  instanceLabel,
 }: HomeNothingRunningProps) => {
   const showCopy = !loading && Boolean(lastSessionDayName);
 
@@ -44,6 +47,7 @@ export const HomeNothingRunning = ({
         display: "flex", flexDirection: "column", justifyContent: "center",
         padding: "0 26px", gap: 10, boxSizing: "border-box",
       }}>
+        {instanceLabel && <Eyebrow>{instanceLabel}</Eyebrow>}
         <p style={{
           fontFamily: T.fontHead, fontWeight: 400, fontSize: 42, lineHeight: 1.05, margin: 0,
         }}>Club PTO</p>

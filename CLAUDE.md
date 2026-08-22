@@ -14,11 +14,18 @@ Community-first padel league in Toronto. Rebuilding PUBLIC site only (/, /about,
 There is ONE manager, and it lives in `src/manage/`. It serves `/manage`, the
 door is the passcode 9999, and there is no sign-in and no inbox.
 
+`/manage2` is the SAME app mounted a second time (`<ManageApp instance={2} />`)
+with its own localStorage key (`cm_manage_session_2`), so two phones can run
+one court each on two URLs at once. It is not a copy of the source; a change
+to `src/manage/` ships to both URLs. Instance 1 keeps the bare key, so nothing
+about `/manage` changed when `/manage2` arrived.
+
 Four earlier managers were deleted on 2026-08-19: v1 (`/manage-classic`), v2
 (`/manage2`), v3 (`/manage`) and v4 (`/manage4`), together with their engines,
-components and tests. Their URLs redirect to `/manage`, because an operator
-with one of them on a home screen should land on the manager rather than a
-blank page. If you are reading advice anywhere in this repo about
+components and tests. `/manage-classic` and `/manage4` redirect to `/manage`,
+because an operator with one of them on a home screen should land on the
+manager rather than a blank page; `/manage2` is no longer a redirect, it is
+the second instance described above. If you are reading advice anywhere in this repo about
 `useGameState`, `court-manager/react`, `lib/americano` or
 `components/manage*`, it is about code that no longer exists.
 

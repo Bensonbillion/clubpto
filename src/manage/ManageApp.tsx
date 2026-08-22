@@ -27,7 +27,7 @@ import { ensureManageFonts } from "./ui/fonts";
 import {
   DangerButton, PrimaryButton, SecondaryButton, Sheet, T, Tag, TertiaryButton, type Tab,
 } from "./ui/primitives";
-import { recordedResultCount, useManageSession } from "./useSession";
+import { recordedResultCount, storageKeyFor, useManageSession } from "./useSession";
 import { useRoster } from "./roster/useRoster";
 import { dedupeWalkIn } from "./roster/merge";
 import { explainMatch, lawContextFor, validTargets, totalMatches } from "./engine/rotation";
@@ -384,10 +384,24 @@ const clockTime = (at: number | null | undefined): string => {
   return `${d.getHours() % 12 || 12}:${String(d.getMinutes()).padStart(2, "0")}`;
 };
 
-export default function ManageApp() {
+export interface ManageAppProps {
+  /**
+   * Which manager this is. /manage is instance 1 and /manage2 is instance 2,
+   * and the club can run both at once, one court on each phone, because each
+   * instance keeps its night under its own localStorage key. Instance 1 is
+   * the key every phone already has a night under, so /manage is unchanged.
+   */
+  instance?: 1 | 2;
+}
+
+export default function ManageApp({ instance = 1 }: ManageAppProps) {
   useEffect(ensureManageFonts, []);
 
-  const s = useManageSession();
+  const s = useManageSession(storageKeyFor(instance));
+  // Named only on the second manager, on the door and at home, so two tabs on
+  // one phone can be told apart. Once a night is running the court header is
+  // the operator's bearings and the URL is the instance.
+  const instanceLabel = instance === 1 ? undefined : `Manager ${instance}`;
   const roster = useRoster();
 
   // Navigation only. Nothing here is part of the night.
@@ -559,7 +573,7 @@ export default function ManageApp() {
   if (!unlocked) {
     return failed
       ? <PasscodeFailed onDigit={digit} onDelete={() => setEntered((e) => e.slice(0, -1))} />
-      : <Passcode entered={entered.length} onDigit={digit} onDelete={() => setEntered((e) => e.slice(0, -1))} />;
+      : <Passcode entered={entered.length} instanceLabel={instanceLabel} onDigit={digit} onDelete={() => setEntered((e) => e.slice(0, -1))} />;
   }
 
   /* ── home ──────────────────────────────────────────────────────── */
@@ -571,6 +585,7 @@ export default function ManageApp() {
     const lastDay = s.session.status === "ended" ? s.session.dayLabel || null : null;
     return (
       <HomeNothingRunning
+        instanceLabel={instanceLabel}
         loading={s.loading}
         lastSessionDayName={lastDay}
         onStartTonight={() => enterSetup()}
@@ -602,6 +617,7 @@ export default function ManageApp() {
   if (!inSetup && running && !atCourt) {
     return (
       <HomeNightInProgress
+        instanceLabel={instanceLabel}
         dayName={s.session.dayLabel || night}
         // Only a court with four people on it has anything to say here. From
         // Home the operator is standing at neither court, and "waiting on a
