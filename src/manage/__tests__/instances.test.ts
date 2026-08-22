@@ -36,17 +36,18 @@ describe("two instances on one device never see each other's night", () => {
       defaults: () => ({ dayLabel: "" }),
     });
 
+    // save() writes localStorage synchronously. flush() only matters with a
+    // remote, and there is none, so the cross-instance load() below reads
+    // exactly what the other store wrote, with nothing deferred.
     const second = make(2);
     await second.load();
     second.save({ dayLabel: "Wednesday, court 2" }, 1);
-    await second.flush();
 
     const first = make(1);
     const { state } = await first.load();
     expect(state.dayLabel).toBe("");
 
     first.save({ dayLabel: "Wednesday, court 1" }, 2);
-    await first.flush();
     const again = await make(2).load();
     expect(again.state.dayLabel).toBe("Wednesday, court 2");
   });

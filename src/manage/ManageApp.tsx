@@ -572,7 +572,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
 
   if (!unlocked) {
     return failed
-      ? <PasscodeFailed onDigit={digit} onDelete={() => setEntered((e) => e.slice(0, -1))} />
+      ? <PasscodeFailed instanceLabel={instanceLabel} onDigit={digit} onDelete={() => setEntered((e) => e.slice(0, -1))} />
       : <Passcode entered={entered.length} instanceLabel={instanceLabel} onDigit={digit} onDelete={() => setEntered((e) => e.slice(0, -1))} />;
   }
 
@@ -925,6 +925,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
   const summaryProps = {
     dayLabel: s.session.dayLabel || night,
     playersIn: s.session.players.length,
+    instanceLabel,
     champions: s.views.flatMap<SummaryChampion>((v) => {
       // A court that ran a bracket is named by its winning side and the final's
       // numbers; a court that took the other ending is named by one person and
@@ -1140,8 +1141,8 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           {/* Frame 26's guidance: every destructive action names exactly what
               will be lost. This one loses the most, so it says so plainly. */}
           <p style={{ font: `400 14.5px/1.6 ${T.fontBody}`, color: T.mut, margin: 0 }}>
-            Every player, their tiers, every game and every bracket on this
-            device. The app goes back to a blank start. Nothing can bring it back.
+            Every player, their tiers, every game and every bracket in this
+            manager. The app goes back to a blank start. Nothing can bring it back.
           </p>
           <SecondaryButton onClick={() => setSheet(null)}>Keep the night</SecondaryButton>
           <DangerButton onClick={() => {

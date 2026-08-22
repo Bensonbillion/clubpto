@@ -10,7 +10,7 @@
 // frame is that they can see the code they actually entered and spot the digit
 // they fumbled. No banner, no toast, no attempt counter.
 
-import { Body, Dots, Keypad, Screen, T } from "../../ui/primitives";
+import { Body, Dots, Eyebrow, Keypad, Screen, T } from "../../ui/primitives";
 import { PASSCODE_LENGTH } from "./Passcode";
 
 export interface PasscodeFailedProps {
@@ -26,17 +26,26 @@ export interface PasscodeFailedProps {
    */
   onDigit: (digit: string) => void;
   onDelete: () => void;
+  /**
+   * "Manager 2" on the second manager's door. Carried here as well as on
+   * frame 01 so a fumbled code does not make the label blink out, which is
+   * the one moment two doors on one phone most need telling apart.
+   */
+  instanceLabel?: string;
 }
 
-export const PasscodeFailed = ({ digits, onDigit, onDelete }: PasscodeFailedProps) => (
+export const PasscodeFailed = ({ digits, onDigit, onDelete, instanceLabel }: PasscodeFailedProps) => (
   <Screen>
     <Body style={{
       display: "flex", flexDirection: "column", justifyContent: "center",
       padding: "0 26px", gap: 24, boxSizing: "border-box",
     }}>
-      <p style={{ font: `600 18px ${T.fontBody}`, textAlign: "center", margin: 0 }}>
-        Enter tonight's passcode.
-      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {instanceLabel && <Eyebrow style={{ textAlign: "center" }}>{instanceLabel}</Eyebrow>}
+        <p style={{ font: `600 18px ${T.fontBody}`, textAlign: "center", margin: 0 }}>
+          Enter tonight's passcode.
+        </p>
+      </div>
 
       <Dots
         filled={Math.min(PASSCODE_LENGTH, digits?.length ?? 0)}

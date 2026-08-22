@@ -77,7 +77,7 @@ const App = () => (
 
           {/* The manager. Isolated, no public layout, robots-blocked by prefix.
                 The passcode is the door; there is no sign-in and no inbox. */}
-            <Route path="/manage" element={<ManageApp />} />
+            <Route path="/manage" element={<ManageApp key="manage-1" />} />
             {/* The old managers' URLs. An operator with /manage4 on their home
                 screen taps it tonight and must land on the manager, not on a
                 blank page, so these redirect rather than 404. */}
@@ -87,8 +87,12 @@ const App = () => (
             {/* A second manager, same app, its own night. The club runs one
                 court on /manage and the other on /manage2 from two phones
                 when it wants to, and each instance keeps its night under its
-                own localStorage key so the two never see each other. */}
-            <Route path="/manage2" element={<ManageApp instance={2} />} />
+                own localStorage key so the two never see each other. The keys
+                on the two elements force a remount if anything ever navigates
+                between them client-side: same component type at the same route
+                position would otherwise carry one manager's unlocked door and
+                court UI state straight into the other. */}
+            <Route path="/manage2" element={<ManageApp key="manage-2" instance={2} />} />
             <Route path="/manage/simulate" element={<Navigate to="/manage" replace />} />
             <Route path="/manage/test" element={<Navigate to="/manage" replace />} />
             {/* Player-facing rankings are DOWN until clubhouse Wave 3 puts

@@ -11,8 +11,8 @@ Community-first padel league in Toronto. Rebuilding PUBLIC site only (/, /about,
 
 ## Court Manager
 
-There is ONE manager, and it lives in `src/manage/`. It serves `/manage`, the
-door is the passcode 9999, and there is no sign-in and no inbox.
+There is ONE manager, and it lives in `src/manage/`. It serves `/manage` and
+`/manage2`, the door is the passcode 9999, and there is no sign-in and no inbox.
 
 `/manage2` is the SAME app mounted a second time (`<ManageApp instance={2} />`)
 with its own localStorage key (`cm_manage_session_2`), so two phones can run
@@ -25,8 +25,8 @@ Four earlier managers were deleted on 2026-08-19: v1 (`/manage-classic`), v2
 components and tests. `/manage-classic` and `/manage4` redirect to `/manage`,
 because an operator with one of them on a home screen should land on the
 manager rather than a blank page; `/manage2` is no longer a redirect, it is
-the second instance described above. If you are reading advice anywhere in this repo about
-`useGameState`, `court-manager/react`, `lib/americano` or
+the second instance described above. If you are reading advice anywhere in
+this repo about `useGameState`, `court-manager/react`, `lib/americano` or
 `components/manage*`, it is about code that no longer exists.
 
 What survives from the old world, and why:

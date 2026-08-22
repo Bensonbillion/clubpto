@@ -71,6 +71,13 @@ export interface SessionSummaryProps {
   /** Everyone in tonight, across every court. */
   playersIn: number;
   /**
+   * "Manager 2" when this is the second manager. Goes into the header line of
+   * the screen and the paste, because the club's stated use is one court per
+   * phone, and two pastes into one chat that both say "Court 1" cannot be
+   * told apart without it. Omitted on the first manager.
+   */
+  instanceLabel?: string;
+  /**
    * Courts that have crowned someone. In the order the frame lists them, which
    * is the order the courts finished, so the caller decides it and this screen
    * never re-sorts. Re-sorting by court number would rank the courts, and the
@@ -110,6 +117,20 @@ const rankReason = (row: SummaryStandingRow): string =>
       : "";
 
 /**
+ * "Wednesday · 16 players · 2 courts", the line the screen and the paste both
+ * open with. One court is "1 court", and the second manager tags itself on the
+ * end so two pastes from two phones read as two courts, not two Court 1s.
+ */
+export const summaryHeaderLine = ({ dayLabel, playersIn, standingsByCourt, instanceLabel }: Pick<
+  SessionSummaryProps,
+  "dayLabel" | "playersIn" | "standingsByCourt" | "instanceLabel"
+>): string => {
+  const n = standingsByCourt.length;
+  const base = `${dayLabel} · ${playersIn} players · ${n} ${n === 1 ? "court" : "courts"}`;
+  return instanceLabel ? `${base} · ${instanceLabel}` : base;
+};
+
+/**
  * The plain text, exactly as frame 25 draws it:
  *
  *   Wednesday · 16 players · 2 courts
@@ -123,13 +144,11 @@ const rankReason = (row: SummaryStandingRow): string =>
  * still one line to WhatsApp, and a reader scanning for their own name wants
  * the courts kept apart.
  */
-export function buildWhatsAppPayload({ dayLabel, playersIn, champions, standingsByCourt }: Pick<
+export function buildWhatsAppPayload({ dayLabel, playersIn, champions, standingsByCourt, instanceLabel }: Pick<
   SessionSummaryProps,
-  "dayLabel" | "playersIn" | "champions" | "standingsByCourt"
+  "dayLabel" | "playersIn" | "champions" | "standingsByCourt" | "instanceLabel"
 >): string {
-  const blocks: string[] = [
-    `${dayLabel} · ${playersIn} players · ${standingsByCourt.length} courts`,
-  ];
+  const blocks: string[] = [summaryHeaderLine({ dayLabel, playersIn, standingsByCourt, instanceLabel })];
 
   // FLAG: the summary is reachable all night, so this list is empty until a
   // court finishes. The frame draws no wording for that, so the block is left
@@ -161,12 +180,13 @@ export const SessionSummary = ({
   playersIn,
   champions,
   standingsByCourt,
+  instanceLabel,
   activeTab,
   onCopy,
   onEndNight,
   onTabChange,
 }: SessionSummaryProps) => {
-  const payload = buildWhatsAppPayload({ dayLabel, playersIn, champions, standingsByCourt });
+  const payload = buildWhatsAppPayload({ dayLabel, playersIn, champions, standingsByCourt, instanceLabel });
 
   return (
     <Screen>

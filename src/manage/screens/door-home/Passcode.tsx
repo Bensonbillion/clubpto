@@ -46,12 +46,12 @@ export const Passcode = ({ entered, digits, verifying, onDigit, onDelete, instan
         display: "flex", flexDirection: "column", justifyContent: "center",
         padding: "0 26px", gap: 28, boxSizing: "border-box",
       }}>
-        {instanceLabel && (
-          <Eyebrow style={{ textAlign: "center", marginBottom: -12 }}>{instanceLabel}</Eyebrow>
-        )}
-        <p style={{ font: `600 18px ${T.fontBody}`, textAlign: "center", margin: 0 }}>
-          Enter tonight's passcode.
-        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {instanceLabel && <Eyebrow style={{ textAlign: "center" }}>{instanceLabel}</Eyebrow>}
+          <p style={{ font: `600 18px ${T.fontBody}`, textAlign: "center", margin: 0 }}>
+            Enter tonight's passcode.
+          </p>
+        </div>
 
         <Dots filled={filled} of={PASSCODE_LENGTH} digits={digits} />
       </Body>
