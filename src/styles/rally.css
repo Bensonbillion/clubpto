@@ -307,6 +307,89 @@
   margin: clamp(2.5rem, 6vh, 4rem) auto 0;
 }
 
+/* ---------- skill lab (the coaching band) ---------- */
+
+.rly-lab {
+  background: var(--ink);
+  padding: clamp(5rem, 12vh, 9rem) clamp(1.2rem, 4.5vw, 4rem);
+  border-top: 1px solid var(--line);
+}
+.rly-lab__inner {
+  max-width: 1340px;
+  margin: 0 auto;
+  display: grid;
+  gap: clamp(2rem, 5vw, 4rem);
+  align-items: center;
+}
+.rly-lab__poster {
+  margin: 0;
+  /* the poster is 2:3, so an uncapped column makes this band taller than
+     the screen. Capped, it stays a feature rather than a takeover. */
+  display: flex;
+  justify-content: center;
+}
+.rly-lab__poster img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: min(62vh, 560px);
+  border: 1px solid var(--line);
+}
+.rly-lab__title {
+  font-size: clamp(2.4rem, 6vw, 4.4rem);
+  margin-top: 0.8rem;
+}
+.rly-lab__text {
+  margin-top: 1.4rem;
+  font-family: var(--f-body);
+  font-size: 17px;
+  line-height: 1.65;
+  font-weight: 300;
+  color: var(--chalk);
+  max-width: 44ch;
+}
+/* the three confirmed facts, shared borders like the programme page */
+.rly-lab__stats {
+  margin-top: clamp(1.6rem, 3vw, 2.2rem);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  max-width: 420px;
+}
+.rly-lab__stat {
+  padding: 0.9rem 0;
+  text-align: center;
+}
+.rly-lab__stat + .rly-lab__stat {
+  border-left: 1px solid var(--line);
+}
+.rly-lab__stat-num {
+  display: block;
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  line-height: 1;
+  color: var(--chalk);
+}
+.rly-lab__stat-label {
+  display: block;
+  margin-top: 0.4rem;
+  font-family: var(--f-mono);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+}
+.rly-lab__cta {
+  margin-top: clamp(1.8rem, 3.5vw, 2.4rem);
+}
+@media (min-width: 900px) {
+  .rly-lab__inner {
+    /* poster leads at desktop; it is the thing people recognise */
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr);
+  }
+}
+
 /* ---------- the story so far (timeline) ---------- */
 
 .rly-story {

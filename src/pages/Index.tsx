@@ -5,6 +5,7 @@ import Scoreboard from "@/components/home/Scoreboard";
 import Manifesto from "@/components/home/Manifesto";
 import Experience from "@/components/home/Experience";
 import HowItWorks from "@/components/home/HowItWorks";
+import SkillLab from "@/components/home/SkillLab";
 import Story from "@/components/home/Story";
 import NextUp from "@/components/home/NextUp";
 import Wall from "@/components/home/Wall";
@@ -19,6 +20,7 @@ const Index = () => {
       <Manifesto />
       <Experience />
       <HowItWorks />
+      <SkillLab />
       <NextUp />
       <Story />
       <Wall />

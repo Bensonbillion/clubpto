@@ -3,6 +3,7 @@ import { weeklyMeets } from "@/lib/constants";
 const items = [
   `Weekly sessions · ${weeklyMeets.days}`,
   "CA$20 · no membership",
+  "Skill Lab · 6 players, 4 weeks",
   "Summer Series · wrapped",
   "A padel social club in Toronto",
   "Est. 2025",
