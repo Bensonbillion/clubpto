@@ -14,6 +14,7 @@ export const colors = {
 export const navItems = [
   { label: "About", href: "/about" },
   { label: "Play", href: "/book" },
+  { label: "Skill Lab", href: "/skills-lab" },
   { label: "Community", href: "/community" },
   { label: "Partners", href: "/partners" },
   { label: "FAQ", href: "/faq" },

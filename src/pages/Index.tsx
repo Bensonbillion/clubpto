@@ -16,11 +16,11 @@ const Index = () => {
     <PageWrapper>
       <Hero />
       <Ticker />
+      <SkillLab />
       <Scoreboard />
       <Manifesto />
       <Experience />
       <HowItWorks />
-      <SkillLab />
       <NextUp />
       <Story />
       <Wall />
