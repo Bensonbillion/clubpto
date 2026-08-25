@@ -465,11 +465,14 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
    * what stops a visit to the roster from quietly deleting a court.
    */
   const enterSetup = (to: Step = "night") => {
-    // Starting on top of an ENDED night begins a new one: games and brackets
-    // go, the roster and its tiers stay. Without this the wizard inherited
-    // last week's matches and every court arrived already complete.
+    // Starting on top of an ENDED night begins an EMPTY one. It used to keep
+    // last week's people, and a live Wednesday showed what that does: the
+    // who-step arrived pre-ticked, searching those names drew nothing, and
+    // the walk-in button silently refused. "Start tonight" now means what it
+    // says. Carrying the same people forward is the OTHER button, "Copy last
+    // Wednesday", which preloads on purpose and says so.
     if (s.session.status === "ended") {
-      s.beginNewNight();
+      s.resetEverything();
       setUiByCourt({});
     }
     if (s.session.courts.length > 0) setCourtCount(s.session.courts.length);
@@ -717,18 +720,27 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           query={query}
           onQueryChange={setQuery}
           onAdd={(id) => {
+            // Both branches clear the box the way addTyped does: the next name
+            // is typed fresh, and the confirmation is the tier strip and the
+            // count, not a leftover query.
             const p = inNight.get(id);
             // Here but marked away: the add brings them back rather than
             // putting a second copy of somebody already in the room.
-            if (p) { s.setAway(id, false); setTierPromptId(id); return; }
+            if (p) { s.setAway(id, false); setTierPromptId(id); setQuery(""); return; }
             const entry = roster.names.find((r) => r.playerId === id);
-            if (entry) setTierPromptId(s.addRosterPlayer(entry));
+            if (entry) { setTierPromptId(s.addRosterPlayer(entry)); setQuery(""); }
           }}
           onAddWalkInNamed={addTyped}
-          // `onRemove` is deliberately not passed. Frame 06 draws the chips
-          // under "In tonight" inert, and taking somebody back out mid-night
-          // belongs to the players tab, which has the wording for what it
-          // costs. Passing it here would grow an affordance no frame has drawn.
+          // A chip tapped in the cloud takes the person back out: the
+          // operator asked for a way to undo a mis-add at the door. Safe in
+          // setup because nothing has been dealt; on re-entry into a running
+          // night, removePlayer's own guard refuses anyone the match log
+          // points at, and the players tab remains the place with the wording
+          // for what taking a fielded player out actually costs.
+          onRemove={(id) => {
+            s.removePlayer(id);
+            if (tierPromptId === id) setTierPromptId(null);
+          }}
           tierPrompt={prompted
             ? { playerId: prompted.id, displayName: prompted.name, tier: prompted.tier ?? null }
             : null}
