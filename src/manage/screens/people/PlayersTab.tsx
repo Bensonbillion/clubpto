@@ -15,6 +15,7 @@
 // game, not in standings. The helper line says so out loud, because an
 // operator holding the phone at the net needs to know it is safe to turn.
 
+import type { ReactNode } from "react";
 import {
   Body,
   Eyebrow,
@@ -41,6 +42,11 @@ export interface PlayersTabPlayer {
 }
 
 export interface PlayersTabProps {
+  /**
+   * The court chip row and the night menu. Same reason the playoff screens
+   * carry it: flip mid-anything means every screen, and this tab is a screen.
+   */
+  header?: ReactNode;
   /**
    * Arrival order. The list is sorted by gamesPlayed ascending and ties fall
    * back to this order, so rows never jump when a score lands.
@@ -97,6 +103,7 @@ const actionLabel = (status: PlayerStatus): string =>
   status === "not_arrived" ? "Mark arrived" : status === "left" ? "Mark here" : "Mark left";
 
 export const PlayersTab = ({
+  header,
   players,
   courtLabel,
   attendanceCount,
@@ -124,6 +131,7 @@ export const PlayersTab = ({
 
   return (
     <Screen>
+      {header}
       <div
         style={{
           padding: "24px 22px 8px",

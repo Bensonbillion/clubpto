@@ -70,6 +70,11 @@ export interface StandingsTabRow {
 }
 
 export interface StandingsTabProps {
+  /**
+   * The court chip row and the night menu. Same reason the playoff screens
+   * carry it: flip mid-anything means every screen, and this tab is a screen.
+   */
+  header?: ReactNode;
   /** The active court's name, e.g. "Court 1". Read-only label. */
   courtLabel: string;
   /**
@@ -210,10 +215,12 @@ const PlaceholderRows = () => (
 );
 
 export const StandingsTab = ({
+  header,
   courtLabel, tableFinal, rows, matchesEach, loading,
   onOpenSessionSummary, onSelectTab, onOpenTie,
 }: StandingsTabProps) => (
   <Screen>
+    {header}
     <ScreenHead
       title="Standings"
       step={tableFinal === true ? `${courtLabel} · final` : courtLabel}

@@ -10,10 +10,19 @@
 // skipped game and a game not yet reached are the same thing to the operator:
 // still owed, still coming.
 
+import type { ReactNode } from "react";
 import { Body, FooterBar, Screen, TabBar, Tag, T, type Tab } from "../../ui/primitives";
 import type { ScheduleRow, ScheduleRowStatus } from "./model";
 
 export interface ScheduleProps {
+  /**
+   * The court chip row and the night menu, rendered above everything else.
+   * Found on a full-system walk: the schedule had no header at all, so the
+   * operator could not flip courts or reach the night menu from it, on the
+   * one screen that lists the whole night. Frame A13's promise is flip
+   * mid-anything, and a schedule is an anything.
+   */
+  header?: ReactNode;
   /** "Court 1". The header counts the rows itself. */
   courtLabel: string;
   rows: ScheduleRow[];
@@ -35,6 +44,7 @@ const tagFor = (status: ScheduleRowStatus) => {
 };
 
 export const Schedule = ({
+  header,
   courtLabel,
   rows,
   onSelectMatch,
@@ -42,6 +52,7 @@ export const Schedule = ({
   onTabChange,
 }: ScheduleProps) => (
   <Screen>
+    {header}
     <div
       style={{
         padding: "24px 22px 8px",
