@@ -1424,6 +1424,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
     return (
       <>
         <PlayersTab
+          header={courtHeader}
           courtLabel={`Court ${courtNumber}`}
           players={view.players
             .map((p) => ({
@@ -1568,6 +1569,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
     return (
       <>
         <StandingsTab
+          header={courtHeader}
           courtLabel={`Court ${courtNumber}`}
           tableFinal={view.complete}
           rows={rows}
@@ -1607,6 +1609,11 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
     return (
       <>
         <Schedule
+          // Same-chip tap toggles: the match screen's own chip opened this
+          // list, so this chip closes it. The other chip flips courts as it
+          // does everywhere.
+          header={<CourtHeader {...headerProps}
+            onSelectCourt={(n) => (n === courtNumber ? here({ pane: "match" }) : setCourt(n))} />}
           courtLabel={`Court ${courtNumber}`}
           // The card is drawn up front by useSession, rows and statuses both,
           // so this only renames the fields. `rowId` is the tap target because

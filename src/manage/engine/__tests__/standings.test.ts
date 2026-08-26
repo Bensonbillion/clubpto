@@ -141,3 +141,20 @@ describe("players who have not played", () => {
     expect(rank(rows).indexOf("played")).toBeLessThan(rank(rows).indexOf("benched"));
   });
 });
+
+describe("who gets a standings row", () => {
+  // A live full-system walk found Chi: played match one, marked left after,
+  // and his row vanished from the table and the summary while his 7-5 kept
+  // shaping everybody's score difference. A row you earned stays.
+  const P = (id: string, court: number, away = false) =>
+    ({ id, name: id, walkIn: false, courtNumber: court, away, joinedAtMatchIndex: null });
+  const playedRow = (idx: number, a: string[], b: string[]) =>
+    ({ matchIndex: idx, completedAt: idx, teamA: a, teamB: b, scoreA: 7, scoreB: 5 });
+
+  it("a leaver who played keeps their row; one who never played is dropped", async () => {
+    const { standingsIds } = await import("../../useSession");
+    const players = [P("stay", 1), P("leftPlayed", 1, true), P("leftClean", 1, true), P("otherCourt", 2)];
+    const played = [playedRow(1, ["stay", "leftPlayed"], ["x", "y"])];
+    expect(standingsIds(players, played, 1)).toEqual(["stay", "leftPlayed"]);
+  });
+});

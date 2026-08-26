@@ -62,6 +62,24 @@ const emptySession = (): Session => ({
  * let a game scored at nine o'clock rank as though it had been played first
  * because it happened to sit in row two.
  */
+/**
+ * Who earns a standings row on this court: everyone present, plus anyone who
+ * left AFTER playing. A live walk found the gap this closes: a player marked
+ * left kept shaping everybody's score difference through the games they had
+ * played while their own row vanished from the table and the summary. A row
+ * you played for stays. Somebody marked left before ever playing gets no
+ * zero row, because there is nothing to show.
+ */
+export const standingsIds = (
+  players: readonly Player[],
+  played: readonly PlayedMatch[],
+  courtNumber: number,
+): string[] =>
+  players
+    .filter((p) => p.courtNumber === courtNumber
+      && (!p.away || played.some((m) => m.teamA.includes(p.id) || m.teamB.includes(p.id))))
+    .map((p) => p.id);
+
 const groupPlayed = (matches: readonly Match[], court: number): PlayedMatch[] =>
   matches
     .filter((m) => m.courtNumber === court && m.status === "played" && m.stage === null)
@@ -1007,7 +1025,8 @@ export function useManageSession(storageKey: string = STORAGE_KEY) {
   const views: CourtView[] = useMemo(() => session.courts.map((court) => {
     const players = session.players.filter((p) => p.courtNumber === court.number);
     const here = playableOn(session.players, court.number);
-    const ids = here.map((p) => p.id);
+    const played = groupPlayed(session.matches, court.number);
+    const ids = standingsIds(players, played, court.number);
     const playoffMatches = session.matches.filter(
       (m) => m.courtNumber === court.number && m.stage !== null,
     );
@@ -1050,7 +1069,7 @@ export function useManageSession(storageKey: string = STORAGE_KEY) {
       nextSlot,
       round: roundOf(session, court),
       queue: buildQueue(session.players, session.matches, court.number, court.targetMatches),
-      standings: computeStandings(ids, groupPlayed(session.matches, court.number)),
+      standings: computeStandings(ids, played),
       complete: courtComplete(session.players, session.matches, court.number, court.targetMatches),
       cCount: tiers.filter((t) => t === "C").length,
       canFieldACMatch: canFieldACMatch(tiers),
