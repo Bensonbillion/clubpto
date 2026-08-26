@@ -121,16 +121,19 @@ export const rosterMatches = (rows: readonly RosterRow[], query: string): Roster
 };
 
 /**
- * Whether the walk-in offer renders: a name is typed and nobody ADDABLE
- * matches it. Ticked matches do not count against the offer, and the review
- * of this change is why: with Benson already in, typing "Ben" for a second,
- * genuinely new person drew one inert "Already in tonight" row and no way to
- * add Ben at all. The roster really holds such prefix pairs (Ade and Adee,
- * Timi and Timi Olaoye), so the offer now renders under the matches whenever
- * none of them can be tapped.
+ * Whether the walk-in offer renders: a name is typed and nobody CARRIES that
+ * exact name. Substring matches do not count against it, and a live walk is
+ * why: with Benson in tonight and Benita on the club list, a new person
+ * actually called Ben matched both rows and could not be added at all. The
+ * roster really holds such prefix pairs (Ade and Adee, Timi and Timi
+ * Olaoye), so the offer now renders under the matches for any typed name no
+ * row equals: an equal un-ticked row's own Add is the right path, an equal
+ * ticked row is already in, and everything else is addable as typed.
  */
-export const offersWalkIn = (rows: readonly RosterRow[], query: string): boolean =>
-  query.trim() !== "" && rosterMatches(rows, query).every((r) => r.ticked);
+export const offersWalkIn = (rows: readonly RosterRow[], query: string): boolean => {
+  const typed = query.trim().toLowerCase();
+  return typed !== "" && !rows.some((r) => r.displayName.trim().toLowerCase() === typed);
+};
 
 export const WhoIsHere = ({
   rows, rosterNote, query, onQueryChange, onAdd, onAddWalkInNamed, onRemove,

@@ -43,18 +43,27 @@ describe("searching a name that is already in tonight", () => {
   });
 });
 
-describe("the walk-in offer stays reachable beside people already in", () => {
-  const rows = [row("Benson Hills", true), row("Bandele Ojo", false)];
+describe("the walk-in offer is reachable for any name nobody carries exactly", () => {
+  const rows = [row("Benson Hills", true), row("Benita Ojo", false)];
 
-  it("a name that is only a substring of somebody in still gets the offer", () => {
+  it("a substring of somebody in still gets the offer", () => {
     // The dead end the review caught: Benson in, a second person called Ben
-    // at the door, and the only matching row inert. The offer now renders
-    // under the inert match instead of never.
+    // at the door, and the only matching row inert.
     expect(offersWalkIn([row("Benson Hills", true)], "Ben")).toBe(true);
   });
 
-  it("no offer while an addable match is on screen", () => {
-    expect(offersWalkIn(rows, "b")).toBe(false);
+  it("a substring of an addable row gets the offer too, under that row's Add", () => {
+    // The other half, caught on the live walk: Benita on the club list also
+    // matched "Ben" and suppressed the offer, so Ben still could not be
+    // added. Substring matches never count against the offer any more.
+    expect(offersWalkIn(rows, "Ben")).toBe(true);
+  });
+
+  it("no offer when a row carries the exact typed name", () => {
+    // An equal un-ticked row's own Add is the right path, and an equal
+    // ticked row is already in. Case does not matter.
+    expect(offersWalkIn(rows, "benita ojo")).toBe(false);
+    expect(offersWalkIn(rows, "Benson Hills")).toBe(false);
   });
 
   it("no offer for an empty box, an offer for a name nobody carries", () => {
