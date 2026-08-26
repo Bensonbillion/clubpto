@@ -27,6 +27,7 @@ import { ensureManageFonts } from "./ui/fonts";
 import { applyInstanceAccent, DangerButton, PrimaryButton, SecondaryButton, Sheet, T, Tag, TertiaryButton, type Tab } from "./ui/primitives";
 import { recordedResultCount, storageKeyFor, useManageSession } from "./useSession";
 import { useRoster } from "./roster/useRoster";
+import { appearsInAMatch } from "./engine/roster-guard";
 import { dedupeWalkIn } from "./roster/merge";
 import { explainMatch, lawContextFor, validTargets, totalMatches } from "./engine/rotation";
 import { legalSubstitutes, strandedPlayers } from "./engine/substitutes";
@@ -410,6 +411,9 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
   const [failed, setFailed] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
   const [inSetup, setInSetup] = useState(false);
+  // "Start tonight" was tapped over an ended night: the wizard renders empty
+  // but the old session survives until the first real act. See ensureFresh.
+  const [pendingFresh, setPendingFresh] = useState(false);
   const [step, setStep] = useState<Step>("night");
   const [night, setNight] = useState("Wednesday");
   const [query, setQuery] = useState("");
@@ -471,13 +475,36 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
     // the walk-in button silently refused. "Start tonight" now means what it
     // says. Carrying the same people forward is the OTHER button, "Copy last
     // Wednesday", which preloads on purpose and says so.
+    //
+    // MARKED here, wiped later. The reset itself waits for the wizard's first
+    // real act (ensureFresh), because the ended session is the club's only
+    // copy of last week's tiers and the Copy ghost's only source: a reset on
+    // entry made one mis-tap of "Start tonight", backed out of, destroy both
+    // with no confirm, which is the exact sin the night menu's own reset
+    // sheet exists to prevent. Peeking at the wizard now costs nothing.
     if (s.session.status === "ended") {
-      s.resetEverything();
+      setPendingFresh(true);
       setUiByCourt({});
+      // A fresh night defaults to two courts. The ended session's count is
+      // that night's shape, not this one's.
+      setCourtCount(2);
+    } else if (s.session.courts.length > 0) {
+      setCourtCount(s.session.courts.length);
     }
-    if (s.session.courts.length > 0) setCourtCount(s.session.courts.length);
     setInSetup(true);
     setStep(to);
+  };
+
+  /**
+   * The deferred wipe behind "Start tonight". Runs before the first thing the
+   * wizard actually changes, so the empty night exists the moment it is real
+   * and never a moment before. Commits compose: a caller may reset and add in
+   * the same tap, and the add lands on the empty session.
+   */
+  const ensureFresh = () => {
+    if (!pendingFresh) return;
+    s.resetEverything();
+    setPendingFresh(false);
   };
 
   /**
@@ -601,6 +628,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           // TONIGHT", and tonight has not happened yet; carried over, last
           // week's early leavers arrived unticked on a list promising
           // everyone was in.
+          setPendingFresh(false);
           s.beginNewNight();
           for (const p of s.session.players) {
             if (p.away) s.setAway(p.id, false);
@@ -646,8 +674,8 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           nights={NIGHTS}
           selected={night}
           onSelect={setNight}
-          onBack={() => setInSetup(false)}
-          onNext={() => { s.setDayLabel(night); setStep("who"); }}
+          onBack={() => { setPendingFresh(false); setInSetup(false); }}
+          onNext={() => { ensureFresh(); s.setDayLabel(night); setStep("who"); }}
         />
       );
     }
@@ -658,7 +686,8 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
       // into the second, which is why there is no local `ticked` map: the tick
       // state IS the session, and a screen that kept its own copy could say
       // "in tonight" about somebody the night had never heard of.
-      const inNight = new Map(s.session.players.map((p) => [p.id, p]));
+      const nightPlayers = pendingFresh ? [] : s.session.players;
+      const inNight = new Map(nightPlayers.map((p) => [p.id, p]));
       const catalogued = new Set(roster.names.map((r) => r.playerId));
 
       const rows = [
@@ -676,15 +705,17 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
             // telling every regular they did not book.
             onBookingList: true,
             tier: p?.tier ?? null,
+            removable: p == null || !appearsInAMatch(s.session.matches, p.id),
           };
         }),
         // Anybody in the night the catalogue does not carry: walk-ins, and a
         // resumed night whose roster row has since been hidden.
-        ...s.session.players
+        ...nightPlayers
           .filter((p) => !catalogued.has(p.id))
           .map((p) => ({
             playerId: p.id, displayName: p.name, ticked: !p.away,
             onBookingList: false, tier: p.tier ?? null,
+            removable: !appearsInAMatch(s.session.matches, p.id),
           })),
       ].sort((a, b) =>
         a.displayName.localeCompare(b.displayName, "en", { sensitivity: "base" }) ||
@@ -697,6 +728,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
       const addTyped = (name: string) => {
         const trimmed = name.trim();
         if (!trimmed) return;
+        ensureFresh();
         const hit = dedupeWalkIn(roster.names, trimmed);
         setTierPromptId(hit ? s.addRosterPlayer(hit) : s.addWalkIn(trimmed));
         // The query clears on add. It used to survive, a habit from the old
@@ -708,7 +740,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
       };
 
       const prompted = tierPromptId != null
-        ? s.session.players.find((p) => p.id === tierPromptId)
+        ? nightPlayers.find((p) => p.id === tierPromptId)
         : undefined;
 
       return (
@@ -720,6 +752,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           query={query}
           onQueryChange={setQuery}
           onAdd={(id) => {
+            ensureFresh();
             // Both branches clear the box the way addTyped does: the next name
             // is typed fresh, and the confirmation is the tier strip and the
             // count, not a leftover query.
@@ -748,6 +781,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           onSkipTier={() => setTierPromptId(null)}
           onBack={() => setStep("night")}
           onNext={() => {
+            ensureFresh();
             // Adding already wrote to the session, so there is nothing left to
             // reconcile. This list is a view of the night, not a form.
             s.setCourts(Array.from({ length: courtCount }, (_, i) => i + 1));

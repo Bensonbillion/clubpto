@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { RosterRow } from "../screens/setup/WhoIsHere";
-import { rosterMatches } from "../screens/setup/WhoIsHere";
+import { offersWalkIn, rosterMatches } from "../screens/setup/WhoIsHere";
 
 const row = (displayName: string, ticked: boolean): RosterRow => ({
   playerId: displayName.toLowerCase().replace(/\s+/g, "-"),
@@ -40,5 +40,25 @@ describe("searching a name that is already in tonight", () => {
   it("an empty query draws no results panel", () => {
     expect(rosterMatches(rows, "")).toEqual([]);
     expect(rosterMatches(rows, "   ")).toEqual([]);
+  });
+});
+
+describe("the walk-in offer stays reachable beside people already in", () => {
+  const rows = [row("Benson Hills", true), row("Bandele Ojo", false)];
+
+  it("a name that is only a substring of somebody in still gets the offer", () => {
+    // The dead end the review caught: Benson in, a second person called Ben
+    // at the door, and the only matching row inert. The offer now renders
+    // under the inert match instead of never.
+    expect(offersWalkIn([row("Benson Hills", true)], "Ben")).toBe(true);
+  });
+
+  it("no offer while an addable match is on screen", () => {
+    expect(offersWalkIn(rows, "b")).toBe(false);
+  });
+
+  it("no offer for an empty box, an offer for a name nobody carries", () => {
+    expect(offersWalkIn(rows, "")).toBe(false);
+    expect(offersWalkIn(rows, "zed")).toBe(true);
   });
 });
