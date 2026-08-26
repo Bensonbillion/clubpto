@@ -19,6 +19,7 @@
 // with no restrictions on it, so it is the least damaging wrong guess the app
 // can make about somebody nobody has assessed.
 
+import { useRef } from "react";
 import type { PlayerTier } from "../../types";
 import {
   Body, Eyebrow, FooterBar, PrimaryButton, Screen, SecondaryButton, T, Tag,
@@ -44,6 +45,11 @@ export interface RosterRow {
   onBookingList: boolean;
   /** Tonight's tier. Unset until somebody sets one, and only ever a note. */
   tier?: PlayerTier | null;
+  /**
+   * False for somebody the match log holds: their chip must not advertise a
+   * removal the session will refuse. Absent means removable.
+   */
+  removable?: boolean;
 }
 
 /** The strip the frame draws straight after an add. */
@@ -98,23 +104,48 @@ export interface WhoIsHereProps {
   onNext: () => void;
 }
 
+/**
+ * Everyone whose name holds the query, ticked or not.
+ *
+ * Ticked people used to be filtered out here, and a live night showed what
+ * that does: search somebody already in and the screen said "no one called
+ * Benson on tonight's booking list" over a walk-in button that silently did
+ * nothing, because the add is idempotent. The result now keeps them, marked,
+ * and the row renders as "already in" instead of as an offer. The walk-in
+ * offer appears only when NOBODY, in or out, carries the name.
+ */
+export const rosterMatches = (rows: readonly RosterRow[], query: string): RosterRow[] => {
+  const needle = query.trim().toLowerCase();
+  if (needle === "") return [];
+  return rows.filter((r) => r.displayName.toLowerCase().includes(needle));
+};
+
+/**
+ * Whether the walk-in offer renders: a name is typed and nobody ADDABLE
+ * matches it. Ticked matches do not count against the offer, and the review
+ * of this change is why: with Benson already in, typing "Ben" for a second,
+ * genuinely new person drew one inert "Already in tonight" row and no way to
+ * add Ben at all. The roster really holds such prefix pairs (Ade and Adee,
+ * Timi and Timi Olaoye), so the offer now renders under the matches whenever
+ * none of them can be tapped.
+ */
+export const offersWalkIn = (rows: readonly RosterRow[], query: string): boolean =>
+  query.trim() !== "" && rosterMatches(rows, query).every((r) => r.ticked);
+
 export const WhoIsHere = ({
   rows, rosterNote, query, onQueryChange, onAdd, onAddWalkInNamed, onRemove,
   tierPrompt, onSetTier, onSkipTier, onBack, onNext,
 }: WhoIsHereProps) => {
   const trimmed = query.trim();
-  const needle = trimmed.toLowerCase();
-
-  // Anyone already in the night is left out of the results: there is nothing
-  // to add, and they are down in the cloud instead. A row offering to add
-  // somebody twice is how one human ends up as two ids with half a night's
-  // results each.
-  const matches = needle === ""
-    ? []
-    : rows.filter((r) => !r.ticked && r.displayName.toLowerCase().includes(needle));
-
+  const matches = rosterMatches(rows, query);
   const inTonight = rows.filter((r) => r.ticked);
-  const noMatches = trimmed !== "" && matches.length === 0;
+  const offerWalkIn = offersWalkIn(rows, query);
+
+  // The next name is typed the moment this one lands, so every add hands the
+  // caret straight back to the box. Focus moves inside the tap's own gesture,
+  // which is what keeps a phone keyboard up instead of dropping it.
+  const searchRef = useRef<HTMLInputElement>(null);
+  const refocus = () => searchRef.current?.focus();
 
   return (
     <Screen>
@@ -157,7 +188,7 @@ export const WhoIsHere = ({
             </div>
           )}
 
-      {!noMatches && (
+      {!offerWalkIn && (
         <Why>
           Type a name: matches pop up from the booking list, anything new becomes
           a walk-in. No scrolling a long list.
@@ -169,6 +200,7 @@ export const WhoIsHere = ({
 
       <div style={{ padding: "16px 22px 8px" }}>
         <input
+          ref={searchRef}
           className="setup-roster-search"
           value={query}
           placeholder="Type a name"
@@ -184,24 +216,10 @@ export const WhoIsHere = ({
         />
       </div>
 
-      {noMatches ? (
-        <Body style={{
-          display: "flex", flexDirection: "column", justifyContent: "center",
-          alignItems: "center", gap: 16, padding: 26, boxSizing: "border-box",
-        }}>
-          <p style={{
-            font: `400 15px/1.55 ${T.fontBody}`, color: T.mut, margin: 0, textAlign: "center",
-          }}>
-            No one called {trimmed} on tonight's booking list.
-          </p>
-          <SecondaryButton
-            onClick={() => onAddWalkInNamed(trimmed)}
-            style={{ width: "auto", padding: "8px 24px" }}
-          >
-            Add {trimmed} as a walk-in
-          </SecondaryButton>
-        </Body>
-      ) : (
+      {/* One Body whatever the query holds, so the "In tonight" cloud never
+          leaves the screen. It used to vanish behind the walk-in offer, which
+          is exactly the moment the operator is wondering whether somebody is
+          already in. */}
         <Body style={{ overscrollBehavior: "contain" }}>
           {matches.length > 0 && (
             <div style={{
@@ -212,13 +230,14 @@ export const WhoIsHere = ({
                 <button
                   key={row.playerId}
                   type="button"
-                  onClick={() => onAdd(row.playerId)}
+                  disabled={row.ticked}
+                  onClick={row.ticked ? undefined : () => { onAdd(row.playerId); refocus(); }}
                   style={{
                     width: "100%", boxSizing: "border-box", display: "flex",
                     alignItems: "center", gap: 12, padding: "13px 16px", minHeight: 64,
                     border: "none", background: "transparent", textAlign: "left",
                     borderBottom: i === matches.length - 1 ? "none" : `1px solid ${T.line}`,
-                    cursor: "pointer",
+                    cursor: row.ticked ? "default" : "pointer",
                   }}
                 >
                   <span style={{ flex: 1, minWidth: 0 }}>
@@ -228,16 +247,41 @@ export const WhoIsHere = ({
                     <span style={{
                       display: "block", font: `400 13px ${T.fontBody}`, color: T.mut, marginTop: 1,
                     }}>
-                      {row.onBookingList ? "On tonight's booking list" : "Not on the list"}
+                      {row.ticked ? "Already in tonight"
+                        : row.onBookingList ? "On tonight's booking list" : "Not on the list"}
                     </span>
                   </span>
                   {/* Sage on a booking, plain on a walk-in: the fill marks the
-                      tap the operator makes forty times a night. */}
-                  <Chip on={row.onBookingList} style={{ minHeight: 38, padding: "4px 16px", fontSize: 14 }}>
-                    {row.onBookingList ? "Add" : "Add as walk-in"}
-                  </Chip>
+                      tap the operator makes forty times a night. A ticked row
+                      answers the question instead of offering the tap. */}
+                  {row.ticked
+                    ? <Tag size="sm" tone="quiet">In tonight</Tag>
+                    : (
+                      <Chip on={row.onBookingList} style={{ minHeight: 38, padding: "4px 16px", fontSize: 14 }}>
+                        {row.onBookingList ? "Add" : "Add as walk-in"}
+                      </Chip>
+                    )}
                 </button>
               ))}
+            </div>
+          )}
+
+          {offerWalkIn && (
+            <div style={{
+              display: "flex", flexDirection: "column", alignItems: "center",
+              gap: 16, padding: "18px 26px 8px", boxSizing: "border-box",
+            }}>
+              <p style={{
+                font: `400 15px/1.55 ${T.fontBody}`, color: T.mut, margin: 0, textAlign: "center",
+              }}>
+                No one called {trimmed} on tonight's booking list.
+              </p>
+              <SecondaryButton
+                onClick={() => { onAddWalkInNamed(trimmed); refocus(); }}
+                style={{ width: "auto", padding: "8px 24px" }}
+              >
+                Add {trimmed} as a walk-in
+              </SecondaryButton>
             </div>
           )}
 
@@ -250,22 +294,31 @@ export const WhoIsHere = ({
             </Eyebrow>
 
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {inTonight.map((row) => (
-                <Chip
-                  key={row.playerId}
-                  onClick={onRemove != null ? () => onRemove(row.playerId) : undefined}
-                  style={{ minHeight: 36, padding: "4px 13px", fontSize: 14, gap: 7 }}
-                >
-                  {row.displayName}
-                  {row.tier != null && <Tag size="sm">{row.tier}</Tag>}
-                </Chip>
-              ))}
+              {inTonight.map((row) => {
+                // A fielded player's chip stays inert: the session would
+                // refuse the removal, and a control that does nothing is the
+                // kind of silence this step just got cured of. The players
+                // tab has the wording for taking a fielded player out.
+                const removable = onRemove != null && row.removable !== false;
+                return (
+                  <Chip
+                    key={row.playerId}
+                    onClick={removable ? () => onRemove(row.playerId) : undefined}
+                    style={{ minHeight: 36, padding: "4px 13px", fontSize: 14, gap: 7 }}
+                  >
+                    {row.displayName}
+                    {row.tier != null && <Tag size="sm">{row.tier}</Tag>}
+                    {removable && (
+                      <span aria-hidden style={{ color: T.mut, fontSize: 15, lineHeight: 1 }}>×</span>
+                    )}
+                  </Chip>
+                );
+              })}
             </div>
           </div>
         </Body>
-      )}
 
-      <FooterBar helper="Tiers are set right here, per night. B this week can be A next. Last week's carries over as a default; only you ever see them.">
+      <FooterBar helper="Tiers are set right here, per night. B this week can be A next, and only you ever see them. Copy last night is what carries them over.">
         <PrimaryButton onClick={onNext}>Next: split the courts</PrimaryButton>
       </FooterBar>
     </Screen>
