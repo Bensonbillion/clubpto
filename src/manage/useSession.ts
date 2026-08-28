@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSessionStore, type SessionStore, type SyncStatus } from "@/court-manager/persistence";
-import type { Court, CourtNumber, Match, Player, PlayerTier, ScheduleSlot, Session } from "./types";
+import type { Court, CourtNumber, KnockoutPair, Match, NightFormat, Player, PlayerTier, ScheduleSlot, Session } from "./types";
 import { buildQueue, lawContextFor, nextMatch, courtComplete, matchesPlayedBy, totalMatches } from "./engine/rotation";
 import { canFieldACMatch, designateB, tierOf as tierOfPlayer } from "./engine/tiers";
 import { legalSubstitutes, swapIntoMatch } from "./engine/substitutes";
@@ -21,6 +21,7 @@ import { computeStandings, type PlayedMatch, type StandingsRow } from "./engine/
 import { buildStages, champion, nextTie, orderedPlayerIds, readiness, seedPairs, seedPlayoffMatch,
   type SeededPair, type Stage } from "./engine/playoff";
 import { appearsInAMatch } from "./engine/roster-guard";
+import { buildKnockoutStages, buildPlateStages, playableTies } from "./engine/knockout";
 import type { RosterName } from "./roster/names";
 
 export const STORAGE_KEY = "cm_manage_session";
@@ -1016,6 +1017,99 @@ export function useManageSession(storageKey: string = STORAGE_KEY) {
   const endNight = useCallback(() =>
     commit((s) => ({ ...s, status: "ended", endedAt: Date.now() })), [commit]);
 
+  /* ── the knockout branch (frames 30 to 33) ─────────────────────── */
+
+  /** Which door the night went through. Set at the Sunday hub. */
+  const setFormat = useCallback((format: NightFormat) =>
+    commit((s) => ({ ...s, format })), [commit]);
+
+  /** The hand-made draw, whole. Position in the array is the seeding. */
+  const setKnockoutPairs = useCallback((knockoutPairs: KnockoutPair[]) =>
+    commit((s) => ({ ...s, knockoutPairs })), [commit]);
+
+  const setPlate = useCallback((plate: boolean) =>
+    commit((s) => ({ ...s, plate })), [commit]);
+
+  /**
+   * Open the courts and start the knockout. Nobody is assigned to a court:
+   * one draw feeds them all, and dispatchKnockout puts ties on whichever
+   * court is free, in draw order.
+   */
+  const startKnockout = useCallback((courtCount: number) =>
+    commit((s) => ({
+      ...s,
+      status: "running" as const,
+      startedAt: Date.now(),
+      courts: Array.from({ length: Math.max(1, courtCount) }, (_, i) => ({
+        number: i + 1, targetMatches: 0, playoffSeeded: true, champion: null,
+      })),
+    })), [commit]);
+
+  /**
+   * Fill every free court with the next playable tie, in draw order. Called
+   * after every start, score, walkover and park, so a court is never idle
+   * while the draw holds a tie whose sides are known.
+   */
+  const dispatchKnockout = useCallback(() =>
+    commit((s) => {
+      if (s.format !== "knockout" || s.status !== "running") return s;
+      const pairs = s.knockoutPairs ?? [];
+      const ko = s.matches.filter((m) => m.stage !== null);
+      const main = buildKnockoutStages(pairs, ko);
+      const plate = s.plate ? buildPlateStages(pairs, ko) : null;
+      const queue = playableTies([...main, ...(plate ?? [])]);
+      const busy = new Set(s.matches.filter((m) => m.status === "onCourt").map((m) => m.courtNumber));
+      const free = s.courts.map((c) => c.number).filter((n) => !busy.has(n));
+      if (free.length === 0 || queue.length === 0) return s;
+      let index = Math.max(0, ...s.matches.map((m) => m.matchIndex)) + 1;
+      const minted = free.slice(0, queue.length).map((courtNumber, i) =>
+        seedPlayoffMatch(courtNumber, queue[i], index++, Date.now() + i, ko));
+      return { ...s, matches: [...s.matches, ...minted] };
+    }), [commit]);
+
+  /**
+   * Frame 33's "Opponent advances", after its confirm names the side. The
+   * named side takes the tie without playing: scores stay null, the bracket
+   * writes Walkover, and the winner moves on exactly as a scored win would.
+   */
+  const walkoverMatch = useCallback((matchId: string, side: "A" | "B") =>
+    commit((s) => ({
+      ...s,
+      matches: s.matches.map((m) => m.id === matchId && m.status === "onCourt"
+        ? { ...m, status: "played" as const, walkover: side, completedAt: Date.now() }
+        : m),
+    })), [commit]);
+
+  /**
+   * Frame 33's "Change this match": this court takes a different waiting tie
+   * and the one standing here goes back to the queue for the next free
+   * court. Refused (returns unchanged) when the draw holds no other playable
+   * tie, and the shell disables the control for the same reason.
+   */
+  const parkKnockoutTie = useCallback((matchId: string) =>
+    commit((s) => {
+      const current = s.matches.find((m) => m.id === matchId);
+      if (!current || current.status !== "onCourt") return s;
+      const voided = s.matches.map((m) => m.id === matchId ? { ...m, status: "voided" as const } : m);
+      const ko = voided.filter((m) => m.stage !== null);
+      const pairs = s.knockoutPairs ?? [];
+      const main = buildKnockoutStages(pairs, ko);
+      const plate = s.plate ? buildPlateStages(pairs, ko) : null;
+      // The parked tie is playable again the moment its match is voided, so
+      // the swap is "everything playable except the tie that was standing
+      // here", first in draw order.
+      // Membership runs the way binding does: the fielded four are drawn FROM
+      // the sides, so the test is team-subset-of-side, which holds for a trio
+      // whose third player was resting.
+      const queue = playableTies([...main, ...(plate ?? [])]).filter((t) =>
+        !(current.teamA.every((id) => t.sideA.playerIds.includes(id))
+          && current.teamB.every((id) => t.sideB.playerIds.includes(id))));
+      const next = queue[0];
+      if (!next) return s;
+      const index = Math.max(0, ...voided.map((m) => m.matchIndex)) + 1;
+      return { ...s, matches: [...voided, seedPlayoffMatch(current.courtNumber, next, index, Date.now(), ko)] };
+    }), [commit]);
+
   /* ── derived ───────────────────────────────────────────────────── */
 
   // Every court is derived from its own players and its own matches and from
@@ -1085,14 +1179,50 @@ export function useManageSession(storageKey: string = STORAGE_KEY) {
     [session.players],
   );
 
+  /**
+   * The knockout night, derived whole. Null on a round robin, which is every
+   * night saved before the branch existed. One object because one draw feeds
+   * every court: nothing in it is per-court.
+   */
+  const knockout = useMemo(() => {
+    if (session.format !== "knockout") return null;
+    const pairs = session.knockoutPairs ?? [];
+    const ko = session.matches.filter((m) => m.stage !== null);
+    const main = buildKnockoutStages(pairs, ko);
+    const plate = session.plate ? buildPlateStages(pairs, ko) : null;
+    const stages = [...main, ...(plate ?? [])];
+    const finalTie = main.find((st) => st.key === "final")?.ties[0] ?? null;
+    const plateFinalTie = plate?.find((st) => st.key === "plateFinal")?.ties[0] ?? null;
+    const w = (t: typeof finalTie) => {
+      if (!t || !t.settled) return null;
+      if (t.walkover) return t.walkover === "A" ? t.sideA : t.sideB;
+      if (t.scoreA == null || t.scoreB == null || t.scoreA === t.scoreB) return null;
+      return t.scoreA > t.scoreB ? t.sideA : t.sideB;
+    };
+    return {
+      pairs,
+      main,
+      plate,
+      stages,
+      /** Every tie in play order, for the pager. */
+      ties: stages.flatMap((st) => st.ties.map((tie) => ({ stage: st, tie }))),
+      upNext: playableTies(stages),
+      champion: w(finalTie),
+      plateChampion: w(plateFinalTie),
+      finalTie,
+    };
+  }, [session]);
+
   return {
-    session, loading, sync, views, playerName,
+    session, loading, sync, views, playerName, knockout,
     matchesPlayedBy: (id: string) => matchesPlayedBy(session.matches, id),
     setDayLabel, addRosterPlayer, addWalkIn, removePlayer, assignCourt, setTier,
     setCourts, setTarget, extend, start,
     ensureOnCourt, skipMatch, goToMatch, recordScore, correctScore, voidMatch, setAway,
     swapInLiveMatch, redrawLiveMatch,
     seedPlayoff, advancePlayoff, deletePlayoff, setEnding, beginNewNight, startOver,
+    setFormat, setKnockoutPairs, setPlate, startKnockout, dispatchKnockout,
+    walkoverMatch, parkKnockoutTie,
     restartSetup, resetEverything, endNight,
   };
 }

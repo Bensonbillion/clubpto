@@ -43,6 +43,10 @@ export interface ChampionProps {
    */
   header?: ReactNode;
   courtNumber: number;
+  /** Overrides the eyebrow: the knockout reads "Sunday · knockout". */
+  eyebrowLabel?: string;
+  /** One quiet extra sentence: the plate champions, when there are any. */
+  extraLine?: string | null;
   /**
    * Two names, or three when the winning side was a rotating trio.
    * FLAG: only the pair is drawn. A trio joins the same way, which is the
@@ -62,6 +66,8 @@ export interface ChampionProps {
 export const Champion = ({
   header,
   courtNumber,
+  eyebrowLabel,
+  extraLine,
   championNames,
   scoreWinner,
   scoreLoser,
@@ -75,7 +81,7 @@ export const Champion = ({
       display: "flex", flexDirection: "column", justifyContent: "center",
       alignItems: "center", gap: 20, padding: "0 26px", textAlign: "center",
     }}>
-      <Eyebrow style={{ margin: 0 }}>Court {courtNumber} · doubles bracket</Eyebrow>
+      <Eyebrow style={{ margin: 0 }}>{eyebrowLabel ?? `Court ${courtNumber} · doubles bracket`}</Eyebrow>
 
       <p style={{ fontFamily: T.fontHead, fontSize: 44, lineHeight: 1.08, margin: 0 }}>
         {joinPair(championNames)}
@@ -98,6 +104,12 @@ export const Champion = ({
       <p style={{ font: `400 14.5px/1.6 ${T.fontBody}`, color: T.mut, margin: 0 }}>
         Beat {runnerUpTeamName} in the final.
       </p>
+      {extraLine != null && extraLine !== "" && (
+        <p style={{
+          font: `400 14.5px/1.6 ${T.fontBody}`, color: T.mut,
+          textAlign: "center", margin: "10px 0 0",
+        }}>{extraLine}</p>
+      )}
     </Body>
 
     {/* The bar is hand drawn rather than the FooterBar primitive. The primitive

@@ -20,6 +20,13 @@ one court each on two URLs at once. It is not a copy of the source; a change
 to `src/manage/` ships to both URLs. Instance 1 keeps the bare key, so nothing
 about `/manage` changed when `/manage2` arrived.
 
+Sunday is a hub (frame 34): after the day is chosen the wizard offers Round
+robin or Playoff. The Playoff door is a straight knockout over hand-made
+pairs (docs/manage/knockout-spec.md): one draw feeds every court, byes and a
+rotating trio absorb any headcount, walkovers and an optional plate for
+first-round losers. `Session.format` is absent on old saved nights, which is
+what keeps them resuming as round robins.
+
 Four earlier managers were deleted on 2026-08-19: v1 (`/manage-classic`), v2
 (`/manage2`), v3 (`/manage`) and v4 (`/manage4`), together with their engines,
 components and tests. `/manage-classic` and `/manage4` redirect to `/manage`,

@@ -44,9 +44,16 @@ import { Passcode, PasscodeFailed, HomeNothingRunning, HomeNightInProgress } fro
 import { WhichNight, WhoIsHere, Courts, MatchesEach, Ready, Chip } from "./screens/setup";
 import { CourtHeader, BalanceRule, CourtView, CourtSwitcher, Schedule, ScoreEntry , startValue } from "./screens/play";
 import { CorrectOrVoid, Extend, LateArrival, LeavesEarly, MoveCourts, PlayersTab } from "./screens/people";
+import { CourtsFree } from "./screens/knockout/CourtsFree";
+import { KnockoutPlay } from "./screens/knockout/KnockoutPlay";
+import { KnockoutReady } from "./screens/knockout/KnockoutReady";
+import { PairUp } from "./screens/knockout/PairUp";
+import { SundayHub } from "./screens/knockout/SundayHub";
+import { buildKnockoutStages, knockoutShape } from "./engine/knockout";
 import { StandingsTab, TieBrokenByOrder, type StandingsTabRow } from "./screens/standings";
 import {
   Bracket, Champion, HowThisCourtEnds, IndividualChampion, PlayoffMatch, PlayoffReadiness,
+  joinNames,
   joinPair,
 } from "./screens/playoffs";
 import {
@@ -72,11 +79,18 @@ const MINUTES_PER_MATCH = 12;
  */
 const STAGE_WORD: Record<PlayoffStage, string> = {
   playIn: "Play-in",
+  r16: "Round of 16 match",
+  quarter: "Quarterfinal",
   semi: "Semifinal",
   final: "Final",
+  platePlayIn: "Plate play-in",
+  plateQuarter: "Plate quarterfinal",
+  plateSemi: "Plate semifinal",
+  plateFinal: "Plate final",
 };
 
-type Step = "night" | "who" | "courts" | "target" | "ready";
+type Step = "night" | "format" | "who" | "pairs" | "courtsFree" | "koReady"
+  | "courts" | "target" | "ready";
 
 /** What the match tab is showing for one court. */
 type Pane = "match" | "schedule" | "why" | "bracket" | "playoffMatch";
@@ -163,9 +177,11 @@ const NightMenu = ({
 }: {
   dayLabel: string;
   onSessionSummary: () => void;
-  onOneMoreRound: () => void;
-  /** Back to the wizard at the courts step, roster kept, results deleted. */
-  onRestartSetup: () => void;
+  /** Absent on a knockout night: rounds are the bracket's own. */
+  onOneMoreRound?: () => void;
+  /** Back to the wizard at the courts step, roster kept, results deleted.
+   *  Absent on a knockout night, whose setup has no courts step to restart. */
+  onRestartSetup?: () => void;
   onStartOver: () => void;
   onEndNight: () => void;
   onClose: () => void;
@@ -180,7 +196,9 @@ const NightMenu = ({
       One tap away from any screen, either court, all night.
     </p>
     <SecondaryButton onClick={onSessionSummary}>Session summary</SecondaryButton>
-    <SecondaryButton onClick={onOneMoreRound}>One more round for a court</SecondaryButton>
+    {onOneMoreRound != null && (
+      <SecondaryButton onClick={onOneMoreRound}>One more round for a court</SecondaryButton>
+    )}
     {/*
       Not on frame 25b. Start over keeps the night running, so a night whose
       COURTS were dealt wrong, the wrong split or the wrong targets, had no
@@ -188,9 +206,11 @@ const NightMenu = ({
       momentum. This is that way back, and it costs recorded results, so it
       wears the destructive outline and opens a confirm that counts them.
     */}
-    <SecondaryButton onClick={onRestartSetup} style={{ borderColor: T.bad, color: T.redInk }}>
-      Restart setup
-    </SecondaryButton>
+    {onRestartSetup != null && (
+      <SecondaryButton onClick={onRestartSetup} style={{ borderColor: T.bad, color: T.redInk }}>
+        Restart setup
+      </SecondaryButton>
+    )}
     {/* Frame 25b outlines this one in the destructive colour without making it
         the danger button. The roster survives, and the sentence under it is
         what carries the warning. */}
@@ -400,6 +420,13 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
   useEffect(() => applyInstanceAccent(instance), [instance]);
 
   const s = useManageSession(storageKeyFor(instance));
+  // A knockout court is never left idle: if a reload landed between a score
+  // and its dispatch, deal the next tie now. dispatchKnockout no-ops when
+  // every court is busy or the draw has nothing playable, so this settles.
+  useEffect(() => {
+    if (s.session.format === "knockout" && s.session.status === "running") s.dispatchKnockout();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.session.format, s.session.status, s.session.matches.length]);
   // Named only on the second manager, on the door and at home, so two tabs on
   // one phone can be told apart. Once a night is running the court header is
   // the operator's bearings and the URL is the instance.
@@ -419,6 +446,12 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
   const [query, setQuery] = useState("");
   const [courtCount, setCourtCount] = useState(2);
   const [tierPromptId, setTierPromptId] = useState<string | null>(null);
+  // The pair-up screen's first tap, waiting for its second (frame 30).
+  const [heldId, setHeldId] = useState<string | null>(null);
+  // The live knockout match whose walkover confirm is open (frame 33).
+  const [walkoverId, setWalkoverId] = useState<string | null>(null);
+  // The knockout pager: an index into the draw's ties, null = the live tie.
+  const [koPage, setKoPage] = useState<number | null>(null);
   const [court, setCourt] = useState(1);
   // Home is a destination you choose, not somewhere Start throws you.
   const [atCourt, setAtCourt] = useState(false);
@@ -675,7 +708,24 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           selected={night}
           onSelect={setNight}
           onBack={() => { setPendingFresh(false); setInSetup(false); }}
-          onNext={() => { ensureFresh(); s.setDayLabel(night); setStep("who"); }}
+          onNext={() => {
+            ensureFresh();
+            s.setDayLabel(night);
+            // Sunday is a hub with doors (frame 34). Every other night is the
+            // round robin, stated so a leftover Sunday format cannot leak.
+            if (night === "Sunday") { setStep("format"); }
+            else { s.setFormat("roundRobin"); setStep("who"); }
+          }}
+        />
+      );
+    }
+
+    if (step === "format") {
+      return (
+        <SundayHub
+          onRoundRobin={() => { s.setFormat("roundRobin"); setStep("who"); }}
+          onKnockout={() => { s.setFormat("knockout"); setStep("who"); }}
+          onBack={() => setStep("night")}
         />
       );
     }
@@ -779,9 +829,11 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
             : null}
           onSetTier={(playerId, tier) => { s.setTier(playerId, tier); setTierPromptId(null); }}
           onSkipTier={() => setTierPromptId(null)}
-          onBack={() => setStep("night")}
+          onBack={() => setStep(night === "Sunday" ? "format" : "night")}
           onNext={() => {
             ensureFresh();
+            // The Playoff door pairs people instead of splitting courts.
+            if (s.session.format === "knockout") { setStep("pairs"); return; }
             // Adding already wrote to the session, so there is nothing left to
             // reconcile. This list is a view of the night, not a form.
             s.setCourts(Array.from({ length: courtCount }, (_, i) => i + 1));
@@ -790,6 +842,133 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
             // back through this step cannot undo a drag.
             applySuggestedSplit(courtCount, false);
             setStep("courts");
+          }}
+        />
+      );
+    }
+
+    if (step === "pairs") {
+      const present = s.session.players.filter((p) => !p.away);
+      const pairs = s.session.knockoutPairs ?? [];
+      const inDraw = new Set(pairs.flatMap((p) => p.playerIds));
+      const nameOf = (id: string) => s.session.players.find((p) => p.id === id);
+      const asName = (id: string) => {
+        const p = nameOf(id);
+        return { id, name: p?.name ?? id, tier: p?.tier ?? null };
+      };
+      const unpaired = present.filter((p) => !inDraw.has(p.id));
+      const reseed = (list: { playerIds: string[] }[]) =>
+        list.map((p, i) => ({ seed: i + 1, playerIds: p.playerIds }));
+
+      const tapName = (id: string) => {
+        if (heldId === id) { setHeldId(null); return; }
+        if (heldId == null) { setHeldId(id); return; }
+        s.setKnockoutPairs(reseed([...pairs, { playerIds: [heldId, id] }]));
+        setHeldId(null);
+      };
+      const tapPair = (seed: number) =>
+        s.setKnockoutPairs(reseed(pairs.filter((p) => p.seed !== seed)));
+      const shuffle = () => {
+        const order = [...pairs];
+        for (let i = order.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [order[i], order[j]] = [order[j], order[i]];
+        }
+        s.setKnockoutPairs(reseed(order));
+      };
+
+      // The draw is whole with nobody left over, or with exactly one, who
+      // joins the last pair as a rotating trio: byes and the trio absorb any
+      // headcount, which is the branch's whole promise.
+      const leftover = unpaired.length === 1 ? unpaired[0] : null;
+      const wholeEnough = pairs.length >= 2 && unpaired.length <= 1;
+      const next = wholeEnough
+        ? () => {
+          if (leftover) {
+            const last = pairs[pairs.length - 1];
+            s.setKnockoutPairs(reseed([
+              ...pairs.slice(0, -1),
+              { playerIds: [...last.playerIds, leftover.id] },
+            ]));
+          }
+          setHeldId(null);
+          setStep("courtsFree");
+        }
+        : undefined;
+
+      const helper = heldId != null
+        ? `${nameOf(heldId)?.name ?? "One"} is held. Tap a second name to pair.`
+        : leftover != null && pairs.length >= 2
+          ? `${leftover.name} joins the last pair as a rotating trio.`
+          : `${pairs.length} pairs, ${unpaired.length} unpaired.`;
+
+      return (
+        <PairUp
+          pairs={pairs.map((p) => ({ seed: p.seed, members: p.playerIds.map(asName) }))}
+          unpaired={unpaired.map((p) => asName(p.id))}
+          heldId={heldId}
+          onTapName={tapName}
+          onTapPair={tapPair}
+          onShuffle={shuffle}
+          onBack={() => { setHeldId(null); setStep("who"); }}
+          onNext={next}
+          helper={helper}
+        />
+      );
+    }
+
+    if (step === "courtsFree") {
+      return (
+        <CourtsFree
+          count={courtCount}
+          onCount={setCourtCount}
+          onBack={() => setStep("pairs")}
+          onNext={() => setStep("koReady")}
+        />
+      );
+    }
+
+    if (step === "koReady") {
+      const pairs = s.session.knockoutPairs ?? [];
+      const stages = buildKnockoutStages(pairs, []);
+      const first = stages[0];
+      const surplusByes = first?.key === "playIn"
+        ? pairs.slice(0, pairs.length - first.ties.length * 2)
+        : [];
+      const rest = first?.key === "playIn" ? stages.slice(1) : stages.slice(1);
+      const sideName = (ids: readonly string[]) =>
+        ids.map((id) => s.playerName(id)).join(" & ");
+      const listRounds = rest.map((st) => st.label.toLowerCase());
+      const thenLine = listRounds.length > 0
+        ? `${listRounds.join(" and ").replace(/^./, (c) => c.toUpperCase())}, drawn as winners land.`
+        : null;
+      const trio = pairs.find((p) => p.playerIds.length === 3);
+      return (
+        <KnockoutReady
+          pairCount={pairs.length}
+          shape={knockoutShape(pairs.length) ?? ""}
+          firstRoundLabel={first?.label ?? ""}
+          byes={surplusByes.map((p) => ({ name: sideName(p.playerIds), seed: p.seed }))}
+          ties={(first?.ties ?? []).map((t) => ({
+            a: sideName(t.sideA?.playerIds ?? []),
+            b: sideName(t.sideB?.playerIds ?? []),
+            seedA: t.sideA?.seeds[0] ?? 0,
+            seedB: t.sideB?.seeds[0] ?? 0,
+          }))}
+          thenLine={thenLine}
+          trioLine={trio
+            ? `${joinNames(trio.playerIds.map((id) => s.playerName(id)))} rotate: two play each match.`
+            : null}
+          plate={s.session.plate ?? false}
+          onPlate={s.setPlate}
+          onBack={() => setStep("courtsFree")}
+          onStart={() => {
+            s.startKnockout(courtCount);
+            s.dispatchKnockout();
+            setInSetup(false);
+            setAtCourt(true);
+            setCourt(1);
+            setKoPage(null);
           }}
         />
       );
@@ -969,11 +1148,31 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
 
   /* ── the summary and the confirmations, night-wide ─────────────── */
 
+  const koChampions: SummaryChampion[] = (() => {
+    const K = s.knockout;
+    if (!K) return [];
+    const out: SummaryChampion[] = [];
+    const finalMatch = K.finalTie?.matchId
+      ? s.session.matches.find((m) => m.id === K.finalTie?.matchId) ?? null : null;
+    if (K.champion) {
+      out.push({
+        courtNumber: 1,
+        players: K.champion.playerIds.map((id) => s.playerName(id)),
+        finalScore: finalMatch && finalMatch.scoreA != null && finalMatch.scoreB != null
+          ? [Math.max(finalMatch.scoreA, finalMatch.scoreB),
+            Math.min(finalMatch.scoreA, finalMatch.scoreB)] as [number, number]
+          : null,
+      });
+    }
+    return out;
+  })();
+
   const summaryProps = {
     dayLabel: s.session.dayLabel || night,
     playersIn: s.session.players.length,
     instanceLabel,
-    champions: s.views.flatMap<SummaryChampion>((v) => {
+    champions: s.session.format === "knockout" ? koChampions
+      : s.views.flatMap<SummaryChampion>((v) => {
       // A court that ran a bracket is named by its winning side and the final's
       // numbers; a court that took the other ending is named by one person and
       // their points. engine/endings.ts decides the second, not this file.
@@ -995,7 +1194,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         ? [{ courtNumber: v.court.number, players: [name(top.playerId)], points: top.points }]
         : [];
     }),
-    standingsByCourt: s.views.map((v) => ({
+    standingsByCourt: s.session.format === "knockout" ? [] : s.views.map((v) => ({
       courtNumber: v.court.number,
       rows: v.standings.map((r) => ({
         rank: r.rank, playerName: name(r.playerId),
@@ -1087,6 +1286,9 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
     if (scoreA === scoreB) return;
     if (m.status === "played") s.correctScore(matchId, scoreA, scoreB);
     else s.recordScore(matchId, scoreA, scoreB);
+    // On a knockout night every settled tie can seed the next one, and a
+    // court is never left idle while the draw holds a playable tie.
+    if (s.session.format === "knockout") { s.dispatchKnockout(); setKoPage(null); }
     here({
       scoring: null,
       pagerSlot: null,
@@ -1122,13 +1324,16 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         <NightMenu
           dayLabel={s.session.dayLabel || night}
           onSessionSummary={() => setSheet("summary")}
-          onOneMoreRound={() => setSheet("extend")}
-          onRestartSetup={() => setSheet("restartSetup")}
+          onOneMoreRound={s.session.format === "knockout" ? undefined : () => setSheet("extend")}
+          onRestartSetup={s.session.format === "knockout" ? undefined : () => setSheet("restartSetup")}
           // Start over clears every game and bracket, so every screen the
           // operator was on is about a night that no longer exists. The ending
           // each court had chosen goes with them.
           // startOverSession clears each court's stored ending itself.
-          onStartOver={() => { s.startOver(); setSheet(null); setUiByCourt({}); }}
+          onStartOver={() => {
+            s.startOver(); setSheet(null); setUiByCourt({});
+            if (s.session.format === "knockout") { s.dispatchKnockout(); setKoPage(null); }
+          }}
           onEndNight={() => setSheet("endNight")}
           onDeleteBracket={view.court.playoffSeeded
             ? () => setSheet("deleteBracket")
@@ -1357,7 +1562,11 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           courtNumber={voiding.courtNumber}
           pairA={tuple(voiding.teamA)} scoreA={voiding.scoreA ?? 0}
           pairB={tuple(voiding.teamB)} scoreB={voiding.scoreB ?? 0}
-          onVoid={() => { s.voidMatch(voiding.id); here({ voidingMatchId: null }); }}
+          onVoid={() => {
+            s.voidMatch(voiding.id);
+            here({ voidingMatchId: null });
+            if (s.session.format === "knockout") { s.dispatchKnockout(); setKoPage(null); }
+          }}
           onKeep={() => here({ voidingMatchId: null })}
         />
       )}
@@ -1412,6 +1621,252 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           onDismiss={() => here({ scoring: null })}
         />
         {overlays}
+      </>
+    );
+  }
+
+  /* ── the knockout night (frames 30 to 33) ─────────────────────── */
+
+  if (s.session.format === "knockout" && s.knockout) {
+    const K = s.knockout;
+    const sideView = (side: { seeds: readonly number[]; playerIds: readonly string[] } | null) =>
+      side == null ? null : {
+        name: pairOf(side.playerIds),
+        seedLabel: side.seeds.join("+"),
+        trio: side.playerIds.length > 2,
+      };
+    const winnerSideOf = (t: (typeof K.ties)[number]["tie"]): "A" | "B" | null => {
+      if (!t.settled) return null;
+      if (t.walkover) return t.walkover;
+      if (t.scoreA == null || t.scoreB == null || t.scoreA === t.scoreB) return null;
+      return t.scoreA > t.scoreB ? "A" : "B";
+    };
+
+    const walkoverMatchLive = walkoverId != null
+      ? s.session.matches.find((m) => m.id === walkoverId && m.status === "onCourt") ?? null
+      : null;
+    const koOverlays = (
+      <>
+        {overlays}
+        {walkoverMatchLive && (
+          <Sheet onDismiss={() => setWalkoverId(null)}>
+            <p style={{ fontFamily: T.fontHead, fontWeight: 400, fontSize: 18, margin: 0 }}>
+              Who advances?
+            </p>
+            <p style={{ font: `400 14.5px/1.6 ${T.fontBody}`, color: T.mut, margin: 0 }}>
+              A walkover settles the tie with no score. The named side moves
+              on exactly as a win would, and the bracket says Walkover.
+            </p>
+            <SecondaryButton onClick={() => {
+              s.walkoverMatch(walkoverMatchLive.id, "A");
+              s.dispatchKnockout();
+              setWalkoverId(null); setKoPage(null);
+            }}>{pairOf(walkoverMatchLive.teamA)}</SecondaryButton>
+            <SecondaryButton onClick={() => {
+              s.walkoverMatch(walkoverMatchLive.id, "B");
+              s.dispatchKnockout();
+              setWalkoverId(null); setKoPage(null);
+            }}>{pairOf(walkoverMatchLive.teamB)}</SecondaryButton>
+            <TertiaryButton onClick={() => setWalkoverId(null)}>Nobody yet</TertiaryButton>
+          </Sheet>
+        )}
+      </>
+    );
+
+    if (ui.tab === "players") {
+      const order = new Map(s.session.players.map((p, i) => [p.id, i]));
+      const onCourtNow = s.session.matches
+        .filter((m) => m.status === "onCourt")
+        .flatMap((m) => [...m.teamA, ...m.teamB]);
+      return (
+        <>
+          <PlayersTab
+            header={courtHeader}
+            courtLabel="Sunday"
+            players={s.session.players
+              .map((p) => ({
+                id: p.id, displayName: p.name,
+                gamesPlayed: s.matchesPlayedBy(p.id), tier: p.tier,
+                status: p.away ? ("left" as const)
+                  : onCourtNow.includes(p.id) ? ("on_court" as const)
+                    : ("here" as const),
+              }))
+              .sort((a, b) => a.gamesPlayed - b.gamesPlayed
+                || (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))}
+            attendanceCount={s.session.players.filter((p) => !p.away).length}
+            openPlayerId={ui.openPlayerId}
+            onOpenPlayer={(id) => here({ openPlayerId: id })}
+            onMarkArrived={(id) => s.setAway(id, false)}
+            // A knockout leaver is a walkover on their tie, so marking left is
+            // the note and "Opponent advances" is the consequence.
+            onMarkLeft={(id) => s.setAway(id, true)}
+            onMarkHere={(id) => s.setAway(id, false)}
+            onSetTier={(id) => {
+              setTierDraft(s.session.players.find((x) => x.id === id)?.tier ?? null);
+              here({ tierPlayerId: id });
+            }}
+            onChangeTab={(t) => here({ tab: t })}
+            tabLabels={{ standings: "Bracket" }}
+          />
+          {koOverlays}
+        </>
+      );
+    }
+
+    if (ui.tab === "standings") {
+      // The Bracket tab replaces Standings: a knockout night has no table.
+      const liveTie = K.ties.find((x) => x.tie.live)?.tie ?? null;
+      return (
+        <>
+          <Bracket
+            header={courtHeader}
+            courtNumber={courtNumber}
+            stages={K.stages.map((st, stageIndex) => ({
+              name: st.label,
+              matches: st.ties.map((t) => {
+                const feeder = K.stages[stageIndex - 1];
+                const waits = feeder == null ? null
+                  : { stageLabel: feeder.word, position: null };
+                const side = (which: "A" | "B") => {
+                  const seeded = which === "A" ? t.sideA : t.sideB;
+                  return {
+                    team: seeded ? {
+                      name: pairOf(seeded.playerIds),
+                      seedLabel: seeded.seeds.join("+"),
+                      trio: seeded.playerIds.length > 2,
+                    } : null,
+                    waitsFor: seeded ? null : waits,
+                  };
+                };
+                return {
+                  matchId: t.id,
+                  sideA: side("A"), sideB: side("B"),
+                  scoreA: t.scoreA, scoreB: t.scoreB,
+                  status: t.settled ? ("complete" as const)
+                    : t.live ? ("live" as const)
+                      : t.sideA && t.sideB ? ("next" as const)
+                        : ("pending" as const),
+                  winnerSide: winnerSideOf(t),
+                  walkover: t.walkover != null,
+                };
+              }),
+            }))}
+            matchOnCourtId={liveTie?.id ?? null}
+            liveStageName={liveTie
+              ? K.stages.find((st) => st.ties.some((t) => t.id === liveTie.id))?.word
+              : undefined}
+            loading={s.loading}
+            onOpenMatch={(tieId) => {
+              const idx = K.ties.findIndex((x) => x.tie.id === tieId);
+              setKoPage(idx >= 0 ? idx : null);
+              here({ tab: "match" });
+            }}
+            onOpenResult={(tieId) => {
+              const t = K.ties.find((x) => x.tie.id === tieId)?.tie;
+              if (t?.matchId) here({ editingMatchId: t.matchId });
+            }}
+            onScoreMatchOnCourt={() => { setKoPage(null); here({ tab: "match" }); }}
+            onSelectTab={(t) => here({ tab: t })}
+            tabLabels={{ standings: "Bracket" }}
+          />
+          {koOverlays}
+        </>
+      );
+    }
+
+    // The champion, once the final lands and nobody is paging history.
+    if (K.champion && koPage == null) {
+      const finalTie = K.finalTie;
+      const finalMatch = finalTie?.matchId
+        ? s.session.matches.find((m) => m.id === finalTie.matchId) ?? null
+        : null;
+      const loserSide = finalTie && winnerSideOf(finalTie) === "A" ? finalTie.sideB : finalTie?.sideA;
+      return (
+        <>
+          <Champion
+            header={courtHeader}
+            courtNumber={finalMatch?.courtNumber ?? courtNumber}
+            eyebrowLabel="Sunday · knockout"
+            championNames={K.champion.playerIds.map(name)}
+            scoreWinner={Math.max(finalMatch?.scoreA ?? 0, finalMatch?.scoreB ?? 0)}
+            scoreLoser={Math.min(finalMatch?.scoreA ?? 0, finalMatch?.scoreB ?? 0)}
+            runnerUpTeamName={loserSide ? pairOf(loserSide.playerIds) : ""}
+            extraLine={K.plateChampion
+              ? `The plate is ${pairOf(K.plateChampion.playerIds)}'s: champions of everyone knocked out in round one.`
+              : null}
+            onCopyForWhatsApp={copySummary}
+            onBackToBracket={() => here({ tab: "standings" })}
+          />
+          {koOverlays}
+        </>
+      );
+    }
+
+    /* The pager: one tie at a time, the live one on this court by default. */
+    const flat = K.ties;
+    const defaultIdx = (() => {
+      const mine = flat.findIndex((x) => {
+        if (!x.tie.live || !x.tie.matchId) return false;
+        const m = s.session.matches.find((mm) => mm.id === x.tie.matchId);
+        return m?.courtNumber === courtNumber;
+      });
+      if (mine >= 0) return mine;
+      const anyLive = flat.findIndex((x) => x.tie.live);
+      if (anyLive >= 0) return anyLive;
+      const firstOpen = flat.findIndex((x) => !x.tie.settled);
+      return firstOpen >= 0 ? firstOpen : Math.max(0, flat.length - 1);
+    })();
+    const idx = koPage ?? defaultIdx;
+    const at = flat[idx] ?? null;
+    const tie = at?.tie ?? null;
+    const stage = at?.stage ?? null;
+    const tieMatch = tie?.matchId
+      ? s.session.matches.find((m) => m.id === tie.matchId) ?? null
+      : null;
+    const state = tie == null ? "pending" as const
+      : tie.settled ? (tie.walkover ? "walkover" as const : "result" as const)
+        : tie.live ? "live" as const : "pending" as const;
+    const eyebrow = [
+      s.session.dayLabel || "Sunday",
+      stage?.word ?? "",
+      state === "live" && tieMatch ? `Court ${tieMatch.courtNumber}` : "",
+    ].filter(Boolean).join(" · ");
+    const upNextTie = K.upNext[0] ?? null;
+    const canPage = (d: number) => idx + d >= 0 && idx + d < flat.length;
+
+    return (
+      <>
+        <KnockoutPlay
+          header={courtHeader}
+          eyebrow={eyebrow}
+          a={sideView(tie?.sideA ?? null)}
+          b={sideView(tie?.sideB ?? null)}
+          scoreA={tie?.scoreA ?? null}
+          scoreB={tie?.scoreB ?? null}
+          state={state}
+          waitsA={tie && !tie.sideA && stage ? `Waits for the ${
+            (K.stages[K.stages.indexOf(stage) - 1]?.word ?? "earlier round").toLowerCase()}` : null}
+          waitsB={tie && !tie.sideB && stage ? `Waits for the ${
+            (K.stages[K.stages.indexOf(stage) - 1]?.word ?? "earlier round").toLowerCase()}` : null}
+          winner={tie ? winnerSideOf(tie) : null}
+          onPreviousTie={canPage(-1) ? () => setKoPage(idx - 1) : undefined}
+          onNextTie={canPage(1) ? () => setKoPage(idx + 1) : undefined}
+          onScore={state === "live" && tieMatch
+            ? () => here({ scoring: { matchId: tieMatch.id, side: "A", a: "", b: "" } })
+            : undefined}
+          onChangeMatch={state === "live" && tieMatch && K.upNext.length > 0
+            ? () => { s.parkKnockoutTie(tieMatch.id); setKoPage(null); }
+            : undefined}
+          onWalkover={state === "live" && tieMatch
+            ? () => setWalkoverId(tieMatch.id)
+            : undefined}
+          upNext={upNextTie
+            ? `${pairOf(upNextTie.sideA.playerIds)} against ${pairOf(upNextTie.sideB.playerIds)}`
+            : null}
+          activeTab={ui.tab}
+          onTabChange={(t) => { here({ tab: t }); if (t === "match") setKoPage(null); }}
+        />
+        {koOverlays}
       </>
     );
   }

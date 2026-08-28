@@ -79,7 +79,10 @@ export interface PlayersTabProps {
   onMoveCourts?: (playerId: string) => void;
   /** Opens frame B29's tier sheet for this row. */
   onSetTier?: (playerId: string) => void;
-  onAddPlayer: () => void;
+  /** Absent on a knockout night: a running draw has no seat to sell. */
+  onAddPlayer?: () => void;
+  /** Reworded tabs, e.g. Bracket where a knockout night has no standings. */
+  tabLabels?: Partial<Record<"match" | "players" | "standings", string>>;
   onChangeTab: (tab: Tab) => void;
 }
 
@@ -115,6 +118,7 @@ export const PlayersTab = ({
   onMoveCourts,
   onSetTier,
   onAddPlayer,
+  tabLabels,
   onChangeTab,
 }: PlayersTabProps) => {
   // Fewest games first; arrival order breaks the tie so the sort is stable.
@@ -245,7 +249,7 @@ export const PlayersTab = ({
         <SecondaryButton onClick={onAddPlayer}>Add a walk-in</SecondaryButton>
       </FooterBar>
 
-      <TabBar active="players" onChange={onChangeTab} />
+      <TabBar active="players" onChange={onChangeTab} labels={tabLabels} />
     </Screen>
   );
 };

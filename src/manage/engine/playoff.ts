@@ -208,6 +208,8 @@ export interface Tie {
   /** On court now. Frame 21 draws the "Live" chip from this. */
   live: boolean;
   settled: boolean;
+  /** Settled without playing: the named side advanced. Scores stay null. */
+  walkover: "A" | "B" | null;
 }
 
 /** A tie whose sides are both known, so a match can be minted for it. */
@@ -269,7 +271,7 @@ function boundMatch(
     : hits.reduce((newest, m) => (m.matchIndex >= newest.matchIndex ? m : newest));
 }
 
-function makeTie(
+export function makeTie(
   stage: PlayoffStage,
   index: number,
   sideA: SeededPair | null,
@@ -287,6 +289,7 @@ function makeTie(
     matchId: m?.id ?? null,
     live: m?.status === "onCourt",
     settled: m?.status === "played",
+    walkover: m?.walkover ?? null,
   };
 }
 
@@ -297,7 +300,10 @@ function makeTie(
  * handed a winner nobody played for.
  */
 export function winnerOf(tie: Tie): SeededPair | null {
-  if (!tie.settled || tie.scoreA == null || tie.scoreB == null) return null;
+  if (!tie.settled) return null;
+  // A walkover names its winner without any numbers to compare.
+  if (tie.walkover) return tie.walkover === "A" ? tie.sideA : tie.sideB;
+  if (tie.scoreA == null || tie.scoreB == null) return null;
   if (tie.scoreA === tie.scoreB) return null;
   return tie.scoreA > tie.scoreB ? tie.sideA : tie.sideB;
 }

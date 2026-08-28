@@ -72,6 +72,13 @@ export interface Match {
   completedAt: number | null;
   /** Playoff matches carry a stage; group matches do not. */
   stage: PlayoffStage | null;
+  /**
+   * A side advanced without playing: the opponent conceded or never turned
+   * up. Set with the winner's side, scores stay null, and the bracket writes
+   * "Walkover" where a score would sit. Knockout nights are where it happens,
+   * but nothing about the field is knockout-specific.
+   */
+  walkover?: "A" | "B" | null;
 }
 
 // The stages a playoff match can belong to.
@@ -88,7 +95,9 @@ export interface Match {
 // guarantee is narrower and stronger: engine/playoff.ts is the ONLY place that
 // mints a playoff match, it reads the stage off the tie it was handed, and the
 // same tie identity reads that match back. The tag is never typed twice.
-export type PlayoffStage = "playIn" | "semi" | "final";
+export type PlayoffStage =
+  | "playIn" | "r16" | "quarter" | "semi" | "final"
+  | "platePlayIn" | "plateQuarter" | "plateSemi" | "plateFinal";
 
 export interface Court {
   number: CourtNumber;
@@ -112,6 +121,27 @@ export interface Court {
   ending?: "doublesBracket" | "oneMoreRound" | null;
 }
 
+/**
+ * The shape of the night. Absent means the round robin every existing saved
+ * night is, so a phone that updates mid-season resumes exactly what it had.
+ * "knockout" is Sunday's Playoff door: pairs are made by hand at the door,
+ * one draw feeds every court, and there are no standings, only the bracket.
+ */
+export type NightFormat = "roundRobin" | "knockout";
+
+/**
+ * One side of the knockout draw, in draw order.
+ *
+ * `playerIds` usually holds two. An odd headcount puts three in the last
+ * side, a rotating trio, two on court each match, because byes and the trio
+ * are how this branch absorbs any count with no divisibility math anywhere.
+ */
+export interface KnockoutPair {
+  /** 1-based position in the draw. Position IS the seeding. */
+  seed: number;
+  playerIds: string[];
+}
+
 export type SessionStatus = "setup" | "running" | "ended";
 
 export interface Session {
@@ -125,6 +155,12 @@ export interface Session {
   matches: Match[];
   startedAt: number | null;
   endedAt: number | null;
+  /** Absent on every night saved before the knockout branch existed. */
+  format?: NightFormat;
+  /** The hand-made draw, in order. Only a knockout night carries one. */
+  knockoutPairs?: KnockoutPair[];
+  /** Everyone knocked out in round one plays their own small bracket. */
+  plate?: boolean;
 }
 
 /* ── derived shapes the screens consume ──────────────────────────── */

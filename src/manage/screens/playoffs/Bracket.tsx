@@ -65,6 +65,8 @@ export interface BracketProps {
   /** The bar: jumps to whichever playoff match is on court. */
   onScoreMatchOnCourt: () => void;
   onSelectTab: (t: Tab) => void;
+  /** Reworded tabs, e.g. Bracket where a knockout night has no standings. */
+  tabLabels?: Partial<Record<Tab, string>>;
 }
 
 // FLAG: no error state is rendered here. A partial bracket is worse than none,
@@ -82,6 +84,7 @@ export const Bracket = ({
   onOpenResult,
   onScoreMatchOnCourt,
   onSelectTab,
+  tabLabels,
 }: BracketProps) => (
   <Screen>
     {header}
@@ -146,7 +149,7 @@ export const Bracket = ({
       </FooterBar>
     )}
 
-    <TabBar active="match" onChange={onSelectTab} />
+    <TabBar active={tabLabels ? "standings" : "match"} onChange={onSelectTab} labels={tabLabels} />
   </Screen>
 );
 
