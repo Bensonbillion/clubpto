@@ -102,6 +102,12 @@ export interface WhoIsHereProps {
   /** Back returns to frame 05 with the night intact. */
   onBack?: () => void;
   onNext: () => void;
+  /**
+   * What Next opens. The round robin splits the courts; the knockout pairs
+   * people up, and a button naming the wrong door is a small lie the live
+   * walk noticed on the first tap.
+   */
+  nextLabel?: string;
 }
 
 /**
@@ -137,7 +143,7 @@ export const offersWalkIn = (rows: readonly RosterRow[], query: string): boolean
 
 export const WhoIsHere = ({
   rows, rosterNote, query, onQueryChange, onAdd, onAddWalkInNamed, onRemove,
-  tierPrompt, onSetTier, onSkipTier, onBack, onNext,
+  tierPrompt, onSetTier, onSkipTier, onBack, onNext, nextLabel,
 }: WhoIsHereProps) => {
   const trimmed = query.trim();
   const matches = rosterMatches(rows, query);
@@ -322,7 +328,7 @@ export const WhoIsHere = ({
         </Body>
 
       <FooterBar helper="Tiers are set right here, per night. B this week can be A next, and only you ever see them. Copy last night is what carries them over.">
-        <PrimaryButton onClick={onNext}>Next: split the courts</PrimaryButton>
+        <PrimaryButton onClick={onNext}>{nextLabel ?? "Next: split the courts"}</PrimaryButton>
       </FooterBar>
     </Screen>
   );
