@@ -830,6 +830,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           onSetTier={(playerId, tier) => { s.setTier(playerId, tier); setTierPromptId(null); }}
           onSkipTier={() => setTierPromptId(null)}
           onBack={() => setStep(night === "Sunday" ? "format" : "night")}
+          nextLabel={s.session.format === "knockout" ? "Next: pair up" : undefined}
           onNext={() => {
             ensureFresh();
             // The Playoff door pairs people instead of splitting courts.
