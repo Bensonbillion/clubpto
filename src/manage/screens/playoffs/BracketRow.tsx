@@ -149,6 +149,11 @@ export const BracketRow = ({ match, onOpen }: BracketRowProps) => {
             <span style={{ fontFamily: T.fontHead, fontSize: 26, lineHeight: 1.15, color: T.soft }}>--</span>
             <span style={{ fontFamily: T.fontHead, fontSize: 26, lineHeight: 1.15, color: T.soft }}>--</span>
           </>
+        ) : match.walkover ? (
+          // Settled with no numbers: the winner advanced, the other conceded
+          // or never turned up, and inventing a score would put a lie in the
+          // bracket. The word is the result.
+          <Tag size="sm" tone="quiet">Walkover</Tag>
         ) : (
           <>
             <ScoreCell dim={dimSide === "A"}>{scoreText(match.scoreA)}</ScoreCell>

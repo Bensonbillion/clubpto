@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSessionStore, type SessionStore, type SyncStatus } from "@/court-manager/persistence";
-import type { Court, CourtNumber, Match, Player, PlayerTier, ScheduleSlot, Session } from "./types";
+import type { Court, CourtNumber, KnockoutPair, Match, NightFormat, Player, PlayerTier, ScheduleSlot, Session } from "./types";
 import { buildQueue, lawContextFor, nextMatch, courtComplete, matchesPlayedBy, totalMatches } from "./engine/rotation";
 import { canFieldACMatch, designateB, tierOf as tierOfPlayer } from "./engine/tiers";
 import { legalSubstitutes, swapIntoMatch } from "./engine/substitutes";
@@ -21,6 +21,7 @@ import { computeStandings, type PlayedMatch, type StandingsRow } from "./engine/
 import { buildStages, champion, nextTie, orderedPlayerIds, readiness, seedPairs, seedPlayoffMatch,
   type SeededPair, type Stage } from "./engine/playoff";
 import { appearsInAMatch } from "./engine/roster-guard";
+import { buildKnockoutStages, buildPlateStages, orphanKnockoutMatchIds, planKnockoutDispatch, playableTies } from "./engine/knockout";
 import type { RosterName } from "./roster/names";
 
 export const STORAGE_KEY = "cm_manage_session";
@@ -394,6 +395,8 @@ export const writeScore = (
     ...session,
     matches: session.matches.map((m) => m.id !== matchId ? m : {
       ...m, scoreA, scoreB, status: "played" as const, completedAt: now,
+      // Numbers and a walkover cannot share a row: whichever lands last wins.
+      walkover: null,
     }),
   };
 
@@ -745,9 +748,21 @@ export function useManageSession(storageKey: string = STORAGE_KEY) {
    * what that case actually wants, and it is reversible.
    */
   const removePlayer = useCallback((playerId: string) =>
-    commit((s) => appearsInAMatch(s.matches, playerId)
-      ? s
-      : { ...s, players: s.players.filter((p) => p.id !== playerId) }), [commit]);
+    commit((s) => {
+      if (appearsInAMatch(s.matches, playerId)) return s;
+      // A removed player leaves the draw too. A pair down to one member is no
+      // pair: its remainder returns to the unpaired cloud and the draw closes
+      // up, reseeded, so no ghost id can ever be dealt onto a court.
+      const pairs = (s.knockoutPairs ?? [])
+        .map((p) => ({ ...p, playerIds: p.playerIds.filter((id) => id !== playerId) }))
+        .filter((p) => p.playerIds.length >= 2)
+        .map((p, i) => ({ seed: i + 1, playerIds: p.playerIds }));
+      return {
+        ...s,
+        players: s.players.filter((p) => p.id !== playerId),
+        ...(s.knockoutPairs != null ? { knockoutPairs: pairs } : {}),
+      };
+    }), [commit]);
 
   const assignCourt = useCallback((playerId: string, courtNumber: number | null) =>
     commit((s) => ({
@@ -851,19 +866,40 @@ export function useManageSession(storageKey: string = STORAGE_KEY) {
    * though they had played a real result. Making it a no-op leaves the match
    * on court where the operator can see the number is wrong and fix it.
    */
+  /**
+   * A changed knockout feeder can orphan a match already dealt from it: the
+   * winner the round advanced is not the winner any more. Every knockout
+   * writer runs its result through here, so an orphan is voided in the same
+   * commit that made it one, and the dispatcher deals the round as it now
+   * stands. A no-op on every round robin.
+   */
+  const settleKnockout = (s: Session): Session => {
+    if (s.format !== "knockout") return s;
+    const orphans = orphanKnockoutMatchIds(s.knockoutPairs ?? [], s.matches, s.plate ?? false);
+    if (orphans.length === 0) return s;
+    return {
+      ...s,
+      matches: s.matches.map((m) =>
+        orphans.includes(m.id) ? { ...m, status: "voided" as const } : m),
+    };
+  };
+
   const recordScore = useCallback((matchId: string, scoreA: number, scoreB: number) =>
-    commit((s) => writeScore(s, matchId, scoreA, scoreB, Date.now())), [commit]);
+    commit((s) => settleKnockout(writeScore(s, matchId, scoreA, scoreB, Date.now()))), [commit]);
 
   /** Frame 16. Refuses a draw for the same reason recordScore does. */
   const correctScore = useCallback((matchId: string, scoreA: number, scoreB: number) =>
-    commit((s) => scoreA === scoreB ? s : ({
+    commit((s) => scoreA === scoreB ? s : settleKnockout({
       ...s,
-      matches: s.matches.map((m) => m.id !== matchId ? m : { ...m, scoreA, scoreB }),
+      // Real numbers replace a walkover outright: a row carrying both would
+      // let the flag advance one side while the score named the other.
+      matches: s.matches.map((m) => m.id !== matchId
+        ? m : { ...m, scoreA, scoreB, walkover: null }),
     })), [commit]);
 
   /** Voided counts for nothing: all four go back in the queue. */
   const voidMatch = useCallback((matchId: string) =>
-    commit((s) => ({
+    commit((s) => settleKnockout({
       ...s,
       matches: s.matches.map((m) => m.id !== matchId ? m : { ...m, status: "voided" as const }),
     })), [commit]);
@@ -1016,6 +1052,101 @@ export function useManageSession(storageKey: string = STORAGE_KEY) {
   const endNight = useCallback(() =>
     commit((s) => ({ ...s, status: "ended", endedAt: Date.now() })), [commit]);
 
+  /* ── the knockout branch (frames 30 to 33) ─────────────────────── */
+
+  /** Which door the night went through. Set at the Sunday hub. */
+  const setFormat = useCallback((format: NightFormat) =>
+    commit((s) => ({ ...s, format })), [commit]);
+
+  /** The hand-made draw, whole. Position in the array is the seeding. */
+  const setKnockoutPairs = useCallback((knockoutPairs: KnockoutPair[]) =>
+    commit((s) => ({ ...s, knockoutPairs })), [commit]);
+
+  const setPlate = useCallback((plate: boolean) =>
+    commit((s) => ({ ...s, plate })), [commit]);
+
+  /**
+   * Open the courts and start the knockout. Nobody is assigned to a court:
+   * one draw feeds them all, and dispatchKnockout puts ties on whichever
+   * court is free, in draw order.
+   */
+  const startKnockout = useCallback((courtCount: number) =>
+    commit((s) => ({
+      ...s,
+      status: "running" as const,
+      startedAt: Date.now(),
+      // The knockout assigns nobody to a court and starts with no matches:
+      // entered over a running round robin ("Start a different night"), stale
+      // group matches would block the dispatcher and stale court numbers
+      // would feed the round robin's own auto-fill.
+      matches: [],
+      players: s.players.map((p) => ({ ...p, courtNumber: null })),
+      courts: Array.from({ length: Math.max(1, courtCount) }, (_, i) => ({
+        number: i + 1, targetMatches: 0, playoffSeeded: true, champion: null,
+      })),
+    })), [commit]);
+
+  /**
+   * Fill every free court with the next playable tie, in draw order. Called
+   * after every start, score, walkover and park, so a court is never idle
+   * while the draw holds a tie whose sides are known.
+   */
+  const dispatchKnockout = useCallback(() =>
+    commit((s) => {
+      if (s.format !== "knockout" || s.status !== "running") return s;
+      const plan = planKnockoutDispatch(
+        s.knockoutPairs ?? [], s.matches, s.courts.map((c) => c.number), s.plate ?? false);
+      if (plan.length === 0) return s;
+      const ko = s.matches.filter((m) => m.stage !== null);
+      let index = Math.max(0, ...s.matches.map((m) => m.matchIndex)) + 1;
+      const minted = plan.map(({ courtNumber, tie }, i) =>
+        seedPlayoffMatch(courtNumber, tie, index++, Date.now() + i, ko));
+      return { ...s, matches: [...s.matches, ...minted] };
+    }), [commit]);
+
+  /**
+   * Frame 33's "Opponent advances", after its confirm names the side. The
+   * named side takes the tie without playing: scores stay null, the bracket
+   * writes Walkover, and the winner moves on exactly as a scored win would.
+   */
+  const walkoverMatch = useCallback((matchId: string, side: "A" | "B") =>
+    commit((s) => ({
+      ...s,
+      matches: s.matches.map((m) => m.id === matchId && m.status === "onCourt"
+        ? { ...m, status: "played" as const, walkover: side, completedAt: Date.now() }
+        : m),
+    })), [commit]);
+
+  /**
+   * Frame 33's "Change this match": this court takes a different waiting tie
+   * and the one standing here goes back to the queue for the next free
+   * court. Refused (returns unchanged) when the draw holds no other playable
+   * tie, and the shell disables the control for the same reason.
+   */
+  const parkKnockoutTie = useCallback((matchId: string) =>
+    commit((s) => {
+      const current = s.matches.find((m) => m.id === matchId);
+      if (!current || current.status !== "onCourt") return s;
+      const voided = s.matches.map((m) => m.id === matchId ? { ...m, status: "voided" as const } : m);
+      const ko = voided.filter((m) => m.stage !== null);
+      const pairs = s.knockoutPairs ?? [];
+      const main = buildKnockoutStages(pairs, ko);
+      const plate = s.plate ? buildPlateStages(pairs, ko) : null;
+      // The parked tie is playable again the moment its match is voided, so
+      // the swap is "everything playable except the tie that was standing
+      // here", first in draw order.
+      // Membership runs the way binding does: the fielded four are drawn FROM
+      // the sides, so the test is team-subset-of-side, which holds for a trio
+      // whose third player was resting.
+      const queue = playableTies([...main, ...(plate ?? [])]).filter((t) =>
+        !(current.teamA.every((id) => t.sideA.playerIds.includes(id))
+          && current.teamB.every((id) => t.sideB.playerIds.includes(id))));
+      const next = queue[0];
+      if (!next) return s;
+      const index = Math.max(0, ...voided.map((m) => m.matchIndex)) + 1;
+      return { ...s, matches: [...voided, seedPlayoffMatch(current.courtNumber, next, index, Date.now(), ko)] };
+    }), [commit]);
+
   /* ── derived ───────────────────────────────────────────────────── */
 
   // Every court is derived from its own players and its own matches and from
@@ -1085,14 +1216,50 @@ export function useManageSession(storageKey: string = STORAGE_KEY) {
     [session.players],
   );
 
+  /**
+   * The knockout night, derived whole. Null on a round robin, which is every
+   * night saved before the branch existed. One object because one draw feeds
+   * every court: nothing in it is per-court.
+   */
+  const knockout = useMemo(() => {
+    if (session.format !== "knockout") return null;
+    const pairs = session.knockoutPairs ?? [];
+    const ko = session.matches.filter((m) => m.stage !== null);
+    const main = buildKnockoutStages(pairs, ko);
+    const plate = session.plate ? buildPlateStages(pairs, ko) : null;
+    const stages = [...main, ...(plate ?? [])];
+    const finalTie = main.find((st) => st.key === "final")?.ties[0] ?? null;
+    const plateFinalTie = plate?.find((st) => st.key === "plateFinal")?.ties[0] ?? null;
+    const w = (t: typeof finalTie) => {
+      if (!t || !t.settled) return null;
+      if (t.walkover) return t.walkover === "A" ? t.sideA : t.sideB;
+      if (t.scoreA == null || t.scoreB == null || t.scoreA === t.scoreB) return null;
+      return t.scoreA > t.scoreB ? t.sideA : t.sideB;
+    };
+    return {
+      pairs,
+      main,
+      plate,
+      stages,
+      /** Every tie in play order, for the pager. */
+      ties: stages.flatMap((st) => st.ties.map((tie) => ({ stage: st, tie }))),
+      upNext: playableTies(stages),
+      champion: w(finalTie),
+      plateChampion: w(plateFinalTie),
+      finalTie,
+    };
+  }, [session]);
+
   return {
-    session, loading, sync, views, playerName,
+    session, loading, sync, views, playerName, knockout,
     matchesPlayedBy: (id: string) => matchesPlayedBy(session.matches, id),
     setDayLabel, addRosterPlayer, addWalkIn, removePlayer, assignCourt, setTier,
     setCourts, setTarget, extend, start,
     ensureOnCourt, skipMatch, goToMatch, recordScore, correctScore, voidMatch, setAway,
     swapInLiveMatch, redrawLiveMatch,
     seedPlayoff, advancePlayoff, deletePlayoff, setEnding, beginNewNight, startOver,
+    setFormat, setKnockoutPairs, setPlate, startKnockout, dispatchKnockout,
+    walkoverMatch, parkKnockoutTie,
     restartSetup, resetEverything, endNight,
   };
 }

@@ -83,6 +83,8 @@ export interface BracketMatch {
   status: BracketMatchStatus;
   /** Which side won. Dims the LOSING name and the losing numeral. */
   winnerSide: "A" | "B" | null;
+  /** Settled without playing. The row writes Walkover instead of numbers. */
+  walkover?: boolean;
 }
 
 export interface BracketStage {

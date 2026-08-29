@@ -375,15 +375,23 @@ export type Tab = "match" | "players" | "standings";
  * Every tab reserves that 3px whether or not it is active, so switching tabs
  * moves the mark and never the labels.
  */
-export const TabBar = ({ active, onChange }: { active: Tab; onChange: (t: Tab) => void }) => (
+export const TabBar = ({ active, onChange, labels }: {
+  active: Tab; onChange: (t: Tab) => void;
+  /**
+   * Overrides a tab's wording without changing its key. The knockout night
+   * reads "Bracket" where a round robin reads "Standings", and the key
+   * staying "standings" is what lets every tab handler stay one handler.
+   */
+  labels?: Partial<Record<Tab, string>>;
+}) => (
   <div style={{ display: "flex", borderTop: `1px solid ${T.line}`, background: T.paper }}>
-    {([["match", "Match"], ["players", "Players"], ["standings", "Standings"]] as const).map(([id, label]) => (
+    {([["match", "Match"], ["players", "Players"], ["standings", "Standings"]] as const).map(([id, base]) => (
       <button key={id} type="button" onClick={() => onChange(id)} style={{
         flex: 1, minHeight: 60, border: "none", background: "transparent", cursor: "pointer",
         borderTop: `3px solid ${active === id ? T.acc : "transparent"}`,
         color: active === id ? T.ink : T.soft,
         font: `${active === id ? 700 : 600} 14px ${T.fontBody}`,
-      }}>{label}</button>
+      }}>{labels?.[id] ?? base}</button>
     ))}
   </div>
 );
