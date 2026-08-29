@@ -67,6 +67,16 @@ export interface BracketProps {
   onSelectTab: (t: Tab) => void;
   /** Reworded tabs, e.g. Bracket where a knockout night has no standings. */
   tabLabels?: Partial<Record<Tab, string>>;
+  /**
+   * The seeding explainer card. True for the round robin's bracket, whose
+   * pairs split adjacent seeds; the knockout hides it, because its pairs are
+   * the organiser's own and the card would explain a rule nobody applied.
+   */
+  explainer?: boolean;
+  /** Replaces the "Court N" corner label: the knockout reads "Sunday". */
+  contextLabel?: string;
+  /** One quiet line under the stages: the plate's promise while it forms. */
+  footnote?: string | null;
 }
 
 // FLAG: no error state is rendered here. A partial bracket is worse than none,
@@ -84,13 +94,16 @@ export const Bracket = ({
   onOpenResult,
   onScoreMatchOnCourt,
   onSelectTab,
+  explainer = true,
+  contextLabel,
+  footnote,
   tabLabels,
 }: BracketProps) => (
   <Screen>
     {header}
     <PlayoffHeader
       left={<Heading>Playoff</Heading>}
-      right={<CourtLabel>Court {courtNumber}</CourtLabel>}
+      right={<CourtLabel>{contextLabel ?? `Court ${courtNumber}`}</CourtLabel>}
     />
 
     <Body style={{ padding: "16px 22px 24px", display: "flex", flexDirection: "column", gap: 20 }}>
@@ -125,7 +138,12 @@ export const Bracket = ({
         </div>
       ))}
 
-      {!loading && (
+      {footnote != null && footnote !== "" && (
+        <p style={{ font: `400 14.5px/1.6 ${T.fontBody}`, color: T.mut, margin: "4px 2px 0" }}>
+          {footnote}
+        </p>
+      )}
+      {!loading && explainer && (
         <Card>
           <p style={{ fontFamily: T.fontHead, fontSize: 17, margin: "0 0 8px" }}>
             Why 1 and 2 are not partners

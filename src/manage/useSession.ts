@@ -21,7 +21,7 @@ import { computeStandings, type PlayedMatch, type StandingsRow } from "./engine/
 import { buildStages, champion, nextTie, orderedPlayerIds, readiness, seedPairs, seedPlayoffMatch,
   type SeededPair, type Stage } from "./engine/playoff";
 import { appearsInAMatch } from "./engine/roster-guard";
-import { buildKnockoutStages, buildPlateStages, playableTies } from "./engine/knockout";
+import { buildKnockoutStages, buildPlateStages, orphanKnockoutMatchIds, planKnockoutDispatch, playableTies } from "./engine/knockout";
 import type { RosterName } from "./roster/names";
 
 export const STORAGE_KEY = "cm_manage_session";
@@ -395,6 +395,8 @@ export const writeScore = (
     ...session,
     matches: session.matches.map((m) => m.id !== matchId ? m : {
       ...m, scoreA, scoreB, status: "played" as const, completedAt: now,
+      // Numbers and a walkover cannot share a row: whichever lands last wins.
+      walkover: null,
     }),
   };
 
@@ -746,9 +748,21 @@ export function useManageSession(storageKey: string = STORAGE_KEY) {
    * what that case actually wants, and it is reversible.
    */
   const removePlayer = useCallback((playerId: string) =>
-    commit((s) => appearsInAMatch(s.matches, playerId)
-      ? s
-      : { ...s, players: s.players.filter((p) => p.id !== playerId) }), [commit]);
+    commit((s) => {
+      if (appearsInAMatch(s.matches, playerId)) return s;
+      // A removed player leaves the draw too. A pair down to one member is no
+      // pair: its remainder returns to the unpaired cloud and the draw closes
+      // up, reseeded, so no ghost id can ever be dealt onto a court.
+      const pairs = (s.knockoutPairs ?? [])
+        .map((p) => ({ ...p, playerIds: p.playerIds.filter((id) => id !== playerId) }))
+        .filter((p) => p.playerIds.length >= 2)
+        .map((p, i) => ({ seed: i + 1, playerIds: p.playerIds }));
+      return {
+        ...s,
+        players: s.players.filter((p) => p.id !== playerId),
+        ...(s.knockoutPairs != null ? { knockoutPairs: pairs } : {}),
+      };
+    }), [commit]);
 
   const assignCourt = useCallback((playerId: string, courtNumber: number | null) =>
     commit((s) => ({
@@ -852,19 +866,40 @@ export function useManageSession(storageKey: string = STORAGE_KEY) {
    * though they had played a real result. Making it a no-op leaves the match
    * on court where the operator can see the number is wrong and fix it.
    */
+  /**
+   * A changed knockout feeder can orphan a match already dealt from it: the
+   * winner the round advanced is not the winner any more. Every knockout
+   * writer runs its result through here, so an orphan is voided in the same
+   * commit that made it one, and the dispatcher deals the round as it now
+   * stands. A no-op on every round robin.
+   */
+  const settleKnockout = (s: Session): Session => {
+    if (s.format !== "knockout") return s;
+    const orphans = orphanKnockoutMatchIds(s.knockoutPairs ?? [], s.matches, s.plate ?? false);
+    if (orphans.length === 0) return s;
+    return {
+      ...s,
+      matches: s.matches.map((m) =>
+        orphans.includes(m.id) ? { ...m, status: "voided" as const } : m),
+    };
+  };
+
   const recordScore = useCallback((matchId: string, scoreA: number, scoreB: number) =>
-    commit((s) => writeScore(s, matchId, scoreA, scoreB, Date.now())), [commit]);
+    commit((s) => settleKnockout(writeScore(s, matchId, scoreA, scoreB, Date.now()))), [commit]);
 
   /** Frame 16. Refuses a draw for the same reason recordScore does. */
   const correctScore = useCallback((matchId: string, scoreA: number, scoreB: number) =>
-    commit((s) => scoreA === scoreB ? s : ({
+    commit((s) => scoreA === scoreB ? s : settleKnockout({
       ...s,
-      matches: s.matches.map((m) => m.id !== matchId ? m : { ...m, scoreA, scoreB }),
+      // Real numbers replace a walkover outright: a row carrying both would
+      // let the flag advance one side while the score named the other.
+      matches: s.matches.map((m) => m.id !== matchId
+        ? m : { ...m, scoreA, scoreB, walkover: null }),
     })), [commit]);
 
   /** Voided counts for nothing: all four go back in the queue. */
   const voidMatch = useCallback((matchId: string) =>
-    commit((s) => ({
+    commit((s) => settleKnockout({
       ...s,
       matches: s.matches.map((m) => m.id !== matchId ? m : { ...m, status: "voided" as const }),
     })), [commit]);
@@ -1040,6 +1075,12 @@ export function useManageSession(storageKey: string = STORAGE_KEY) {
       ...s,
       status: "running" as const,
       startedAt: Date.now(),
+      // The knockout assigns nobody to a court and starts with no matches:
+      // entered over a running round robin ("Start a different night"), stale
+      // group matches would block the dispatcher and stale court numbers
+      // would feed the round robin's own auto-fill.
+      matches: [],
+      players: s.players.map((p) => ({ ...p, courtNumber: null })),
       courts: Array.from({ length: Math.max(1, courtCount) }, (_, i) => ({
         number: i + 1, targetMatches: 0, playoffSeeded: true, champion: null,
       })),
@@ -1053,17 +1094,13 @@ export function useManageSession(storageKey: string = STORAGE_KEY) {
   const dispatchKnockout = useCallback(() =>
     commit((s) => {
       if (s.format !== "knockout" || s.status !== "running") return s;
-      const pairs = s.knockoutPairs ?? [];
+      const plan = planKnockoutDispatch(
+        s.knockoutPairs ?? [], s.matches, s.courts.map((c) => c.number), s.plate ?? false);
+      if (plan.length === 0) return s;
       const ko = s.matches.filter((m) => m.stage !== null);
-      const main = buildKnockoutStages(pairs, ko);
-      const plate = s.plate ? buildPlateStages(pairs, ko) : null;
-      const queue = playableTies([...main, ...(plate ?? [])]);
-      const busy = new Set(s.matches.filter((m) => m.status === "onCourt").map((m) => m.courtNumber));
-      const free = s.courts.map((c) => c.number).filter((n) => !busy.has(n));
-      if (free.length === 0 || queue.length === 0) return s;
       let index = Math.max(0, ...s.matches.map((m) => m.matchIndex)) + 1;
-      const minted = free.slice(0, queue.length).map((courtNumber, i) =>
-        seedPlayoffMatch(courtNumber, queue[i], index++, Date.now() + i, ko));
+      const minted = plan.map(({ courtNumber, tie }, i) =>
+        seedPlayoffMatch(courtNumber, tie, index++, Date.now() + i, ko));
       return { ...s, matches: [...s.matches, ...minted] };
     }), [commit]);
 

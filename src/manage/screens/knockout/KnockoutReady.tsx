@@ -31,7 +31,8 @@ export interface KnockoutReadyProps {
   /** The rotating trio's sentence, when the draw holds one. */
   trioLine?: string | null;
   plate: boolean;
-  onPlate: (on: boolean) => void;
+  /** Absent when the draw cannot produce two round-one losers: no card. */
+  onPlate?: (on: boolean) => void;
   onBack?: () => void;
   onStart: () => void;
 }
@@ -96,6 +97,7 @@ export const KnockoutReady = ({
         </p>
       )}
 
+      {onPlate != null && (
       <Card style={{ gap: 10, marginTop: 18 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <span>
@@ -112,6 +114,7 @@ export const KnockoutReady = ({
           </Chip>
         </div>
       </Card>
+      )}
     </Body>
 
     <FooterBar helper="Byes and the trio absorb whatever the pairing leaves.">

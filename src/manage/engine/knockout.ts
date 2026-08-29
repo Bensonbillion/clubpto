@@ -28,6 +28,15 @@ export const drawSides = (pairs: readonly KnockoutPair[]): SeededPair[] =>
 /** The largest power of two at most n. The size of the first full round. */
 const baseOf = (n: number): number => 2 ** Math.floor(Math.log2(n));
 
+/**
+ * The most pairs one draw can hold. Sixteen pairs is a thirty-two player
+ * Sunday, already past anything the club has run; past it the round table
+ * below has no names for the rounds, and a bracket with unnamed rounds is a
+ * bracket half-drawn. The pair-up screen states the cap instead of letting
+ * the seventeenth pair fall off the end of the draw.
+ */
+export const MAX_KNOCKOUT_PAIRS = 16;
+
 /** Stage keys and names per full-round size, main bracket and plate. */
 const ROUND: Record<number, { key: PlayoffStage; label: string; word: string }> = {
   16: { key: "r16", label: "Round of 16", word: "Round of 16 match" },
@@ -58,7 +67,7 @@ function buildBracket(
   playInKey: PlayoffStage,
   playInLabel: string,
 ): Stage[] {
-  if (sides.length < 2) return [];
+  if (sides.length < 2 || sides.length > MAX_KNOCKOUT_PAIRS) return [];
   const live = matches.filter((m) => m.status !== "voided");
 
   const n = sides.length;
@@ -145,17 +154,60 @@ export function playableTies(stages: readonly Stage[]): PlayableTie[] {
 }
 
 /**
+ * The dispatch, whole and pure: which ties go onto which free courts right
+ * now, in draw order. The hook mints exactly what this plans, so the plan is
+ * what the tests hold.
+ */
+export function planKnockoutDispatch(
+  pairs: readonly KnockoutPair[],
+  matches: readonly Match[],
+  courtNumbers: readonly number[],
+  plate: boolean,
+): { courtNumber: number; tie: PlayableTie }[] {
+  const ko = matches.filter((m) => m.stage !== null);
+  const main = buildKnockoutStages(pairs, ko);
+  const plateStages = plate ? buildPlateStages(pairs, ko) : null;
+  const queue = playableTies([...main, ...(plateStages ?? [])]);
+  const busy = new Set(matches.filter((m) => m.status === "onCourt").map((m) => m.courtNumber));
+  const free = courtNumbers.filter((n) => !busy.has(n));
+  return free.slice(0, queue.length).map((courtNumber, i) => ({ courtNumber, tie: queue[i] }));
+}
+
+/**
+ * Knockout matches on court that no tie claims any more: a feeder was voided
+ * or corrected and the round they were dealt from has changed under them. An
+ * orphan can never receive a score (nothing binds to it), so the writer that
+ * changed the feeder voids these in the same breath and the dispatcher deals
+ * the round as it now stands.
+ */
+export function orphanKnockoutMatchIds(
+  pairs: readonly KnockoutPair[],
+  matches: readonly Match[],
+  plate: boolean,
+): string[] {
+  const ko = matches.filter((m) => m.stage !== null);
+  const main = buildKnockoutStages(pairs, ko);
+  const plateStages = plate ? buildPlateStages(pairs, ko) : null;
+  const bound = new Set(
+    [...main, ...(plateStages ?? [])].flatMap((st) => st.ties.map((t) => t.matchId)).filter(Boolean),
+  );
+  return matches
+    .filter((m) => m.stage !== null && m.status === "onCourt" && !bound.has(m.id))
+    .map((m) => m.id);
+}
+
+/**
  * Frame 32's sentence: the draw's shape, stated plainly before it starts.
  * "A bye for the top pair, three play-ins, then semifinals."
  */
 export function knockoutShape(pairCount: number): string | null {
-  if (pairCount < 2) return null;
+  if (pairCount < 2 || pairCount > MAX_KNOCKOUT_PAIRS) return null;
   const base = baseOf(pairCount);
   const surplus = pairCount - base;
   const seededThrough = pairCount - surplus * 2;
   const word = (x: number) =>
     ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight"][x] ?? `${x}`;
-  const firstFull = ROUND[base].label.toLowerCase();
+  const firstFull = base === 2 ? "the final" : ROUND[base].label.toLowerCase();
   if (surplus === 0) {
     return base === 2
       ? "The final, straight away."

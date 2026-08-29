@@ -40,7 +40,7 @@ export interface KnockoutPlayProps {
   /** Frame 33's two quiet controls under the live card. */
   onChangeMatch?: () => void;
   onWalkover?: () => void;
-  /** "Hamid + Dami against Seyi + Wale", or null when nothing waits. */
+  /** "Hamid & Dami against Seyi & Wale", or null when nothing waits. */
   upNext: string | null;
   /** Who took a settled tie. The caller knows; the slats only draw it. */
   winner?: "A" | "B" | null;

@@ -28,6 +28,12 @@ const MONO = "ui-monospace, Menlo, Consolas, monospace";
 export interface SummaryChampion {
   courtNumber: number;
   /**
+   * Overrides the "COURT N" prefix. The knockout's one bracket spans every
+   * court, so its lines read "Champions:" and "Plate champions:" instead of
+   * pinning the night to a court it was never confined to.
+   */
+  label?: string;
+  /**
    * Everyone who won this court. Two names for a bracket pair, one for the
    * court that ended on its table, three for the rotating trio a court of nine
    * seeds. The line's noun follows the count, so a single winner reads
@@ -87,6 +93,14 @@ export interface SessionSummaryProps {
   standingsByCourt: SummaryCourtStandings[];
   /** Which tab is lit. Frame 25 draws Standings. */
   activeTab: Tab;
+  /** Reworded tabs, e.g. Bracket where a knockout night has no standings. */
+  tabLabels?: Partial<Record<Tab, string>>;
+  /**
+   * How many courts the night ran, when the tables cannot say. A knockout
+   * has no standings tables, and counting an empty list wrote "0 courts"
+   * about a two-court night.
+   */
+  courtCount?: number;
   /** Receives the finished plain text; the caller writes it to the clipboard. */
   onCopy: (payload: string) => void;
   /** Opens the end-the-night confirmation, frame 28c. Never ends it directly. */
@@ -121,11 +135,11 @@ const rankReason = (row: SummaryStandingRow): string =>
  * open with. One court is "1 court", and the second manager tags itself on the
  * end so two pastes from two phones read as two courts, not two Court 1s.
  */
-export const summaryHeaderLine = ({ dayLabel, playersIn, standingsByCourt, instanceLabel }: Pick<
+export const summaryHeaderLine = ({ dayLabel, playersIn, standingsByCourt, instanceLabel, courtCount }: Pick<
   SessionSummaryProps,
-  "dayLabel" | "playersIn" | "standingsByCourt" | "instanceLabel"
+  "dayLabel" | "playersIn" | "standingsByCourt" | "instanceLabel" | "courtCount"
 >): string => {
-  const n = standingsByCourt.length;
+  const n = courtCount ?? standingsByCourt.length;
   const base = `${dayLabel} · ${playersIn} players · ${n} ${n === 1 ? "court" : "courts"}`;
   return instanceLabel ? `${base} · ${instanceLabel}` : base;
 };
@@ -144,11 +158,11 @@ export const summaryHeaderLine = ({ dayLabel, playersIn, standingsByCourt, insta
  * still one line to WhatsApp, and a reader scanning for their own name wants
  * the courts kept apart.
  */
-export function buildWhatsAppPayload({ dayLabel, playersIn, champions, standingsByCourt, instanceLabel }: Pick<
+export function buildWhatsAppPayload({ dayLabel, playersIn, champions, standingsByCourt, instanceLabel, courtCount }: Pick<
   SessionSummaryProps,
-  "dayLabel" | "playersIn" | "champions" | "standingsByCourt" | "instanceLabel"
+  "dayLabel" | "playersIn" | "champions" | "standingsByCourt" | "instanceLabel" | "courtCount"
 >): string {
-  const blocks: string[] = [summaryHeaderLine({ dayLabel, playersIn, standingsByCourt, instanceLabel })];
+  const blocks: string[] = [summaryHeaderLine({ dayLabel, playersIn, standingsByCourt, instanceLabel, courtCount })];
 
   // FLAG: the summary is reachable all night, so this list is empty until a
   // court finishes. The frame draws no wording for that, so the block is left
@@ -159,7 +173,7 @@ export function buildWhatsAppPayload({ dayLabel, playersIn, champions, standings
       const tail = c.finalScore != null ? ` (${c.finalScore[0]}-${c.finalScore[1]})`
         : c.points != null ? `, ${c.points} pts`
           : "";
-      return `COURT ${c.courtNumber} ${noun}: ${c.players.join(" + ")}${tail}`;
+      return `${c.label ?? `COURT ${c.courtNumber} ${noun}`}: ${c.players.join(" + ")}${tail}`;
     }).join("\n"));
   }
 
@@ -181,12 +195,14 @@ export const SessionSummary = ({
   champions,
   standingsByCourt,
   instanceLabel,
+  courtCount,
   activeTab,
+  tabLabels,
   onCopy,
   onEndNight,
   onTabChange,
 }: SessionSummaryProps) => {
-  const payload = buildWhatsAppPayload({ dayLabel, playersIn, champions, standingsByCourt, instanceLabel });
+  const payload = buildWhatsAppPayload({ dayLabel, playersIn, champions, standingsByCourt, instanceLabel, courtCount });
 
   return (
     <Screen>
@@ -239,7 +255,7 @@ export const SessionSummary = ({
         <TertiaryButton onClick={onEndNight} style={{ color: T.warm }}>End the night</TertiaryButton>
       </FooterBar>
 
-      <TabBar active={activeTab} onChange={onTabChange} />
+      <TabBar active={activeTab} onChange={onTabChange} labels={tabLabels} />
     </Screen>
   );
 };

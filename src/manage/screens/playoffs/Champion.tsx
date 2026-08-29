@@ -47,6 +47,8 @@ export interface ChampionProps {
   eyebrowLabel?: string;
   /** One quiet extra sentence: the plate champions, when there are any. */
   extraLine?: string | null;
+  /** The final was a walkover: no numbers exist, and none are invented. */
+  walkover?: boolean;
   /**
    * Two names, or three when the winning side was a rotating trio.
    * FLAG: only the pair is drawn. A trio joins the same way, which is the
@@ -68,6 +70,7 @@ export const Champion = ({
   courtNumber,
   eyebrowLabel,
   extraLine,
+  walkover,
   championNames,
   scoreWinner,
   scoreLoser,
@@ -91,18 +94,28 @@ export const Champion = ({
         display: "flex", gap: 32, border: `1px solid ${BOX_LINE}`,
         borderRadius: 24, padding: "10px 34px",
       }}>
-        <span style={{
-          fontFamily: T.fontHead, fontSize: 76, lineHeight: 1,
-          fontVariantNumeric: "tabular-nums", color: "#fff",
-        }}>{scoreText(scoreWinner)}</span>
-        <span style={{
-          fontFamily: T.fontHead, fontSize: 76, lineHeight: 1,
-          fontVariantNumeric: "tabular-nums", color: LOSING_INK,
-        }}>{scoreText(scoreLoser)}</span>
+        {walkover ? (
+          <span style={{ fontFamily: T.fontHead, fontSize: 34, lineHeight: 1.6, color: "#fff" }}>
+            Walkover
+          </span>
+        ) : (
+          <>
+            <span style={{
+              fontFamily: T.fontHead, fontSize: 76, lineHeight: 1,
+              fontVariantNumeric: "tabular-nums", color: "#fff",
+            }}>{scoreText(scoreWinner)}</span>
+            <span style={{
+              fontFamily: T.fontHead, fontSize: 76, lineHeight: 1,
+              fontVariantNumeric: "tabular-nums", color: LOSING_INK,
+            }}>{scoreText(scoreLoser)}</span>
+          </>
+        )}
       </div>
 
       <p style={{ font: `400 14.5px/1.6 ${T.fontBody}`, color: T.mut, margin: 0 }}>
-        Beat {runnerUpTeamName} in the final.
+        {walkover
+          ? `${runnerUpTeamName} conceded the final.`
+          : `Beat ${runnerUpTeamName} in the final.`}
       </p>
       {extraLine != null && extraLine !== "" && (
         <p style={{
