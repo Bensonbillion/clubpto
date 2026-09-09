@@ -1680,6 +1680,11 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           })}
           onVoid={() => here({ editingMatchId: null, voidingMatchId: editing.id })}
           onDismiss={() => here({ editingMatchId: null })}
+          voidNote={editing.stage !== null
+            ? "Voiding reopens the tie: it is dealt again, and anything it fed is voided with it."
+            : s.session.format === "teams"
+              ? "Voiding removes the game from the table. Both pairs go back a game and are dealt again."
+              : undefined}
         />
       )}
 
@@ -1688,6 +1693,12 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           courtNumber={voiding.courtNumber}
           pairA={tuple(voiding.teamA)} scoreA={voiding.scoreA ?? 0}
           pairB={tuple(voiding.teamB)} scoreB={voiding.scoreB ?? 0}
+          // A pairing night has one table and no queue.
+          consequence={voiding.stage !== null
+            ? "is removed from the bracket. The tie is dealt again."
+            : s.session.format === "teams"
+              ? "is removed from the table. Both pairs go back a game."
+              : undefined}
           onVoid={() => {
             s.voidMatch(voiding.id);
             here({ voidingMatchId: null });
@@ -1787,11 +1798,13 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
             attendanceCount={s.session.players.filter((p) => !p.away).length}
             openPlayerId={ui.openPlayerId}
             onOpenPlayer={(id) => here({ openPlayerId: id })}
-            onMarkArrived={(id) => s.setAway(id, false)}
+            // Back in the room, the pair is back in the pool, and a court
+            // that was holding for want of a pair is dealt straight away.
+            onMarkArrived={(id) => { s.setAway(id, false); s.dispatchTeams(); }}
             // The leaver's live match comes down and their pair is out of
             // the night; the court is dealt again straight away.
             onMarkLeft={(id) => { s.setAway(id, true); s.dispatchTeams(); }}
-            onMarkHere={(id) => s.setAway(id, false)}
+            onMarkHere={(id) => { s.setAway(id, false); s.dispatchTeams(); }}
             onSetTier={(id) => {
               setTierDraft(s.session.players.find((x) => x.id === id)?.tier ?? null);
               here({ tierPlayerId: id });
@@ -1935,7 +1948,12 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           upNext={Tm.upNext
             ? `${pairOf(Tm.upNext.a.playerIds)} against ${pairOf(Tm.upNext.b.playerIds)}`
             : Tm.waiting.length > 0
-              ? `${Tm.waiting.map((w) => pairOf(w.playerIds)).join(" and ")} ${Tm.waiting.length === 1 ? "waits" : "wait"} for the next court.`
+              // A pair is two people, so it waits in the plural. When a court
+              // is free and they still wait, the court is holding for fresher
+              // opponents to come off, and the line says so.
+              ? `${Tm.waiting.map((w) => pairOf(w.playerIds)).join(" and ")} wait for ${
+                s.session.courts.some((c) => !Tm.live.some((m) => m.courtNumber === c.number))
+                  ? "fresher opponents to come off court" : "the next court"}.`
               : null}
           activeTab={ui.tab}
           onTabChange={(t) => { here({ tab: t }); if (t === "match") setKoPage(null); }}

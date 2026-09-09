@@ -18,6 +18,12 @@ export interface ConfirmVoidResultProps {
   scoreB: number;
   /** The court this result sits on. Named in the sentence. */
   courtNumber: number;
+  /**
+   * What the void does, after the scores. The round robin's court table
+   * and queue by default; a pairing night has one table and no queue, so
+   * it says its own: "is removed from the table. Both pairs go back a game."
+   */
+  consequence?: string;
   /** Removes the result: standings recompute, all four `played` counts drop by one. */
   onVoid: () => void;
   /** Dismiss with no change. Scrim tap and back gesture both land here. */
@@ -25,12 +31,13 @@ export interface ConfirmVoidResultProps {
 }
 
 export const ConfirmVoidResult = ({
-  pairA, scoreA, pairB, scoreB, courtNumber, onVoid, onKeep,
+  pairA, scoreA, pairB, scoreB, courtNumber, consequence, onVoid, onKeep,
 }: ConfirmVoidResultProps) => (
   <Sheet tone="danger" onDismiss={onKeep}>
     <ConfirmTitle>Void this result?</ConfirmTitle>
     <ConfirmBody>
-      {`${joinPair(pairA[0], pairA[1])} ${pad2(scoreA)}, ${joinPair(pairB[0], pairB[1])} ${pad2(scoreB)} is removed from the Court ${courtNumber} standings. All four return to the queue.`}
+      {`${joinPair(pairA[0], pairA[1])} ${pad2(scoreA)}, ${joinPair(pairB[0], pairB[1])} ${pad2(scoreB)} ${
+        consequence ?? `is removed from the Court ${courtNumber} standings. All four return to the queue.`}`}
     </ConfirmBody>
     {/* FLAG: voiding a playoff match rather than a group match is not drawn,
         and this sentence would be wrong for one: a voided semifinal takes a

@@ -32,9 +32,14 @@ export interface CorrectOrVoidProps {
    *  is changed yet. */
   onVoid: () => void;
   onDismiss: () => void;
+  /**
+   * What voiding does, under the two choices. The round robin's line by
+   * default; a pairing night has one table and no queue and says so.
+   */
+  voidNote?: string;
 }
 
-export const CorrectOrVoid = ({ match, onChangeScore, onVoid, onDismiss }: CorrectOrVoidProps) => (
+export const CorrectOrVoid = ({ match, onChangeScore, onVoid, onDismiss, voidNote }: CorrectOrVoidProps) => (
   <Sheet onDismiss={onDismiss}>
     <p
       style={{
@@ -92,8 +97,7 @@ export const CorrectOrVoid = ({ match, onChangeScore, onVoid, onDismiss }: Corre
     </SecondaryButton>
 
     <p style={{ font: `400 14.5px/1.6 ${T.fontBody}`, color: T.mut, margin: 0, textWrap: "pretty" }}>
-      Voiding removes the game from the standings and returns all four to the queue at their
-      previous counts.
+      {voidNote ?? "Voiding removes the game from the standings and returns all four to the queue at their previous counts."}
     </p>
   </Sheet>
 );
