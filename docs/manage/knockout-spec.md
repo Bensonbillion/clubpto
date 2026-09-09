@@ -37,14 +37,12 @@ trio absorb any headcount.
 
 ## Sunday formats (frames 34 to 37)
 
-- **Frame 34, Sunday hub, BUILT with two doors.** Appears only when the night
-  is Sunday, immediately after the day is chosen. "Three shapes tonight. The
-  roster is built inside the door you choose." Round robin / Playoff / Set
-  teammate. "Switching doors keeps the roster." The Set teammate door is not
-  yet drawn in the app, because it opens onto nothing until the branch below
-  is built.
+- **Frame 34, Sunday hub, BUILT with all three doors.** Appears only when the
+  night is Sunday, immediately after the day is chosen. "Three shapes
+  tonight. The roster is built inside the door you choose." Round robin /
+  Playoff / Set teammate. "Switching doors keeps the roster."
 
-### The Set teammate branch (frames 35 to 37), NOT BUILT YET
+### The Set teammate branch (frames 35 to 37), BUILT
 
 Pick partners and play the night as teams. Reuses frames 30 (pair up) and
 31 (courts), then:
@@ -67,7 +65,33 @@ Pick partners and play the night as teams. Reuses frames 30 (pair up) and
   byes to the top three by the power-of-two rule. Readiness in the shape of
   frame 21, two doors instead of one.
 
-## Where the built branch lives
+## Where the teams branch lives
+
+- `src/manage/engine/teams.ts`: least-played-first over pairs with opponents
+  varied before any rematch, the table over pairs (the individual engine
+  with a pair standing in for a player), valid targets (pairs times target
+  must be even), and seedByTable, which rewrites the pairs in table order so
+  the knockout engine takes over for "Seed the bracket". Two refusals keep
+  the dispatcher honest: a tie that would leave the remaining games
+  unmatchable is never dealt (the court waits for a pair still on another
+  court, so nobody is stranded a game short), and a rematch is not dealt
+  while fresher opponents are on a court with games to play (so four pairs
+  on two courts meet everyone, not the same pair all night). A pair whose
+  member has left is out of the night and the table ends without it; a
+  trio with one away plays on with its two.
+- `src/manage/screens/knockout/GamesPerPair.tsx` (frame 35) and
+  `TeamEndings.tsx` (frame 37). Frame 36 is the existing StandingsTab over
+  pair rows. Play reuses KnockoutPlay with Standings in place of Bracket.
+- `Session.format` gains "teams"; `teamsTarget` and `teamsEnding` are the
+  night's two facts. "Crown the table" shows the top pair on the individual
+  champion screen; "Seed the bracket" flips the night into the knockout
+  branch, whose dispatcher, bracket tab and champion screen do the rest.
+- A played team result is tapped on its card to correct or void it (frame
+  16), and a void re-deals the court under whichever dispatcher the night
+  is running. Marking a teammate left tears their live match down and the
+  court is dealt again without that pair.
+
+## Where the knockout branch lives
 
 - `src/manage/engine/knockout.ts`: the bracket shapes, the plate, dispatch
   order, the shape sentence. Reuses the playoff engine's tie machinery

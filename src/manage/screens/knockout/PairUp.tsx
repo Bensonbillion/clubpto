@@ -30,6 +30,8 @@ export interface PairUpProps {
   onTapPair: (seed: number) => void;
   onShuffle: () => void;
   onBack?: () => void;
+  /** The eyebrow: which Sunday door this step belongs to. */
+  step?: string;
   /** Absent while more than one name is unpaired: the draw is not whole. */
   onNext?: () => void;
   /**
@@ -46,10 +48,10 @@ const TierNote = ({ tier }: { tier?: PlayerTier | null }) =>
     : <span style={{ font: `400 12px ${T.fontBody}`, color: T.dim }}>Not assessed</span>;
 
 export const PairUp = ({
-  pairs, unpaired, heldId, onTapName, onTapPair, onShuffle, onBack, onNext, helper,
+  pairs, unpaired, heldId, onTapName, onTapPair, onShuffle, onBack, onNext, helper, step,
 }: PairUpProps) => (
   <Screen>
-    <SetupHeader title="Who plays together?" step="Setup · Sunday · Playoff" onBack={onBack} />
+    <SetupHeader title="Who plays together?" step={step ?? "Setup · Sunday · Playoff"} onBack={onBack} />
     <Why>
       Tap one name, tap a second, the pair moves up into the draw. Tap a pair
       to break it.

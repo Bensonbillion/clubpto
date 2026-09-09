@@ -12,12 +12,14 @@ export interface CourtsFreeProps {
   count: number;
   onCount: (n: number) => void;
   onBack?: () => void;
+  /** The eyebrow: which Sunday door this step belongs to. */
+  step?: string;
   onNext: () => void;
 }
 
-export const CourtsFree = ({ count, onCount, onBack, onNext }: CourtsFreeProps) => (
+export const CourtsFree = ({ count, onCount, onBack, onNext, step }: CourtsFreeProps) => (
   <Screen>
-    <SetupHeader title="How many courts are free?" step="Setup · Sunday · Playoff" onBack={onBack} />
+    <SetupHeader title="How many courts are free?" step={step ?? "Setup · Sunday · Playoff"} onBack={onBack} />
     <Why>One draw feeds every court. Each tie goes to whichever court is free.</Why>
 
     <Body style={{ padding: "18px 22px 8px" }}>

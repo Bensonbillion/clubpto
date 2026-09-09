@@ -68,6 +68,8 @@ export interface SummaryStandingRow {
 
 export interface SummaryCourtStandings {
   courtNumber: number;
+  /** Replaces "Court N" over the block: a teams night reads "Teams". */
+  label?: string;
   rows: SummaryStandingRow[];
 }
 
@@ -179,7 +181,7 @@ export function buildWhatsAppPayload({ dayLabel, playersIn, champions, standings
 
   const tables = standingsByCourt
     .filter((court) => court.rows.length > 0)
-    .map((court) => `Court ${court.courtNumber}: ` + court.rows
+    .map((court) => `${court.label ?? `Court ${court.courtNumber}`}: ` + court.rows
       .map((r) => `${r.rank} ${r.playerName} ${r.points}${rankReason(r)}`)
       .join(", "));
   if (tables.length > 0) blocks.push(tables.join("\n"));

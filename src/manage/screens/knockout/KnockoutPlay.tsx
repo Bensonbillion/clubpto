@@ -37,6 +37,11 @@ export interface KnockoutPlayProps {
   onNextTie?: () => void;
   /** Opens the score sheet. Live ties only. */
   onScore?: () => void;
+  /**
+   * Opens the result for correction or void (frame 16). Settled results
+   * only; absent on a knockout, whose bracket tab opens them instead.
+   */
+  onOpenResult?: () => void;
   /** Frame 33's two quiet controls under the live card. */
   onChangeMatch?: () => void;
   onWalkover?: () => void;
@@ -46,20 +51,22 @@ export interface KnockoutPlayProps {
   winner?: "A" | "B" | null;
   activeTab: Tab;
   onTabChange: (t: Tab) => void;
+  /** Bracket on a knockout night; a teams night keeps Standings. */
+  tabLabels?: Partial<Record<Tab, string>>;
 }
 
-const SideSlat = ({ side, score, waits, tappable, onScore, walkover, won }: {
+const SideSlat = ({ side, score, waits, tappable, live, onTap, walkover, won }: {
   side: KnockoutSideView | null; score: number | null; waits?: string | null;
-  tappable: boolean; onScore?: () => void; walkover: boolean; won: boolean;
+  tappable: boolean; live: boolean; onTap?: () => void; walkover: boolean; won: boolean;
 }) => (
   <button
     type="button"
     disabled={!tappable}
-    onClick={tappable ? onScore : undefined}
+    onClick={tappable ? onTap : undefined}
     style={{
       display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
       width: "100%", boxSizing: "border-box", minHeight: 74, padding: "14px 18px",
-      border: `1.5px solid ${tappable ? T.acc : T.line}`, borderRadius: T.radiusPanel,
+      border: `1.5px solid ${live ? T.acc : T.line}`, borderRadius: T.radiusPanel,
       background: "transparent", color: "inherit", textAlign: "left",
       cursor: tappable ? "pointer" : "default",
     }}
@@ -76,7 +83,7 @@ const SideSlat = ({ side, score, waits, tappable, onScore, walkover, won }: {
           {side.trio && (
             <Tag size="sm" tone="quiet">Rotating trio, two play each match</Tag>
           )}
-          {tappable && (
+          {live && (
             <span style={{ display: "block", font: `600 11.5px ${T.fontBody}`, letterSpacing: ".08em", color: T.soft, marginTop: 3 }}>
               TAP TO SCORE
             </span>
@@ -100,9 +107,10 @@ const SideSlat = ({ side, score, waits, tappable, onScore, walkover, won }: {
 
 export const KnockoutPlay = ({
   header, eyebrow, a, b, scoreA, scoreB, state, waitsA, waitsB,
-  onPreviousTie, onNextTie, onScore, onChangeMatch, onWalkover, upNext,
+  onPreviousTie, onNextTie, onScore, onOpenResult, onChangeMatch, onWalkover, upNext,
   winner = null,
   activeTab, onTabChange,
+  tabLabels = { standings: "Bracket" },
 }: KnockoutPlayProps) => {
   return (
     <Screen>
@@ -128,9 +136,19 @@ export const KnockoutPlay = ({
 
       <Body style={{ padding: "16px 22px 8px", display: "flex", flexDirection: "column", gap: 10 }}>
         <SideSlat side={a} score={scoreA} waits={waitsA} walkover={state === "walkover"}
-          won={winner === "A"} tappable={state === "live"} onScore={onScore} />
+          won={winner === "A"} live={state === "live"}
+          tappable={state === "live" || (state === "result" && onOpenResult != null)}
+          onTap={state === "live" ? onScore : onOpenResult} />
         <SideSlat side={b} score={scoreB} waits={waitsB} walkover={state === "walkover"}
-          won={winner === "B"} tappable={state === "live"} onScore={onScore} />
+          won={winner === "B"} live={state === "live"}
+          tappable={state === "live" || (state === "result" && onOpenResult != null)}
+          onTap={state === "live" ? onScore : onOpenResult} />
+
+        {state === "result" && onOpenResult != null && (
+          <p style={{ font: `400 13.5px/1.5 ${T.fontBody}`, color: T.soft, margin: "2px 2px 0" }}>
+            Tap the result to correct or void it.
+          </p>
+        )}
 
         {state === "live" && (
           <div style={{ display: "flex", justifyContent: "center", gap: 18, marginTop: 4 }}>
@@ -161,7 +179,7 @@ export const KnockoutPlay = ({
         )}
       </Body>
 
-      <TabBar active={activeTab} onChange={onTabChange} labels={{ standings: "Bracket" }} />
+      <TabBar active={activeTab} onChange={onTabChange} labels={tabLabels} />
     </Screen>
   );
 };
