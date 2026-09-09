@@ -46,6 +46,8 @@ export interface KnockoutPlayProps {
   winner?: "A" | "B" | null;
   activeTab: Tab;
   onTabChange: (t: Tab) => void;
+  /** Bracket on a knockout night; a teams night keeps Standings. */
+  tabLabels?: Partial<Record<Tab, string>>;
 }
 
 const SideSlat = ({ side, score, waits, tappable, onScore, walkover, won }: {
@@ -103,6 +105,7 @@ export const KnockoutPlay = ({
   onPreviousTie, onNextTie, onScore, onChangeMatch, onWalkover, upNext,
   winner = null,
   activeTab, onTabChange,
+  tabLabels = { standings: "Bracket" },
 }: KnockoutPlayProps) => {
   return (
     <Screen>
@@ -161,7 +164,7 @@ export const KnockoutPlay = ({
         )}
       </Body>
 
-      <TabBar active={activeTab} onChange={onTabChange} labels={{ standings: "Bracket" }} />
+      <TabBar active={activeTab} onChange={onTabChange} labels={tabLabels} />
     </Screen>
   );
 };

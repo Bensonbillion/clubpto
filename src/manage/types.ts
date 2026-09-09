@@ -127,7 +127,7 @@ export interface Court {
  * "knockout" is Sunday's Playoff door: pairs are made by hand at the door,
  * one draw feeds every court, and there are no standings, only the bracket.
  */
-export type NightFormat = "roundRobin" | "knockout";
+export type NightFormat = "roundRobin" | "knockout" | "teams";
 
 /**
  * One side of the knockout draw, in draw order.
@@ -157,10 +157,19 @@ export interface Session {
   endedAt: number | null;
   /** Absent on every night saved before the knockout branch existed. */
   format?: NightFormat;
-  /** The hand-made draw, in order. Only a knockout night carries one. */
+  /**
+   * The hand-made pairs, in order. The knockout reads them as its draw; the
+   * teams night reads them as its teams, and on "Seed the bracket" rewrites
+   * them in table order so the knockout can take over. The name is the
+   * first door's, and renaming a persisted field is not worth the churn.
+   */
   knockoutPairs?: KnockoutPair[];
   /** Everyone knocked out in round one plays their own small bracket. */
   plate?: boolean;
+  /** Frame 35: games per pair on a teams night. */
+  teamsTarget?: number;
+  /** Frame 37: how the teams ended, once they chose. */
+  teamsEnding?: "crown" | "bracket" | null;
 }
 
 /* ── derived shapes the screens consume ──────────────────────────── */

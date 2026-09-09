@@ -23,6 +23,7 @@ import { buildStages, champion, nextTie, orderedPlayerIds, readiness, seedPairs,
 import { appearsInAMatch } from "./engine/roster-guard";
 import { createManageRemote, type ManageRemoteConfig } from "./sync/remote";
 import { buildKnockoutStages, buildPlateStages, orphanKnockoutMatchIds, planKnockoutDispatch, playableTies } from "./engine/knockout";
+import { mintTeamMatch, nextTeamTie, pairCounts, seedByTable, teamStandings, teamsComplete } from "./engine/teams";
 import type { RosterName } from "./roster/names";
 
 export const STORAGE_KEY = "cm_manage_session";
@@ -498,6 +499,8 @@ export const startOverSession = (session: Session, now: number): Session => ({
   startedAt: session.status === "setup" ? session.startedAt : now,
   endedAt: null,
   matches: [],
+  // A teams night that had chosen its ending chooses again on the way back.
+  teamsEnding: null,
   courts: session.courts.map((c) =>
     ({ ...c, playoffSeeded: false, champion: null, ending: null })),
   players: session.players.map((p) => ({ ...p, joinedAtMatchIndex: null })),
@@ -919,7 +922,7 @@ export function useManageSession(
    * stands. A no-op on every round robin.
    */
   const settleKnockout = (s: Session): Session => {
-    if (s.format !== "knockout") return s;
+    if (!(s.format === "knockout" || (s.format === "teams" && s.teamsEnding === "bracket"))) return s;
     const orphans = orphanKnockoutMatchIds(s.knockoutPairs ?? [], s.matches, s.plate ?? false);
     if (orphans.length === 0) return s;
     return {
@@ -1097,6 +1100,69 @@ export function useManageSession(
   const endNight = useCallback(() =>
     commit((s) => ({ ...s, status: "ended", endedAt: Date.now() })), [commit]);
 
+  /* ── the Set teammate branch (frames 35 to 37) ─────────────────── */
+
+  const setTeamsTarget = useCallback((teamsTarget: number) =>
+    commit((s) => ({ ...s, teamsTarget })), [commit]);
+
+  /**
+   * Open the courts and start the teams night. As on the knockout, nobody
+   * is assigned to a court and the night starts with no matches: one draw
+   * feeds every court, and dispatchTeams puts the next tie on whichever
+   * court is free.
+   */
+  const startTeams = useCallback((courtCount: number) =>
+    commit((s) => ({
+      ...s,
+      status: "running" as const,
+      startedAt: Date.now(),
+      teamsEnding: null,
+      matches: [],
+      players: s.players.map((p) => ({ ...p, courtNumber: null })),
+      courts: Array.from({ length: Math.max(1, courtCount) }, (_, i) => ({
+        number: i + 1, targetMatches: s.teamsTarget ?? 0, playoffSeeded: true, champion: null,
+      })),
+    })), [commit]);
+
+  /**
+   * Fill every free court with the next team tie, least-played-first over
+   * pairs, opponents varied before any rematch. Run after every start and
+   * score, and no-op once every pair has had its games or the night has
+   * moved into its ending.
+   */
+  const dispatchTeams = useCallback(() =>
+    commit((s) => {
+      if (s.format !== "teams" || s.status !== "running" || s.teamsEnding != null) return s;
+      const pairs = s.knockoutPairs ?? [];
+      const target = s.teamsTarget ?? 0;
+      const busy = new Set(s.matches.filter((m) => m.status === "onCourt").map((m) => m.courtNumber));
+      let matches = s.matches;
+      let index = Math.max(0, ...s.matches.map((m) => m.matchIndex)) + 1;
+      let i = 0;
+      for (const court of s.courts) {
+        if (busy.has(court.number)) continue;
+        const tie = nextTeamTie(pairs, matches, target);
+        if (!tie) break;
+        matches = [...matches, mintTeamMatch(court.number, tie.a, tie.b, index++, Date.now() + i++, matches)];
+      }
+      return matches === s.matches ? s : { ...s, matches };
+    }), [commit]);
+
+  /**
+   * Frame 37. Crown the table as it stands, or seed the bracket from it:
+   * the pairs are rewritten in table order so the knockout engine takes
+   * over with first against last, and the bracket's own dispatcher deals
+   * round one onto the free courts.
+   */
+  const setTeamsEnding = useCallback((ending: "crown" | "bracket") =>
+    commit((s) => {
+      if (s.format !== "teams") return s;
+      if (ending === "crown") return { ...s, teamsEnding: "crown" as const };
+      const pairs = s.knockoutPairs ?? [];
+      const seeded = seedByTable(pairs, teamStandings(pairs, s.matches));
+      return { ...s, teamsEnding: "bracket" as const, knockoutPairs: seeded, plate: false };
+    }), [commit]);
+
   /* ── the knockout branch (frames 30 to 33) ─────────────────────── */
 
   /** Which door the night went through. Set at the Sunday hub. */
@@ -1136,9 +1202,14 @@ export function useManageSession(
    * after every start, score, walkover and park, so a court is never idle
    * while the draw holds a tie whose sides are known.
    */
+  /** A knockout, or a teams night that has seeded its bracket. */
+  const inBracket = (s: Session): boolean =>
+    s.status === "running"
+    && (s.format === "knockout" || (s.format === "teams" && s.teamsEnding === "bracket"));
+
   const dispatchKnockout = useCallback(() =>
     commit((s) => {
-      if (s.format !== "knockout" || s.status !== "running") return s;
+      if (!inBracket(s)) return s;
       const plan = planKnockoutDispatch(
         s.knockoutPairs ?? [], s.matches, s.courts.map((c) => c.number), s.plate ?? false);
       if (plan.length === 0) return s;
@@ -1267,7 +1338,9 @@ export function useManageSession(
    * every court: nothing in it is per-court.
    */
   const knockout = useMemo(() => {
-    if (session.format !== "knockout") return null;
+    const bracketNight = session.format === "knockout"
+      || (session.format === "teams" && session.teamsEnding === "bracket");
+    if (!bracketNight) return null;
     const pairs = session.knockoutPairs ?? [];
     const ko = session.matches.filter((m) => m.stage !== null);
     const main = buildKnockoutStages(pairs, ko);
@@ -1295,8 +1368,33 @@ export function useManageSession(
     };
   }, [session]);
 
+  /**
+   * The teams night, derived whole: the pairs, their games, the table over
+   * pairs, and whether every pair has had its target. Null on any other
+   * night.
+   */
+  const teams = useMemo(() => {
+    if (session.format !== "teams") return null;
+    const pairs = session.knockoutPairs ?? [];
+    const target = session.teamsTarget ?? 0;
+    const counts = pairCounts(pairs, session.matches);
+    const standings = teamStandings(pairs, session.matches);
+    return {
+      pairs,
+      target,
+      counts,
+      standings,
+      complete: teamsComplete(pairs, session.matches, target),
+      ending: session.teamsEnding ?? null,
+      played: session.matches.filter((m) => m.stage === null && m.status === "played"),
+      live: session.matches.filter((m) => m.stage === null && m.status === "onCourt"),
+      upNext: session.teamsEnding == null
+        ? nextTeamTie(pairs, session.matches, target) : null,
+    };
+  }, [session]);
+
   return {
-    session, loading, sync, views, playerName, knockout,
+    session, loading, sync, views, playerName, knockout, teams,
     matchesPlayedBy: (id: string) => matchesPlayedBy(session.matches, id),
     setDayLabel, addRosterPlayer, addWalkIn, removePlayer, assignCourt, setTier,
     setCourts, setTarget, extend, start,
@@ -1305,6 +1403,7 @@ export function useManageSession(
     seedPlayoff, advancePlayoff, deletePlayoff, setEnding, beginNewNight, startOver,
     setFormat, setKnockoutPairs, setPlate, startKnockout, dispatchKnockout,
     walkoverMatch, parkKnockoutTie,
+    setTeamsTarget, startTeams, dispatchTeams, setTeamsEnding,
     restartSetup, resetEverything, endNight,
   };
 }

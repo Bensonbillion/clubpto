@@ -4,10 +4,8 @@
 // chosen. The roster is built inside the door you choose, so this screen
 // holds nothing but the choice, and switching doors later keeps the roster.
 //
-// The wireframe draws three doors. Two are built; the Set teammate branch
-// is specified (docs/manage/knockout-spec.md, frames 35 to 37) and lands
-// next, and until it exists no card is drawn for it: a door that opens onto
-// nothing is worse than no door.
+// Three doors, as the wireframe draws them: Round robin, Playoff (the
+// knockout, frames 30 to 33) and Set teammate (frames 35 to 37).
 
 import { Body, Card, FooterBar, Screen, T } from "../../ui/primitives";
 import { SetupHeader } from "../setup/shell";
@@ -15,6 +13,7 @@ import { SetupHeader } from "../setup/shell";
 export interface SundayHubProps {
   onRoundRobin: () => void;
   onKnockout: () => void;
+  onTeams: () => void;
   onBack?: () => void;
 }
 
@@ -38,7 +37,7 @@ const Door = ({ title, detail, onClick }: {
   </button>
 );
 
-export const SundayHub = ({ onRoundRobin, onKnockout, onBack }: SundayHubProps) => (
+export const SundayHub = ({ onRoundRobin, onKnockout, onTeams, onBack }: SundayHubProps) => (
   <Screen>
     <SetupHeader title="Sunday" step="Setup" onBack={onBack} />
 
@@ -46,7 +45,7 @@ export const SundayHub = ({ onRoundRobin, onKnockout, onBack }: SundayHubProps) 
       font: `400 15px/1.5 ${T.fontBody}`, color: T.mut,
       padding: "0 22px", margin: "8px 0 0", textWrap: "pretty",
     }}>
-      Two shapes tonight. The roster is built inside the door you choose.
+      Three shapes tonight. The roster is built inside the door you choose.
     </p>
 
     <Body style={{ padding: "18px 22px 22px", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -59,6 +58,11 @@ export const SundayHub = ({ onRoundRobin, onKnockout, onBack }: SundayHubProps) 
         title="Playoff"
         detail="Pair up and play a straight knockout."
         onClick={onKnockout}
+      />
+      <Door
+        title="Set teammate"
+        detail="Pick partners and play the night as teams."
+        onClick={onTeams}
       />
       <p style={{ font: `400 14px/1.5 ${T.fontBody}`, color: T.mut, margin: "4px 2px 0" }}>
         Switching doors keeps the roster.

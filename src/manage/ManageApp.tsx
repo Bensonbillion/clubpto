@@ -50,6 +50,9 @@ import { KnockoutReady } from "./screens/knockout/KnockoutReady";
 import { PairUp } from "./screens/knockout/PairUp";
 import { SundayHub } from "./screens/knockout/SundayHub";
 import { buildKnockoutStages, knockoutShape, MAX_KNOCKOUT_PAIRS } from "./engine/knockout";
+import { pairKey, suggestTeamTarget, teamMatchesTotal, validTeamTargets } from "./engine/teams";
+import { GamesPerPair } from "./screens/knockout/GamesPerPair";
+import { TeamEndings } from "./screens/knockout/TeamEndings";
 import { StandingsTab, TieBrokenByOrder, type StandingsTabRow } from "./screens/standings";
 import {
   Bracket, Champion, HowThisCourtEnds, IndividualChampion, PlayoffMatch, PlayoffReadiness,
@@ -89,7 +92,7 @@ const STAGE_WORD: Record<PlayoffStage, string> = {
   plateFinal: "Plate final",
 };
 
-type Step = "night" | "format" | "who" | "pairs" | "courtsFree" | "koReady"
+type Step = "night" | "format" | "who" | "pairs" | "courtsFree" | "koReady" | "teamsTarget"
   | "courts" | "target" | "ready";
 
 /** What the match tab is showing for one court. */
@@ -433,9 +436,14 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
   // and its dispatch, deal the next tie now. dispatchKnockout no-ops when
   // every court is busy or the draw has nothing playable, so this settles.
   useEffect(() => {
-    if (s.session.format === "knockout" && s.session.status === "running") s.dispatchKnockout();
+    if (s.session.status !== "running") return;
+    if (s.session.format === "knockout") s.dispatchKnockout();
+    if (s.session.format === "teams") {
+      if (s.session.teamsEnding === "bracket") s.dispatchKnockout();
+      else if (s.session.teamsEnding == null) s.dispatchTeams();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.session.format, s.session.status, s.session.matches.length]);
+  }, [s.session.format, s.session.status, s.session.matches.length, s.session.teamsEnding]);
   // Named only on the second manager, on the door and at home, so two tabs on
   // one phone can be told apart. Once a night is running the court header is
   // the operator's bearings and the URL is the instance.
@@ -597,7 +605,8 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
    * Joined into a string so the effect fires on a change of the SET rather
    * than on every render; a fresh array each render would re-run it forever.
    */
-  const fillKey = unlocked && !inSetup && running && s.session.format !== "knockout"
+  const pairingNight = s.session.format === "knockout" || s.session.format === "teams";
+  const fillKey = unlocked && !inSetup && running && !pairingNight
     ? s.views
       .filter((v) => v.onCourt == null && !v.complete && !v.court.playoffSeeded)
       .map((v) => v.court.number)
@@ -619,7 +628,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
    * on the committed state is that guarantee without the delay, and it covers
    * the second court, which the timeout never did.
    */
-  const advanceKey = unlocked && !inSetup && running && s.session.format !== "knockout"
+  const advanceKey = unlocked && !inSetup && running && !pairingNight
     ? s.views
       .filter((v) => v.court.playoffSeeded && v.champion == null
         && !v.stages?.some((st) => st.ties.some((t) => t.live)))
@@ -736,6 +745,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         <SundayHub
           onRoundRobin={() => { s.setFormat("roundRobin"); setStep("who"); }}
           onKnockout={() => { s.setFormat("knockout"); setStep("who"); }}
+          onTeams={() => { s.setFormat("teams"); setStep("who"); }}
           onBack={() => setStep("night")}
         />
       );
@@ -841,11 +851,11 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           onSetTier={(playerId, tier) => { s.setTier(playerId, tier); setTierPromptId(null); }}
           onSkipTier={() => setTierPromptId(null)}
           onBack={() => setStep(night === "Sunday" ? "format" : "night")}
-          nextLabel={s.session.format === "knockout" ? "Next: pair up" : undefined}
+          nextLabel={s.session.format === "knockout" || s.session.format === "teams" ? "Next: pair up" : undefined}
           onNext={() => {
             ensureFresh();
             // The Playoff door pairs people instead of splitting courts.
-            if (s.session.format === "knockout") { setStep("pairs"); return; }
+            if (s.session.format === "knockout" || s.session.format === "teams") { setStep("pairs"); return; }
             // Adding already wrote to the session, so there is nothing left to
             // reconcile. This list is a view of the night, not a form.
             s.setCourts(Array.from({ length: courtCount }, (_, i) => i + 1));
@@ -937,6 +947,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           onBack={() => { setHeldId(null); setStep("who"); }}
           onNext={next}
           helper={helper}
+          step={s.session.format === "teams" ? "Setup · Sunday · Set teammate" : undefined}
         />
       );
     }
@@ -947,7 +958,37 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           count={courtCount}
           onCount={setCourtCount}
           onBack={() => setStep("pairs")}
-          onNext={() => setStep("koReady")}
+          onNext={() => setStep(s.session.format === "teams" ? "teamsTarget" : "koReady")}
+          step={s.session.format === "teams" ? "Setup · Sunday · Set teammate" : undefined}
+        />
+      );
+    }
+
+    if (step === "teamsTarget") {
+      const pairs = s.session.knockoutPairs ?? [];
+      const valid = validTeamTargets(pairs.length);
+      const suggested = suggestTeamTarget(pairs.length);
+      const selected = s.session.teamsTarget ?? suggested;
+      return (
+        <GamesPerPair
+          pairCount={pairs.length}
+          options={[2, 3, 4, 5, 6, 7, 8].map((t) => ({
+            target: t,
+            matches: valid.includes(t) ? teamMatchesTotal(pairs.length, t) : null,
+            preselected: t === suggested,
+          }))}
+          selected={selected}
+          onSelect={s.setTeamsTarget}
+          onBack={() => setStep("courtsFree")}
+          onStart={selected != null && valid.includes(selected) ? () => {
+            if (s.session.teamsTarget !== selected) s.setTeamsTarget(selected);
+            s.startTeams(courtCount);
+            s.dispatchTeams();
+            setInSetup(false);
+            setAtCourt(true);
+            setCourt(1);
+            setKoPage(null);
+          } : undefined}
         />
       );
     }
@@ -1204,12 +1245,35 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
     return out;
   })();
 
+  const teamChampions: SummaryChampion[] = (() => {
+    const Tm = s.teams;
+    if (!Tm || Tm.ending !== "crown") return [];
+    const top = Tm.standings[0];
+    const pair = top ? Tm.pairs.find((p) => pairKey(p) === top.playerId) : null;
+    return pair ? [{
+      courtNumber: 1, label: "Champions",
+      players: pair.playerIds.map((id) => s.playerName(id)),
+      points: top!.points,
+    }] : [];
+  })();
+  const teamTable = s.teams ? [{
+    courtNumber: 1,
+    label: "Teams",
+    rows: s.teams.standings.map((r) => ({
+      rank: r.rank,
+      playerName: pairOf(s.teams!.pairs.find((p) => pairKey(p) === r.playerId)?.playerIds ?? []),
+      points: r.points, diff: r.scoreDiff,
+      separatedBy: r.matchesPlayed > 0 ? r.separatedBy : null,
+    })),
+  }] : [];
+
   const summaryProps = {
     dayLabel: s.session.dayLabel || night,
     playersIn: s.session.players.length,
     courtCount: s.session.courts.length,
     instanceLabel,
     champions: s.session.format === "knockout" ? koChampions
+      : s.session.format === "teams" ? [...teamChampions, ...koChampions]
       : s.views.flatMap<SummaryChampion>((v) => {
       // A court that ran a bracket is named by its winning side and the final's
       // numbers; a court that took the other ending is named by one person and
@@ -1232,7 +1296,9 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         ? [{ courtNumber: v.court.number, players: [name(top.playerId)], points: top.points }]
         : [];
     }),
-    standingsByCourt: s.session.format === "knockout" ? [] : s.views.map((v) => ({
+    standingsByCourt: s.session.format === "knockout" ? []
+      : s.session.format === "teams" ? teamTable
+      : s.views.map((v) => ({
       courtNumber: v.court.number,
       rows: v.standings.map((r) => ({
         rank: r.rank, playerName: name(r.playerId),
@@ -1328,6 +1394,11 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
     // On a knockout night every settled tie can seed the next one, and a
     // court is never left idle while the draw holds a playable tie.
     if (s.session.format === "knockout") { s.dispatchKnockout(); setKoPage(null); }
+    if (s.session.format === "teams") {
+      if (s.session.teamsEnding === "bracket") s.dispatchKnockout();
+      else s.dispatchTeams();
+      setKoPage(null);
+    }
     here({
       scoring: null,
       pagerSlot: null,
@@ -1363,8 +1434,8 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         <NightMenu
           dayLabel={s.session.dayLabel || night}
           onSessionSummary={() => setSheet("summary")}
-          onOneMoreRound={s.session.format === "knockout" ? undefined : () => setSheet("extend")}
-          onRestartSetup={s.session.format === "knockout" ? undefined : () => setSheet("restartSetup")}
+          onOneMoreRound={pairingNight ? undefined : () => setSheet("extend")}
+          onRestartSetup={pairingNight ? undefined : () => setSheet("restartSetup")}
           // Start over clears every game and bracket, so every screen the
           // operator was on is about a night that no longer exists. The ending
           // each court had chosen goes with them.
@@ -1372,9 +1443,15 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           onStartOver={() => {
             s.startOver(); setSheet(null); setUiByCourt({});
             if (s.session.format === "knockout") { s.dispatchKnockout(); setKoPage(null); }
+            if (s.session.format === "teams") { s.dispatchTeams(); setKoPage(null); }
+            if (s.session.format === "teams") {
+              if (s.session.teamsEnding === "bracket") s.dispatchKnockout();
+              else s.dispatchTeams();
+              setKoPage(null);
+            }
           }}
           onEndNight={() => setSheet("endNight")}
-          onDeleteBracket={view.court.playoffSeeded && s.session.format !== "knockout"
+          onDeleteBracket={view.court.playoffSeeded && !pairingNight
             ? () => setSheet("deleteBracket")
             : undefined}
           onResetEverything={() => setSheet("resetEverything")}
@@ -1664,9 +1741,181 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
     );
   }
 
+  /* ── the teams night, until it seeds a bracket (frames 35 to 37) ── */
+
+  if (s.teams && !s.knockout) {
+    const Tm = s.teams;
+    const pairNameOf = (key: string) =>
+      pairOf(Tm.pairs.find((p) => pairKey(p) === key)?.playerIds ?? []);
+    const koHeader = <CourtHeader {...headerProps}
+      onSelectCourt={(n) => { setCourt(n); setKoPage(null); }} />;
+
+    if (ui.tab === "players") {
+      const order = new Map(s.session.players.map((p, i) => [p.id, i]));
+      const onCourtNow = s.session.matches
+        .filter((m) => m.status === "onCourt")
+        .flatMap((m) => [...m.teamA, ...m.teamB]);
+      return (
+        <>
+          <PlayersTab
+            header={koHeader}
+            courtLabel={s.session.dayLabel || "Sunday"}
+            players={s.session.players
+              .map((p) => ({
+                id: p.id, displayName: p.name,
+                gamesPlayed: s.matchesPlayedBy(p.id), tier: p.tier,
+                status: p.away ? ("left" as const)
+                  : onCourtNow.includes(p.id) ? ("on_court" as const)
+                    : ("here" as const),
+              }))
+              .sort((a, b) => a.gamesPlayed - b.gamesPlayed
+                || (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))}
+            attendanceCount={s.session.players.filter((p) => !p.away).length}
+            openPlayerId={ui.openPlayerId}
+            onOpenPlayer={(id) => here({ openPlayerId: id })}
+            onMarkArrived={(id) => s.setAway(id, false)}
+            onMarkLeft={(id) => s.setAway(id, true)}
+            onMarkHere={(id) => s.setAway(id, false)}
+            onSetTier={(id) => {
+              setTierDraft(s.session.players.find((x) => x.id === id)?.tier ?? null);
+              here({ tierPlayerId: id });
+            }}
+            countsLine="Teams stay together all night. Least-played-first runs over pairs."
+            onChangeTab={(t) => here({ tab: t })}
+          />
+          {overlays}
+        </>
+      );
+    }
+
+    if (ui.tab === "standings") {
+      // Frame 36: the table over pairs, in the individual table's own words.
+      const rowsIn = Tm.standings;
+      const inOrder = [...Tm.played].sort((a, b) =>
+        (a.completedAt ?? 0) - (b.completedAt ?? 0) || a.matchIndex - b.matchIndex);
+      const reachedAt = (row: StandingsRow | undefined) =>
+        clockTime(row ? inOrder[row.reachedAt - 1]?.completedAt : undefined);
+      const explainable = (i: number) => rowsIn[i]?.matchesPlayed > 0;
+      const reasonFor = (i: number): StandingsTabRow["reason"] => {
+        if (!explainable(i)) return null;
+        const at = reachedAt(rowsIn[i]);
+        if (at && rowsIn[i].separatedBy === "reachedFirst") return { kind: "firstToThisScore", atClockTime: at };
+        if (at && rowsIn[i - 1]?.separatedBy === "reachedFirst") return { kind: "reachedItLater", atClockTime: at };
+        if (rowsIn[i - 1]?.separatedBy === "diff") return { kind: "behindOnDiff" };
+        return null;
+      };
+      return (
+        <>
+          <StandingsTab
+            header={koHeader}
+            courtLabel={`${s.session.dayLabel || "Sunday"} · teams`}
+            tableFinal={Tm.complete}
+            rows={rowsIn.map((r, i) => ({
+              position: r.rank, playerId: r.playerId, displayName: pairNameOf(r.playerId),
+              matchesPlayed: r.matchesPlayed, wins: r.wins, losses: r.losses,
+              pointDifference: r.scoreDiff, points: r.points,
+              reason: reasonFor(i), tiedWithPlayerId: null,
+            }))}
+            matchesEach={Tm.complete ? Tm.target : null}
+            loading={s.loading}
+            onOpenSessionSummary={() => setSheet("summary")}
+            onSelectTab={(t) => here({ tab: t })}
+          />
+          {overlays}
+        </>
+      );
+    }
+
+    // Frame 37, once every pair has had its games and nobody has chosen.
+    if (Tm.complete && Tm.ending == null) {
+      return (
+        <>
+          <TeamEndings
+            header={koHeader}
+            pairCount={Tm.pairs.length}
+            bracketShape={knockoutShape(Tm.pairs.length)}
+            onCrown={() => s.setTeamsEnding("crown")}
+            onSeedBracket={() => { s.setTeamsEnding("bracket"); s.dispatchKnockout(); setKoPage(null); }}
+          />
+          {overlays}
+        </>
+      );
+    }
+
+    // Crowned as it stands: the top pair, in the top-of-the-table's own frame.
+    if (Tm.ending === "crown") {
+      const [top, second, third] = Tm.standings;
+      return (
+        <>
+          <IndividualChampion
+            header={koHeader}
+            courtNumber={courtNumber}
+            championName={top ? pairNameOf(top.playerId) : ""}
+            points={top?.points ?? 0}
+            matchesPlayed={top?.matchesPlayed ?? 0}
+            wonEveryMatch={top != null && top.losses === 0 && top.matchesPlayed > 0}
+            second={second ? { displayName: pairNameOf(second.playerId), points: second.points } : null}
+            third={third ? { displayName: pairNameOf(third.playerId), points: third.points } : null}
+            secondFromThird={second?.separatedBy ?? null}
+            onCopyForWhatsApp={copySummary}
+            onBackToStandings={() => here({ tab: "standings" })}
+          />
+          {overlays}
+        </>
+      );
+    }
+
+    /* The match card, paged over what has been played and what stands. */
+    const flat = [
+      ...[...Tm.played].sort((a, b) => (a.completedAt ?? 0) - (b.completedAt ?? 0)),
+      ...Tm.live,
+    ];
+    const defaultIdx = (() => {
+      const mine = flat.findIndex((m) => m.status === "onCourt" && m.courtNumber === courtNumber);
+      if (mine >= 0) return mine;
+      const anyLive = flat.findIndex((m) => m.status === "onCourt");
+      return anyLive >= 0 ? anyLive : Math.max(0, flat.length - 1);
+    })();
+    const idx = koPage ?? defaultIdx;
+    const m = flat[idx] ?? null;
+    const sideOf = (team: readonly string[] | null) => {
+      if (!team) return null;
+      const p = Tm.pairs.find((x) => team.every((id) => x.playerIds.includes(id)));
+      return { name: pairOf(p?.playerIds ?? [...team]), seedLabel: p ? `${Tm.counts.get(pairKey(p))?.played ?? 0} played` : "", trio: (p?.playerIds.length ?? 2) > 2 };
+    };
+    const state = m == null ? "pending" as const : m.status === "played" ? "result" as const : "live" as const;
+    const canPage = (d: number) => idx + d >= 0 && idx + d < flat.length;
+    return (
+      <>
+        <KnockoutPlay
+          header={koHeader}
+          eyebrow={[s.session.dayLabel || "Sunday", "Teams", m && m.status === "onCourt" ? `Court ${m.courtNumber}` : ""].filter(Boolean).join(" · ")}
+          a={sideOf(m?.teamA ?? null)}
+          b={sideOf(m?.teamB ?? null)}
+          scoreA={m?.scoreA ?? null}
+          scoreB={m?.scoreB ?? null}
+          state={state}
+          winner={m && m.scoreA != null && m.scoreB != null ? (m.scoreA > m.scoreB ? "A" : "B") : null}
+          onPreviousTie={canPage(-1) ? () => setKoPage(idx - 1) : undefined}
+          onNextTie={canPage(1) ? () => setKoPage(idx + 1) : undefined}
+          onScore={state === "live" && m
+            ? () => here({ scoring: { matchId: m.id, side: "A", a: "", b: "" } })
+            : undefined}
+          upNext={Tm.upNext
+            ? `${pairOf(Tm.upNext.a.playerIds)} against ${pairOf(Tm.upNext.b.playerIds)}`
+            : null}
+          activeTab={ui.tab}
+          onTabChange={(t) => { here({ tab: t }); if (t === "match") setKoPage(null); }}
+          tabLabels={{}}
+        />
+        {overlays}
+      </>
+    );
+  }
+
   /* ── the knockout night (frames 30 to 33) ─────────────────────── */
 
-  if (s.session.format === "knockout" && s.knockout) {
+  if (s.knockout) {
     const K = s.knockout;
     const sideView = (side: { seeds: readonly number[]; playerIds: readonly string[] } | null) =>
       side == null ? null : {
