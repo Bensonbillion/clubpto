@@ -2,8 +2,11 @@
 //
 // Frame 08's arithmetic, stated the same way: every match is two pairs, so
 // the pairs times the target has to be even, and an option that does not
-// divide says so in one line rather than going grey. Least-played-first
-// runs over pairs, and opponents vary before any rematch.
+// divide dims and says why in one line, so the arithmetic is on screen
+// rather than hidden behind a grey row. A short band around the
+// preselected four, as frame 35 draws it, not every count to eight.
+// Least-played-first runs over pairs, and opponents vary before any
+// rematch.
 
 import { Body, FooterBar, PrimaryButton, Screen, T } from "../../ui/primitives";
 import { SetupHeader, Why } from "../setup/shell";

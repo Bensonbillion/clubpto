@@ -23,7 +23,9 @@ import { buildStages, champion, nextTie, orderedPlayerIds, readiness, seedPairs,
 import { appearsInAMatch } from "./engine/roster-guard";
 import { createManageRemote, type ManageRemoteConfig } from "./sync/remote";
 import { buildKnockoutStages, buildPlateStages, orphanKnockoutMatchIds, planKnockoutDispatch, playableTies } from "./engine/knockout";
-import { mintTeamMatch, nextTeamTie, pairCounts, seedByTable, teamStandings, teamsComplete } from "./engine/teams";
+import {
+  mintTeamMatch, nextTeamTie, pairCounts, seedByTable, teamStandings, teamsComplete, waitingPairs,
+} from "./engine/teams";
 import type { RosterName } from "./roster/names";
 
 export const STORAGE_KEY = "cm_manage_session";
@@ -967,6 +969,21 @@ export function useManageSession(
         players: s.players.map((p) => (p.id === playerId ? { ...p, away } : p)),
       };
       if (!away) return next;
+      // A teams night has no queue to redraw from: the round robin's redraw
+      // would delete the match and deal a fresh four off court numbers
+      // nobody holds. The live team match holding the leaver is torn down
+      // instead, and the dispatcher, which never fields a pair that cannot
+      // show two, deals the court again. The pair is out of the night; a
+      // trio with one away plays on with its two.
+      if (s.format === "teams" && s.teamsEnding == null) {
+        const liveTeam = s.matches.find((m) =>
+          m.status === "onCourt" && m.stage === null
+          && m.scoreA == null && m.scoreB == null
+          && (m.teamA.includes(playerId) || m.teamB.includes(playerId)));
+        return liveTeam
+          ? { ...next, matches: next.matches.filter((m) => m.id !== liveTeam.id) }
+          : next;
+      }
       // The leaves-early sheet promises "unplayed games rebalance", and a live
       // UNSCORED match holding the leaver is exactly an unplayed game: left
       // alone it sits waiting for a score that can never arrive. Found on the
@@ -1135,15 +1152,18 @@ export function useManageSession(
       if (s.format !== "teams" || s.status !== "running" || s.teamsEnding != null) return s;
       const pairs = s.knockoutPairs ?? [];
       const target = s.teamsTarget ?? 0;
+      const away = new Set(s.players.filter((p) => p.away).map((p) => p.id));
       const busy = new Set(s.matches.filter((m) => m.status === "onCourt").map((m) => m.courtNumber));
       let matches = s.matches;
       let index = Math.max(0, ...s.matches.map((m) => m.matchIndex)) + 1;
       let i = 0;
       for (const court of s.courts) {
         if (busy.has(court.number)) continue;
-        const tie = nextTeamTie(pairs, matches, target);
+        // Null means the court waits: for a pair still on another court,
+        // or for fresher opponents to come off. The picker says why.
+        const tie = nextTeamTie(pairs, matches, target, away);
         if (!tie) break;
-        matches = [...matches, mintTeamMatch(court.number, tie.a, tie.b, index++, Date.now() + i++, matches)];
+        matches = [...matches, mintTeamMatch(court.number, tie.a, tie.b, index++, Date.now() + i++, matches, away)];
       }
       return matches === s.matches ? s : { ...s, matches };
     }), [commit]);
@@ -1377,19 +1397,23 @@ export function useManageSession(
     if (session.format !== "teams") return null;
     const pairs = session.knockoutPairs ?? [];
     const target = session.teamsTarget ?? 0;
+    const away = new Set(session.players.filter((p) => p.away).map((p) => p.id));
     const counts = pairCounts(pairs, session.matches);
     const standings = teamStandings(pairs, session.matches);
+    const group = session.teamsEnding == null;
     return {
       pairs,
       target,
       counts,
       standings,
-      complete: teamsComplete(pairs, session.matches, target),
+      /** Every pair still here has had its games, or nothing more can go on. */
+      complete: teamsComplete(pairs, session.matches, target, away),
       ending: session.teamsEnding ?? null,
       played: session.matches.filter((m) => m.stage === null && m.status === "played"),
       live: session.matches.filter((m) => m.stage === null && m.status === "onCourt"),
-      upNext: session.teamsEnding == null
-        ? nextTeamTie(pairs, session.matches, target) : null,
+      upNext: group ? nextTeamTie(pairs, session.matches, target, away) : null,
+      /** Off court with games to play, least-played first: who waits. */
+      waiting: group ? waitingPairs(pairs, session.matches, target, away) : [],
     };
   }, [session]);
 

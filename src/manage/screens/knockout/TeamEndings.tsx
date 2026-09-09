@@ -1,8 +1,8 @@
 // Frame 37, Team endings. Readiness in the shape of frame 21, two doors
 // instead of one.
 //
-// Every pair has met its target and the order resolves itself. The table
-// can be crowned as it stands, or seeded into a straight pairs knockout,
+// The table is final, so the seeds are final. The table can be crowned as
+// it stands, or seeded into a straight pairs knockout,
 // first against last, with the same byes and play-ins the knockout door
 // gives any count. The champion screen is the same one either way.
 
@@ -13,8 +13,11 @@ import { Heading, PlayoffHeader } from "../playoffs/PlayoffHeader";
 export interface TeamEndingsProps {
   header?: ReactNode;
   pairCount: number;
-  /** engine/knockout.ts knockoutShape for this many pairs, lower-cased into the sentence. */
-  bracketShape: string | null;
+  /**
+   * engine/teams.ts tableShape: "With 5 pairs: a play-in between fourth and
+   * fifth, byes to the top three." Null below two pairs.
+   */
+  shapeLine: string | null;
   onCrown: () => void;
   onSeedBracket: () => void;
 }
@@ -35,7 +38,7 @@ const Door = ({ title, detail, onClick }: { title: string; detail: string; onCli
   </button>
 );
 
-export const TeamEndings = ({ header, pairCount, bracketShape, onCrown, onSeedBracket }: TeamEndingsProps) => (
+export const TeamEndings = ({ header, shapeLine, onCrown, onSeedBracket }: TeamEndingsProps) => (
   <Screen>
     {header}
     <PlayoffHeader
@@ -46,7 +49,7 @@ export const TeamEndings = ({ header, pairCount, bracketShape, onCrown, onSeedBr
       font: `400 15px/1.5 ${T.fontBody}`, color: T.mut,
       padding: "0 22px", margin: "8px 0 0", textWrap: "pretty",
     }}>
-      Every pair has met its target and the order resolves itself.
+      The table is final, so the seeds are final.
     </p>
 
     <Body style={{ padding: "18px 22px 22px", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -60,9 +63,9 @@ export const TeamEndings = ({ header, pairCount, bracketShape, onCrown, onSeedBr
         detail="A straight pairs knockout from the table, first against last."
         onClick={onSeedBracket}
       />
-      {bracketShape != null && (
+      {shapeLine != null && (
         <p style={{ font: `400 14px/1.5 ${T.fontBody}`, color: T.mut, margin: "4px 2px 0" }}>
-          With {pairCount} pairs: {bracketShape.charAt(0).toLowerCase() + bracketShape.slice(1)}
+          {shapeLine}
         </p>
       )}
     </Body>

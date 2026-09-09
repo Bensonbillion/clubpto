@@ -45,6 +45,11 @@ export interface IndividualChampionProps {
    */
   header?: ReactNode;
   courtNumber: number;
+  /**
+   * Replaces "Court N · top of the table" when the table spans every
+   * court, as a teams night's does: "Sunday · teams · top of the table".
+   */
+  eyebrowLabel?: string;
   championName: string;
   points: number;
   /** The "4" in "won all 4". */
@@ -91,6 +96,7 @@ const runnersUpLine = (
 export const IndividualChampion = ({
   header,
   courtNumber,
+  eyebrowLabel,
   championName,
   points,
   matchesPlayed,
@@ -110,7 +116,7 @@ export const IndividualChampion = ({
         display: "flex", flexDirection: "column", justifyContent: "center",
         alignItems: "center", gap: 18, padding: "0 26px", textAlign: "center",
       }}>
-        <Eyebrow style={{ margin: 0 }}>Court {courtNumber} · top of the table</Eyebrow>
+        <Eyebrow style={{ margin: 0 }}>{eyebrowLabel ?? `Court ${courtNumber} · top of the table`}</Eyebrow>
 
         <p style={{ fontFamily: T.fontHead, fontSize: 46, lineHeight: 1.08, margin: 0 }}>
           {championName}

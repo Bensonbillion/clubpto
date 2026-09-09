@@ -103,6 +103,8 @@ export interface StandingsTabProps {
    * which is exactly the pair of rows frame 18 explains.
    */
   onOpenTie?: (row: StandingsTabRow) => void;
+  /** The name column's header. "Player" unless the rows are pairs. */
+  nameHeader?: string;
 }
 
 // FLAG: no error state. Standings has no error copy in the frames, and the
@@ -147,10 +149,10 @@ const COL: Record<"rank" | "p" | "w" | "l" | "diff" | "pts", CSSProperties> = {
   pts: { width: 38, textAlign: "right" },
 };
 
-const ColumnHeaders = () => (
+const ColumnHeaders = ({ nameHeader = "Player" }: { nameHeader?: string }) => (
   <div style={{ display: "flex", gap: 6, padding: "14px 22px 6px" }}>
     <span style={COL.rank}><StatLabel>#</StatLabel></span>
-    <span style={{ flex: 1, minWidth: 0 }}><StatLabel>Player</StatLabel></span>
+    <span style={{ flex: 1, minWidth: 0 }}><StatLabel>{nameHeader}</StatLabel></span>
     <span style={COL.p}><StatLabel>P</StatLabel></span>
     <span style={COL.w}><StatLabel>W</StatLabel></span>
     <span style={COL.l}><StatLabel>L</StatLabel></span>
@@ -217,7 +219,7 @@ const PlaceholderRows = () => (
 export const StandingsTab = ({
   header,
   courtLabel, tableFinal, rows, matchesEach, loading,
-  onOpenSessionSummary, onSelectTab, onOpenTie,
+  onOpenSessionSummary, onSelectTab, onOpenTie, nameHeader,
 }: StandingsTabProps) => (
   <Screen>
     {header}
@@ -228,7 +230,7 @@ export const StandingsTab = ({
 
     {/* FLAG: the column strip is dropped while loading. Headers over no table
         name columns that are not there yet. */}
-    {!loading && <ColumnHeaders />}
+    {!loading && <ColumnHeaders nameHeader={nameHeader} />}
 
     <Body>
       {loading ? (
