@@ -419,7 +419,16 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
   // or two tabs are told apart at a glance. Cleans up when the manager leaves.
   useEffect(() => applyInstanceAccent(instance), [instance]);
 
-  const s = useManageSession(storageKeyFor(instance));
+  // The shared row is per instance, behind the same passcode as the door.
+  const s = useManageSession(storageKeyFor(instance), { instance: String(instance), passcode: PASSCODE });
+  // What the phone can honestly say about the shared row. "error" covers
+  // both no connection and a refused push; either way the night is safe on
+  // this phone and the line says so rather than pretending it travelled.
+  const syncLine = s.sync === "synced"
+    ? "Shared with every phone on this link."
+    : s.sync === "pending"
+      ? "Saving to the shared night."
+      : "No connection. Saved on this phone; it shares again when the connection is back.";
   // A knockout court is never left idle: if a reload landed between a score
   // and its dispatch, deal the next tie now. dispatchKnockout no-ops when
   // every court is busy or the draw has nothing playable, so this settles.
@@ -650,6 +659,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
     return (
       <HomeNothingRunning
         instanceLabel={instanceLabel}
+        syncLine={syncLine}
         loading={s.loading}
         lastSessionDayName={lastDay}
         onStartTonight={() => enterSetup()}
@@ -683,6 +693,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
     return (
       <HomeNightInProgress
         instanceLabel={instanceLabel}
+        syncLine={syncLine}
         dayName={s.session.dayLabel || night}
         // Only a court with four people on it has anything to say here. From
         // Home the operator is standing at neither court, and "waiting on a
@@ -2441,16 +2452,19 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           else if (back != null) here({ pagerSlot: back });
         }}
         onNextMatch={() => {
-          if (ui.pagerSlot == null) {
-            // One look ahead. The projection past the live match, if any.
-            const ahead = view.schedule.find((r) =>
-              r.slot > currentSlot && r.status !== "played" && r.teamA != null);
-            if (ahead) here({ pagerSlot: ahead.slot });
+          // Forward walks every projected row after the live match, in order.
+          // It used to stop at one, and the owner overruled that at the door:
+          // with people not turned up, the next four or five games are what
+          // decide who to hold back and who to send on.
+          const from = ui.pagerSlot ?? currentSlot;
+          if (ui.pagerSlot != null && ui.pagerSlot < currentSlot) {
+            const fwd = playedSlots.find((n) => n > ui.pagerSlot!);
+            here({ pagerSlot: fwd != null && fwd < currentSlot ? fwd : null });
             return;
           }
-          if (ui.pagerSlot > currentSlot) return; // never more than one ahead
-          const fwd = playedSlots.find((n) => n > ui.pagerSlot!);
-          here({ pagerSlot: fwd != null && fwd < currentSlot ? fwd : null });
+          const ahead = view.schedule.find((r) =>
+            r.slot > from && r.status !== "played" && r.teamA != null);
+          if (ahead) here({ pagerSlot: ahead.slot });
         }}
         sideA={paged
           ? { pairLabel: pairOf(paged.teamA ?? []), score: paged.scoreA }
@@ -2459,6 +2473,12 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           ? { pairLabel: pairOf(paged.teamB ?? []), score: paged.scoreB }
           : { pairLabel: pairOf(live.teamB), score: live.scoreB }}
         waiting={view.queue.slice(0, 6).map((q) => ({ playerId: q.playerId, name: q.name }))}
+        // The next games, drawn as they stand, so the operator can see who is
+        // due on before they are due and hold anyone who has not turned up.
+        upNext={view.schedule
+          .filter((r) => r.slot > currentSlot && r.status !== "played" && r.teamA != null && r.teamB != null)
+          .slice(0, 5)
+          .map((r) => ({ slot: r.slot, a: pairOf(r.teamA!), b: pairOf(r.teamB!) }))}
         onScore={(side) => {
           if (paged) {
             // A result opens its correction; a projection is a look, not a tap.

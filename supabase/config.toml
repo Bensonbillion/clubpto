@@ -5,3 +5,5 @@ verify_jwt = false
 
 [functions.turso-proxy]
 verify_jwt = false
+[functions.manage-session]
+verify_jwt = false

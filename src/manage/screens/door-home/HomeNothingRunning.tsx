@@ -30,6 +30,12 @@ export interface HomeNothingRunningProps {
   onCopyLastSession?: () => void;
   /** "Manager 2" above the club's name on the second manager. Omitted on the first. */
   instanceLabel?: string;
+  /**
+   * One line about the shared row, when there is one: whether this phone
+   * is following it, saving to it, or cut off and keeping the night to
+   * itself. Absent when the night is local-only.
+   */
+  syncLine?: string | null;
 }
 
 export const HomeNothingRunning = ({
@@ -38,6 +44,7 @@ export const HomeNothingRunning = ({
   onStartTonight,
   onCopyLastSession,
   instanceLabel,
+  syncLine,
 }: HomeNothingRunningProps) => {
   const showCopy = !loading && Boolean(lastSessionDayName);
 
@@ -57,6 +64,9 @@ export const HomeNothingRunning = ({
         }}>
           No night is running. Start one and the app walks you through it.
         </p>
+        {syncLine != null && syncLine !== "" && (
+          <p style={{ font: `400 13.5px/1.5 ${T.fontBody}`, color: T.soft, margin: 0 }}>{syncLine}</p>
+        )}
       </Body>
 
       <FooterBar>
