@@ -21,6 +21,7 @@ import { computeStandings, type PlayedMatch, type StandingsRow } from "./engine/
 import { buildStages, champion, nextTie, orderedPlayerIds, readiness, seedPairs, seedPlayoffMatch,
   type SeededPair, type Stage } from "./engine/playoff";
 import { appearsInAMatch } from "./engine/roster-guard";
+import { createManageRemote, type ManageRemoteConfig } from "./sync/remote";
 import { buildKnockoutStages, buildPlateStages, orphanKnockoutMatchIds, planKnockoutDispatch, playableTies } from "./engine/knockout";
 import type { RosterName } from "./roster/names";
 
@@ -657,18 +658,27 @@ export interface CourtView {
   ready: ReturnType<typeof readiness>;
 }
 
-export function useManageSession(storageKey: string = STORAGE_KEY) {
+/** How often a phone asks the shared row whether the night has moved. */
+export const FOLLOW_INTERVAL_MS = 4000;
+
+export function useManageSession(
+  storageKey: string = STORAGE_KEY,
+  remote: Pick<ManageRemoteConfig, "instance" | "passcode"> | null = null,
+) {
   const [session, setSession] = useState<Session>(emptySession);
   const [loading, setLoading] = useState(true);
   const [sync, setSync] = useState<SyncStatus>("synced");
   const storeRef = useRef<SessionStore<Session> | null>(null);
+  const remoteKey = remote ? `${remote.instance}:${remote.passcode}` : "";
 
   useEffect(() => {
     const store = createSessionStore<Session>({
       storageKey,
       schemaVersion: SCHEMA_VERSION,
       storage: window.localStorage,
-      remote: null, // wired to Supabase once the route ships; local-first works today
+      // Local-first, mirrored. The row behind the door's passcode is what
+      // lets a second phone on the same link see the night and follow it.
+      remote: remote ? createManageRemote(remote) : null,
       defaults: emptySession,
       onSyncStatusChange: setSync,
     });
@@ -677,7 +687,42 @@ export function useManageSession(storageKey: string = STORAGE_KEY) {
       setSession(state);
       setLoading(false);
     });
-  }, [storageKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey, remoteKey]);
+
+  /**
+   * Following. Every few seconds a phone with nothing unsaved asks the row
+   * for news and adopts it if the row is newer than what it holds. A phone
+   * mid-save is left alone: its own push lands first, and the row it then
+   * pulls is its own. The tab must be visible, so a phone in a pocket is
+   * not polling all night.
+   */
+  useEffect(() => {
+    if (!remote) return;
+    let cancelled = false;
+    const tick = async () => {
+      const store = storeRef.current;
+      if (!store || document.visibilityState !== "visible") return;
+      // A push in flight means this phone's own copy is about to be the row;
+      // let it land. A phone in "error" still pulls: its push may have been
+      // refused as stale, and the newer row is exactly what it needs.
+      if (store.syncStatus() === "pending") return;
+      try {
+        const pulled = await createManageRemote(remote).pull();
+        if (cancelled || !pulled) return;
+        const mine = store.latestSavedAt() ?? 0;
+        if (pulled.savedAt > mine && store.syncStatus() !== "pending") {
+          store.adopt(pulled);
+          setSession(pulled.state);
+        }
+      } catch {
+        // Offline or refused: the local copy stands, the next tick tries again.
+      }
+    };
+    const id = window.setInterval(() => void tick(), FOLLOW_INTERVAL_MS);
+    return () => { cancelled = true; window.clearInterval(id); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remoteKey]);
 
   /** Every mutation goes through here, so nothing can write without saving. */
   const sessionRef = useRef(session);

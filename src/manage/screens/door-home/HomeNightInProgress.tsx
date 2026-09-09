@@ -36,6 +36,12 @@ export interface HomeNightInProgressProps {
   loading?: boolean;
   /** "Manager 2" above the club's name on the second manager. Omitted on the first. */
   instanceLabel?: string;
+  /**
+   * One line about the shared row, when there is one: whether this phone
+   * is following it, saving to it, or cut off and keeping the night to
+   * itself. Absent when the night is local-only.
+   */
+  syncLine?: string | null;
   /** → frame 10 `Court view`, opened on the court that needs attention. */
   onResume: () => void;
   /** → frame 05. Must not delete or void the in-progress night's results. */
@@ -62,6 +68,7 @@ export const HomeNightInProgress = ({
   onStartDifferentNight,
   onOpenNightMenu,
   instanceLabel,
+  syncLine,
 }: HomeNightInProgressProps) => {
   const sentence = courts.length > 0 ? `${courts.map(clause).join(", ")}.` : null;
 
@@ -92,6 +99,11 @@ export const HomeNightInProgress = ({
                 font: `400 15px/1.5 ${T.fontBody}`, color: T.mut, margin: "10px 0 0",
                 textWrap: "pretty",
               }}>{sentence}</p>
+            )}
+            {syncLine != null && syncLine !== "" && (
+              <p style={{ font: `400 13.5px/1.5 ${T.fontBody}`, color: T.soft, margin: "8px 0 0" }}>
+                {syncLine}
+              </p>
             )}
           </Card>
         )}

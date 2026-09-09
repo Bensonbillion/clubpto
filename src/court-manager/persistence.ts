@@ -35,6 +35,18 @@ export interface SessionStore<T> {
   save(state: T, nowMs: number): void;
   /** local → remote → defaults. Never throws; wifi failures degrade gracefully. */
   load(): Promise<{ state: T; source: "local" | "remote" | "defaults" }>;
+  /**
+   * When the copy this device holds was saved, or null before anything was
+   * loaded or saved. A follower polls the shared row and compares against
+   * this to decide whether the row is news.
+   */
+  latestSavedAt(): number | null;
+  /**
+   * Take a newer envelope from the shared row as this device's own copy:
+   * written locally, remembered as latest, never pushed back. The polling
+   * follower's write path, and the one write that must not echo.
+   */
+  adopt(envelope: Envelope<T>): void;
   /** Retry the remote push of the latest local state (call on a timer/reconnect). */
   flush(): Promise<void>;
   syncStatus(): SyncStatus;
@@ -150,7 +162,11 @@ export function createSessionStore<T>(config: SessionStoreConfig<T>): SessionSto
               return { state: remote.state, source: "remote" as const };
             }
           } catch {
-            // Offline: the local copy is the best available, exactly as before.
+            // Offline: the local copy is the best available, exactly as before,
+            // but the store must say so. A phone that opens the night with the
+            // row unreachable is keeping the night to itself, and a green line
+            // claiming it is shared would send a second phone to a blank screen.
+            setStatus("error");
           }
         }
         latest = local;
@@ -186,6 +202,21 @@ export function createSessionStore<T>(config: SessionStoreConfig<T>): SessionSto
 
     async flush() {
       if (status !== "synced") await pushLatest();
+    },
+
+    latestSavedAt: () => latest?.savedAt ?? null,
+
+    adopt(envelope) {
+      const upgraded = upgrade(envelope);
+      if (!upgraded) return;
+      latest = upgraded;
+      try {
+        config.storage.setItem(config.storageKey, JSON.stringify(upgraded));
+      } catch {
+        setStatus("error");
+        return;
+      }
+      setStatus("synced");
     },
 
     syncStatus: () => status,
