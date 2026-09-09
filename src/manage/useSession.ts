@@ -703,12 +703,15 @@ export function useManageSession(
     const tick = async () => {
       const store = storeRef.current;
       if (!store || document.visibilityState !== "visible") return;
-      if (store.syncStatus() !== "synced") return;
+      // A push in flight means this phone's own copy is about to be the row;
+      // let it land. A phone in "error" still pulls: its push may have been
+      // refused as stale, and the newer row is exactly what it needs.
+      if (store.syncStatus() === "pending") return;
       try {
         const pulled = await createManageRemote(remote).pull();
         if (cancelled || !pulled) return;
         const mine = store.latestSavedAt() ?? 0;
-        if (pulled.savedAt > mine && store.syncStatus() === "synced") {
+        if (pulled.savedAt > mine && store.syncStatus() !== "pending") {
           store.adopt(pulled);
           setSession(pulled.state);
         }

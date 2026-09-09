@@ -162,7 +162,11 @@ export function createSessionStore<T>(config: SessionStoreConfig<T>): SessionSto
               return { state: remote.state, source: "remote" as const };
             }
           } catch {
-            // Offline: the local copy is the best available, exactly as before.
+            // Offline: the local copy is the best available, exactly as before,
+            // but the store must say so. A phone that opens the night with the
+            // row unreachable is keeping the night to itself, and a green line
+            // claiming it is shared would send a second phone to a blank screen.
+            setStatus("error");
           }
         }
         latest = local;
