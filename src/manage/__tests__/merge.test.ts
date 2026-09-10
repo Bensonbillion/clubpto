@@ -188,6 +188,22 @@ describe("rule 4 and 5: one game, one court, one player", () => {
     expect(state.matches).toHaveLength(2);
   });
 
+  it("a live game fielding someone the other phone marked as left comes down, and the deal without them stays", () => {
+    const b: Session = { ...night(), matches: [] };
+    const r = deal(b, live("m-2-1-r", 2, 1, ["e", "f", "g", "h"]));
+    const l: Session = deal(
+      { ...b, players: b.players.map((p) => p.id === "h" ? { ...p, away: true } : p) },
+      live("m-2-1-l", 2, 1, ["e", "f", "g", "a"]),
+    );
+    const { state, notes } = mergeSessions(b, l, r);
+    expect(state.players.find((p) => p.id === "h")?.away).toBe(true);
+    expect(state.matches.map((m) => m.id)).toEqual(["m-2-1-l"]);
+    expect(notes).toContainEqual({ kind: "leaverDealtAround", courtNumber: 2, playerId: "h" });
+    // The other way round: the row marked them left and this phone dealt them.
+    const flipped = mergeSessions(b, r, l);
+    expect(flipped.state.matches.map((m) => m.id)).toEqual(["m-2-1-l"]);
+  });
+
   it("a player standing in two live games after the merge keeps only the row's", () => {
     const b: Session = { ...night(), matches: [] };
     const l = deal(b, live("m-1-1-l", 1, 1, ["a", "b", "c", "d"]));
