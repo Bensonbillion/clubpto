@@ -744,10 +744,11 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           onNext={() => {
             ensureFresh();
             s.setDayLabel(night);
-            // Sunday is a hub with doors (frame 34). Every other night is the
-            // round robin, stated so a leftover Sunday format cannot leak.
-            if (night === "Sunday") { setStep("format"); }
-            else { s.setFormat("roundRobin"); setStep("who"); }
+            // Every night is a hub with doors (frame 34). Drawn for Sunday,
+            // and the owner asked for hand-made pairs on a Wednesday too, so
+            // the choice is made on the way in every time and a leftover
+            // format from another night cannot leak.
+            setStep("format");
           }}
         />
       );
@@ -756,6 +757,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
     if (step === "format") {
       return (
         <SundayHub
+          night={night}
           onRoundRobin={() => { s.setFormat("roundRobin"); setStep("who"); }}
           onKnockout={() => { s.setFormat("knockout"); setStep("who"); }}
           onTeams={() => { s.setFormat("teams"); setStep("who"); }}
@@ -863,7 +865,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
             : null}
           onSetTier={(playerId, tier) => { s.setTier(playerId, tier); setTierPromptId(null); }}
           onSkipTier={() => setTierPromptId(null)}
-          onBack={() => setStep(night === "Sunday" ? "format" : "night")}
+          onBack={() => setStep("format")}
           nextLabel={s.session.format === "knockout" || s.session.format === "teams" ? "Next: pair up" : undefined}
           onNext={() => {
             ensureFresh();
@@ -963,7 +965,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           onBack={() => { setHeldId(null); setStep("who"); }}
           onNext={next}
           helper={helper}
-          step={s.session.format === "teams" ? "Setup · Sunday · Set teammate" : undefined}
+          step={`Setup · ${night} · ${s.session.format === "teams" ? "Set teammate" : "Playoff"}`}
         />
       );
     }
@@ -975,7 +977,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           onCount={setCourtCount}
           onBack={() => setStep("pairs")}
           onNext={() => setStep(s.session.format === "teams" ? "teamsTarget" : "koReady")}
-          step={s.session.format === "teams" ? "Setup · Sunday · Set teammate" : undefined}
+          step={`Setup · ${night} · ${s.session.format === "teams" ? "Set teammate" : "Playoff"}`}
         />
       );
     }
@@ -995,6 +997,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         ? stored : suggested;
       return (
         <GamesPerPair
+          step={`Setup · ${night} · Set teammate`}
           pairCount={pairs.length}
           options={offered.map((t) => ({
             target: t,
@@ -1038,6 +1041,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
       const trio = pairs.find((p) => p.playerIds.length === 3);
       return (
         <KnockoutReady
+          step={`Setup · ${night} · Playoff`}
           pairCount={pairs.length}
           shape={knockoutShape(pairs.length) ?? ""}
           firstRoundLabel={first?.label ?? ""}
@@ -2043,7 +2047,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         <>
           <PlayersTab
             header={koHeader}
-            courtLabel="Sunday"
+            courtLabel={s.session.dayLabel || "Sunday"}
             players={s.session.players
               .map((p) => ({
                 id: p.id, displayName: p.name,
@@ -2153,7 +2157,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           <Champion
             header={koHeader}
             courtNumber={finalMatch?.courtNumber ?? courtNumber}
-            eyebrowLabel="Sunday · knockout"
+            eyebrowLabel={`${s.session.dayLabel || "Sunday"} · knockout`}
             championNames={K.champion.playerIds.map(name)}
             scoreWinner={Math.max(finalMatch?.scoreA ?? 0, finalMatch?.scoreB ?? 0)}
             scoreLoser={Math.min(finalMatch?.scoreA ?? 0, finalMatch?.scoreB ?? 0)}
@@ -2830,6 +2834,15 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           }
           here({ scoring: { matchId: live.id, side, a: "", b: "" } });
         }}
+        // Found on a Wednesday: somebody was not there, the operator paged
+        // to the next game, and there was nothing to tap. A projected row
+        // can now go on court from the card, and the live game can be
+        // stepped past from the card; either way the game that waits stays
+        // in the list and is scored whenever it is played.
+        onPlayThisNow={paged && paged.status !== "played" && paged.teamA != null && paged.teamB != null
+          ? () => { s.goToMatch(courtNumber, paged.slot); here({ pagerSlot: null }); }
+          : undefined}
+        onSkip={!paged ? () => s.skipMatch(courtNumber) : undefined}
         onWhyThisFour={() => here({ pane: "why" })}
         activeTab={ui.tab}
         onTabChange={(t) => here({ tab: t })}

@@ -20,14 +20,24 @@ one court each on two URLs at once. It is not a copy of the source; a change
 to `src/manage/` ships to both URLs. Instance 1 keeps the bare key, so nothing
 about `/manage` changed when `/manage2` arrived.
 
-Sunday is a hub (frame 34): after the day is chosen the wizard offers Round
-robin, Playoff or Set teammate. Playoff is a straight knockout over hand-made
+Every night is a hub (frame 34, drawn for Sunday and opened to every night
+on 2026-09-10): after the day is chosen the wizard offers Round robin,
+Playoff or Set teammate. Playoff is a straight knockout over hand-made
 pairs (docs/manage/knockout-spec.md): one draw feeds every court, byes and a
 rotating trio absorb any headcount, walkovers and an optional plate for
 first-round losers. Set teammate keeps the same hand-made pairs together for
 a round robin over pairs, then crowns the table or seeds it into the
 knockout. `Session.format` is absent on old saved nights, which is what keeps
 them resuming as round robins.
+
+The round robin's laws live in `src/manage/engine/tiers.ts`: a mixed game is
+A B against A B (never A B against B B), a C game is four C's or three C's
+with the one designated B, and an A is never in a game with a C. The picker
+in `engine/rotation.ts` then prefers four people who have not shared a court
+yet, spreads the mixed games around, and keeps the designated B for the
+beginners while they still owe games. The rotation test replays the
+Wednesday roster that broke on 2026-09-09 (twelve A's, eight B's, one court)
+and asserts no repeated four and only the three lawful shapes.
 
 Four earlier managers were deleted on 2026-08-19: v1 (`/manage-classic`), v2
 (`/manage2`), v3 (`/manage`) and v4 (`/manage4`), together with their engines,

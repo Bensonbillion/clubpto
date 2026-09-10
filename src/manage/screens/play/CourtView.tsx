@@ -4,7 +4,7 @@
 // footer holds no button: the taps are the pair cards themselves and the
 // arrows above them, so the bar is one sentence saying what the screen is for.
 
-import { Body, Eyebrow, FooterBar, Screen, T, TabBar, type Tab } from "../../ui/primitives";
+import { Body, Eyebrow, FooterBar, PrimaryButton, Screen, T, TabBar, TertiaryButton, type Tab } from "../../ui/primitives";
 import { CourtHeader } from "./CourtHeader";
 import { MatchCard } from "./MatchCard";
 import { MatchNav } from "./MatchNav";
@@ -45,6 +45,18 @@ export interface CourtViewProps {
   upNext?: { slot: number; a: string; b: string }[];
   /** Opens frame 12 with that side's score box focused. */
   onScore: (side: "A" | "B") => void;
+  /**
+   * On a projected row: put THIS game on court now, and the game that was
+   * on court waits in the list. Found on a Wednesday: the operator paged to
+   * the next game because somebody was not there, and there was nothing to
+   * tap. Absent on the live match and on a result.
+   */
+  onPlayThisNow?: () => void;
+  /**
+   * On the live match: step past it. It waits in the list and the next game
+   * comes on. Absent while paged.
+   */
+  onSkip?: () => void;
   /** Opens frame 11 off the match line. See MatchNav for why it hangs there. */
   onWhyThisFour?: () => void;
   activeTab?: Tab;
@@ -69,6 +81,8 @@ export const CourtView = ({
   waiting,
   upNext = [],
   onScore,
+  onPlayThisNow,
+  onSkip,
   onWhyThisFour,
   activeTab = "match",
   onTabChange,
@@ -97,6 +111,19 @@ export const CourtView = ({
         is what keeps the slat at thumb height on a 390x844 phone. */}
     <Body style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
       <MatchCard sideA={sideA} sideB={sideB} onScore={onScore} />
+      {onPlayThisNow && (
+        <div style={{ padding: "4px 22px 0", display: "flex", flexDirection: "column", gap: 8 }}>
+          <PrimaryButton onClick={onPlayThisNow}>Play this game now</PrimaryButton>
+          <p style={{ font: `400 13.5px/1.5 ${T.fontBody}`, color: T.mut, margin: 0, textAlign: "center" }}>
+            The game on court waits in the list. Score it whenever it is played.
+          </p>
+        </div>
+      )}
+      {onSkip && (
+        <div style={{ padding: "4px 22px 0", display: "flex", justifyContent: "center" }}>
+          <TertiaryButton onClick={onSkip}>Skip this game, somebody is not here</TertiaryButton>
+        </div>
+      )}
     </Body>
 
     {upNext.length > 0 && (

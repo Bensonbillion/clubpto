@@ -407,3 +407,50 @@ describe("partners rotate every round", () => {
     for (const id of rested) expect([...m2.teamA, ...m2.teamB]).toContain(id);
   });
 });
+
+
+describe("the same four do not come round again", () => {
+  const fourOf = (m: Match) => [...m.teamA, ...m.teamB].sort().join(",");
+  const shapeOf = (roster: readonly Player[], m: Match) =>
+    [m.teamA, m.teamB].map((side) =>
+      side.map((id) => roster.find((p) => p.id === id)?.tier ?? "B").sort().join("")).join("v");
+
+  it("eight on one court at three each: every four is a different four", () => {
+    const { matches, counts } = runNight(eight(), 3);
+    expect(counts.every((c) => c === 3)).toBe(true);
+    const fours = matches.map(fourOf);
+    expect(new Set(fours).size).toBe(fours.length);
+  });
+
+  it("last Wednesday's roster, twelve A's and eight B's on one court at three each", () => {
+    // The night the owner watched: the first four were the fifteenth four,
+    // and three games ran an A and a B against two B's. Neither may happen.
+    const roster: Player[] = [
+      ...["benson", "tamilore", "david", "folarin", "timi", "ade", "chibuike", "elvis", "fiyin", "sam", "abiola", "martins"]
+        .map((x) => P(x, { tier: "A" })),
+      ...["albright", "evelyn", "ese", "idara", "goanaer", "kai", "olu", "khalid"].map((x) => P(x, { tier: "B" })),
+    ];
+    const { matches, counts } = runNight(roster, 3);
+    expect(matches).toHaveLength(15);
+    expect(counts.every((c) => c === 3)).toBe(true);
+    const fours = matches.map(fourOf);
+    expect(new Set(fours).size).toBe(fours.length);
+    for (const m of matches) expect(["AAvAA", "ABvAB", "BBvBB"]).toContain(shapeOf(roster, m));
+    // And nobody shares a court with the same person more than twice.
+    const met = new Map<string, number>();
+    for (const m of matches) {
+      const ids = [...m.teamA, ...m.teamB];
+      for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) {
+        const k = [ids[i], ids[j]].sort().join("+");
+        met.set(k, (met.get(k) ?? 0) + 1);
+      }
+    }
+    expect(Math.max(...met.values())).toBeLessThanOrEqual(2);
+  });
+
+  it("a lone A on a court of B's still plays, in the relaxed shape", () => {
+    const roster: Player[] = [P("a1", { tier: "A" }), ...["b1", "b2", "b3", "b4", "b5", "b6", "b7"].map((x) => P(x, { tier: "B" }))];
+    const { counts } = runNight(roster, 3);
+    expect(counts.every((c) => c === 3)).toBe(true);
+  });
+});

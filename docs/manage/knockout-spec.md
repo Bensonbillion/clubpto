@@ -37,8 +37,9 @@ trio absorb any headcount.
 
 ## Sunday formats (frames 34 to 37)
 
-- **Frame 34, Sunday hub, BUILT with all three doors.** Appears only when the
-  night is Sunday, immediately after the day is chosen. "Three shapes
+- **Frame 34, the hub, BUILT with all three doors.** Drawn for Sunday and
+  shown for every night since 2026-09-10, immediately after the day is
+  chosen; the eyebrows carry the night's name. "Three shapes
   tonight. The roster is built inside the door you choose." Round robin /
   Playoff / Set teammate. "Switching doors keeps the roster."
 

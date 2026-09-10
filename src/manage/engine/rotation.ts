@@ -21,7 +21,7 @@
 
 import type { Match, Player, PlayerTier, QueueEntry } from "../types";
 import {
-  canFieldACMatch, chooseFour, designateB, tierOf as tierOfPlayer,
+  canFieldABMatch, canFieldACMatch, chooseFour, designateB, tierOf as tierOfPlayer,
   type LawContext,
 } from "./tiers";
 
@@ -201,6 +201,7 @@ export function lawContextFor(players: readonly Player[], court: number): LawCon
     tierById: (id) => byId.get(id) ?? "B",
     designatedB: designateB(players, court),
     relaxed: !canFieldACMatch(onCourt.map(tierOfPlayer)),
+    relaxedAB: !canFieldABMatch(onCourt.map(tierOfPlayer)),
     cCount: onCourt.filter((p) => tierOfPlayer(p) === "C").length,
   };
 }
@@ -222,8 +223,24 @@ function lawfulFour(
       && m.status !== "voided"
       && ((m.teamA.includes(x) && m.teamA.includes(y))
         || (m.teamB.includes(x) && m.teamB.includes(y)))).length;
+  // Who has shared a court at all tonight, either side of the net: the
+  // measure that keeps the same four from coming round again.
+  const met = (x: string, y: string) =>
+    matches.filter((m) => m.courtNumber === court && m.stage === null
+      && m.status !== "voided"
+      && [...m.teamA, ...m.teamB].includes(x) && [...m.teamA, ...m.teamB].includes(y)).length;
+  const bridgeBusy = queue.some((e) => e.owed > 0 && ctx.tierById(e.playerId) === "C");
+  // Mixed games had so far: a game with an A and a B on each side.
+  const mixed = (id: string) =>
+    matches.filter((m) => {
+      if (m.courtNumber !== court || m.stage !== null || m.status === "voided") return false;
+      const four = [...m.teamA, ...m.teamB];
+      if (!four.includes(id)) return false;
+      const tiers = four.map(ctx.tierById);
+      return tiers.includes("A") && tiers.includes("B");
+    }).length;
   const chosen = chooseFour(queue.map((e) => e.playerId), ctx,
-    { playedBy: (id) => played.get(id) ?? 0, partnered });
+    { playedBy: (id) => played.get(id) ?? 0, partnered, met, bridgeBusy, mixed });
   if (!chosen) return null;
 
   const ids = [...chosen.lineup.teamA, ...chosen.lineup.teamB];

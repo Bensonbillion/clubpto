@@ -18,6 +18,8 @@ export interface ReadyTieRow {
 }
 
 export interface KnockoutReadyProps {
+  /** The eyebrow: which night and door this step belongs to. */
+  step?: string;
   pairCount: number;
   /** engine/knockout.ts knockoutShape: the sentence over the list. */
   shape: string;
@@ -38,11 +40,12 @@ export interface KnockoutReadyProps {
 }
 
 export const KnockoutReady = ({
+  step,
   pairCount, shape, firstRoundLabel, byes, ties, thenLine, trioLine,
   plate, onPlate, onBack, onStart,
 }: KnockoutReadyProps) => (
   <Screen>
-    <SetupHeader title="The draw, as it will run." step="Setup · Sunday · Playoff" onBack={onBack} />
+    <SetupHeader title="The draw, as it will run." step={step ?? "Setup · Sunday · Playoff"} onBack={onBack} />
     <p style={{
       font: `400 15px/1.5 ${T.fontBody}`, color: T.mut,
       padding: "0 22px", margin: "8px 0 0", textWrap: "pretty",

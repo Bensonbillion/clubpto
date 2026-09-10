@@ -7,8 +7,12 @@
 //
 // THE LAWS, same shape, one at each end of the room:
 //
-//   1. If a match holds both A's and B's, each team has a B. No B is ever the
-//      lone weaker player being hunted.
+//   1. If a match holds both A's and B's, the two teams have the same make-up:
+//      an A and a B on each side. Never AB against BB, never AA against AB.
+//      The club's own words for it: it is either B B B B or A B A B. (Four
+//      A's is fine too; the law is about mixing.) Found on a Wednesday with
+//      twelve A's and eight B's on one court, where "a B on each team" let
+//      three of fifteen games run an A and a B against two B's.
 //
 //   2. If a match holds any C, there is no A anywhere in it, a C stands on
 //      each team, and at most one B is allowed in. So a legal C match is
@@ -71,6 +75,13 @@ export interface LawContext {
    * protected from a game.
    */
   cCount: number;
+  /**
+   * True when this court cannot make an A B against A B at all, because it
+   * holds fewer than two A's or fewer than two B's. The first law then falls
+   * back to its older shape, a B on each team, so a lone A is not walled
+   * out of every game for the night. Absent (false) means the strict law.
+   */
+  relaxedAB?: boolean;
 }
 
 export type Illegality =
@@ -83,7 +94,9 @@ export type Illegality =
   /** A B in a C match who is not the one riding with the group all night. */
   | "notTheDesignatedB"
   /** A's and B's mixed, but a team has no B, so that B is being hunted. */
-  | "bNotOnEachTeam";
+  | "bNotOnEachTeam"
+  /** A's and B's mixed, and the two teams are not the same make-up. */
+  | "sidesUnequal";
 
 const countBy = (tiers: readonly Tier[], t: Tier) => tiers.filter((x) => x === t).length;
 
@@ -127,11 +140,24 @@ export function judge(lineup: Lineup, ctx: LawContext): Illegality | null {
   if (as > 0 && bs > 0) {
     if (!a.some((id) => ctx.tierById(id) === "B")) return "bNotOnEachTeam";
     if (!b.some((id) => ctx.tierById(id) === "B")) return "bNotOnEachTeam";
+    // The same make-up on each side: A B against A B, and nothing else.
+    if (!ctx.relaxedAB) {
+      const shape = (side: string[]) => side.map(ctx.tierById).sort().join("");
+      if (shape(a) !== shape(b)) return "sidesUnequal";
+    }
   }
   return null;
 }
 
 export const isLegal = (lineup: Lineup, ctx: LawContext): boolean => judge(lineup, ctx) === null;
+
+/**
+ * Can this court make an A B against A B? Below two of either tier it
+ * cannot, and the first law relaxes to a B on each team.
+ */
+export function canFieldABMatch(tiers: readonly Tier[]): boolean {
+  return countBy(tiers, "A") >= 2 && countBy(tiers, "B") >= 2;
+}
 
 /**
  * Can this court ever field a legal C match?
@@ -245,9 +271,34 @@ export function chooseFour(
      * of four at target three plays exactly the three distinct splits.
      */
     partnered?: (a: string, b: string) => number;
+    /**
+     * How many times two players have already shared a MATCH tonight, on
+     * either side of the net. Ranked above partnerships: the same four back
+     * on court with the partners swapped is the game everybody remembers as
+     * a repeat. Found on a Wednesday with twenty on one court, where the
+     * first four were the fifteenth four.
+     */
+    met?: (a: string, b: string) => number;
+    /**
+     * True while a C on this court is still owed a game. The designated B
+     * is then kept for the beginners' matches: a B match that borrows the
+     * bridge costs the bridge a game later, because every C match needs
+     * them, and the variety preference would otherwise reach for the one B
+     * who has not mixed with the others yet. Ranked with the soft C
+     * preference, below fairness, so it never holds anybody's game back.
+     */
+    bridgeBusy?: boolean;
+    /**
+     * How many mixed games (an A and a B on each side) a player has had.
+     * A mixed game goes to whoever has had fewest, so the same four B's do
+     * not take every mixed game and leave the other four to play each
+     * other again at the end. Ranked below fairness and familiarity.
+     */
+    mixed?: (playerId: string) => number;
   } = {},
 ): Chosen | null {
-  const { windowSize = 12, playedBy, partnered } = options;
+  const { windowSize = 12, playedBy, partnered, met, bridgeBusy = false, mixed } = options;
+  const mixedGames = mixed ?? (() => 0);
   const window = queue.slice(0, Math.max(4, windowSize));
   let best: Chosen | null = null;
   // Ranked in this order, and the order is the whole fairness argument:
@@ -262,11 +313,12 @@ export function chooseFour(
   // still on their first: exactly the drift the court is supposed to prevent.
   // Sorted-and-lexicographic makes "the least played four" precise, and any
   // other four with the same vector is equally fair by definition.
-  let bestKey: { played: number[]; penalty: number; repeats: number; position: number } | null = null;
+  let bestKey: { played: number[]; penalty: number; familiar: number; mixedSum: number; repeats: number; position: number } | null = null;
   const games = playedBy ?? (() => 0);
   const together = partnered ?? (() => 0);
+  const shared = met ?? (() => 0);
   const better = (
-    k: { played: number[]; penalty: number; repeats: number; position: number },
+    k: { played: number[]; penalty: number; familiar: number; mixedSum: number; repeats: number; position: number },
     b: typeof bestKey,
   ): boolean => {
     if (!b) return true;
@@ -274,6 +326,8 @@ export function chooseFour(
       if (k.played[n] !== b.played[n]) return k.played[n] < b.played[n];
     }
     if (k.penalty !== b.penalty) return k.penalty < b.penalty;
+    if (k.familiar !== b.familiar) return k.familiar < b.familiar;
+    if (k.mixedSum !== b.mixedSum) return k.mixedSum < b.mixedSum;
     if (k.repeats !== b.repeats) return k.repeats < b.repeats;
     return k.position < b.position;
   };
@@ -285,12 +339,24 @@ export function chooseFour(
           const ids = [window[i], window[j], window[k], window[l]];
           const played = ids.map(games).sort((m, n) => m - n);
           const position = i + j + k + l;
+          // Every pair among the four: how often they have shared a court.
+          let familiar = 0;
+          for (let x = 0; x < 4; x++) for (let y = x + 1; y < 4; y++) familiar += shared(ids[x], ids[y]);
+          // A mixed game counts against whoever has already had one.
+          const tiersHere = ids.map(ctx.tierById);
+          const isMixed = tiersHere.includes("A") && tiersHere.includes("B");
+          const mixedSum = isMixed ? ids.reduce((sum, id) => sum + mixedGames(id), 0) : 0;
           for (const [x, y, z, w] of SPLITS) {
             const lineup: Lineup = { teamA: [ids[x], ids[y]], teamB: [ids[z], ids[w]] };
             if (!isLegal(lineup, ctx)) continue;
+            const borrowsBridge = bridgeBusy && ctx.designatedB !== null
+              && ids.includes(ctx.designatedB)
+              && !ids.some((id) => ctx.tierById(id) === "C");
             const key = {
               played,
-              penalty: softPenalty(lineup, ctx),
+              penalty: softPenalty(lineup, ctx) + (borrowsBridge ? 1 : 0),
+              familiar,
+              mixedSum,
               repeats: together(lineup.teamA[0], lineup.teamA[1])
                 + together(lineup.teamB[0], lineup.teamB[1]),
               position,

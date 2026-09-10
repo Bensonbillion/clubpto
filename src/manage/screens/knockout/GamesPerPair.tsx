@@ -19,6 +19,8 @@ export interface GamesPerPairOption {
 }
 
 export interface GamesPerPairProps {
+  /** The eyebrow: which night this step belongs to. */
+  step?: string;
   pairCount: number;
   options: GamesPerPairOption[];
   selected: number | null;
@@ -29,10 +31,10 @@ export interface GamesPerPairProps {
 }
 
 export const GamesPerPair = ({
-  pairCount, options, selected, onSelect, onBack, onStart,
+  step, pairCount, options, selected, onSelect, onBack, onStart,
 }: GamesPerPairProps) => (
   <Screen>
-    <SetupHeader title="How many games per pair?" step="Setup · Sunday · Set teammate" onBack={onBack} />
+    <SetupHeader title="How many games per pair?" step={step ?? "Setup · Sunday · Set teammate"} onBack={onBack} />
     <Why>Every match is two pairs, so the target has to divide the pairs.</Why>
 
     <Body style={{ padding: "16px 22px 8px", display: "flex", flexDirection: "column", gap: 8 }}>
