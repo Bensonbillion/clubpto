@@ -1812,6 +1812,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
               .map((p) => ({
                 id: p.id, displayName: p.name,
                 gamesPlayed: s.matchesPlayedBy(p.id), tier: p.tier,
+                removable: !s.session.matches.some((m) => [...m.teamA, ...m.teamB].includes(p.id)),
                 status: p.away ? ("left" as const)
                   : onCourtNow.includes(p.id) ? ("on_court" as const)
                     : ("here" as const),
@@ -1821,6 +1822,8 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
             attendanceCount={s.session.players.filter((p) => !p.away).length}
             openPlayerId={ui.openPlayerId}
             onOpenPlayer={(id) => here({ openPlayerId: id })}
+            // A mis-add leaves the night outright; the session refuses anyone dealt.
+            onRemove={(id) => { s.removePlayer(id); here({ openPlayerId: null }); }}
             // Back in the room, the pair is back in the pool, and a court
             // that was holding for want of a pair is dealt straight away.
             onMarkArrived={(id) => { s.setAway(id, false); s.dispatchTeams(); }}
@@ -2052,6 +2055,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
               .map((p) => ({
                 id: p.id, displayName: p.name,
                 gamesPlayed: s.matchesPlayedBy(p.id), tier: p.tier,
+                removable: !s.session.matches.some((m) => [...m.teamA, ...m.teamB].includes(p.id)),
                 status: p.away ? ("left" as const)
                   : onCourtNow.includes(p.id) ? ("on_court" as const)
                     : ("here" as const),
@@ -2061,6 +2065,8 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
             attendanceCount={s.session.players.filter((p) => !p.away).length}
             openPlayerId={ui.openPlayerId}
             onOpenPlayer={(id) => here({ openPlayerId: id })}
+            // A mis-add leaves the night outright; the session refuses anyone dealt.
+            onRemove={(id) => { s.removePlayer(id); here({ openPlayerId: null }); }}
             onMarkArrived={(id) => s.setAway(id, false)}
             // A knockout leaver is a walkover on their tie, so marking left is
             // the note and "Opponent advances" is the consequence.
@@ -2259,6 +2265,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
               displayName: p.name,
               gamesPlayed: s.matchesPlayedBy(p.id),
               tier: p.tier,
+              removable: !s.session.matches.some((m) => [...m.teamA, ...m.teamB].includes(p.id)),
               status: p.away ? ("left" as const)
                 : onCourtNow.includes(p.id) ? ("on_court" as const)
                   : ("here" as const),
@@ -2270,6 +2277,8 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           attendanceCount={view.players.filter((p) => !p.away).length}
           openPlayerId={ui.openPlayerId}
           onOpenPlayer={(id) => here({ openPlayerId: id })}
+            // A mis-add leaves the night outright; the session refuses anyone dealt.
+            onRemove={(id) => { s.removePlayer(id); here({ openPlayerId: null }); }}
           onMarkArrived={(id) => s.setAway(id, false)}
           // Frame 16c is where the consequence is explained and the decision is
           // actually taken, so this opens it rather than marking anyone away.
