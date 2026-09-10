@@ -39,6 +39,12 @@ export interface PlayersTabPlayer {
    *  "Not assessed", which is what frame 14 draws. */
   tier?: "A" | "B" | "C";
   status: PlayerStatus;
+  /**
+   * True while the match log does not name them: a mis-add can leave the
+   * night outright rather than being marked left and sitting in the list.
+   * Found on a Wednesday: the operator wanted somebody gone, not "Left".
+   */
+  removable?: boolean;
 }
 
 export interface PlayersTabProps {
@@ -79,6 +85,8 @@ export interface PlayersTabProps {
   onMoveCourts?: (playerId: string) => void;
   /** Opens frame B29's tier sheet for this row. */
   onSetTier?: (playerId: string) => void;
+  /** Takes a removable player out of the night. The session refuses anyone dealt. */
+  onRemove?: (playerId: string) => void;
   /** Absent on a knockout night: a running draw has no seat to sell. */
   onAddPlayer?: () => void;
   /** Reworded tabs, e.g. Bracket where a knockout night has no standings. */
@@ -123,6 +131,7 @@ export const PlayersTab = ({
   onMarkHere,
   onMoveCourts,
   onSetTier,
+  onRemove,
   onAddPlayer,
   tabLabels,
   countsLine,
@@ -233,8 +242,8 @@ export const PlayersTab = ({
                   line because three ghosts beside a name and a count do not
                   fit a 390px row. The labels are not drawn on any frame; each
                   names the sheet it opens and nothing more. */}
-              {open && (onMoveCourts != null || onSetTier != null) && (
-                <div style={{ display: "flex", gap: 8 }}>
+              {open && (onMoveCourts != null || onSetTier != null || (onRemove != null && player.removable)) && (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {onMoveCourts != null && (
                     <SecondaryButton style={ghost} onClick={() => onMoveCourts(player.id)}>
                       Move courts
@@ -243,6 +252,11 @@ export const PlayersTab = ({
                   {onSetTier != null && (
                     <SecondaryButton style={ghost} onClick={() => onSetTier(player.id)}>
                       Set tier
+                    </SecondaryButton>
+                  )}
+                  {onRemove != null && player.removable && (
+                    <SecondaryButton style={ghost} onClick={() => onRemove(player.id)}>
+                      Remove from tonight
                     </SecondaryButton>
                   )}
                 </div>

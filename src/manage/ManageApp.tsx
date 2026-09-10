@@ -39,7 +39,7 @@ import {
   endingFor, individualChampion, mayChooseEnding, oneMoreRoundChange,
   type CourtEndings,
 } from "./engine/endings";
-import type { Match, PlayerTier, PlayoffStage } from "./types";
+import type { Match, PlayerTier, PlayoffStage, NightFormat } from "./types";
 import { Passcode, PasscodeFailed, HomeNothingRunning, HomeNightInProgress } from "./screens/door-home";
 import { WhichNight, WhoIsHere, Courts, MatchesEach, Ready, Chip } from "./screens/setup";
 import { CourtHeader, BalanceRule, CourtView, CourtSwitcher, Schedule, ScoreEntry , startValue } from "./screens/play";
@@ -464,6 +464,14 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
   // "Start tonight" was tapped over an ended night: the wizard renders empty
   // but the old session survives until the first real act. See ensureFresh.
   const [pendingFresh, setPendingFresh] = useState(false);
+  /**
+   * The door chosen at the hub. Held here, not written into the night,
+   * until the step that starts it: "Start a different night" runs the
+   * wizard over the live session, and a format written on the way in
+   * switched the running night's branch under the operator, on this phone
+   * and, after the poll, on the other one.
+   */
+  const [door, setDoor] = useState<NightFormat>("roundRobin");
   const [step, setStep] = useState<Step>("night");
   const [night, setNight] = useState("Wednesday");
   const [query, setQuery] = useState("");
@@ -744,10 +752,11 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           onNext={() => {
             ensureFresh();
             s.setDayLabel(night);
-            // Sunday is a hub with doors (frame 34). Every other night is the
-            // round robin, stated so a leftover Sunday format cannot leak.
-            if (night === "Sunday") { setStep("format"); }
-            else { s.setFormat("roundRobin"); setStep("who"); }
+            // Every night is a hub with doors (frame 34). Drawn for Sunday,
+            // and the owner asked for hand-made pairs on a Wednesday too, so
+            // the choice is made on the way in every time and a leftover
+            // format from another night cannot leak.
+            setStep("format");
           }}
         />
       );
@@ -756,9 +765,10 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
     if (step === "format") {
       return (
         <SundayHub
-          onRoundRobin={() => { s.setFormat("roundRobin"); setStep("who"); }}
-          onKnockout={() => { s.setFormat("knockout"); setStep("who"); }}
-          onTeams={() => { s.setFormat("teams"); setStep("who"); }}
+          night={s.session.dayLabel || night}
+          onRoundRobin={() => { setDoor("roundRobin"); setStep("who"); }}
+          onKnockout={() => { setDoor("knockout"); setStep("who"); }}
+          onTeams={() => { setDoor("teams"); setStep("who"); }}
           onBack={() => setStep("night")}
         />
       );
@@ -863,12 +873,12 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
             : null}
           onSetTier={(playerId, tier) => { s.setTier(playerId, tier); setTierPromptId(null); }}
           onSkipTier={() => setTierPromptId(null)}
-          onBack={() => setStep(night === "Sunday" ? "format" : "night")}
-          nextLabel={s.session.format === "knockout" || s.session.format === "teams" ? "Next: pair up" : undefined}
+          onBack={() => setStep("format")}
+          nextLabel={door === "knockout" || door === "teams" ? "Next: pair up" : undefined}
           onNext={() => {
             ensureFresh();
             // The Playoff door pairs people instead of splitting courts.
-            if (s.session.format === "knockout" || s.session.format === "teams") { setStep("pairs"); return; }
+            if (door === "knockout" || door === "teams") { setStep("pairs"); return; }
             // Adding already wrote to the session, so there is nothing left to
             // reconcile. This list is a view of the night, not a form.
             s.setCourts(Array.from({ length: courtCount }, (_, i) => i + 1));
@@ -941,7 +951,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         + `${unpaired.length} unpaired.`;
       // The step is shared by both Sunday doors, so its sentences name
       // the door the operator chose, never the other one.
-      const teamsDoor = s.session.format === "teams";
+      const teamsDoor = door === "teams";
       const helper = heldId != null
         ? `${nameOf(heldId)?.name ?? "One"} is held. Tap a second name to pair.`
         : pairs.length > MAX_KNOCKOUT_PAIRS
@@ -963,7 +973,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           onBack={() => { setHeldId(null); setStep("who"); }}
           onNext={next}
           helper={helper}
-          step={s.session.format === "teams" ? "Setup · Sunday · Set teammate" : undefined}
+          step={`Setup · ${s.session.dayLabel || night} · ${door === "teams" ? "Set teammate" : "Playoff"}`}
         />
       );
     }
@@ -974,8 +984,8 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           count={courtCount}
           onCount={setCourtCount}
           onBack={() => setStep("pairs")}
-          onNext={() => setStep(s.session.format === "teams" ? "teamsTarget" : "koReady")}
-          step={s.session.format === "teams" ? "Setup · Sunday · Set teammate" : undefined}
+          onNext={() => setStep(door === "teams" ? "teamsTarget" : "koReady")}
+          step={`Setup · ${s.session.dayLabel || night} · ${door === "teams" ? "Set teammate" : "Playoff"}`}
         />
       );
     }
@@ -995,6 +1005,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         ? stored : suggested;
       return (
         <GamesPerPair
+          step={`Setup · ${s.session.dayLabel || night} · Set teammate`}
           pairCount={pairs.length}
           options={offered.map((t) => ({
             target: t,
@@ -1038,6 +1049,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
       const trio = pairs.find((p) => p.playerIds.length === 3);
       return (
         <KnockoutReady
+          step={`Setup · ${s.session.dayLabel || night} · Playoff`}
           pairCount={pairs.length}
           shape={knockoutShape(pairs.length) ?? ""}
           firstRoundLabel={first?.label ?? ""}
@@ -1808,6 +1820,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
               .map((p) => ({
                 id: p.id, displayName: p.name,
                 gamesPlayed: s.matchesPlayedBy(p.id), tier: p.tier,
+                removable: !s.session.matches.some((m) => [...m.teamA, ...m.teamB].includes(p.id)),
                 status: p.away ? ("left" as const)
                   : onCourtNow.includes(p.id) ? ("on_court" as const)
                     : ("here" as const),
@@ -1817,6 +1830,8 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
             attendanceCount={s.session.players.filter((p) => !p.away).length}
             openPlayerId={ui.openPlayerId}
             onOpenPlayer={(id) => here({ openPlayerId: id })}
+            // A mis-add leaves the night outright; the session refuses anyone dealt.
+            onRemove={(id) => { s.removePlayer(id); here({ openPlayerId: null }); }}
             // Back in the room, the pair is back in the pool, and a court
             // that was holding for want of a pair is dealt straight away.
             onMarkArrived={(id) => { s.setAway(id, false); s.dispatchTeams(); }}
@@ -2043,11 +2058,12 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         <>
           <PlayersTab
             header={koHeader}
-            courtLabel="Sunday"
+            courtLabel={s.session.dayLabel || "Sunday"}
             players={s.session.players
               .map((p) => ({
                 id: p.id, displayName: p.name,
                 gamesPlayed: s.matchesPlayedBy(p.id), tier: p.tier,
+                removable: !s.session.matches.some((m) => [...m.teamA, ...m.teamB].includes(p.id)),
                 status: p.away ? ("left" as const)
                   : onCourtNow.includes(p.id) ? ("on_court" as const)
                     : ("here" as const),
@@ -2057,6 +2073,8 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
             attendanceCount={s.session.players.filter((p) => !p.away).length}
             openPlayerId={ui.openPlayerId}
             onOpenPlayer={(id) => here({ openPlayerId: id })}
+            // A mis-add leaves the night outright; the session refuses anyone dealt.
+            onRemove={(id) => { s.removePlayer(id); here({ openPlayerId: null }); }}
             onMarkArrived={(id) => s.setAway(id, false)}
             // A knockout leaver is a walkover on their tie, so marking left is
             // the note and "Opponent advances" is the consequence.
@@ -2153,7 +2171,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           <Champion
             header={koHeader}
             courtNumber={finalMatch?.courtNumber ?? courtNumber}
-            eyebrowLabel="Sunday · knockout"
+            eyebrowLabel={`${s.session.dayLabel || "Sunday"} · knockout`}
             championNames={K.champion.playerIds.map(name)}
             scoreWinner={Math.max(finalMatch?.scoreA ?? 0, finalMatch?.scoreB ?? 0)}
             scoreLoser={Math.min(finalMatch?.scoreA ?? 0, finalMatch?.scoreB ?? 0)}
@@ -2255,6 +2273,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
               displayName: p.name,
               gamesPlayed: s.matchesPlayedBy(p.id),
               tier: p.tier,
+              removable: !s.session.matches.some((m) => [...m.teamA, ...m.teamB].includes(p.id)),
               status: p.away ? ("left" as const)
                 : onCourtNow.includes(p.id) ? ("on_court" as const)
                   : ("here" as const),
@@ -2266,6 +2285,8 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           attendanceCount={view.players.filter((p) => !p.away).length}
           openPlayerId={ui.openPlayerId}
           onOpenPlayer={(id) => here({ openPlayerId: id })}
+            // A mis-add leaves the night outright; the session refuses anyone dealt.
+            onRemove={(id) => { s.removePlayer(id); here({ openPlayerId: null }); }}
           onMarkArrived={(id) => s.setAway(id, false)}
           // Frame 16c is where the consequence is explained and the decision is
           // actually taken, so this opens it rather than marking anyone away.
@@ -2759,8 +2780,12 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
   /* ── the court, and the pager's coordinates ───────────────────── */
 
   const currentSlot = view.currentSlot ?? live.matchIndex;
+  // The pager walks back through what was played AND what was stepped past:
+  // a skipped game waits in the list, and the arrows are how the list is
+  // walked from the card. Found on a Wednesday: the skipped game was only
+  // reachable through the schedule, three unmarked taps away.
   const playedSlots = view.schedule
-    .filter((r) => r.status === "played")
+    .filter((r) => r.status === "played" || r.status === "skipped")
     .map((r) => r.slot)
     .sort((x, y) => x - y);
   // A stale page (rows renumbered, result voided) silently falls back to the
@@ -2781,7 +2806,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         matchNumber={paged ? paged.slot : (view.currentSlot ?? live.matchIndex)}
         matchesTotal={view.matchesTotal}
         round={view.round}
-        pagerFlag={paged ? (paged.status === "played" ? "Result" : "Projected") : undefined}
+        pagerFlag={paged ? (paged.status === "played" ? "Result" : paged.status === "skipped" ? "Skipped" : "Projected") : undefined}
         // The arrows are a PAGER, not a move (script 2's contract): back walks
         // the recorded results in order, forward from the live match shows
         // exactly one projected row, and nothing beyond it. Skipping a game is
@@ -2813,12 +2838,22 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         sideB={paged
           ? { pairLabel: pairOf(paged.teamB ?? []), score: paged.scoreB }
           : { pairLabel: pairOf(live.teamB), score: live.scoreB }}
-        waiting={view.queue.slice(0, 6).map((q) => ({ playerId: q.playerId, name: q.name }))}
+        // One row of chips: the full queue is the Players tab's, and every
+        // row here pushes the tab bar further past the fold on a phone.
+        waiting={view.queue.slice(0, 4).map((q) => ({ playerId: q.playerId, name: q.name }))}
         // The next games, drawn as they stand, so the operator can see who is
         // due on before they are due and hold anyone who has not turned up.
+        // In the order the court will deal them, which is slot order over
+        // whatever is unplayed and not stepped past, not "after the live
+        // slot": a game put on out of turn leaves lower rows still to come.
         upNext={view.schedule
-          .filter((r) => r.slot > currentSlot && r.status !== "played" && r.teamA != null && r.teamB != null)
-          .slice(0, 5)
+          .filter((r) => (r.status === "upNext" || r.status === "waiting") && r.teamA != null && r.teamB != null)
+          .sort((x, y) => x.slot - y.slot)
+          // Five, or four while skipped games take a block of their own.
+          .slice(0, view.schedule.some((r) => r.status === "skipped") ? 4 : 5)
+          .map((r) => ({ slot: r.slot, a: pairOf(r.teamA!), b: pairOf(r.teamB!) }))}
+        skipped={view.schedule
+          .filter((r) => r.status === "skipped" && r.teamA != null && r.teamB != null)
           .map((r) => ({ slot: r.slot, a: pairOf(r.teamA!), b: pairOf(r.teamB!) }))}
         onScore={(side) => {
           if (paged) {
@@ -2830,6 +2865,22 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           }
           here({ scoring: { matchId: live.id, side, a: "", b: "" } });
         }}
+        // Found on a Wednesday: somebody was not there, the operator paged
+        // to the next game, and there was nothing to tap. A projected row
+        // can now go on court from the card, and the live game can be
+        // stepped past from the card; either way the game that waits stays
+        // in the list and is scored whenever it is played.
+        onPlayThisNow={paged && paged.status !== "played" && paged.teamA != null && paged.teamB != null
+          ? () => { s.goToMatch(courtNumber, paged.slot); here({ pagerSlot: null }); }
+          : undefined}
+        // Only while another game can come on: skipping the last one would
+        // park it and put it straight back.
+        onSkip={!paged && view.schedule.some((r) => (r.status === "upNext" || r.status === "waiting") && r.teamA != null && r.teamB != null)
+          ? () => s.skipMatch(courtNumber) : undefined}
+        // Somebody is not here: the change sheet swaps them for the next in
+        // the queue, or draws the four again. It existed and nothing on the
+        // court screen opened it.
+        onChangeMatch={!paged ? () => here({ changingMatchId: live.id, changeOutId: null }) : undefined}
         onWhyThisFour={() => here({ pane: "why" })}
         activeTab={ui.tab}
         onTabChange={(t) => here({ tab: t })}

@@ -4,7 +4,7 @@
 // footer holds no button: the taps are the pair cards themselves and the
 // arrows above them, so the bar is one sentence saying what the screen is for.
 
-import { Body, Eyebrow, FooterBar, Screen, T, TabBar, type Tab } from "../../ui/primitives";
+import { Body, Eyebrow, FooterBar, PrimaryButton, Screen, T, TabBar, TertiaryButton, type Tab } from "../../ui/primitives";
 import { CourtHeader } from "./CourtHeader";
 import { MatchCard } from "./MatchCard";
 import { MatchNav } from "./MatchNav";
@@ -43,8 +43,31 @@ export interface CourtViewProps {
    * who have not turned up are decided here, not on a list.
    */
   upNext?: { slot: number; a: string; b: string }[];
+  /**
+   * Games stepped past and not yet played. They wait in the list, and the
+   * card says so, because a skipped game that is out of sight is a game
+   * that gets forgotten until the standings look wrong.
+   */
+  skipped?: { slot: number; a: string; b: string }[];
   /** Opens frame 12 with that side's score box focused. */
   onScore: (side: "A" | "B") => void;
+  /**
+   * On a projected row: put THIS game on court now, and the game that was
+   * on court waits in the list. Found on a Wednesday: the operator paged to
+   * the next game because somebody was not there, and there was nothing to
+   * tap. Absent on the live match and on a result.
+   */
+  onPlayThisNow?: () => void;
+  /**
+   * On the live match: step past it. It waits in the list and the next game
+   * comes on. Absent while paged, and absent when nothing else can come on.
+   */
+  onSkip?: () => void;
+  /**
+   * On the live match: swap somebody who is not here for the next in the
+   * queue, or draw the four again. Opens the change sheet. Absent while paged.
+   */
+  onChangeMatch?: () => void;
   /** Opens frame 11 off the match line. See MatchNav for why it hangs there. */
   onWhyThisFour?: () => void;
   activeTab?: Tab;
@@ -68,7 +91,11 @@ export const CourtView = ({
   sideB,
   waiting,
   upNext = [],
+  skipped = [],
   onScore,
+  onPlayThisNow,
+  onSkip,
+  onChangeMatch,
   onWhyThisFour,
   activeTab = "match",
   onTabChange,
@@ -95,10 +122,43 @@ export const CourtView = ({
 
     {/* The match is centred in whatever is left between header and bench, which
         is what keeps the slat at thumb height on a 390x844 phone. */}
+    {/* The match is centred in whatever is left between header and bench.
+        The controls that act on it sit right under it, one compact row, so
+        they are at thumb height on a phone even when the lists below run
+        past the fold. */}
     <Body style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
       <MatchCard sideA={sideA} sideB={sideB} onScore={onScore} />
+      {onPlayThisNow && (
+        <div style={{ padding: "6px 22px 0", display: "flex", flexDirection: "column", gap: 4 }}>
+          <PrimaryButton onClick={onPlayThisNow}>Play this game now</PrimaryButton>
+          <p style={{ font: `400 13px/1.4 ${T.fontBody}`, color: T.mut, margin: 0, textAlign: "center" }}>
+            The game on court waits in the list.
+          </p>
+        </div>
+      )}
+      {!onPlayThisNow && (onSkip || onChangeMatch) && (
+        <div style={{ padding: "2px 22px 0", display: "flex", justifyContent: "center", gap: 18 }}>
+          {onChangeMatch && <TertiaryButton onClick={onChangeMatch}>Change this game</TertiaryButton>}
+          {onSkip && <TertiaryButton onClick={onSkip}>Skip this game</TertiaryButton>}
+        </div>
+      )}
     </Body>
 
+    {skipped.length > 0 && (
+      <div style={{ padding: "0 22px 14px" }}>
+        <Eyebrow style={{ color: T.warm, margin: "0 0 8px" }}>Skipped, still to play</Eyebrow>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {skipped.map((g) => (
+            <div key={g.slot} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+              <span style={{ fontFamily: T.fontHead, fontSize: 14, minWidth: 16, color: T.soft, fontVariantNumeric: "tabular-nums" }}>{g.slot}</span>
+              <span style={{ font: `400 14.5px/1.4 ${T.fontBody}`, color: T.mut }}>
+                {g.a} <span style={{ color: T.soft }}>v</span> {g.b}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
     {upNext.length > 0 && (
       <div style={{ padding: "0 22px 14px" }}>
         <Eyebrow style={{ color: T.mut, margin: "0 0 8px" }}>Up next</Eyebrow>
@@ -117,7 +177,9 @@ export const CourtView = ({
     <WaitingBlock waiting={waiting} />
 
     {/* The frame joins these with an em dash. The house voice does not use one,
-        so it is three sentences instead and no word changes. */}
+        so it is three sentences instead and no word changes. On a projected
+        row the slot holds Play this game now; on the live match it holds the
+        two quiet controls that act on the game. */}
     <FooterBar helper="Arrows move through the schedule. Skip a game and it waits. Enter both scores when it ends.">
       {null}
     </FooterBar>

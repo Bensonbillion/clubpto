@@ -1,8 +1,9 @@
-// Frame 34, the Sunday hub. Three shapes, one door each.
+// Frame 34, the hub. Three shapes, one door each.
 //
-// Appears only when the night is Sunday, immediately after the day is
-// chosen. The roster is built inside the door you choose, so this screen
-// holds nothing but the choice, and switching doors later keeps the roster.
+// Drawn for Sunday and now shown for every night, immediately after the day
+// is chosen: the owner asked for hand-made pairs on a Wednesday too. The
+// roster is built inside the door you choose, so this screen holds nothing
+// but the choice, and switching doors later keeps the roster.
 //
 // Three doors, as the wireframe draws them: Round robin, Playoff (the
 // knockout, frames 30 to 33) and Set teammate (frames 35 to 37).
@@ -11,6 +12,8 @@ import { Body, Card, FooterBar, Screen, T } from "../../ui/primitives";
 import { SetupHeader } from "../setup/shell";
 
 export interface SundayHubProps {
+  /** The night's name, as the title. */
+  night: string;
   onRoundRobin: () => void;
   onKnockout: () => void;
   onTeams: () => void;
@@ -37,9 +40,9 @@ const Door = ({ title, detail, onClick }: {
   </button>
 );
 
-export const SundayHub = ({ onRoundRobin, onKnockout, onTeams, onBack }: SundayHubProps) => (
+export const SundayHub = ({ night, onRoundRobin, onKnockout, onTeams, onBack }: SundayHubProps) => (
   <Screen>
-    <SetupHeader title="Sunday" step="Setup" onBack={onBack} />
+    <SetupHeader title={night} step="Setup" onBack={onBack} />
 
     <p style={{
       font: `400 15px/1.5 ${T.fontBody}`, color: T.mut,

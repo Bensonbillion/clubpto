@@ -6,8 +6,7 @@
 import { describe, expect, it } from "vitest";
 import type { Player } from "../../types";
 import {
-  canFieldACMatch, chooseFour, designateB, isLegal, judge, tierOf,
-  type LawContext, type Lineup, type Tier,
+  abLawFor, canFieldACMatch, chooseFour, designateB, isLegal, judge, tierOf, type LawContext, type Lineup, type Tier,
 } from "../tiers";
 
 const P = (id: string, tier?: Tier, court = 1): Player => ({
@@ -36,8 +35,48 @@ describe("unassessed counts as B", () => {
   });
 
   it("so an unassessed player may share a match with anyone", () => {
-    const ctx = ctxOf({ a: "A" });
+    // One A on a court of unassessed players: the mixing law relaxes to a B
+    // on each team, and the A plays among them rather than sitting all night.
+    const ctx = ctxOf({ a: "A" }, { abLaw: "free" });
     expect(isLegal(lineup("a", "u1", "u2", "u3"), ctx)).toBe(true);
+  });
+});
+
+describe("law one: the same make-up on each side", () => {
+  it("an A and a B against an A and a B is the mixed shape", () => {
+    const ctx = ctxOf({ a1: "A", a2: "A", b1: "B", b2: "B" });
+    expect(judge(lineup("a1", "b1", "a2", "b2"), ctx)).toBeNull();
+  });
+
+  it("an A and a B against two B's is not, even though each team has a B", () => {
+    // The club's own words: it is either B B B B or A B A B. Found on a
+    // Wednesday with twelve A's and eight B's on one court, where three of
+    // fifteen games ran this shape.
+    const ctx = ctxOf({ a1: "A", b1: "B", b2: "B", b3: "B" });
+    expect(judge(lineup("a1", "b1", "b2", "b3"), ctx)).toBe("sidesUnequal");
+  });
+
+  it("two A's against an A and a B is not either", () => {
+    const ctx = ctxOf({ a1: "A", a2: "A", a3: "A", b1: "B" });
+    expect(judge(lineup("a1", "b1", "a2", "a3"), ctx)).toBe("bNotOnEachTeam");
+    expect(judge(lineup("a1", "a2", "a3", "b1"), ctx)).toBe("bNotOnEachTeam");
+  });
+
+  it("holds strict only when the A's and the B's can both pair off", () => {
+    expect(abLawFor(["A", "A", "B", "B"])).toBe("strict");
+    expect(abLawFor(["A", "A", "A", "A", "B", "B"])).toBe("strict");
+    expect(abLawFor(["A", "A", "A", "B", "B"])).toBe("soft");
+    expect(abLawFor(["A", "A", "B", "B", "B"])).toBe("soft");
+    expect(abLawFor(["A", "B", "B", "B"])).toBe("free");
+    expect(abLawFor(["A", "A", "A", "B"])).toBe("free");
+    expect(abLawFor(["A", "A", "A", "A"])).toBe("strict");
+    // Soft: a B on each side, so the odd A out can play with the B's.
+    const soft = ctxOf({ a1: "A", b1: "B", b2: "B", b3: "B" }, { abLaw: "soft" });
+    expect(judge(lineup("a1", "b1", "b2", "b3"), soft)).toBeNull();
+    expect(judge(lineup("a1", "b1", "b2", "b3"), ctxOf({ a1: "A", b1: "B", b2: "B", b3: "B" }))).toBe("sidesUnequal");
+    // Free: anything goes for the one who has nobody of their kind to pair with.
+    const free = ctxOf({ a1: "A", b1: "B", b2: "B", b3: "B" }, { abLaw: "free" });
+    expect(judge(lineup("a1", "b1", "b2", "b3"), free)).toBeNull();
   });
 });
 

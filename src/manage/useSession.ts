@@ -211,10 +211,17 @@ export function scheduleFor(session: Session, court: Court): ScheduleSlot[] {
   const held = bySlot(session.matches, court.number);
   const total = slotCount(session, court);
 
-  // Starts as the real results and grows as the walk goes down the card. The
-  // synthetic rows never leave this function, so nothing they carry can reach
-  // the standings; engine/rotation.ts reads names off them and nothing else.
-  const asPlayed: Match[] = session.matches.filter((m) => m.status === "played");
+  // Starts as the real results plus every game already on court or stepped
+  // past, and grows as the walk goes down the card. A held row further down
+  // the list is a game already spoken for, so a row projected above it must
+  // not name those four again; seeding them up front is what keeps the up
+  // next strip honest after a game is put on out of turn. The synthetic rows
+  // never leave this function, so nothing they carry can reach the
+  // standings; engine/rotation.ts reads names off them and nothing else.
+  const asPlayed: Match[] = [
+    ...session.matches.filter((m) => m.status === "played"),
+    ...[...held.values()].filter((m) => m.status !== "played").map((m) => ({ ...m, status: "played" as const })),
+  ];
 
   const rows: ScheduleSlot[] = [];
   for (let slot = 1; slot <= total; slot += 1) {
@@ -230,7 +237,6 @@ export function scheduleFor(session: Session, court: Court): ScheduleSlot[] {
         scoreB: real.scoreB,
         status: real.status === "played" ? "played" : real.status === "skipped" ? "skipped" : "live",
       });
-      if (real.status !== "played") asPlayed.push({ ...real, status: "played" });
       continue;
     }
 
@@ -338,8 +344,21 @@ const putOnCourt = (session: Session, court: Court, slot: number, now: number): 
   const parked = parkLive(session, court.number);
 
   // A skipped row keeps its id and its four, because it is the same game the
-  // same people were about to play. Nothing about it is drawn again.
+  // same people were about to play. Nothing about it is drawn again, unless
+  // one of the four has since been marked as left: then the game as it was
+  // cannot happen, the row is drawn afresh from whoever is here, and the
+  // slot plays that game instead. Found by the review: a leaver could be
+  // dealt straight back on from a skipped row.
   if (row.matchId) {
+    const held = parked.matches.find((m) => m.id === row.matchId);
+    const gone = held != null && [...held.teamA, ...held.teamB]
+      .some((id) => parked.players.find((p) => p.id === id)?.away);
+    if (gone) {
+      const without: Session = { ...parked, matches: parked.matches.filter((m) => m.id !== row.matchId) };
+      const fresh = scheduleFor(without, court).find((r) => r.slot === slot);
+      if (!fresh || !fresh.teamA || !fresh.teamB) return without;
+      return putOnCourt(without, court, slot, now);
+    }
     return {
       ...parked,
       matches: parked.matches.map((m) =>
@@ -974,8 +993,23 @@ export function useManageSession(
         c.number === courtNumber ? { ...c, targetMatches: c.targetMatches + by } : c),
     })), [commit]);
 
+  /**
+   * Start the round robin. Over a night that had been a knockout or a teams
+   * night this also clears what that shape left: its bracket rows, the
+   * courts' seeded flags and champions, the teams ending. Without that the
+   * fill effect sat out (a seeded court is a bracket's) and the card drew
+   * stale ties.
+   */
   const start = useCallback(() =>
-    commit((s) => ({ ...s, status: "running", startedAt: Date.now() })), [commit]);
+    commit((s) => ({
+      ...s,
+      status: "running",
+      startedAt: Date.now(),
+      format: "roundRobin",
+      matches: s.matches.filter((m) => m.stage === null),
+      courts: s.courts.map((c) => ({ ...c, playoffSeeded: false, champion: null, ending: null })),
+      teamsEnding: null,
+    })), [commit]);
 
   /* ── play ──────────────────────────────────────────────────────── */
 
@@ -1238,6 +1272,7 @@ export function useManageSession(
   const startTeams = useCallback((courtCount: number) =>
     commit((s) => ({
       ...s,
+      format: "teams" as const,
       status: "running" as const,
       startedAt: Date.now(),
       teamsEnding: null,
@@ -1311,6 +1346,7 @@ export function useManageSession(
   const startKnockout = useCallback((courtCount: number) =>
     commit((s) => ({
       ...s,
+      format: "knockout" as const,
       status: "running" as const,
       startedAt: Date.now(),
       // The knockout assigns nobody to a court and starts with no matches:
