@@ -805,6 +805,8 @@ export function useManageSession(
           return `Court ${n.courtNumber}: another phone dealt the next game first. The game you dealt was set aside.`;
         case "walkInFolded":
           return `${n.name} was added on both phones and is now one player.`;
+        case "leaverDealtAround":
+          return `Court ${n.courtNumber}: ${nameOf(n.playerId)} left on another phone. The game they were in was dealt again without them.`;
         case "fieldKept": {
           const field = n.field === "courtNumber" ? "court" : n.field === "knockoutPairs" ? "draw"
             : n.field === "teamsTarget" ? "games per pair" : n.field === "dayLabel" ? "name"

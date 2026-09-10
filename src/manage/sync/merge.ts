@@ -39,7 +39,9 @@ export type MergeNote =
   /** One person, typed on both phones, folded into one player. */
   | { kind: "walkInFolded"; name: string }
   /** Both phones set this field differently; the row's value stands. */
-  | { kind: "fieldKept"; entity: "player" | "court" | "night"; id: string; field: string };
+  | { kind: "fieldKept"; entity: "player" | "court" | "night"; id: string; field: string }
+  /** A live game fielded someone the other phone had marked as left; it was dealt again. */
+  | { kind: "leaverDealtAround"; courtNumber: number; playerId: string };
 
 export interface MergeResult {
   state: Session;
@@ -372,10 +374,25 @@ function repair(state: Session, base: Session | null, remote: Session, notes: Me
   };
   const live = () => state.matches.filter((m) => !dropped.has(m.id) && m.status === "onCourt");
 
+  // Somebody marked as left on one phone while the other phone dealt them
+  // a game: the game comes down, as it would have on the phone that marked
+  // them, and the court deals again without them. Group games only; a
+  // bracket tie with a leaver is a walkover, which is the operator's call.
+  // Before rule 4, so a copy of the same slot dealt without the leaver is
+  // the one that stays.
+  const away = new Set(state.players.filter((p) => p.away).map((p) => p.id));
+  for (const m of live()) {
+    if (m.stage !== null || recorded(m)) continue;
+    const leaver = [...m.teamA, ...m.teamB].find((id) => away.has(id));
+    if (leaver === undefined) continue;
+    dropped.add(m.id);
+    notes.push({ kind: "leaverDealtAround", courtNumber: m.courtNumber, playerId: leaver });
+  }
+
   // Rule 4. The same game minted on both phones, which is only ever two
   // games neither phone's base held. A later rematch of the same two pairs
   // is not this: its first meeting is in the base.
-  const fresh = state.matches.filter((m) => !inBase.has(m.id) && m.status !== "voided");
+  const fresh = state.matches.filter((m) => !dropped.has(m.id) && !inBase.has(m.id) && m.status !== "voided");
   const groups = new Map<string, Match[]>();
   for (const m of fresh) {
     const k = gameKey(m);
