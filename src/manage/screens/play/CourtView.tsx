@@ -122,11 +122,26 @@ export const CourtView = ({
 
     {/* The match is centred in whatever is left between header and bench, which
         is what keeps the slat at thumb height on a 390x844 phone. */}
-    {/* The match is centred in whatever is left between header and bench; the
-        controls that act on it live in the footer's slot, so the Body never
-        grows and the tab bar stays where a thumb expects it. */}
+    {/* The match is centred in whatever is left between header and bench.
+        The controls that act on it sit right under it, one compact row, so
+        they are at thumb height on a phone even when the lists below run
+        past the fold. */}
     <Body style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
       <MatchCard sideA={sideA} sideB={sideB} onScore={onScore} />
+      {onPlayThisNow && (
+        <div style={{ padding: "6px 22px 0", display: "flex", flexDirection: "column", gap: 4 }}>
+          <PrimaryButton onClick={onPlayThisNow}>Play this game now</PrimaryButton>
+          <p style={{ font: `400 13px/1.4 ${T.fontBody}`, color: T.mut, margin: 0, textAlign: "center" }}>
+            The game on court waits in the list.
+          </p>
+        </div>
+      )}
+      {!onPlayThisNow && (onSkip || onChangeMatch) && (
+        <div style={{ padding: "2px 22px 0", display: "flex", justifyContent: "center", gap: 18 }}>
+          {onChangeMatch && <TertiaryButton onClick={onChangeMatch}>Change this game</TertiaryButton>}
+          {onSkip && <TertiaryButton onClick={onSkip}>Skip this game</TertiaryButton>}
+        </div>
+      )}
     </Body>
 
     {skipped.length > 0 && (
@@ -165,19 +180,8 @@ export const CourtView = ({
         so it is three sentences instead and no word changes. On a projected
         row the slot holds Play this game now; on the live match it holds the
         two quiet controls that act on the game. */}
-    <FooterBar helper={onPlayThisNow
-      ? "The game on court waits in the list."
-      : "Arrows move through the schedule. Skip a game and it waits. Enter both scores when it ends."}>
-      {onPlayThisNow
-        ? <PrimaryButton onClick={onPlayThisNow}>Play this game now</PrimaryButton>
-        : (onSkip || onChangeMatch)
-          ? (
-            <div style={{ display: "flex", justifyContent: "center", gap: 18 }}>
-              {onChangeMatch && <TertiaryButton onClick={onChangeMatch}>Change this game</TertiaryButton>}
-              {onSkip && <TertiaryButton onClick={onSkip}>Skip this game</TertiaryButton>}
-            </div>
-          )
-          : null}
+    <FooterBar helper="Arrows move through the schedule. Skip a game and it waits. Enter both scores when it ends.">
+      {null}
     </FooterBar>
 
     <TabBar active={activeTab} onChange={onTabChange} />

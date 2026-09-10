@@ -2838,7 +2838,9 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         sideB={paged
           ? { pairLabel: pairOf(paged.teamB ?? []), score: paged.scoreB }
           : { pairLabel: pairOf(live.teamB), score: live.scoreB }}
-        waiting={view.queue.slice(0, 6).map((q) => ({ playerId: q.playerId, name: q.name }))}
+        // One row of chips: the full queue is the Players tab's, and every
+        // row here pushes the tab bar further past the fold on a phone.
+        waiting={view.queue.slice(0, 4).map((q) => ({ playerId: q.playerId, name: q.name }))}
         // The next games, drawn as they stand, so the operator can see who is
         // due on before they are due and hold anyone who has not turned up.
         // In the order the court will deal them, which is slot order over
@@ -2847,7 +2849,8 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         upNext={view.schedule
           .filter((r) => (r.status === "upNext" || r.status === "waiting") && r.teamA != null && r.teamB != null)
           .sort((x, y) => x.slot - y.slot)
-          .slice(0, 5)
+          // Five, or four while skipped games take a block of their own.
+          .slice(0, view.schedule.some((r) => r.status === "skipped") ? 4 : 5)
           .map((r) => ({ slot: r.slot, a: pairOf(r.teamA!), b: pairOf(r.teamB!) }))}
         skipped={view.schedule
           .filter((r) => r.status === "skipped" && r.teamA != null && r.teamB != null)
