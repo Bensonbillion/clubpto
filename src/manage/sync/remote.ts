@@ -45,8 +45,24 @@ export interface ManageRemoteConfig {
   invoke?: (body: Record<string, unknown>) => Promise<{ data: Reply | null; error: { message: string } | null }>;
 }
 
-const defaultInvoke: NonNullable<ManageRemoteConfig["invoke"]> = (body) =>
-  clubhouse.functions.invoke<Reply>(MANAGE_SESSION_FUNCTION, { body });
+/**
+ * supabase-js gives a function call no deadline of its own, and a captive
+ * portal at the venue can hold a request open for minutes. Past this the
+ * call counts as offline: the local copy stands and the next tick tries
+ * again.
+ */
+export const REMOTE_TIMEOUT_MS = 10_000;
+
+const defaultInvoke: NonNullable<ManageRemoteConfig["invoke"]> = (body) => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error("timeout")), REMOTE_TIMEOUT_MS);
+  });
+  return Promise.race([
+    clubhouse.functions.invoke<Reply>(MANAGE_SESSION_FUNCTION, { body }),
+    deadline,
+  ]).finally(() => clearTimeout(timer));
+};
 
 export function createManageRemote(config: ManageRemoteConfig): RemoteSync<Session> {
   const invoke = config.invoke ?? defaultInvoke;

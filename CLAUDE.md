@@ -56,9 +56,13 @@ phone last agreed with, a refused push comes back WITH the row (a 200 with
 `stale: true`, because supabase-js hides non-2xx bodies), and the phone
 merges rather than adopting or overwriting. `src/manage/sync/merge.ts` is
 the three-way merge, clock-free, the row winning true conflicts and the
-losing phone shown a one-line note. The function is deployed by hand from
-the Supabase dashboard (no CLI login on this machine); deploy it before a
-client change that needs it, and never edit `manage_sessions` by hand.
+losing phone shown a one-line note. A phone still on an older bundle
+(no `baseVersion` on its pushes) can write until a merge-aware phone has
+written the row (`cas: true` in the envelope); after that it can only
+follow, and its taps show the red line, which is the reload cue. The
+function is deployed by hand from the Supabase dashboard (no CLI login on
+this machine); deploy it before a client change that needs it, and never
+edit `manage_sessions` by hand.
 
 ## CRITICAL: Do NOT Touch
 - Supabase table `game_state` policies. `20260814_lock_game_state.sql` closed

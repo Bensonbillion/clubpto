@@ -30,13 +30,14 @@ class FakeServer {
     if (this.row && knows && body.baseVersion !== this.versionOf()) {
       return { data: { stale: true, error: "stale", envelope: this.withVersion(), savedAt: this.row.saved_at, version: this.versionOf() }, error: null };
     }
-    if (this.row && !knows && this.row.saved_at > incoming.savedAt) {
+    if (this.row && !knows && ((this.row.envelope as { cas?: boolean }).cas === true || this.row.saved_at > incoming.savedAt)) {
       // supabase-js turns a 409 into an error with no body.
       return { data: null, error: { message: "stale" } };
     }
     const version = (this.versionOf() ?? 0) + 1;
     const savedAt = this.row ? Math.max(incoming.savedAt, this.row.saved_at + 1) : incoming.savedAt;
-    this.row = { envelope: { ...incoming, savedAt, version }, saved_at: savedAt };
+    const cas = knows || (this.row?.envelope as { cas?: boolean } | undefined)?.cas === true;
+    this.row = { envelope: { ...incoming, savedAt, version, cas } as Envelope<Session>, saved_at: savedAt };
     this.pushes.push({ base: knows ? (body.baseVersion as number | null) : "old", version });
     return { data: { savedAt, version }, error: null };
   }
@@ -329,26 +330,38 @@ describe("whole-night operations", () => {
 });
 
 describe("a phone still on the old bundle", () => {
-  it("its wholesale write is versioned, and a newer phone merges its own taps back over it", async () => {
-    const { server, A } = await twoPhones();
-    // A has a tap in hand that has not gone out yet.
-    let hold = true;
-    const raw = server.handle.bind(server);
-    server.handle = (body) => body.op === "push" && hold ? { data: null, error: { message: "offline" } } : raw(body);
+  const oldPush = (server: FakeServer, state: Session) => server.handle({
+    op: "push", instance: "1", passcode: "9999",
+    envelope: { schemaVersion: 1, savedAt: (server.row?.saved_at ?? 0) + 5, state },
+  });
+
+  it("writes as it always did until a merge-aware phone has written the row, and its writes are versioned", async () => {
+    const server = new FakeServer();
+    expect(oldPush(server, night()).data).toMatchObject({ version: 1 });
+    expect(oldPush(server, score("m1", 7, 5)(night())).data).toMatchObject({ version: 2 });
+    expect(server.row!.envelope.version).toBe(2);
+    expect((server.row!.envelope as { cas?: boolean }).cas).toBe(false);
+  });
+
+  it("can only follow once a merge-aware phone has written: its push is refused, and the newer phone's tap stands", async () => {
+    const server = new FakeServer();
+    oldPush(server, night());
+    const A = phone(server);
+    await A.load();
+    expect(A.store.knownVersion()).toBe(1);
     A.commit(score("m1", 7, 5));
     await settle();
-    // The old phone pushes without a base: newest wins, as it always did.
-    const old = { ...server.row!.envelope, savedAt: server.row!.saved_at + 5, state: score("m2", 6, 7)(server.row!.envelope.state) };
-    const { version: _v, ...oldCopy } = old;
-    void _v;
-    const reply = raw({ op: "push", instance: "1", passcode: "9999", envelope: oldCopy });
-    expect(reply.data).toMatchObject({ version: 2 });
-    hold = false;
-    await A.tick(); await settle();
+    expect(server.row!.envelope.version).toBe(2);
+    // The old phone, which never saw that tap, pushes its own copy wholesale.
+    const reply = oldPush(server, score("m2", 6, 7)(night()));
+    expect(reply.data).toBeNull();
+    expect(reply.error?.message).toBe("stale");
     const row = server.row!.envelope.state;
     expect(scoreOf(row, "m1")).toEqual([7, 5]);
-    expect(scoreOf(row, "m2")).toEqual([6, 7]);
-    expect(server.row!.envelope.version).toBe(3);
+    expect(server.row!.envelope.version).toBe(2);
+    // It still follows: the row's savedAt keeps rising past its own.
+    const pulled = server.handle({ op: "pull", instance: "1", passcode: "9999" }).data as { envelope: Envelope<Session> };
+    expect(pulled.envelope.savedAt).toBeGreaterThan(5);
   });
 });
 
