@@ -630,7 +630,6 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
   useEffect(() => {
     if (!fillKey) return;
     for (const n of fillKey.split(",")) ensureOnCourt(Number(n));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fillKey, ensureOnCourt, s.session]);
 
   /**
@@ -653,7 +652,6 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
   useEffect(() => {
     if (!advanceKey) return;
     for (const n of advanceKey.split(",")) advancePlayoff(Number(n));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [advanceKey, advancePlayoff, s.session]);
 
   /* ── the door ──────────────────────────────────────────────────── */
