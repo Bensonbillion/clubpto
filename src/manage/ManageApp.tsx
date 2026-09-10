@@ -29,7 +29,7 @@ import { recordedResultCount, storageKeyFor, useManageSession } from "./useSessi
 import { useRoster } from "./roster/useRoster";
 import { appearsInAMatch } from "./engine/roster-guard";
 import { dedupeWalkIn } from "./roster/merge";
-import { explainMatch, lawContextFor, validTargets, totalMatches } from "./engine/rotation";
+import { bench, explainMatch, lawContextFor, validTargets, totalMatches } from "./engine/rotation";
 import { legalSubstitutes, strandedPlayers } from "./engine/substitutes";
 import { suggestSplit, suggestTarget, type SplitNote } from "./engine/split";
 import { MIN_CS_FOR_A_C_MATCH, tierOf } from "./engine/tiers";
@@ -2839,8 +2839,10 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           ? { pairLabel: pairOf(paged.teamB ?? []), score: paged.scoreB }
           : { pairLabel: pairOf(live.teamB), score: live.scoreB }}
         // One row of chips: the full queue is the Players tab's, and every
-        // row here pushes the tab bar further past the fold on a phone.
-        waiting={view.queue.slice(0, 4).map((q) => ({ playerId: q.playerId, name: q.name }))}
+        // row here pushes the tab bar further past the fold on a phone. The
+        // four on court are not waiting, whatever they are owed.
+        waiting={bench(view.queue, s.session.matches, court).slice(0, 4)
+          .map((q) => ({ playerId: q.playerId, name: q.name }))}
         // The next games, drawn as they stand, so the operator can see who is
         // due on before they are due and hold anyone who has not turned up.
         // In the order the court will deal them, which is slot order over

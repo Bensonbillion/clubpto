@@ -11,7 +11,7 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player } from "../../types";
 import {
-  buildQueue, courtComplete, explainMatch, matchesPlayedBy, nextMatch,
+  bench, buildQueue, courtComplete, explainMatch, matchesPlayedBy, nextMatch,
   totalMatches, validTargets,
 } from "../rotation";
 
@@ -108,6 +108,26 @@ describe("the queue puts whoever is owed a game at the top", () => {
     const q = buildQueue(roster, [played(["a", "b", "c", "d"])], 1, 4);
     expect(q.map((x) => x.playerId)).not.toContain("a");
     expect(q).toHaveLength(7);
+  });
+
+  it("the BENCH is the queue without the four on court, even when they have played the same", () => {
+    // Match 1 of a fresh night: a, b, c, d are on court and have played
+    // nothing, so a plain slice of the queue names them as the four waiting.
+    // The four watching are e, f, g, h, and the card must say so.
+    seq = 0;
+    const onCourt: Match = {
+      id: "live", courtNumber: 1, matchIndex: 1, teamA: ["a", "d"], teamB: ["b", "c"],
+      scoreA: null, scoreB: null, status: "onCourt", startedAt: 1, completedAt: null, stage: null,
+    };
+    const q = buildQueue(eight(), [onCourt], 1, 3);
+    expect(q.slice(0, 4).map((x) => x.playerId)).toEqual(["a", "b", "c", "d"]);
+    expect(bench(q, [onCourt], 1).map((x) => x.playerId)).toEqual(["e", "f", "g", "h"]);
+    // Another court's live game keeps nobody off this court's bench.
+    const elsewhere: Match = { ...onCourt, id: "other", courtNumber: 2, teamA: ["e", "f"], teamB: ["g", "h"] };
+    expect(bench(q, [onCourt, elsewhere], 1).map((x) => x.playerId)).toEqual(["e", "f", "g", "h"]);
+    // A skipped game holds nobody: its four are waiting like anyone else.
+    const skipped: Match = { ...onCourt, id: "held", status: "skipped", teamA: ["e", "h"], teamB: ["f", "g"] };
+    expect(bench(q, [onCourt, skipped], 1).map((x) => x.playerId)).toEqual(["e", "f", "g", "h"]);
   });
 
   it("players on another court are never queued, they stay put all night", () => {

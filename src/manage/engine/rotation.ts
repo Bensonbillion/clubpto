@@ -64,6 +64,28 @@ export function buildQueue(
     .map(({ _seat, ...entry }) => entry);
 }
 
+/**
+ * The bench: the queue with the four on court taken out. The queue itself
+ * keeps them, because "owed" is about the whole court and the picker needs
+ * everyone, but the card's "Waiting, on next" is the people watching, and on
+ * a fresh night the four playing are owed exactly as much as the four
+ * watching, so a plain slice of the queue named the players on court as the
+ * ones waiting (2026-09-10). A skipped game holds nobody: its four are
+ * waiting like anyone else until it comes back on.
+ */
+export function bench(
+  queue: readonly QueueEntry[],
+  matches: readonly Match[],
+  court: number,
+): QueueEntry[] {
+  const onCourt = new Set(
+    matches
+      .filter((m) => m.courtNumber === court && m.status === "onCourt")
+      .flatMap((m) => [...m.teamA, ...m.teamB]),
+  );
+  return queue.filter((e) => !onCourt.has(e.playerId));
+}
+
 /* ── the balance rule, and the words the screen puts around it ───── */
 
 /** A name and the count frame 11 prints beside it. */
