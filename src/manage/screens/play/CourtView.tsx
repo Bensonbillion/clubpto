@@ -128,7 +128,7 @@ export const CourtView = ({
       )}
       {onSkip && (
         <div style={{ padding: "4px 22px 0", display: "flex", justifyContent: "center" }}>
-          <TertiaryButton onClick={onSkip}>Skip this game, somebody is not here</TertiaryButton>
+          <TertiaryButton onClick={onSkip}>Skip this game</TertiaryButton>
         </div>
       )}
     </Body>

@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import type { Player } from "../../types";
 import {
-  canFieldABMatch, canFieldACMatch, chooseFour, designateB, isLegal, judge, tierOf, type LawContext, type Lineup, type Tier,
+  abLawFor, canFieldACMatch, chooseFour, designateB, isLegal, judge, tierOf, type LawContext, type Lineup, type Tier,
 } from "../tiers";
 
 const P = (id: string, tier?: Tier, court = 1): Player => ({
@@ -37,7 +37,7 @@ describe("unassessed counts as B", () => {
   it("so an unassessed player may share a match with anyone", () => {
     // One A on a court of unassessed players: the mixing law relaxes to a B
     // on each team, and the A plays among them rather than sitting all night.
-    const ctx = ctxOf({ a: "A" }, { relaxedAB: true });
+    const ctx = ctxOf({ a: "A" }, { abLaw: "free" });
     expect(isLegal(lineup("a", "u1", "u2", "u3"), ctx)).toBe(true);
   });
 });
@@ -62,11 +62,21 @@ describe("law one: the same make-up on each side", () => {
     expect(judge(lineup("a1", "a2", "a3", "b1"), ctx)).toBe("bNotOnEachTeam");
   });
 
-  it("relaxes to a B on each team only when the court cannot make A B against A B", () => {
-    expect(canFieldABMatch(["A", "B", "B", "B"])).toBe(false);
-    expect(canFieldABMatch(["A", "A", "B", "B"])).toBe(true);
-    const lone = ctxOf({ a1: "A", b1: "B", b2: "B", b3: "B" }, { relaxedAB: true });
-    expect(judge(lineup("a1", "b1", "b2", "b3"), lone)).toBeNull();
+  it("holds strict only when the A's and the B's can both pair off", () => {
+    expect(abLawFor(["A", "A", "B", "B"])).toBe("strict");
+    expect(abLawFor(["A", "A", "A", "A", "B", "B"])).toBe("strict");
+    expect(abLawFor(["A", "A", "A", "B", "B"])).toBe("soft");
+    expect(abLawFor(["A", "A", "B", "B", "B"])).toBe("soft");
+    expect(abLawFor(["A", "B", "B", "B"])).toBe("free");
+    expect(abLawFor(["A", "A", "A", "B"])).toBe("free");
+    expect(abLawFor(["A", "A", "A", "A"])).toBe("strict");
+    // Soft: a B on each side, so the odd A out can play with the B's.
+    const soft = ctxOf({ a1: "A", b1: "B", b2: "B", b3: "B" }, { abLaw: "soft" });
+    expect(judge(lineup("a1", "b1", "b2", "b3"), soft)).toBeNull();
+    expect(judge(lineup("a1", "b1", "b2", "b3"), ctxOf({ a1: "A", b1: "B", b2: "B", b3: "B" }))).toBe("sidesUnequal");
+    // Free: anything goes for the one who has nobody of their kind to pair with.
+    const free = ctxOf({ a1: "A", b1: "B", b2: "B", b3: "B" }, { abLaw: "free" });
+    expect(judge(lineup("a1", "b1", "b2", "b3"), free)).toBeNull();
   });
 });
 

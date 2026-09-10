@@ -1,4 +1,4 @@
-# The Sunday formats, as the wireframes draw them
+# The night's formats, as the wireframes draw them (drawn for Sunday, every night since 2026-09-10)
 
 Imported 2026-08-29 from the claude.ai/design project "UI mockups for sports
 dashboard" (ClubPTO Manage Wireframes.dc.html, sections "The knockout branch"
@@ -35,7 +35,7 @@ trio absorb any headcount.
   court: X & Y against Z & W." The Bracket tab replaces Standings. Partial
   first rounds are labelled Play-in; full rounds carry round names.
 
-## Sunday formats (frames 34 to 37)
+## The formats hub (frames 34 to 37)
 
 - **Frame 34, the hub, BUILT with all three doors.** Drawn for Sunday and
   shown for every night since 2026-09-10, immediately after the day is

@@ -76,14 +76,16 @@ export interface LawContext {
    */
   cCount: number;
   /**
-   * True when this court cannot make an A B against A B at all, because it
-   * holds fewer than two A's or fewer than two B's. The first law then falls
-   * silent: a lone A among B's, or a lone B among A's, plays whatever four
-   * the queue gives, because a B on each side cannot be made with one B and
-   * the alternative is that person sitting out the night. Absent (false)
-   * means the strict law.
+   * How hard the first law holds on this court tonight, read off who is
+   * here. "strict" is the club's rule, A B against A B and nothing else,
+   * and it is only asked when the A's and the B's can both pair off (an
+   * even number of each). With an odd count one A or one B would sit while
+   * the others played twice, so the law goes "soft": a B on each side, the
+   * older shape, which lets the odd one out play. With a single A or a
+   * single B not even that can be made, and the law is "free". Absent
+   * means strict.
    */
-  relaxedAB?: boolean;
+  abLaw?: "strict" | "soft" | "free";
 }
 
 export type Illegality =
@@ -139,12 +141,15 @@ export function judge(lineup: Lineup, ctx: LawContext): Illegality | null {
   }
 
   // No C in the match, so the second law is silent and the first speaks.
-  if (as > 0 && bs > 0 && !ctx.relaxedAB) {
+  const law = ctx.abLaw ?? "strict";
+  if (as > 0 && bs > 0 && law !== "free") {
     if (!a.some((id) => ctx.tierById(id) === "B")) return "bNotOnEachTeam";
     if (!b.some((id) => ctx.tierById(id) === "B")) return "bNotOnEachTeam";
     // The same make-up on each side: A B against A B, and nothing else.
-    const shape = (side: string[]) => side.map(ctx.tierById).sort().join("");
-    if (shape(a) !== shape(b)) return "sidesUnequal";
+    if (law === "strict") {
+      const shape = (side: string[]) => side.map(ctx.tierById).sort().join("");
+      if (shape(a) !== shape(b)) return "sidesUnequal";
+    }
   }
   return null;
 }
@@ -152,11 +157,15 @@ export function judge(lineup: Lineup, ctx: LawContext): Illegality | null {
 export const isLegal = (lineup: Lineup, ctx: LawContext): boolean => judge(lineup, ctx) === null;
 
 /**
- * Can this court make an A B against A B? Below two of either tier it
- * cannot, and the first law relaxes to a B on each team.
+ * How hard the first law can hold with these people on the court. See
+ * LawContext.abLaw for the three answers and why.
  */
-export function canFieldABMatch(tiers: readonly Tier[]): boolean {
-  return countBy(tiers, "A") >= 2 && countBy(tiers, "B") >= 2;
+export function abLawFor(tiers: readonly Tier[]): "strict" | "soft" | "free" {
+  const as = countBy(tiers, "A");
+  const bs = countBy(tiers, "B");
+  if (as === 0 || bs === 0) return "strict";
+  if (as < 2 || bs < 2) return "free";
+  return as % 2 === 0 && bs % 2 === 0 ? "strict" : "soft";
 }
 
 /**

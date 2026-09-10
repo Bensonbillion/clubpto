@@ -2862,7 +2862,10 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         onPlayThisNow={paged && paged.status !== "played" && paged.teamA != null && paged.teamB != null
           ? () => { s.goToMatch(courtNumber, paged.slot); here({ pagerSlot: null }); }
           : undefined}
-        onSkip={!paged ? () => s.skipMatch(courtNumber) : undefined}
+        // Only while another game can come on: skipping the last one would
+        // park it and put it straight back.
+        onSkip={!paged && view.schedule.some((r) => (r.status === "upNext" || r.status === "waiting") && r.teamA != null && r.teamB != null)
+          ? () => s.skipMatch(courtNumber) : undefined}
         onWhyThisFour={() => here({ pane: "why" })}
         activeTab={ui.tab}
         onTabChange={(t) => here({ tab: t })}

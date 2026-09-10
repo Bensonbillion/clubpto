@@ -21,7 +21,7 @@
 
 import type { Match, Player, PlayerTier, QueueEntry } from "../types";
 import {
-  canFieldABMatch, canFieldACMatch, chooseFour, designateB, tierOf as tierOfPlayer,
+  abLawFor, canFieldACMatch, chooseFour, designateB, tierOf as tierOfPlayer,
   type LawContext,
 } from "./tiers";
 
@@ -201,7 +201,7 @@ export function lawContextFor(players: readonly Player[], court: number): LawCon
     tierById: (id) => byId.get(id) ?? "B",
     designatedB: designateB(players, court),
     relaxed: !canFieldACMatch(onCourt.map(tierOfPlayer)),
-    relaxedAB: !canFieldABMatch(onCourt.map(tierOfPlayer)),
+    abLaw: abLawFor(onCourt.map(tierOfPlayer)),
     cCount: onCourt.filter((p) => tierOfPlayer(p) === "C").length,
   };
 }

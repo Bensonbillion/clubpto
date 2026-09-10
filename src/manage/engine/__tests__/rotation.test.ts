@@ -463,4 +463,15 @@ describe("the same four do not come round again", () => {
     expect(matches).toHaveLength(6);
     expect(counts.every((c) => c === 3)).toBe(true);
   });
+
+  it("three A's and five B's: the odd A out plays with the B's rather than anyone playing twice while somebody waits", () => {
+    const roster: Player[] = [...["a1", "a2", "a3"].map((x) => P(x, { tier: "A" })), ...["b1", "b2", "b3", "b4", "b5"].map((x) => P(x, { tier: "B" }))];
+    // Three A's cannot pair off, so one game in three has an A among B's,
+    // and the spread touches two for a game on the way; what matters is that
+    // the night ends in six games with everyone on three.
+    const { matches, counts, spreads } = runNight(roster, 3);
+    expect(matches).toHaveLength(6);
+    expect(counts.every((c) => c === 3)).toBe(true);
+    expect(Math.max(...spreads)).toBeLessThanOrEqual(2);
+  });
 });
