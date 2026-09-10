@@ -228,6 +228,52 @@ export function lawContextFor(players: readonly Player[], court: number): LawCon
   };
 }
 
+/** An unordered pair of players as one map key, the same key both ways round. */
+const pairKey = (x: string, y: string) => (x < y ? `${x}\u0000${y}` : `${y}\u0000${x}`);
+
+/** The exact four, in any arrangement, as one map key. */
+const fourKey = (ids: readonly string[]) => [...ids].sort().join(",");
+
+const bump = (tally: Map<string, number>, key: string) =>
+  tally.set(key, (tally.get(key) ?? 0) + 1);
+
+/**
+ * One pass over this court's group matches, tallying everything the picker
+ * asks about a four: how often each pair has shared a court (`met`), how
+ * often each pair has stood on the same side (`partnered`), how often each
+ * exact four has played (`fours`), and how many mixed games each player has
+ * had (`mixed`, a game with an A and a B in it, tiers read as they stand
+ * now, so a player since moved off this court reads as a B, as they always
+ * did here). Voided matches count for nothing.
+ */
+function countLog(
+  matches: readonly Match[],
+  court: number,
+  ctx: LawContext,
+): { met: Map<string, number>; partnered: Map<string, number>;
+     fours: Map<string, number>; mixed: Map<string, number> } {
+  const met = new Map<string, number>();
+  const partnered = new Map<string, number>();
+  const fours = new Map<string, number>();
+  const mixed = new Map<string, number>();
+  for (const m of matches) {
+    if (m.courtNumber !== court || m.stage !== null || m.status === "voided") continue;
+    const four = [...m.teamA, ...m.teamB];
+    // Distinct ids, so a match counts once for a pair however it is written.
+    const ids = [...new Set(four)];
+    for (let x = 0; x < ids.length; x++) {
+      for (let y = x + 1; y < ids.length; y++) bump(met, pairKey(ids[x], ids[y]));
+    }
+    for (const side of [m.teamA, m.teamB]) {
+      if (side[0] !== side[1]) bump(partnered, pairKey(side[0], side[1]));
+    }
+    bump(fours, fourKey(four));
+    const tiers = four.map(ctx.tierById);
+    if (tiers.includes("A") && tiers.includes("B")) for (const id of ids) bump(mixed, id);
+  }
+  return { met, partnered, fours, mixed };
+}
+
 function lawfulFour(
   queue: readonly QueueEntry[],
   ctx: LawContext,
@@ -237,20 +283,29 @@ function lawfulFour(
      swap: BalanceNote["swap"] } | null {
   const byId = new Map(queue.map((e) => [e.playerId, e]));
   const played = new Map(queue.map((e) => [e.playerId, e.matchesPlayed]));
+  // The log, counted once a draw. The picker asks four questions of every
+  // four in the queue: have these two met, have these two partnered, has
+  // this exact four played, and how many mixed games has each had. Until
+  // 2026-09-10 every answer was a fresh scan of the match log, and on the
+  // Wednesday roster (twenty on one court, 4845 fours a draw, six pairs
+  // each) that came to 58 to 89 ms a draw, which scheduleFor paid fifteen
+  // to twenty-five times over on every tap. So the log is walked ONCE here
+  // into four tallies, and the closures handed to chooseFour read them.
+  // The answers are the same to the count, so the tie-breaks are the same.
+  //
+  // Group matches on this court only, and voided ones count for nothing
+  // here the same way they count for nothing everywhere. These tallies
+  // include onCourt and skipped rows while buildQueue counts only status
+  // "played"; that agrees in production only because scheduleFor seeds held
+  // rows as played before calling nextMatch, and both are read from the one
+  // `matches` argument.
+  const tallies = countLog(matches, court, ctx);
   // Partnership counts feed the variety preference: who has already stood on
-  // the same side of the net tonight. Group matches only, and voided ones
-  // count for nothing here the same way they count for nothing everywhere.
-  const partnered = (x: string, y: string) =>
-    matches.filter((m) => m.courtNumber === court && m.stage === null
-      && m.status !== "voided"
-      && ((m.teamA.includes(x) && m.teamA.includes(y))
-        || (m.teamB.includes(x) && m.teamB.includes(y)))).length;
+  // the same side of the net tonight.
+  const partnered = (x: string, y: string) => tallies.partnered.get(pairKey(x, y)) ?? 0;
   // Who has shared a court at all tonight, either side of the net: the
   // measure that keeps the same four from coming round again.
-  const met = (x: string, y: string) =>
-    matches.filter((m) => m.courtNumber === court && m.stage === null
-      && m.status !== "voided"
-      && [...m.teamA, ...m.teamB].includes(x) && [...m.teamA, ...m.teamB].includes(y)).length;
+  const met = (x: string, y: string) => tallies.met.get(pairKey(x, y)) ?? 0;
   const bridgeBusy = queue.some((e) => e.owed > 0 && ctx.tierById(e.playerId) === "C");
   // The mixing law by what is still owed, not by headcount: strict only
   // while the games the A's still owe and the games the B's still owe are
@@ -265,26 +320,13 @@ function lawfulFour(
     : (owedOf("A") % 2 === 0 && owedOf("B") % 2 === 0) ? "strict" : "soft";
   const lawCtx: LawContext = { ...ctx, abLaw: law };
   // Mixed games had so far: a game with an A and a B on each side.
-  const mixed = (id: string) =>
-    matches.filter((m) => {
-      if (m.courtNumber !== court || m.stage !== null || m.status === "voided") return false;
-      const four = [...m.teamA, ...m.teamB];
-      if (!four.includes(id)) return false;
-      const tiers = four.map(ctx.tierById);
-      return tiers.includes("A") && tiers.includes("B");
-    }).length;
+  const mixed = (id: string) => tallies.mixed.get(id) ?? 0;
   // The whole queue, not a window of twelve: on a court of twenty the twelve
   // most owed can all be one tier, and the lawful fairest four sat past the
   // window's edge while somebody played a fourth game. A few thousand fours
   // a draw is nothing.
   // The exact four, in any arrangement, as it stands in the log tonight.
-  const fours = matches
-    .filter((m) => m.courtNumber === court && m.stage === null && m.status !== "voided")
-    .map((m) => [...m.teamA, ...m.teamB].sort().join(","));
-  const sameFour = (ids: readonly string[]) => {
-    const key = [...ids].sort().join(",");
-    return fours.filter((f) => f === key).length;
-  };
+  const sameFour = (ids: readonly string[]) => tallies.fours.get(fourKey(ids)) ?? 0;
   // The lowest band still owed a game: the picker looks at what a choice
   // leaves in it, because those four play next whatever else is true.
   const stillOwed = queue.filter((e) => e.owed > 0);
