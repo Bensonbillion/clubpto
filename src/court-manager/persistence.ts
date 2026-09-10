@@ -241,13 +241,19 @@ export function createSessionStore<T>(config: SessionStoreConfig<T>): SessionSto
     }
     const merge = config.merge ?? ((_b: T | null, _l: T, r: T) => r);
     const merged = merge(base?.state ?? null, current, row.state);
-    base = row;
-    write(baseKey, row);
+    // The local copy is written BEFORE the base. A page that dies between
+    // the two writes then leaves the merged copy (which holds the row's
+    // changes) over an older base, and the next load merges again, which is
+    // idempotent. The other order would leave the old dirty copy over a
+    // base equal to the row, and the next load would push that old copy
+    // against the row's version, accepted, the other phone's work gone.
     if (canon(merged) === canon(row.state)) {
       // Nothing of this phone's survived the merge as a difference: the row
       // is the whole story, and there is nothing to push.
       latest = row;
       write(config.storageKey, row);
+      base = row;
+      write(baseKey, row);
       setStatus("synced");
       return row.state;
     }
@@ -257,6 +263,8 @@ export function createSessionStore<T>(config: SessionStoreConfig<T>): SessionSto
       state: merged,
     };
     write(config.storageKey, latest);
+    base = row;
+    write(baseKey, row);
     setStatus("pending");
     void pushLatest();
     return merged;

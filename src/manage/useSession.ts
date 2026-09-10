@@ -745,13 +745,17 @@ export function useManageSession(
   useEffect(() => {
     if (!remote) return;
     let cancelled = false;
+    // One tick at a time: a pull held open by bad wifi must not stack up
+    // behind the interval and land as a burst when the wifi returns.
+    let busy = false;
     const tick = async () => {
       const store = storeRef.current;
       const rem = remoteRef.current;
-      if (!store || !rem || !loadedRef.current || document.visibilityState !== "visible") return;
+      if (!store || !rem || !loadedRef.current || busy || document.visibilityState !== "visible") return;
       if (store.isPushing()) return;
-      if (store.isDirty()) { await store.flush(); return; }
+      busy = true;
       try {
+        if (store.isDirty()) { await store.flush(); return; }
         const row = await rem.pull();
         if (cancelled || !row) return;
         // A push that started while the pull was out owns the next word.
@@ -759,6 +763,8 @@ export function useManageSession(
         if (store.isNews(row)) takeRow(row);
       } catch {
         // Offline or refused: the local copy stands, the next tick tries again.
+      } finally {
+        busy = false;
       }
     };
     const id = window.setInterval(() => void tick(), FOLLOW_INTERVAL_MS);

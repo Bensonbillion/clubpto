@@ -18,10 +18,14 @@
 // saved_at, which every accepted write moves strictly forward, so two
 // pushes against the same version cannot both land.
 //
-// A phone still running the older bundle sends no baseVersion. It keeps
-// the old rule, newest savedAt wins with a 409 for an older copy, and its
-// writes are versioned too, so the newer phones see them as news and merge
-// their own work back over them.
+// A phone still running the older bundle sends no baseVersion. Until a
+// merge-aware phone has written the row it keeps the old rule, newest
+// savedAt wins with a 409 for an older copy, and its writes are versioned
+// too. From the first merge-aware write on (the row carries `cas: true`)
+// an old bundle can only follow: its pushes are refused, because a
+// wholesale copy from a phone that cannot merge would erase whatever the
+// newer phones landed since it last pulled. Its own tick keeps adopting
+// the row, and its every tap shows the red line, which is the reload cue.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -40,7 +44,7 @@ const json = (body: unknown, status = 200) =>
 const INSTANCES = new Set(["1", "2"]);
 
 interface Row {
-  envelope: { savedAt?: number; version?: number; [k: string]: unknown };
+  envelope: { savedAt?: number; version?: number; cas?: boolean; [k: string]: unknown };
   saved_at: number | string;
 }
 
@@ -116,15 +120,16 @@ Deno.serve(async (req) => {
     });
 
     if (row && knowsVersions && body.baseVersion !== versionOf(row)) return stale(row);
-    if (row && !knowsVersions && Number(row.saved_at) > incoming.savedAt) {
+    if (row && !knowsVersions && (row.envelope.cas === true || Number(row.saved_at) > incoming.savedAt)) {
       return json({ error: "stale", envelope: withVersion(row), savedAt: row.saved_at }, 409);
     }
 
     const version = (versionOf(row) ?? 0) + 1;
     const savedAt = row ? Math.max(incoming.savedAt, Number(row.saved_at) + 1) : incoming.savedAt;
+    const cas = knowsVersions || row?.envelope.cas === true;
     // The stored copy's own savedAt moves with the column, so a phone that
     // still compares clocks sees a strictly rising number.
-    const stored = { ...incoming, savedAt, version };
+    const stored = { ...incoming, savedAt, version, cas };
     const record = { instance, envelope: stored, saved_at: savedAt, updated_at: new Date().toISOString() };
 
     if (row) {
