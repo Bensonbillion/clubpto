@@ -18,6 +18,13 @@ export interface CourtViewProps {
   onSelectCourt: (courtNumber: number) => void;
   /** The ellipsis chip. Opens the night menu, frame 25b. */
   onOpenNightMenu: () => void;
+  /**
+   * The merge with another phone, when it set something of this phone's
+   * aside. Found on the two-phone walk: the pairing screens showed it and
+   * this one, the screen the night lives on, did not.
+   */
+  note?: string | null;
+  onDismissNote?: () => void;
   /** Position in this court's schedule, which is not the round. */
   matchNumber: number;
   matchesTotal: number;
@@ -49,6 +56,8 @@ export const CourtView = ({
   activeCourtNumber,
   onSelectCourt,
   onOpenNightMenu,
+  note,
+  onDismissNote,
   matchNumber,
   matchesTotal,
   round,
@@ -70,6 +79,8 @@ export const CourtView = ({
       activeCourtNumber={activeCourtNumber}
       onSelectCourt={onSelectCourt}
       onOpenNightMenu={onOpenNightMenu}
+      note={note}
+      onDismissNote={onDismissNote}
     />
 
     <MatchNav

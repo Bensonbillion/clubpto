@@ -434,7 +434,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
     : s.sync === "pending"
       ? "Saving to the shared night."
       : "No connection. Saved on this phone; it shares again when the connection is back.")
-    + (s.syncNotes.length > 0 ? ` ${s.syncNotes[s.syncNotes.length - 1].text}` : "");
+    + (s.syncNotes.length > 0 ? ` ${s.syncNotes[0].text}` : "");
   // A pairing court is never left idle: if a reload landed between a score
   // and its dispatch, deal the next tie now. Keyed on the night itself, not
   // the match count, because a merge with another phone can free a court
@@ -1432,9 +1432,13 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
     activeCourtNumber: courtNumber,
     onOpenNightMenu: () => setSheet("nightMenu"),
     // The merge with another phone speaks only when it set something of
-    // this phone's aside; the latest line, until it is tapped away.
-    note: s.syncNotes.length > 0 ? s.syncNotes[s.syncNotes.length - 1].text : null,
-    onDismissNote: s.dismissSyncNotes,
+    // this phone's aside: the oldest line first, one tap clears one line,
+    // and the count says how many wait. Found on the two-phone walk: a
+    // dropped re-deal, which fixes itself, was hiding a dropped score.
+    note: s.syncNotes.length > 0
+      ? s.syncNotes[0].text + (s.syncNotes.length > 1 ? ` (${s.syncNotes.length - 1} more)` : "")
+      : null,
+    onDismissNote: s.dismissSyncNote,
   };
 
   /**

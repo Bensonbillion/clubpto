@@ -818,6 +818,8 @@ export function useManageSession(
     setSyncNotes((prev) => [...prev, ...batch.map((n) => ({ id: ++noteId.current, text: word(n) }))]);
   }, [session]);
 
+  /** One tap clears one line, oldest first; the next waits behind it. */
+  const dismissSyncNote = useCallback(() => setSyncNotes((prev) => prev.slice(1)), []);
   const dismissSyncNotes = useCallback(() => setSyncNotes([]), []);
 
   /** Every mutation goes through here, so nothing can write without saving. */
@@ -1521,7 +1523,7 @@ export function useManageSession(
   }, [session]);
 
   return {
-    session, loading, sync, syncNotes, dismissSyncNotes, views, playerName, knockout, teams,
+    session, loading, sync, syncNotes, dismissSyncNote, dismissSyncNotes, views, playerName, knockout, teams,
     matchesPlayedBy: (id: string) => matchesPlayedBy(session.matches, id),
     setDayLabel, addRosterPlayer, addWalkIn, removePlayer, assignCourt, setTier,
     setCourts, setTarget, extend, start,
