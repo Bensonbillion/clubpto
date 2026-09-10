@@ -46,12 +46,19 @@ What survives from the old world, and why:
   `DEFAULT_STATE` from the second. They are not the manager's engine any more.
   Deleting them means retiring `/admin/*` in the same change.
 
-### Known gap, worth knowing before you touch persistence
-The manager writes to `localStorage` only (`remote: null` in
-`src/manage/useSession.ts`). The v3 manager it replaced mirrored to Supabase,
-so a dead phone mid-night no longer means a second device can pick the night
-up. Restoring that needs a writable session row, and `game_state` is
-admin-only by deliberate policy, so it waits on the passcode Edge Function.
+### The shared row, worth knowing before you touch persistence
+The manager is local-first (`src/court-manager/persistence.ts`) and mirrored
+to one row per instance in `public.manage_sessions` behind the
+`manage-session` Edge Function, which checks the door's passcode and writes
+with the service role (`src/manage/sync/remote.ts`). The row is a straight
+line of versions: every push is a compare-and-set against the version the
+phone last agreed with, a refused push comes back WITH the row (a 200 with
+`stale: true`, because supabase-js hides non-2xx bodies), and the phone
+merges rather than adopting or overwriting. `src/manage/sync/merge.ts` is
+the three-way merge, clock-free, the row winning true conflicts and the
+losing phone shown a one-line note. The function is deployed by hand from
+the Supabase dashboard (no CLI login on this machine); deploy it before a
+client change that needs it, and never edit `manage_sessions` by hand.
 
 ## CRITICAL: Do NOT Touch
 - Supabase table `game_state` policies. `20260814_lock_game_state.sql` closed
