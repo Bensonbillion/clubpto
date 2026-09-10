@@ -24,7 +24,7 @@
 
 import { useMemo, useEffect, useState } from "react";
 import { ensureManageFonts } from "./ui/fonts";
-import { applyInstanceAccent, DangerButton, PrimaryButton, SecondaryButton, Sheet, T, Tag, TertiaryButton, type Tab } from "./ui/primitives";
+import { applyInstanceAccent, Body, DangerButton, PrimaryButton, Screen, SecondaryButton, Sheet, T, TabBar, Tag, TertiaryButton, type Tab } from "./ui/primitives";
 import { recordedResultCount, storageKeyFor, useManageSession } from "./useSession";
 import { useRoster } from "./roster/useRoster";
 import { appearsInAMatch } from "./engine/roster-guard";
@@ -620,10 +620,18 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
     : "";
 
   const { ensureOnCourt, advancePlayoff } = s;
+  // Keyed on the night as well as the set: the set can stay the same while
+  // what makes a deal possible changes underneath it. Found on the two-phone
+  // walk: a court with three present already needed a deal, a walk-in for
+  // it arrived through a merge, the set still read the same court, and the
+  // effect never ran again, so the court view held its empty frame. Every
+  // pass that finds nothing to deal leaves the night untouched, and an
+  // untouched night saves nothing, so this settles.
   useEffect(() => {
     if (!fillKey) return;
     for (const n of fillKey.split(",")) ensureOnCourt(Number(n));
-  }, [fillKey, ensureOnCourt]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fillKey, ensureOnCourt, s.session]);
 
   /**
    * The same idea for a court in its playoff: whichever bracket row has both
@@ -645,7 +653,8 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
   useEffect(() => {
     if (!advanceKey) return;
     for (const n of advanceKey.split(",")) advancePlayoff(Number(n));
-  }, [advanceKey, advancePlayoff]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [advanceKey, advancePlayoff, s.session]);
 
   /* ── the door ──────────────────────────────────────────────────── */
 
@@ -2723,8 +2732,30 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
       );
     }
 
-    // The fill effect is putting the next row on court. Hold the frame.
-    return <div style={{ background: T.bg, minHeight: "100dvh" }} />;
+    // The fill effect is putting the next row on court, or nothing can go
+    // on: a court of three has no legal four until somebody arrives or comes
+    // back. Either way the frame says so rather than standing empty, and the
+    // chips and tabs stay, because a blank screen with no way off it was
+    // what a phone showed on the two-phone walk.
+    return (
+      <>
+        <Screen>
+          {courtHeader}
+          <Body style={{ padding: "22px", display: "flex", flexDirection: "column", justifyContent: "center", gap: 10 }}>
+            <p style={{ fontFamily: T.fontHead, fontSize: 22, margin: 0 }}>
+              {size < 4 ? `Court ${courtNumber} is waiting for four.` : `Court ${courtNumber} is dealing the next game.`}
+            </p>
+            <p style={{ font: `400 15px/1.6 ${T.fontBody}`, color: T.mut, margin: 0, textWrap: "pretty" }}>
+              {size < 4
+                ? `${size} here. A walk-in from the Players tab, or somebody marked back, puts the next game on.`
+                : "One moment."}
+            </p>
+          </Body>
+          <TabBar active={ui.tab} onChange={(t) => here({ tab: t })} />
+        </Screen>
+        {overlays}
+      </>
+    );
   }
 
   /* ── the court, and the pager's coordinates ───────────────────── */
