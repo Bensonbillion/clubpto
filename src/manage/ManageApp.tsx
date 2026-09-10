@@ -39,7 +39,7 @@ import {
   endingFor, individualChampion, mayChooseEnding, oneMoreRoundChange,
   type CourtEndings,
 } from "./engine/endings";
-import type { Match, PlayerTier, PlayoffStage } from "./types";
+import type { Match, PlayerTier, PlayoffStage, NightFormat } from "./types";
 import { Passcode, PasscodeFailed, HomeNothingRunning, HomeNightInProgress } from "./screens/door-home";
 import { WhichNight, WhoIsHere, Courts, MatchesEach, Ready, Chip } from "./screens/setup";
 import { CourtHeader, BalanceRule, CourtView, CourtSwitcher, Schedule, ScoreEntry , startValue } from "./screens/play";
@@ -464,6 +464,14 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
   // "Start tonight" was tapped over an ended night: the wizard renders empty
   // but the old session survives until the first real act. See ensureFresh.
   const [pendingFresh, setPendingFresh] = useState(false);
+  /**
+   * The door chosen at the hub. Held here, not written into the night,
+   * until the step that starts it: "Start a different night" runs the
+   * wizard over the live session, and a format written on the way in
+   * switched the running night's branch under the operator, on this phone
+   * and, after the poll, on the other one.
+   */
+  const [door, setDoor] = useState<NightFormat>("roundRobin");
   const [step, setStep] = useState<Step>("night");
   const [night, setNight] = useState("Wednesday");
   const [query, setQuery] = useState("");
@@ -758,9 +766,9 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
       return (
         <SundayHub
           night={s.session.dayLabel || night}
-          onRoundRobin={() => { s.setFormat("roundRobin"); setStep("who"); }}
-          onKnockout={() => { s.setFormat("knockout"); setStep("who"); }}
-          onTeams={() => { s.setFormat("teams"); setStep("who"); }}
+          onRoundRobin={() => { setDoor("roundRobin"); setStep("who"); }}
+          onKnockout={() => { setDoor("knockout"); setStep("who"); }}
+          onTeams={() => { setDoor("teams"); setStep("who"); }}
           onBack={() => setStep("night")}
         />
       );
@@ -866,11 +874,11 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           onSetTier={(playerId, tier) => { s.setTier(playerId, tier); setTierPromptId(null); }}
           onSkipTier={() => setTierPromptId(null)}
           onBack={() => setStep("format")}
-          nextLabel={s.session.format === "knockout" || s.session.format === "teams" ? "Next: pair up" : undefined}
+          nextLabel={door === "knockout" || door === "teams" ? "Next: pair up" : undefined}
           onNext={() => {
             ensureFresh();
             // The Playoff door pairs people instead of splitting courts.
-            if (s.session.format === "knockout" || s.session.format === "teams") { setStep("pairs"); return; }
+            if (door === "knockout" || door === "teams") { setStep("pairs"); return; }
             // Adding already wrote to the session, so there is nothing left to
             // reconcile. This list is a view of the night, not a form.
             s.setCourts(Array.from({ length: courtCount }, (_, i) => i + 1));
@@ -943,7 +951,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         + `${unpaired.length} unpaired.`;
       // The step is shared by both Sunday doors, so its sentences name
       // the door the operator chose, never the other one.
-      const teamsDoor = s.session.format === "teams";
+      const teamsDoor = door === "teams";
       const helper = heldId != null
         ? `${nameOf(heldId)?.name ?? "One"} is held. Tap a second name to pair.`
         : pairs.length > MAX_KNOCKOUT_PAIRS
@@ -965,7 +973,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           onBack={() => { setHeldId(null); setStep("who"); }}
           onNext={next}
           helper={helper}
-          step={`Setup · ${s.session.dayLabel || night} · ${s.session.format === "teams" ? "Set teammate" : "Playoff"}`}
+          step={`Setup · ${s.session.dayLabel || night} · ${door === "teams" ? "Set teammate" : "Playoff"}`}
         />
       );
     }
@@ -976,8 +984,8 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           count={courtCount}
           onCount={setCourtCount}
           onBack={() => setStep("pairs")}
-          onNext={() => setStep(s.session.format === "teams" ? "teamsTarget" : "koReady")}
-          step={`Setup · ${s.session.dayLabel || night} · ${s.session.format === "teams" ? "Set teammate" : "Playoff"}`}
+          onNext={() => setStep(door === "teams" ? "teamsTarget" : "koReady")}
+          step={`Setup · ${s.session.dayLabel || night} · ${door === "teams" ? "Set teammate" : "Playoff"}`}
         />
       );
     }
@@ -2866,6 +2874,10 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         // park it and put it straight back.
         onSkip={!paged && view.schedule.some((r) => (r.status === "upNext" || r.status === "waiting") && r.teamA != null && r.teamB != null)
           ? () => s.skipMatch(courtNumber) : undefined}
+        // Somebody is not here: the change sheet swaps them for the next in
+        // the queue, or draws the four again. It existed and nothing on the
+        // court screen opened it.
+        onChangeMatch={!paged ? () => here({ changingMatchId: live.id, changeOutId: null }) : undefined}
         onWhyThisFour={() => here({ pane: "why" })}
         activeTab={ui.tab}
         onTabChange={(t) => here({ tab: t })}

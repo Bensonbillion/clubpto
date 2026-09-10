@@ -475,3 +475,58 @@ describe("the same four do not come round again", () => {
     expect(Math.max(...spreads)).toBeLessThanOrEqual(2);
   });
 });
+
+
+describe("a walk-in or a leaver on the Wednesday roster", () => {
+  const wednesday = (): Player[] => [
+    ...["benson", "tamilore", "david", "folarin", "timi", "ade", "chibuike", "elvis", "fiyin", "sam", "abiola", "martins"]
+      .map((x) => P(x, { tier: "A" })),
+    ...["albright", "evelyn", "ese", "idara", "goanaer", "kai", "olu", "khalid"].map((x) => P(x, { tier: "B" })),
+  ];
+  const runWith = (roster: Player[], target: number, at: number, change: (r: Player[]) => Player[]) => {
+    let players = roster;
+    const matches: Match[] = [];
+    const spreads: number[] = [];
+    let seatsOwedAtChange = 0;
+    for (let guard = 0; guard < 40; guard++) {
+      if (matches.length === at - 1) {
+        players = change(players);
+        seatsOwedAtChange = players.filter((p) => !p.away)
+          .reduce((sum, p) => sum + Math.max(0, target - matchesPlayedBy(matches, p.id)), 0);
+      }
+      const next = nextMatch(players, matches, 1, target);
+      if (!next) break;
+      matches.push({
+        id: `sim${matches.length}`, courtNumber: 1, matchIndex: matches.length + 1,
+        teamA: next.teamA, teamB: next.teamB,
+        scoreA: 2, scoreB: 0, status: "played", startedAt: 0, completedAt: 0, stage: null,
+      });
+      const counts = players.filter((p) => !p.away).map((p) => matchesPlayedBy(matches, p.id));
+      spreads.push(Math.max(...counts) - Math.min(...counts));
+    }
+    // Seats a game cannot fill exactly become one extra game for somebody.
+    const extraSeats = (4 - (seatsOwedAtChange % 4)) % 4;
+    return { players, matches, spreads, extraSeats, counts: players.filter((p) => !p.away).map((p) => matchesPlayedBy(matches, p.id)) };
+  };
+
+  it("a B walking in before game nine finishes on three with everyone else, nobody on four", () => {
+    const r = runWith(wednesday(), 3, 9, (ps) => [...ps, P("late", { tier: "B", walkIn: true, joinedAtMatchIndex: 9 })]);
+    // Twenty-one on three each is sixty-three seats, and a game seats four,
+    // so exactly one person plays a fourth: nobody short, one over.
+    expect(r.counts.every((c) => c >= 3)).toBe(true);
+    expect(r.counts.filter((c) => c > 3)).toHaveLength(r.extraSeats);
+    // The night is not perfectly even at the moment the walk-in arrives on
+    // zero; from then on nobody is ever more than one game behind.
+    expect(Math.max(...r.spreads.slice(9))).toBeLessThanOrEqual(1);
+  });
+
+  it("a B leaving before game six leaves everyone else on three", () => {
+    const r = runWith(wednesday(), 3, 6, (ps) => ps.map((p) => p.id === "ese" ? { ...p, away: true } : p));
+    // The leaver had one game; the seats still owed are fifty-seven minus
+    // what was played, and whatever four does not divide is one extra game
+    // for somebody. Nobody short, at most one over, never two behind.
+    expect(r.counts.every((c) => c >= 3)).toBe(true);
+    expect(r.counts.filter((c) => c > 3)).toHaveLength(r.extraSeats);
+    expect(Math.max(...r.spreads)).toBeLessThanOrEqual(1);
+  });
+});

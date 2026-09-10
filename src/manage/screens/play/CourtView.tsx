@@ -60,9 +60,14 @@ export interface CourtViewProps {
   onPlayThisNow?: () => void;
   /**
    * On the live match: step past it. It waits in the list and the next game
-   * comes on. Absent while paged.
+   * comes on. Absent while paged, and absent when nothing else can come on.
    */
   onSkip?: () => void;
+  /**
+   * On the live match: swap somebody who is not here for the next in the
+   * queue, or draw the four again. Opens the change sheet. Absent while paged.
+   */
+  onChangeMatch?: () => void;
   /** Opens frame 11 off the match line. See MatchNav for why it hangs there. */
   onWhyThisFour?: () => void;
   activeTab?: Tab;
@@ -90,6 +95,7 @@ export const CourtView = ({
   onScore,
   onPlayThisNow,
   onSkip,
+  onChangeMatch,
   onWhyThisFour,
   activeTab = "match",
   onTabChange,
@@ -116,21 +122,11 @@ export const CourtView = ({
 
     {/* The match is centred in whatever is left between header and bench, which
         is what keeps the slat at thumb height on a 390x844 phone. */}
+    {/* The match is centred in whatever is left between header and bench; the
+        controls that act on it live in the footer's slot, so the Body never
+        grows and the tab bar stays where a thumb expects it. */}
     <Body style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
       <MatchCard sideA={sideA} sideB={sideB} onScore={onScore} />
-      {onPlayThisNow && (
-        <div style={{ padding: "4px 22px 0", display: "flex", flexDirection: "column", gap: 8 }}>
-          <PrimaryButton onClick={onPlayThisNow}>Play this game now</PrimaryButton>
-          <p style={{ font: `400 13.5px/1.5 ${T.fontBody}`, color: T.mut, margin: 0, textAlign: "center" }}>
-            The game on court waits in the list. Score it whenever it is played.
-          </p>
-        </div>
-      )}
-      {onSkip && (
-        <div style={{ padding: "4px 22px 0", display: "flex", justifyContent: "center" }}>
-          <TertiaryButton onClick={onSkip}>Skip this game</TertiaryButton>
-        </div>
-      )}
     </Body>
 
     {skipped.length > 0 && (
@@ -166,9 +162,22 @@ export const CourtView = ({
     <WaitingBlock waiting={waiting} />
 
     {/* The frame joins these with an em dash. The house voice does not use one,
-        so it is three sentences instead and no word changes. */}
-    <FooterBar helper="Arrows move through the schedule. Skip a game and it waits. Enter both scores when it ends.">
-      {null}
+        so it is three sentences instead and no word changes. On a projected
+        row the slot holds Play this game now; on the live match it holds the
+        two quiet controls that act on the game. */}
+    <FooterBar helper={onPlayThisNow
+      ? "The game on court waits in the list."
+      : "Arrows move through the schedule. Skip a game and it waits. Enter both scores when it ends."}>
+      {onPlayThisNow
+        ? <PrimaryButton onClick={onPlayThisNow}>Play this game now</PrimaryButton>
+        : (onSkip || onChangeMatch)
+          ? (
+            <div style={{ display: "flex", justifyContent: "center", gap: 18 }}>
+              {onChangeMatch && <TertiaryButton onClick={onChangeMatch}>Change this game</TertiaryButton>}
+              {onSkip && <TertiaryButton onClick={onSkip}>Skip this game</TertiaryButton>}
+            </div>
+          )
+          : null}
     </FooterBar>
 
     <TabBar active={activeTab} onChange={onTabChange} />

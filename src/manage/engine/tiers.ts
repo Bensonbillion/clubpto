@@ -304,10 +304,25 @@ export function chooseFour(
      * other again at the end. Ranked below fairness and familiarity.
      */
     mixed?: (playerId: string) => number;
+    /**
+     * How many times these exact four have shared a court tonight. Ranked
+     * straight after fairness: the same four again is the game everybody
+     * remembers, and it is never dealt while another four as fair exists.
+     */
+    sameFour?: (ids: readonly string[]) => number;
+    /**
+     * The players on the lowest played count who are still owed a game:
+     * the band the next games are dealt from. With eight in it, the four
+     * not chosen now are the four dealt next, and if THEY have already
+     * played together the repeat is being dealt one game early; that is
+     * charged here too.
+     */
+    owed?: readonly string[];
   } = {},
 ): Chosen | null {
-  const { windowSize = 12, playedBy, partnered, met, bridgeBusy = false, mixed } = options;
+  const { windowSize = 12, playedBy, partnered, met, bridgeBusy = false, mixed, sameFour, owed } = options;
   const mixedGames = mixed ?? (() => 0);
+  const repeatOf = sameFour ?? (() => 0);
   const window = queue.slice(0, Math.max(4, windowSize));
   let best: Chosen | null = null;
   // Ranked in this order, and the order is the whole fairness argument:
@@ -322,18 +337,19 @@ export function chooseFour(
   // still on their first: exactly the drift the court is supposed to prevent.
   // Sorted-and-lexicographic makes "the least played four" precise, and any
   // other four with the same vector is equally fair by definition.
-  let bestKey: { played: number[]; penalty: number; familiar: number; mixedSum: number; repeats: number; position: number } | null = null;
+  let bestKey: { played: number[]; exact: number; penalty: number; familiar: number; mixedSum: number; repeats: number; position: number } | null = null;
   const games = playedBy ?? (() => 0);
   const together = partnered ?? (() => 0);
   const shared = met ?? (() => 0);
   const better = (
-    k: { played: number[]; penalty: number; familiar: number; mixedSum: number; repeats: number; position: number },
+    k: { played: number[]; exact: number; penalty: number; familiar: number; mixedSum: number; repeats: number; position: number },
     b: typeof bestKey,
   ): boolean => {
     if (!b) return true;
     for (let n = 0; n < k.played.length; n++) {
       if (k.played[n] !== b.played[n]) return k.played[n] < b.played[n];
     }
+    if (k.exact !== b.exact) return k.exact < b.exact;
     if (k.penalty !== b.penalty) return k.penalty < b.penalty;
     if (k.familiar !== b.familiar) return k.familiar < b.familiar;
     if (k.mixedSum !== b.mixedSum) return k.mixedSum < b.mixedSum;
@@ -351,6 +367,11 @@ export function chooseFour(
           // Every pair among the four: how often they have shared a court.
           let familiar = 0;
           for (let x = 0; x < 4; x++) for (let y = x + 1; y < 4; y++) familiar += shared(ids[x], ids[y]);
+          // The same four again, now or as the game this choice leaves last.
+          let exact = repeatOf(ids);
+          if (owed && owed.length === 8 && ids.every((id) => owed.includes(id))) {
+            exact += repeatOf(owed.filter((id) => !ids.includes(id)));
+          }
           // A mixed game counts against whoever has already had one.
           const tiersHere = ids.map(ctx.tierById);
           const isMixed = tiersHere.includes("A") && tiersHere.includes("B");
@@ -363,6 +384,7 @@ export function chooseFour(
               && !ids.some((id) => ctx.tierById(id) === "C");
             const key = {
               played,
+              exact,
               penalty: softPenalty(lineup, ctx) + (borrowsBridge ? 1 : 0),
               familiar,
               mixedSum,

@@ -230,6 +230,18 @@ function lawfulFour(
       && m.status !== "voided"
       && [...m.teamA, ...m.teamB].includes(x) && [...m.teamA, ...m.teamB].includes(y)).length;
   const bridgeBusy = queue.some((e) => e.owed > 0 && ctx.tierById(e.playerId) === "C");
+  // The mixing law by what is still owed, not by headcount: strict only
+  // while the games the A's still owe and the games the B's still owe are
+  // both even, because a strict game spends A-slots in twos, and an odd
+  // total would leave one player waiting a whole game while others played
+  // twice. Found by the review's fuzz: a walk-in or a leaver mid-night can
+  // flip the parity of an evenly matched court.
+  const owedOf = (tier: "A" | "B") => queue
+    .filter((e) => ctx.tierById(e.playerId) === tier)
+    .reduce((sum, e) => sum + e.owed, 0);
+  const law = ctx.abLaw === "free" ? "free"
+    : (owedOf("A") % 2 === 0 && owedOf("B") % 2 === 0) ? "strict" : "soft";
+  const lawCtx: LawContext = { ...ctx, abLaw: law };
   // Mixed games had so far: a game with an A and a B on each side.
   const mixed = (id: string) =>
     matches.filter((m) => {
@@ -239,8 +251,25 @@ function lawfulFour(
       const tiers = four.map(ctx.tierById);
       return tiers.includes("A") && tiers.includes("B");
     }).length;
-  const chosen = chooseFour(queue.map((e) => e.playerId), ctx,
-    { playedBy: (id) => played.get(id) ?? 0, partnered, met, bridgeBusy, mixed });
+  // The whole queue, not a window of twelve: on a court of twenty the twelve
+  // most owed can all be one tier, and the lawful fairest four sat past the
+  // window's edge while somebody played a fourth game. A few thousand fours
+  // a draw is nothing.
+  // The exact four, in any arrangement, as it stands in the log tonight.
+  const fours = matches
+    .filter((m) => m.courtNumber === court && m.stage === null && m.status !== "voided")
+    .map((m) => [...m.teamA, ...m.teamB].sort().join(","));
+  const sameFour = (ids: readonly string[]) => {
+    const key = [...ids].sort().join(",");
+    return fours.filter((f) => f === key).length;
+  };
+  // The lowest band still owed a game: the picker looks at what a choice
+  // leaves in it, because those four play next whatever else is true.
+  const stillOwed = queue.filter((e) => e.owed > 0);
+  const lowest = Math.min(...stillOwed.map((e) => e.matchesPlayed));
+  const owed = stillOwed.filter((e) => e.matchesPlayed === lowest).map((e) => e.playerId);
+  const chosen = chooseFour(queue.map((e) => e.playerId), lawCtx,
+    { windowSize: queue.length, playedBy: (id) => played.get(id) ?? 0, partnered, met, bridgeBusy, mixed, sameFour, owed });
   if (!chosen) return null;
 
   const ids = [...chosen.lineup.teamA, ...chosen.lineup.teamB];
