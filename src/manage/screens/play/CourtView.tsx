@@ -43,6 +43,12 @@ export interface CourtViewProps {
    * who have not turned up are decided here, not on a list.
    */
   upNext?: { slot: number; a: string; b: string }[];
+  /**
+   * Games stepped past and not yet played. They wait in the list, and the
+   * card says so, because a skipped game that is out of sight is a game
+   * that gets forgotten until the standings look wrong.
+   */
+  skipped?: { slot: number; a: string; b: string }[];
   /** Opens frame 12 with that side's score box focused. */
   onScore: (side: "A" | "B") => void;
   /**
@@ -80,6 +86,7 @@ export const CourtView = ({
   sideB,
   waiting,
   upNext = [],
+  skipped = [],
   onScore,
   onPlayThisNow,
   onSkip,
@@ -126,6 +133,21 @@ export const CourtView = ({
       )}
     </Body>
 
+    {skipped.length > 0 && (
+      <div style={{ padding: "0 22px 14px" }}>
+        <Eyebrow style={{ color: T.warm, margin: "0 0 8px" }}>Skipped, still to play</Eyebrow>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {skipped.map((g) => (
+            <div key={g.slot} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+              <span style={{ fontFamily: T.fontHead, fontSize: 14, minWidth: 16, color: T.soft, fontVariantNumeric: "tabular-nums" }}>{g.slot}</span>
+              <span style={{ font: `400 14.5px/1.4 ${T.fontBody}`, color: T.mut }}>
+                {g.a} <span style={{ color: T.soft }}>v</span> {g.b}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
     {upNext.length > 0 && (
       <div style={{ padding: "0 22px 14px" }}>
         <Eyebrow style={{ color: T.mut, margin: "0 0 8px" }}>Up next</Eyebrow>

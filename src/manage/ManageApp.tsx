@@ -2772,8 +2772,12 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
   /* ── the court, and the pager's coordinates ───────────────────── */
 
   const currentSlot = view.currentSlot ?? live.matchIndex;
+  // The pager walks back through what was played AND what was stepped past:
+  // a skipped game waits in the list, and the arrows are how the list is
+  // walked from the card. Found on a Wednesday: the skipped game was only
+  // reachable through the schedule, three unmarked taps away.
   const playedSlots = view.schedule
-    .filter((r) => r.status === "played")
+    .filter((r) => r.status === "played" || r.status === "skipped")
     .map((r) => r.slot)
     .sort((x, y) => x - y);
   // A stale page (rows renumbered, result voided) silently falls back to the
@@ -2794,7 +2798,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         matchNumber={paged ? paged.slot : (view.currentSlot ?? live.matchIndex)}
         matchesTotal={view.matchesTotal}
         round={view.round}
-        pagerFlag={paged ? (paged.status === "played" ? "Result" : "Projected") : undefined}
+        pagerFlag={paged ? (paged.status === "played" ? "Result" : paged.status === "skipped" ? "Skipped" : "Projected") : undefined}
         // The arrows are a PAGER, not a move (script 2's contract): back walks
         // the recorded results in order, forward from the live match shows
         // exactly one projected row, and nothing beyond it. Skipping a game is
@@ -2830,8 +2834,11 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         // The next games, drawn as they stand, so the operator can see who is
         // due on before they are due and hold anyone who has not turned up.
         upNext={view.schedule
-          .filter((r) => r.slot > currentSlot && r.status !== "played" && r.teamA != null && r.teamB != null)
+          .filter((r) => r.slot > currentSlot && r.status !== "played" && r.status !== "skipped" && r.teamA != null && r.teamB != null)
           .slice(0, 5)
+          .map((r) => ({ slot: r.slot, a: pairOf(r.teamA!), b: pairOf(r.teamB!) }))}
+        skipped={view.schedule
+          .filter((r) => r.status === "skipped" && r.teamA != null && r.teamB != null)
           .map((r) => ({ slot: r.slot, a: pairOf(r.teamA!), b: pairOf(r.teamB!) }))}
         onScore={(side) => {
           if (paged) {
