@@ -453,4 +453,14 @@ describe("the same four do not come round again", () => {
     const { counts } = runNight(roster, 3);
     expect(counts.every((c) => c === 3)).toBe(true);
   });
+
+  it("a lone B on a court of A's plays too, rather than the A's playing forever without them", () => {
+    // Found by the review's fuzz: with one B, "a B on each side" cannot be
+    // made, so the B never played and the court kept dealing A's past the
+    // target. The law falls silent on a court that cannot mix lawfully.
+    const roster: Player[] = [...["a1", "a2", "a3", "a4", "a5", "a6", "a7"].map((x) => P(x, { tier: "A" })), P("b1", { tier: "B" })];
+    const { matches, counts } = runNight(roster, 3);
+    expect(matches).toHaveLength(6);
+    expect(counts.every((c) => c === 3)).toBe(true);
+  });
 });

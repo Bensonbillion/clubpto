@@ -78,8 +78,10 @@ export interface LawContext {
   /**
    * True when this court cannot make an A B against A B at all, because it
    * holds fewer than two A's or fewer than two B's. The first law then falls
-   * back to its older shape, a B on each team, so a lone A is not walled
-   * out of every game for the night. Absent (false) means the strict law.
+   * silent: a lone A among B's, or a lone B among A's, plays whatever four
+   * the queue gives, because a B on each side cannot be made with one B and
+   * the alternative is that person sitting out the night. Absent (false)
+   * means the strict law.
    */
   relaxedAB?: boolean;
 }
@@ -137,14 +139,12 @@ export function judge(lineup: Lineup, ctx: LawContext): Illegality | null {
   }
 
   // No C in the match, so the second law is silent and the first speaks.
-  if (as > 0 && bs > 0) {
+  if (as > 0 && bs > 0 && !ctx.relaxedAB) {
     if (!a.some((id) => ctx.tierById(id) === "B")) return "bNotOnEachTeam";
     if (!b.some((id) => ctx.tierById(id) === "B")) return "bNotOnEachTeam";
     // The same make-up on each side: A B against A B, and nothing else.
-    if (!ctx.relaxedAB) {
-      const shape = (side: string[]) => side.map(ctx.tierById).sort().join("");
-      if (shape(a) !== shape(b)) return "sidesUnequal";
-    }
+    const shape = (side: string[]) => side.map(ctx.tierById).sort().join("");
+    if (shape(a) !== shape(b)) return "sidesUnequal";
   }
   return null;
 }

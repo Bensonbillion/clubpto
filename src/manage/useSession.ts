@@ -338,8 +338,21 @@ const putOnCourt = (session: Session, court: Court, slot: number, now: number): 
   const parked = parkLive(session, court.number);
 
   // A skipped row keeps its id and its four, because it is the same game the
-  // same people were about to play. Nothing about it is drawn again.
+  // same people were about to play. Nothing about it is drawn again, unless
+  // one of the four has since been marked as left: then the game as it was
+  // cannot happen, the row is drawn afresh from whoever is here, and the
+  // slot plays that game instead. Found by the review: a leaver could be
+  // dealt straight back on from a skipped row.
   if (row.matchId) {
+    const held = parked.matches.find((m) => m.id === row.matchId);
+    const gone = held != null && [...held.teamA, ...held.teamB]
+      .some((id) => parked.players.find((p) => p.id === id)?.away);
+    if (gone) {
+      const without: Session = { ...parked, matches: parked.matches.filter((m) => m.id !== row.matchId) };
+      const fresh = scheduleFor(without, court).find((r) => r.slot === slot);
+      if (!fresh || !fresh.teamA || !fresh.teamB) return without;
+      return putOnCourt(without, court, slot, now);
+    }
     return {
       ...parked,
       matches: parked.matches.map((m) =>

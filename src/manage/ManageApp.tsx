@@ -757,7 +757,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
     if (step === "format") {
       return (
         <SundayHub
-          night={night}
+          night={s.session.dayLabel || night}
           onRoundRobin={() => { s.setFormat("roundRobin"); setStep("who"); }}
           onKnockout={() => { s.setFormat("knockout"); setStep("who"); }}
           onTeams={() => { s.setFormat("teams"); setStep("who"); }}
@@ -965,7 +965,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           onBack={() => { setHeldId(null); setStep("who"); }}
           onNext={next}
           helper={helper}
-          step={`Setup · ${night} · ${s.session.format === "teams" ? "Set teammate" : "Playoff"}`}
+          step={`Setup · ${s.session.dayLabel || night} · ${s.session.format === "teams" ? "Set teammate" : "Playoff"}`}
         />
       );
     }
@@ -977,7 +977,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           onCount={setCourtCount}
           onBack={() => setStep("pairs")}
           onNext={() => setStep(s.session.format === "teams" ? "teamsTarget" : "koReady")}
-          step={`Setup · ${night} · ${s.session.format === "teams" ? "Set teammate" : "Playoff"}`}
+          step={`Setup · ${s.session.dayLabel || night} · ${s.session.format === "teams" ? "Set teammate" : "Playoff"}`}
         />
       );
     }
@@ -997,7 +997,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         ? stored : suggested;
       return (
         <GamesPerPair
-          step={`Setup · ${night} · Set teammate`}
+          step={`Setup · ${s.session.dayLabel || night} · Set teammate`}
           pairCount={pairs.length}
           options={offered.map((t) => ({
             target: t,
@@ -1041,7 +1041,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
       const trio = pairs.find((p) => p.playerIds.length === 3);
       return (
         <KnockoutReady
-          step={`Setup · ${night} · Playoff`}
+          step={`Setup · ${s.session.dayLabel || night} · Playoff`}
           pairCount={pairs.length}
           shape={knockoutShape(pairs.length) ?? ""}
           firstRoundLabel={first?.label ?? ""}
@@ -2833,8 +2833,12 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         waiting={view.queue.slice(0, 6).map((q) => ({ playerId: q.playerId, name: q.name }))}
         // The next games, drawn as they stand, so the operator can see who is
         // due on before they are due and hold anyone who has not turned up.
+        // In the order the court will deal them, which is slot order over
+        // whatever is unplayed and not stepped past, not "after the live
+        // slot": a game put on out of turn leaves lower rows still to come.
         upNext={view.schedule
-          .filter((r) => r.slot > currentSlot && r.status !== "played" && r.status !== "skipped" && r.teamA != null && r.teamB != null)
+          .filter((r) => (r.status === "upNext" || r.status === "waiting") && r.teamA != null && r.teamB != null)
+          .sort((x, y) => x.slot - y.slot)
           .slice(0, 5)
           .map((r) => ({ slot: r.slot, a: pairOf(r.teamA!), b: pairOf(r.teamB!) }))}
         skipped={view.schedule
