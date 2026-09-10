@@ -429,11 +429,12 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
   // What the phone can honestly say about the shared row. "error" covers
   // both no connection and a refused push; either way the night is safe on
   // this phone and the line says so rather than pretending it travelled.
-  const syncLine = s.sync === "synced"
-    ? "Shared with every phone on this link."
+  const syncLine = (s.sync === "synced"
+    ? "Shared with every phone on this link. Two phones can score at once; their nights merge."
     : s.sync === "pending"
       ? "Saving to the shared night."
-      : "No connection. Saved on this phone; it shares again when the connection is back.";
+      : "No connection. Saved on this phone; it shares again when the connection is back.")
+    + (s.syncNotes.length > 0 ? ` ${s.syncNotes[s.syncNotes.length - 1].text}` : "");
   // A knockout court is never left idle: if a reload landed between a score
   // and its dispatch, deal the next tie now. dispatchKnockout no-ops when
   // every court is busy or the draw has nothing playable, so this settles.
@@ -1427,6 +1428,10 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
     courts: courtChips,
     activeCourtNumber: courtNumber,
     onOpenNightMenu: () => setSheet("nightMenu"),
+    // The merge with another phone speaks only when it set something of
+    // this phone's aside; the latest line, until it is tapped away.
+    note: s.syncNotes.length > 0 ? s.syncNotes[s.syncNotes.length - 1].text : null,
+    onDismissNote: s.dismissSyncNotes,
   };
 
   /**

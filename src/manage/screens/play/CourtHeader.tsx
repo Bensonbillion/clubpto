@@ -19,6 +19,13 @@ export interface CourtHeaderProps {
   onSelectCourt: (courtNumber: number) => void;
   /** Opens the night menu, frame 25b. */
   onOpenNightMenu: () => void;
+  /**
+   * One line from the merge with another phone, when it set something of
+   * this phone's aside: "Court 1: another phone scored ... first." Tapping
+   * it clears it. Null when nothing needs saying, which is nearly always.
+   */
+  note?: string | null;
+  onDismissNote?: () => void;
 }
 
 const CHIP = {
@@ -36,7 +43,10 @@ export const CourtHeader = ({
   activeCourtNumber,
   onSelectCourt,
   onOpenNightMenu,
+  note,
+  onDismissNote,
 }: CourtHeaderProps) => (
+  <div>
   <div
     style={{
       padding: "24px 22px 0",
@@ -92,5 +102,20 @@ export const CourtHeader = ({
     >
       &#8943;
     </button>
+  </div>
+  {note != null && note !== "" && (
+    <button
+      type="button"
+      onClick={onDismissNote}
+      style={{
+        display: "block", width: "100%", boxSizing: "border-box", margin: "10px 0 0",
+        padding: "8px 22px", border: "none", borderTop: `1px solid ${T.line}`, borderBottom: `1px solid ${T.line}`,
+        background: T.raised, color: T.mut, textAlign: "left", cursor: "pointer",
+        font: `400 13.5px/1.5 ${T.fontBody}`,
+      }}
+    >
+      {note}
+    </button>
+  )}
   </div>
 );

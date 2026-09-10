@@ -6,6 +6,12 @@
 // manage-session Edge Function, and pulled from it, so a second phone that
 // opens the same link sees the night as it stands, and follows it.
 //
+// A push is a compare-and-set: it names the row version this phone last
+// agreed with, and the function refuses it with the row when the row has
+// moved past that. The refusal comes back as a 200 with `stale: true`,
+// because supabase-js hides the body of any non-2xx reply, and the row IS
+// the point of the refusal: the store merges against it.
+//
 // Why a function and not a table policy: game_state was closed to anon
 // writes for a reason that has not changed, which is that everyone with the
 // app's public key could clobber a live night. The function checks the
@@ -13,7 +19,7 @@
 // row is reachable by exactly the people the door already lets in, and by
 // nobody holding only the key.
 
-import type { Envelope, RemoteSync } from "@/court-manager/persistence";
+import type { Envelope, PushReply, RemoteSync } from "@/court-manager/persistence";
 import { clubhouse } from "@/clubhouse/supabaseClient";
 import type { Session } from "../types";
 
@@ -22,6 +28,9 @@ export const MANAGE_SESSION_FUNCTION = "manage-session";
 interface Reply {
   envelope?: Envelope<Session> | null;
   savedAt?: number | null;
+  version?: number | null;
+  /** The push was refused: the row moved past baseVersion. envelope is the row. */
+  stale?: boolean;
   error?: string;
 }
 
@@ -45,16 +54,25 @@ export function createManageRemote(config: ManageRemoteConfig): RemoteSync<Sessi
     const { data, error } = await invoke({ instance: config.instance, passcode: config.passcode, ...body });
     if (error) throw new Error(error.message);
     if (!data) throw new Error("empty reply");
+    // A refusal carries the row and is not an error: read it before the
+    // generic error field, which the function also sets on a refusal.
+    if (data.stale) return data;
     if (data.error) throw new Error(data.error);
     return data;
   };
   return {
-    async push(envelope) {
-      // The function keeps whichever copy is newer, so a stale device pushing
-      // an old night cannot roll the row back. A refusal is an error here,
-      // which keeps the local status honest ("pending") until the next pull
-      // hands this device the newer copy.
-      await call({ op: "push", envelope });
+    async push(envelope, baseVersion): Promise<PushReply<Session>> {
+      // The version inside the envelope is the server's to stamp; what
+      // travels is the copy and the version it was built on.
+      const { version: _mine, ...copy } = envelope;
+      void _mine;
+      const reply = await call({ op: "push", envelope: copy, baseVersion });
+      if (reply.stale) return { accepted: false, row: reply.envelope ?? null };
+      return {
+        accepted: true,
+        version: reply.version ?? null,
+        savedAt: reply.savedAt ?? envelope.savedAt,
+      };
     },
     async pull() {
       const reply = await call({ op: "pull" });

@@ -12,7 +12,7 @@
 // it the hard way.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createSessionStore, type SessionStore, type SyncStatus } from "@/court-manager/persistence";
+import { createSessionStore, type Envelope, type RemoteSync, type SessionStore, type SyncStatus } from "@/court-manager/persistence";
 import type { Court, CourtNumber, KnockoutPair, Match, NightFormat, Player, PlayerTier, ScheduleSlot, Session } from "./types";
 import { buildQueue, lawContextFor, nextMatch, courtComplete, matchesPlayedBy, totalMatches } from "./engine/rotation";
 import { canFieldACMatch, designateB, tierOf as tierOfPlayer } from "./engine/tiers";
@@ -22,6 +22,7 @@ import { buildStages, champion, nextTie, orderedPlayerIds, readiness, seedPairs,
   type SeededPair, type Stage } from "./engine/playoff";
 import { appearsInAMatch } from "./engine/roster-guard";
 import { createManageRemote, type ManageRemoteConfig } from "./sync/remote";
+import { mergeSessions, type MergeNote } from "./sync/merge";
 import { buildKnockoutStages, buildPlateStages, orphanKnockoutMatchIds, planKnockoutDispatch, playableTies } from "./engine/knockout";
 import {
   mintTeamMatch, nextTeamTie, pairCounts, seedByTable, teamStandings, teamsComplete, waitingPairs,
@@ -562,13 +563,15 @@ export const addWalkInSession = (
   session: Session,
   name: string,
   now: number,
+  /** The id to mint under, when the caller already chose one. */
+  chosenId?: string,
 ): { session: Session; id: string } => {
   const trimmed = name.trim();
   const existing = session.players.find(
     (p) => p.name.trim().toLowerCase() === trimmed.toLowerCase(),
   );
   if (existing) return { session, id: existing.id };
-  const id = `w-${now.toString(36)}-${session.players.length}`;
+  const id = chosenId ?? `w-${now.toString(36)}-${session.players.length}`;
   return {
     id,
     session: {
@@ -666,6 +669,12 @@ export interface CourtView {
 /** How often a phone asks the shared row whether the night has moved. */
 export const FOLLOW_INTERVAL_MS = 4000;
 
+/** One line the shell shows when a merge set something of this phone's aside. */
+export interface SyncNote {
+  id: number;
+  text: string;
+}
+
 export function useManageSession(
   storageKey: string = STORAGE_KEY,
   remote: Pick<ManageRemoteConfig, "instance" | "passcode"> | null = null,
@@ -673,8 +682,28 @@ export function useManageSession(
   const [session, setSession] = useState<Session>(emptySession);
   const [loading, setLoading] = useState(true);
   const [sync, setSync] = useState<SyncStatus>("synced");
+  const [syncNotes, setSyncNotes] = useState<SyncNote[]>([]);
   const storeRef = useRef<SessionStore<Session> | null>(null);
+  /** The first load has landed; before it, the screen holds a placeholder. */
+  const loadedRef = useRef(false);
+  const remoteRef = useRef<RemoteSync<Session> | null>(null);
+  /** Notes a merge produced, waiting for the render that shows the merge. */
+  const pendingNotes = useRef<MergeNote[]>([]);
+  const noteId = useRef(0);
   const remoteKey = remote ? `${remote.instance}:${remote.passcode}` : "";
+
+  /**
+   * A row this phone has not agreed with, applied INSIDE the updater. The
+   * store owns what this phone shows, and React's prev is that same copy,
+   * so merging against prev keeps taps and merges in one order: a tap
+   * queued behind the merge lands on the merged night, and a tap queued
+   * ahead of it is inside the merge. Merging outside and then setting the
+   * state would let a tap in between be saved over the merge and pushed
+   * with the new base, which is the other phone's work gone again.
+   */
+  const takeRow = useCallback((row: Envelope<Session>) => {
+    setSession((prev) => storeRef.current?.reconcile(row, prev, Date.now()) ?? prev);
+  }, []);
 
   useEffect(() => {
     const store = createSessionStore<Session>({
@@ -685,49 +714,105 @@ export function useManageSession(
       // lets a second phone on the same link see the night and follow it.
       remote: remote ? createManageRemote(remote) : null,
       defaults: emptySession,
+      merge: (base, local, row) => {
+        const { state, notes } = mergeSessions(base, local, row);
+        pendingNotes.current.push(...notes);
+        return state;
+      },
+      onRow: takeRow,
       onSyncStatusChange: setSync,
     });
     storeRef.current = store;
+    remoteRef.current = remote ? createManageRemote(remote) : null;
+    loadedRef.current = false;
     void store.load().then(({ state }) => {
       setSession(state);
       setLoading(false);
+      loadedRef.current = true;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey, remoteKey]);
 
   /**
-   * Following. Every few seconds a phone with nothing unsaved asks the row
-   * for news and adopts it if the row is newer than what it holds. A phone
-   * mid-save is left alone: its own push lands first, and the row it then
-   * pulls is its own. The tab must be visible, so a phone in a pocket is
-   * not polling all night.
+   * Following. Every few seconds a phone asks the row for news. A phone
+   * holding unpushed taps pushes first: an accepted push IS the sync, and a
+   * refused one comes back with the row and merges in the same round trip.
+   * A clean phone pulls, and a row it has not agreed with is taken through
+   * the same reconcile. The tab must be visible, so a phone in a pocket is
+   * not polling all night; coming back into view, or back online, asks at
+   * once.
    */
   useEffect(() => {
     if (!remote) return;
     let cancelled = false;
     const tick = async () => {
       const store = storeRef.current;
-      if (!store || document.visibilityState !== "visible") return;
-      // A push in flight means this phone's own copy is about to be the row;
-      // let it land. A phone in "error" still pulls: its push may have been
-      // refused as stale, and the newer row is exactly what it needs.
-      if (store.syncStatus() === "pending") return;
+      const rem = remoteRef.current;
+      if (!store || !rem || !loadedRef.current || document.visibilityState !== "visible") return;
+      if (store.isPushing()) return;
+      if (store.isDirty()) { await store.flush(); return; }
       try {
-        const pulled = await createManageRemote(remote).pull();
-        if (cancelled || !pulled) return;
-        const mine = store.latestSavedAt() ?? 0;
-        if (pulled.savedAt > mine && store.syncStatus() !== "pending") {
-          store.adopt(pulled);
-          setSession(pulled.state);
-        }
+        const row = await rem.pull();
+        if (cancelled || !row) return;
+        // A push that started while the pull was out owns the next word.
+        if (store.isPushing()) return;
+        if (store.isNews(row)) takeRow(row);
       } catch {
         // Offline or refused: the local copy stands, the next tick tries again.
       }
     };
     const id = window.setInterval(() => void tick(), FOLLOW_INTERVAL_MS);
-    return () => { cancelled = true; window.clearInterval(id); };
+    const onVisible = () => { if (document.visibilityState === "visible") void tick(); };
+    const onOnline = () => void tick();
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", onOnline);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", onOnline);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remoteKey]);
+
+  /**
+   * The notes a merge left, put into words once the merged night is on
+   * screen. Worded here rather than in the merge because this is where the
+   * names are.
+   */
+  useEffect(() => {
+    if (pendingNotes.current.length === 0) return;
+    const batch = pendingNotes.current.splice(0);
+    const nameOf = (id: string) => session.players.find((p) => p.id === id)?.name ?? id;
+    const pair = (ids: readonly string[]) => ids.map(nameOf).join(" & ");
+    const word = (n: MergeNote): string => {
+      switch (n.kind) {
+        case "nightReplaced":
+          return "Another phone restarted the night. Your last change was not kept.";
+        case "resultKept": {
+          const who = `${pair(n.kept.teamA)} against ${pair(n.kept.teamB)}`;
+          if (n.kept.status === "voided") return `Court ${n.courtNumber}: another phone voided ${who}. Your score for it was not kept.`;
+          if (n.dropped.status === "voided") return `Court ${n.courtNumber}: another phone scored ${who} ${n.kept.scoreA}-${n.kept.scoreB} first, so your void was not kept. Void it again from the result if that is right.`;
+          return `Court ${n.courtNumber}: another phone scored ${who} ${n.kept.scoreA}-${n.kept.scoreB} first. Your ${n.dropped.scoreA}-${n.dropped.scoreB} was not kept; tap the result to correct it.`;
+        }
+        case "gameDropped":
+          return `Court ${n.courtNumber}: another phone dealt the next game first. The game you dealt was set aside.`;
+        case "walkInFolded":
+          return `${n.name} was added on both phones and is now one player.`;
+        case "fieldKept": {
+          const field = n.field === "courtNumber" ? "court" : n.field === "knockoutPairs" ? "draw"
+            : n.field === "teamsTarget" ? "games per pair" : n.field === "dayLabel" ? "name"
+              : n.field === "targetMatches" ? "target" : n.field;
+          if (n.entity === "player") return `Another phone set ${nameOf(n.id)}'s ${field} first.`;
+          if (n.entity === "court") return `Another phone set Court ${n.id}'s ${field} first.`;
+          return `Another phone changed the night's ${field} first.`;
+        }
+      }
+    };
+    setSyncNotes((prev) => [...prev, ...batch.map((n) => ({ id: ++noteId.current, text: word(n) }))]);
+  }, [session]);
+
+  const dismissSyncNotes = useCallback(() => setSyncNotes([]), []);
 
   /** Every mutation goes through here, so nothing can write without saving. */
   const sessionRef = useRef(session);
@@ -781,9 +866,16 @@ export function useManageSession(
   const addWalkIn = useCallback((name: string): string => {
     // The pure transform decides; this only supplies the clock. See
     // addWalkInSession for why a repeated name hands back the existing id.
-    const { session: next, id } = addWalkInSession(sessionRef.current, name, Date.now());
-    if (next !== sessionRef.current) commit(() => next);
-    return id;
+    // Probed against the current copy for the answer, but WRITTEN through a
+    // functional update: a merge with another phone can be queued ahead of
+    // this tap, and a non-functional update would put the pre-merge night
+    // back over it and push it with the merged base, which is the other
+    // phone's work gone. The id is minted once so both agree on it.
+    const now = Date.now();
+    const probe = addWalkInSession(sessionRef.current, name, now);
+    if (probe.session === sessionRef.current) return probe.id;
+    commit((s) => addWalkInSession(s, name, now, probe.id).session);
+    return probe.id;
   }, [commit]);
 
   /**
@@ -1418,7 +1510,7 @@ export function useManageSession(
   }, [session]);
 
   return {
-    session, loading, sync, views, playerName, knockout, teams,
+    session, loading, sync, syncNotes, dismissSyncNotes, views, playerName, knockout, teams,
     matchesPlayedBy: (id: string) => matchesPlayedBy(session.matches, id),
     setDayLabel, addRosterPlayer, addWalkIn, removePlayer, assignCourt, setTier,
     setCourts, setTarget, extend, start,
