@@ -435,9 +435,12 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
       ? "Saving to the shared night."
       : "No connection. Saved on this phone; it shares again when the connection is back.")
     + (s.syncNotes.length > 0 ? ` ${s.syncNotes[s.syncNotes.length - 1].text}` : "");
-  // A knockout court is never left idle: if a reload landed between a score
-  // and its dispatch, deal the next tie now. dispatchKnockout no-ops when
-  // every court is busy or the draw has nothing playable, so this settles.
+  // A pairing court is never left idle: if a reload landed between a score
+  // and its dispatch, deal the next tie now. Keyed on the night itself, not
+  // the match count, because a merge with another phone can free a court
+  // (its score arrives for a game this phone still had live) without the
+  // count moving. Both dispatchers no-op when every court is busy or
+  // nothing can go on, so this settles after one pass.
   useEffect(() => {
     if (s.session.status !== "running") return;
     if (s.session.format === "knockout") s.dispatchKnockout();
@@ -446,7 +449,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
       else if (s.session.teamsEnding == null) s.dispatchTeams();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.session.format, s.session.status, s.session.matches.length, s.session.teamsEnding]);
+  }, [s.session]);
   // Named only on the second manager, on the door and at home, so two tabs on
   // one phone can be told apart. Once a night is running the court header is
   // the operator's bearings and the URL is the instance.
