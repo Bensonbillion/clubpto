@@ -821,6 +821,11 @@ export function useManageSession(
   const commit = useCallback((next: (s: Session) => Session) => {
     setSession((prev) => {
       const updated = next(prev);
+      // A transform that changed nothing saves nothing: the dispatchers run
+      // after every change to the night and mostly find every court busy,
+      // and a save here would push an identical copy, mint a new version,
+      // and wake every other phone into doing the same, forever.
+      if (updated === prev) return prev;
       storeRef.current?.save(updated, Date.now());
       return updated;
     });
