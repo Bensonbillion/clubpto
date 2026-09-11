@@ -14,7 +14,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSessionStore, type Envelope, type RemoteSync, type SessionStore, type SyncStatus } from "@/court-manager/persistence";
 import type { Court, CourtNumber, KnockoutPair, Match, NightFormat, Player, PlayerTier, ScheduleSlot, Session } from "./types";
-import { buildQueue, lawContextFor, nextMatch, courtComplete, matchesPlayedBy, totalMatches } from "./engine/rotation";
+import { buildQueue, explainMatch, lawContextFor, nextMatch, courtComplete, matchesPlayedBy,
+  totalMatches, type MatchReason } from "./engine/rotation";
 import { canFieldACMatch, designateB, tierOf as tierOfPlayer } from "./engine/tiers";
 import { legalSubstitutes, swapIntoMatch } from "./engine/substitutes";
 import { computeStandings, type PlayedMatch, type StandingsRow } from "./engine/standings";
@@ -225,6 +226,36 @@ export function scheduleFor(session: Session, court: Court): ScheduleSlot[] {
   const rows = projectCard(session, court);
   forSession.set(key, rows);
   return rows;
+}
+
+/**
+ * Frame 11's answer for the four on court, worked out once per session.
+ *
+ * explainMatch with a target REPLAYS the draw (see pickerNote in
+ * engine/rotation.ts), which is a full scan of every four in the queue plus
+ * the mixing oracle: 51 ms on the Wednesday roster at twelve A's and eight
+ * B's, 118 ms at fourteen and ten. The frame is modal, so it was paying that
+ * on every render while it sat open, sync ticks included. Same argument as
+ * the cards above: a Session is immutable, so the answer for one session,
+ * one court and one four cannot change (2026-09-11).
+ */
+const reasons = new WeakMap<Session, Map<string, MatchReason>>();
+
+export function reasonFor(
+  session: Session,
+  court: Court,
+  teamA: readonly [string, string],
+  teamB: readonly [string, string],
+): MatchReason {
+  const key = `${court.number}:${court.targetMatches}:${[...teamA, ...teamB].join(",")}`;
+  let forSession = reasons.get(session);
+  if (!forSession) { forSession = new Map(); reasons.set(session, forSession); }
+  const hit = forSession.get(key);
+  if (hit) return hit;
+  const reason = explainMatch(
+    session.players, session.matches, court.number, teamA, teamB, court.targetMatches);
+  forSession.set(key, reason);
+  return reason;
 }
 
 /**

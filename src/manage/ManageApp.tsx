@@ -25,12 +25,12 @@
 import { useMemo, useEffect, useState } from "react";
 import { ensureManageFonts } from "./ui/fonts";
 import { applyInstanceAccent, Body, DangerButton, PrimaryButton, Screen, SecondaryButton, Sheet, T, TabBar, Tag, TertiaryButton, type Tab } from "./ui/primitives";
-import { recordedResultCount, storageKeyFor, useManageSession } from "./useSession";
+import { reasonFor, recordedResultCount, storageKeyFor, useManageSession } from "./useSession";
 import { useRoster } from "./roster/useRoster";
 import { appearsInAMatch } from "./engine/roster-guard";
 import { dedupeWalkIn } from "./roster/merge";
 import {
-  bench, courtSpread, explainMatch, forcedMixing, lawContextFor, unfinishableCourt,
+  bench, courtSpread, forcedMixing, lawContextFor, unfinishableCourt,
   validTargets, totalMatches,
 } from "./engine/rotation";
 import { legalSubstitutes, strandedPlayers } from "./engine/substitutes";
@@ -1136,9 +1136,17 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           // here is whatever the split seeded, which a drag can leave behind:
           // when the court's size no longer takes it, the suggestion for the
           // size as it stands is used instead and the note says so.
+          // The headcount here is who can actually be dealt a game, away
+          // players left out, because forcedMixing, unfinishableCourt and
+          // strandedPlayers all price the court that way. Read off the chips
+          // instead, a court holding somebody marked away would be judged at
+          // a target its playable headcount does not divide into, and these
+          // two notes quote numbers rather than just naming a court.
+          const playableHere = s.session.players
+            .filter((p) => p.courtNumber === c.courtNumber && !p.away).length;
           const chosen = s.session.courts.find((x) => x.number === c.courtNumber)?.targetMatches;
-          const fits = chosen != null && validTargets(c.players.length).includes(chosen);
-          const target = fits ? chosen : suggestTarget(c.players.length);
+          const fits = chosen != null && validTargets(playableHere).includes(chosen);
+          const target = fits ? chosen : suggestTarget(playableHere);
           const bend = target == null ? null : forcedMixing(s.session.players, c.courtNumber, target);
           if (bend) {
             splitNotes.push({
@@ -2482,12 +2490,11 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           courtNumber={courtNumber}
           // engine/rotation.ts decided who is on and why. This reads its answer
           // back for the four already on court; nothing is worked out here.
-          // The target goes with it so the engine can replay its own draw and
+          // The court goes with it so the engine can replay its own draw and
           // hand back who the third law held back, which the match row on its
-          // own cannot know.
-          reason={explainMatch(
-            s.session.players, s.session.matches, courtNumber, live.teamA, live.teamB,
-            view.court.targetMatches)}
+          // own cannot know. Through useSession so the replay is worked out
+          // once a session rather than on every render of an open frame.
+          reason={reasonFor(s.session, view.court, live.teamA, live.teamB)}
           onDismiss={() => here({ pane: "match" })}
         />
         {overlays}

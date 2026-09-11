@@ -96,6 +96,42 @@ describe("the first card stays true", () => {
     expect(leastPlayedWords(held)).not.toContain("had played the fewest games");
   });
 
+  it("names the other reason a four is passed over, when the four leaves nothing dealable", () => {
+    // The cost has two terms. Usually the fairer four charges an A a second
+    // game with the B's, now or later, and the sentence says so. Sometimes
+    // it prices higher only because the seats it leaves cannot be dealt out
+    // into whole lawful games, and somebody would finish short. Naming the
+    // third law there tells a player the wrong rule. Reached on the walk-in
+    // and leaver sweep, 47 draws of about five hundred held-back ones.
+    const held = reasonOf({
+      mixing: {
+        kind: "pure",
+        aPlayers: ["Benson", "Timi", "Ade", "Sam"].map((name) => ({ name, bGames: 1 })),
+        heldBack: [{ name: "Ese" }],
+        heldBackBy: "unfinished",
+      },
+    });
+    expect(leastPlayedWords(held)).toBe(
+      "Benson, Timi, Ade and Sam are on. Ese had played fewer, but putting them on would"
+      + " have left somebody short of their games, so they wait a round.",
+    );
+    expect(leastPlayedWords(held)).not.toContain("second game with the B's");
+  });
+
+  it("the two lists on the screen name the same four in the same order", () => {
+    // Frame 11's first card reads `leastPlayed` and its fourth reads the
+    // A's off the mixing note. Both are on one screen, so a four listed
+    // "A3, A4, A5 and A6" up top and "A3, A6, A4 and A5" underneath reads
+    // as arbitrary. The picker built its list from the lineup until
+    // 2026-09-11; it is the queue's order now, which is what the first
+    // card uses.
+    const shown = frameElevenAt(roster(6, 2), 4, (r) => r.mixing.aPlayers.length >= 3);
+    expect(shown).not.toBeNull();
+    const upTop = shown!.leastPlayed.map((p) => p.name)
+      .filter((n) => shown!.mixing.aPlayers.some((a) => a.name === n));
+    expect(shown!.mixing.aPlayers.map((a) => a.name)).toEqual(upTop);
+  });
+
   it("reaches the screen: a real held-back draw read back through explainMatch", () => {
     // Six A's and six B's at four each. The third game is the first the cap
     // reorders: two B's on no games at all wait a round, because dealing

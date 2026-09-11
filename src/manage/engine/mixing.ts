@@ -27,6 +27,9 @@
 // rest of the night. With it the oracle hands the extra seats out by CLASS
 // (which tier, how many B games for an A, bridge or not for a B) and takes
 // the cheapest way, which is exactly what the picker is about to do anyway.
+// Those invented seats fill the seat equations and nothing else: the law
+// the court runs under is read off the OWED totals, because that is what
+// lawfulFour reads, and deficit() says why at length.
 //
 // Pure. No clock, no log, no ids: the state is counts per player and the
 // answer is a number, so the picker can memoise it by class and two courts,
@@ -103,7 +106,28 @@ const sumOwed = (xs: readonly { owed: number }[]) => xs.reduce((n, x) => n + x.o
  */
 export function deficit(state: MixingState): number {
   if (state.slack < 0) return Infinity;
-  if (state.slack === 0) return exact(state.as, state.bs, state.cs, state);
+  // The regime the picker will actually run under, read off the OWED totals
+  // and nothing else. lawfulFour derives strict against soft from exactly
+  // these two parities, and a game only ever moves them by the number of
+  // OWED players it seats: a seat spent by somebody already at target
+  // leaves them where they were, because owed is clamped at zero. So the
+  // padding below must not be allowed to flip them. It used to: handing one
+  // slack seat to an A and one to a B made both totals odd, the counting
+  // read soft off the padded state and priced a (1,3) game the live court
+  // would have called sidesUnequal. That is where the cap came off after a
+  // walk-in on a court with beginners (2026-09-11).
+  //
+  // A slack seat CAN flip a parity for real, once the at-target player who
+  // spends it walks on, and a finish that plays one early is sometimes
+  // cheaper than anything counted here. This takes the pessimistic reading
+  // anyway. The picker follows this number one draw at a time, so what it
+  // must never do is promise a finish the next draw cannot deliver: a
+  // price of zero is read as a hard cap. Counting the slack turns as
+  // available was measured on the walk-in and leaver sweep and put the cap
+  // back off on fifteen of 2,244 nights, where refusing them breaks none.
+  const law = { headcountLaw: state.headcountLaw, relaxed: state.relaxed,
+                pa: sumOwed(state.as) % 2, pb: sumOwed(state.bs) % 2, slackOnC: 0 };
+  if (state.slack === 0) return exact(state.as, state.bs, state.cs, law);
 
   // The slack seats go out by class, each to the member of that class with
   // the fewest seats already (an at-target player of the class when there
@@ -132,7 +156,17 @@ export function deficit(state: MixingState): number {
         else if (cls.tier === "B") bs = padded(bs, (b) => b.bridge === cls.bridge, counts[c]);
         else cs = padded(cs, () => true, counts[c]);
       });
-      best = Math.min(best, exact(as, bs, cs, state));
+      // The same reading for the C games that turn the B parity over. One
+      // of them seats a single B, and it only moves the live court if that
+      // B is OWED a game. A slack seat handed to the B who rides with the
+      // beginners can fill one of those seats instead, so that many of
+      // them are assumed not to count.
+      let slackOnC = 0;
+      classes.forEach((cls, c) => {
+        if (cls.tier !== "B") return;
+        if (state.relaxed || cls.bridge) slackOnC += counts[c];
+      });
+      best = Math.min(best, exact(as, bs, cs, { ...law, slackOnC }));
       return;
     }
     for (let n = left; n >= 0; n--) {
@@ -173,7 +207,8 @@ function exact(
   as: readonly MixingA[],
   bs: readonly MixingB[],
   cs: readonly MixingC[],
-  law: { headcountLaw: "free" | "bound"; relaxed: boolean },
+  law: { headcountLaw: "free" | "bound"; relaxed: boolean; pa: number; pb: number;
+         slackOnC: number },
 ): number {
   const SA = sumOwed(as);
   const SB = sumOwed(bs);
@@ -181,8 +216,9 @@ function exact(
   if ((SA + SB + SC) % 4 !== 0) return Infinity;
   const free = law.headcountLaw === "free";
   const hasBridge = bs.some((b) => b.bridge);
-  const pa = SA % 2;
-  const pb = SB % 2;
+  // The live court's parities, handed down from deficit(). Not SA % 2 and
+  // SB % 2: those count the slack seats, which the law never sees.
+  const { pa, pb } = law;
 
   // The C shapes first. Each choice fixes how many B seats the C games take,
   // how many of those games flip the B parity (an odd number of B seats),
@@ -211,9 +247,11 @@ function exact(
     // The parity automaton for the (1,3) shape. A strict court (both owed
     // totals even) never deals one and nothing without a flip gets it out
     // of strict; a soft court with both totals odd deals exactly one and
-    // lands in strict; any flip (a C game with an odd number of B seats)
-    // or the free law leaves the count open.
-    const m13Max = free || shape.flips > 0 || pa !== pb ? SA
+    // lands in strict; any flip, or the free law, leaves the count open.
+    // A flip is a C game whose one B seat is filled by a B who is OWED the
+    // game, so the slack seats handed to those B's come off the count.
+    const flips = Math.max(0, shape.flips - law.slackOnC);
+    const m13Max = free || flips > 0 || pa !== pb ? SA
       : pa === 0 ? 0 : 1;
     const m31Max = free ? Math.floor(SA / 3) : 0;
     for (let m31 = 0; m31 <= m31Max; m31++) {

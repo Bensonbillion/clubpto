@@ -774,6 +774,36 @@ describe("an A has one game with the B's, and never a second", () => {
     }
   });
 
+  it("a change mid-night on a court with beginners still costs no A a second game", () => {
+    // The nights the cap came off on, found by sweeping walk-ins and
+    // leavers over every court the room can field (2026-09-11). All three
+    // hold C's, and that is the point: a C game seats one B, which turns
+    // the B parity over and is what lets the A's meet the B's one at a
+    // time. The oracle counted those turns off the padded card, where the
+    // slack seats a walk-in leaves are owed games rather than spare ones,
+    // so it promised a finish the live court could not deal and the picker
+    // walked into it. Priced off the owed totals, all three finish clean.
+    const cases = [
+      { r: roster(6, 3, 3), target: 5, at: 5, change: "an A walks in" as const },
+      { r: roster(5, 4, 3), target: 4, at: 5, change: "a B leaves" as const },
+      { r: roster(9, 4, 3), target: 4, at: 7, change: "a B leaves" as const },
+    ];
+    for (const { r, target, at, change } of cases) {
+      const label = `${r.length} players T${target}, ${change} before game ${at}`;
+      const run = runWith(r, target, at, (ps) => (change === "an A walks in"
+        ? [...ps, P("late", { tier: "A", walkIn: true, joinedAtMatchIndex: at })]
+        : ps.map((p) => (p.id === "b1" ? { ...p, away: true } : p))));
+      // Nobody short, and the games past the target add up to exactly the
+      // seats the card could not divide into fours. Who takes them is the
+      // picker's own business and older than this rule: on the first of
+      // these all three land on one player.
+      const over = run.counts.reduce((n, c) => n + (c - target), 0);
+      expect(run.counts.every((c) => c >= target), `${label}: ${run.counts.join(",")}`).toBe(true);
+      expect(over, `${label}: ${run.counts.join(",")}`).toBe(run.extraSeats);
+      expect(worstA(run.players, run.matches), label).toBeLessThanOrEqual(1);
+    }
+  });
+
   it("the cap costs nobody a game: the night still ends with everyone on target", () => {
     // Where the rule cannot be kept at all, it bends rather than the night
     // breaking: six A's and two B's at four each need eight A seats across the

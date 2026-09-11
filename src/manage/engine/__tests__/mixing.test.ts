@@ -360,6 +360,58 @@ describe("deficit: slack, the walk-in's signature", () => {
     expect(bruteForce(players, 1, false, true)).toBe(4);
   });
 
+  it("the slack seats do not buy the soft law: eight A's and three B's stay strict", () => {
+    // Eight A's owed two, half of them already charged once, three B's owed
+    // two, and a card two seats long: 8A/4B at three each after a B leaves
+    // before game four. The owed totals are sixteen and six, both even, so
+    // lawfulFour calls the court strict at this draw and the A-with-three-
+    // B's game is unlawful. Handing one slack seat to an A and one to a B
+    // made both PADDED totals odd, the counting read soft off them, and the
+    // oracle priced the rest of the night at 1. The picker then spent 2.
+    //
+    // The three numbers below are the whole argument for the pessimistic
+    // reading. A finish at zero does exist: play the A's until one of them
+    // is at target, spend their slack seat in a pure game of A's to turn
+    // the A parity over, and the court is soft for two games with three B's
+    // in them. No greedy following a one-draw price finds it, and an oracle
+    // that promises it hands the picker a cap it cannot keep. So the oracle
+    // prices what the next draw can actually deliver (2026-09-11).
+    const players: Sim[] = [
+      ...[0, 1, 2, 3].map((i) => ({ id: `a${i}`, tier: "A" as const, owed: 2, bGames: 1, bridge: false })),
+      ...[4, 5, 6, 7].map((i) => ({ id: `a${i}`, tier: "A" as const, owed: 2, bGames: 0, bridge: false })),
+      ...[0, 1, 2].map((i) => ({ id: `b${i}`, tier: "B" as const, owed: 2, bGames: 0, bridge: false })),
+    ];
+    const state = stateOf(players, "bound", true);
+    expect(state.slack).toBe(2);
+    expect(deficit(state)).toBe(2);
+    // What the padded parities used to say, and what a finish that can
+    // schedule its slack seats freely could reach.
+    expect(paddedBruteForce(players, 2, false, true)).toBe(1);
+    expect(bruteForce(players, 2, false, true)).toBe(0);
+  });
+
+  it("a C game only turns the B parity over when the B in it is owed a game", () => {
+    // Three games from the end of six A's, three B's and three C's at five
+    // each with an A walking in: two A's owed one, two B's owed two, the
+    // three C's owed one, five A's and the bridge already at target. The
+    // C's can only play the bridge, who is at target, so that game spends a
+    // slack seat and the owed B total does not move. Counting it as a turn
+    // unlocked the A-with-three-B's game, the oracle called the rest of the
+    // night free, and the picker dealt the last game at a charge of two
+    // anyway. That was the cap coming off on a court with beginners.
+    const players: Sim[] = [
+      ...[0, 1].map((i) => ({ id: `a${i}`, tier: "A" as const, owed: 1, bGames: 0, bridge: false })),
+      ...[2, 3, 4, 5, 6].map((i) => ({ id: `a${i}`, tier: "A" as const, owed: 0, bGames: 1, bridge: false })),
+      { id: "bridge", tier: "B" as const, owed: 0, bGames: 0, bridge: true },
+      ...[1, 2].map((i) => ({ id: `b${i}`, tier: "B" as const, owed: 2, bGames: 0, bridge: false })),
+      ...[0, 1, 2].map((i) => ({ id: `c${i}`, tier: "C" as const, owed: 1, bGames: 0, bridge: false })),
+    ];
+    const state = stateOf(players, "bound", false);
+    expect(state.slack).toBe(3);
+    expect(deficit(state)).toBe(2);
+    expect(bruteForce(players, 3, false, false)).toBe(1);
+  });
+
   it("a four with an at-target player is Infinity when there is no slack to spend", () => {
     const base: Seat[] = [
       { tier: "A", owed: 1 }, { tier: "A", owed: 1 }, { tier: "A", owed: 0 },
@@ -394,6 +446,13 @@ describe("deficit against the real judge, every lawful sequence dealt", () => {
   ) => {
     const rng = seeded(seed);
     const mismatches: string[] = [];
+    // Which way a mismatch falls is the whole safety question. The picker
+    // treats a price of zero as a hard cap, so an oracle that asks LESS
+    // than the live law needs walks the night into a wall, while one that
+    // asks more only prices a four high and picks another. The two are
+    // kept apart so a test can forbid one and merely count the other.
+    const under: string[] = [];
+    const over: string[] = [];
     const tally = { zero: 0, positive: 0, infinite: 0, withC: 0, free: 0 };
     for (let n = 0; n < count; n++) {
       const { players, state, free, relaxed } = randomState(rng, maxOwed, minOwed, slack);
@@ -405,11 +464,13 @@ describe("deficit against the real judge, every lawful sequence dealt", () => {
       if (state.cs.length > 0) tally.withC++;
       if (free) tally.free++;
       if (claim !== truth) {
-        mismatches.push(`#${n} oracle ${claim} brute ${truth} slack ${state.slack} ${free ? "free" : "bound"} `
-          + `${relaxed ? "relaxed" : "C-law"} ${show(players)}`);
+        const line = `#${n} oracle ${claim} brute ${truth} slack ${state.slack} ${free ? "free" : "bound"} `
+          + `${relaxed ? "relaxed" : "C-law"} ${show(players)}`;
+        mismatches.push(line);
+        (claim < truth ? under : over).push(line);
       }
     }
-    return { mismatches, tally };
+    return { mismatches, under, over, tally };
   };
 
   it("agrees with the live law on 400 seeded courts of up to nine owed seats and no slack, with and without C's", () => {
@@ -430,46 +491,51 @@ describe("deficit against the real judge, every lawful sequence dealt", () => {
     expect(tally.positive).toBeGreaterThanOrEqual(10);
   }, 120_000);
 
-  it("with slack, agrees with the brief's model on 400 seeded courts: seats out by class, then the live law", () => {
-    // A walk-in or a leaver leaves one or two seats for people at target.
-    // The oracle hands them out by class before counting, and this is that
-    // hand-out done the long way: every class multiset, the level hand-out
-    // within each class, then the real judge on the padded court.
-    const { mismatches, tally } = compare(1, 400, 9, 1, "some", paddedBruteForce);
+  it("with slack, agrees with the live law on 400 seeded courts: a walk-in's or a leaver's seats", () => {
+    // A walk-in or a leaver leaves one or two seats for people at target,
+    // and the oracle hands them out by class before it counts. What it is
+    // measured against is the LIVE law, dealt seat by seat, because that is
+    // the court lawfulFour runs. Until 2026-09-11 it was measured against
+    // the padded court instead, which reads its own parities off the seats
+    // it invented and calls soft where the live court calls strict.
+    const { mismatches, tally } = compare(1, 400, 9, 1, "some", bruteForce);
     expect(mismatches).toEqual([]);
     expect(tally.zero).toBeGreaterThanOrEqual(40);
     expect(tally.positive).toBeGreaterThanOrEqual(25);
     expect(tally.withC).toBeGreaterThanOrEqual(40);
-    const deeper = compare(2, 150, 12, 10, "some", paddedBruteForce);
-    expect(deeper.mismatches).toEqual([]);
-    expect(deeper.tally.zero).toBeGreaterThanOrEqual(20);
-    expect(deeper.tally.positive).toBeGreaterThanOrEqual(40);
   }, 120_000);
 
-  it("with slack, the live law dealt seat by seat mostly agrees, and the rest is a known approximation", () => {
-    // The padded court counts the slack seats in its parities from the
-    // start; the live court in lawfulFour counts a seat only once an
-    // at-target player has spent it, so the two can call strict and soft
-    // at different moments. Measured with the anybody-at-all courts alone
-    // on 2,338 slack states of nine and twelve seats: 47 where the oracle
-    // asks more than the live law needs, 2 where it asks less, and none at
-    // all where slack is 0. On this batch it is 2 of 400. The brief accepts
-    // this (the critics measured the greedy on the Wednesday walk-in and
-    // leaver cases with this model), so the test pins the rate rather than
-    // pretending it is zero.
-    const { mismatches } = compare(1, 400, 9, 1, "some", bruteForce);
-    expect(mismatches.length).toBeLessThanOrEqual(400 * 0.05);
-  }, 60_000);
+  it("and where it does not, it asks for MORE than the live law needs, never less", () => {
+    // Deeper courts, ten to twelve owed seats with slack on top. The
+    // hand-out by class is still a model rather than the night itself, so
+    // it is not exact here: measured at 2 of 150 on this batch and 4 of
+    // 600 on a wider one, every one of them the oracle pricing a finish
+    // above what the live law can do. That direction is the safe one and
+    // the test is about the direction: a price of zero is a hard cap, so
+    // an oracle that asks less than the night needs deals a four that
+    // cannot be finished without charging somebody. The padded parities
+    // used to ask less, which is how the cap came off on a C court after a
+    // walk-in (2026-09-11).
+    const deeper = compare(2, 150, 12, 10, "some", bruteForce);
+    expect(deeper.under).toEqual([]);
+    expect(deeper.over.length).toBeLessThanOrEqual(150 * 0.05);
+    expect(deeper.tally.positive).toBeGreaterThanOrEqual(40);
+    const wider = compare(99, 600, 9, 1, "some", bruteForce);
+    expect(wider.under).toEqual([]);
+    expect(wider.over.length).toBeLessThanOrEqual(600 * 0.05);
+  }, 180_000);
 });
 
-describe("where the padded model and the live law part ways", () => {
-  // Pinned so the approximation is a fact in the suite, not folklore.
-  it("a court that owes six seats with a B at target: the oracle asks Infinity, the live law finishes for 1", () => {
+describe("the parities the live court runs on, not the ones the padding invents", () => {
+  // Two courts that used to be read off the invented seats, pinned as the
+  // live law's own answers now.
+  it("a court that owes six seats with a B at target finishes for 1, and the padded reading said it could not", () => {
     // An A owed two who has not met the B's, B's owed 2, 1, 1, 1 and a B at
-    // target. Padded either way the parities come out where one (1,3)
-    // game is not enough and two are not allowed; dealt live, the B at
-    // target spends the slack seat in the second (1,3) game while the
-    // owed totals still read soft.
+    // target. Padded either way the parities come out where one (1,3) game
+    // is not enough and two are not allowed, so the padded reading called
+    // the court hopeless. Live, the owed totals are 2 and 5, one of them
+    // odd, so the court is soft and stays soft, and the A meets the B's
+    // twice for a price of 1.
     const players: Sim[] = [
       { id: "a", tier: "A", owed: 2, bGames: 0, bridge: false },
       { id: "b1", tier: "B", owed: 2, bGames: 0, bridge: false },
@@ -480,16 +546,18 @@ describe("where the padded model and the live law part ways", () => {
     ];
     const state = stateOf(players, "bound", true);
     expect(state.slack).toBe(1);
-    expect(deficit(state)).toBe(Infinity);
+    expect(deficit(state)).toBe(bruteForce(players, 1, false, true));
+    expect(deficit(state)).toBe(1);
     expect(paddedBruteForce(players, 1, false, true)).toBe(Infinity);
-    expect(bruteForce(players, 1, false, true)).toBe(1);
   });
 
-  it("four on a court, two at target: the oracle prices the last game at 1, the live law cannot deal it", () => {
+  it("four on a court, two at target: nothing can be dealt, and the padded reading priced it at 1", () => {
     // Two B's owed one, an A and a B at target. Padded, the A's seat and
     // the B's seat make the parities odd and the (1,3) game is soft and
-    // lawful. Live, the owed totals are 0 and 2, both even, so lawfulFour
-    // calls it strict and the same four is unlawful.
+    // lawful, so the oracle offered the picker a last game at a price of
+    // one. Live, the owed totals are 0 and 2, both even, so lawfulFour
+    // calls it strict and that same four is unlawful: there is no game
+    // here at all, which is what the oracle now says.
     const players: Sim[] = [
       { id: "a", tier: "A", owed: 0, bGames: 1, bridge: false },
       { id: "b1", tier: "B", owed: 1, bGames: 0, bridge: false },
@@ -498,9 +566,9 @@ describe("where the padded model and the live law part ways", () => {
     ];
     const state = stateOf(players, "bound", true);
     expect(state.slack).toBe(2);
-    expect(deficit(state)).toBe(1);
+    expect(deficit(state)).toBe(bruteForce(players, 2, false, true));
+    expect(deficit(state)).toBe(Infinity);
     expect(paddedBruteForce(players, 2, false, true)).toBe(1);
-    expect(bruteForce(players, 2, false, true)).toBe(Infinity);
   });
 });
 

@@ -89,6 +89,23 @@ describe("the night the numbers bend the rule", () => {
     );
   });
 
+  it("one A on the court is one A, not every A", () => {
+    // A single A among B's is an ordinary split. The first sentence already
+    // singularised it, the second did not, so 116 of the 557 courts that
+    // emit this note printed "One A ... needs three seats" and then "Every A
+    // meets the B's more than once" about the same person. That A takes
+    // every seat the sentence just counted, so it says how many.
+    const players = court(1, 7);
+    expect(forcedMixing(players, 1, 3)).toEqual({
+      aCount: 1, target: 3, seats: 3, secondGames: 2,
+    });
+    expect(words(players, 3)).toBe(
+      "One A at three each on Court 1 needs three seats across the net from the B's."
+      + " That A meets the B's three times.",
+    );
+    expect(words(players, 3)).not.toContain("Every A");
+  });
+
   it("names the target as a suggestion while it still is one", () => {
     // The split step comes before the target step, so the number on screen
     // is whatever the split seeded until the operator has chosen.

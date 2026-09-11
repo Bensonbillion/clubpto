@@ -183,6 +183,17 @@ export interface MixingNote {
    * draw when it is given the court's target; see pickerNote.
    */
   heldBack: { name: string }[];
+  /**
+   * Why they waited, read only when heldBack has names in it. "secondGame"
+   * is the ordinary answer: the four they were in would have charged an A a
+   * second game with the B's, this game or later tonight. "unfinished" is
+   * the other one: that four priced higher only because the seats it left
+   * behind cannot be dealt out into whole lawful games, so somebody would
+   * have finished short. Carries the ordinary answer on a draw that held
+   * nobody back, where nothing reads it, and is absent on a note read back
+   * off the log, where heldBack is empty by design.
+   */
+  heldBackBy?: "secondGame" | "unfinished";
 }
 
 /**
@@ -367,6 +378,15 @@ const fairerThan = (k: readonly number[], b: readonly number[]) => {
   return false;
 };
 
+/**
+ * The price of a four the oracle cannot finish the seats behind. Large
+ * enough that it ranks below any four that can be finished, and small
+ * enough that the charge still separates two that cannot: when nothing
+ * fits, the second games still spread. The held-back note reads it too, to
+ * tell apart the two reasons a fairer four can be passed over.
+ */
+const NO_FINISH = 1e6;
+
 function lawfulFour(
   queue: readonly QueueEntry[],
   ctx: LawContext,
@@ -486,10 +506,6 @@ function lawfulFour(
     };
     const base = classIds.size;
     const memo = new Map<number, number>();
-    // Large enough that a four the oracle cannot finish the seats behind
-    // ranks below any it can, and small enough that the charge still
-    // separates two it cannot: when nothing fits, the seconds still spread.
-    const BIG = 1e6;
     charge = (ids) => {
       if (!ids.some((id) => seatOf.get(id)?.tier === "B")) return 0;
       let sum = 0;
@@ -519,7 +535,7 @@ function lawfulFour(
         else after.slack -= 1;
         if (seat.tier === "A" && mixes) after.as[seat.at].bGames += 1;
       }
-      const price = charge!(ids) + Math.min(deficit(after), BIG);
+      const price = charge!(ids) + Math.min(deficit(after), NO_FINISH);
       memo.set(key, price);
       return price;
     };
@@ -565,6 +581,7 @@ function lawfulFour(
   const chosenVector = playedVector(played, ids);
   const headVector = playedVector(played, queue.slice(0, 4).map((e) => e.playerId));
   let heldBack: MixingNote["heldBack"] = [];
+  let heldBackBy: MixingNote["heldBackBy"] = "secondGame";
   if (cost && fairerThan(headVector, chosenVector)) {
     const fairest = chooseFour(queue.map((e) => e.playerId), lawCtx, options);
     if (fairest) {
@@ -574,13 +591,29 @@ function lawfulFour(
         heldBack = queue
           .filter((e) => fairIds.includes(e.playerId) && !chosenSet.has(e.playerId) && e.matchesPlayed < most)
           .map((e) => ({ name: e.name }));
+        // Which of the two terms in the cost passed that four over. Usually
+        // the charge: dealing it puts an A in with the B's a second time,
+        // now or later in the night. Sometimes only the lookahead: the four
+        // leaves seats that cannot be dealt out at all, and somebody would
+        // finish short of their games. Measured on the walk-in and leaver
+        // sweep, 47 draws of about five hundred held-back ones, so the
+        // frame is given both rather than one sentence for both.
+        if (heldBack.length > 0 && cost(fairIds) >= NO_FINISH && cost(ids) < NO_FINISH) {
+          heldBackBy = "unfinished";
+        }
       }
     }
   }
   // The A's with the count each carried INTO this four, which is what lets
-  // the card name the game rather than guess at it.
+  // the card name the game rather than guess at it. IN QUEUE ORDER, not the
+  // order of the lineup: frame 11 lists the same four people twice on one
+  // screen, once from `leastPlayed` and once from here, and explainMatch's
+  // own fallback reads them off the queue. Built from the lineup until
+  // 2026-09-11, so the two lists jumbled the same names differently.
+  const inQueue = new Map(queue.map((e, i) => [e.playerId, i]));
   const aPlayers: MixingMember[] = four
     .filter((e) => tierHere(e.playerId) === "A")
+    .sort((x, y) => (inQueue.get(x.playerId) ?? 0) - (inQueue.get(y.playerId) ?? 0))
     .map((e) => ({ name: e.name, bGames: bGames.get(e.playerId) ?? 0 }));
   const mixes = four.some((e) => tierHere(e.playerId) === "B");
   const kind: MixingKind = aPlayers.length === 0 ? "noAs"
@@ -590,7 +623,7 @@ function lawfulFour(
 
   return { four, teamA: [...chosen.lineup.teamA] as [string, string],
            teamB: [...chosen.lineup.teamB] as [string, string], swap,
-           mixing: { kind, aPlayers, heldBack } };
+           mixing: { kind, aPlayers, heldBack, heldBackBy } };
 }
 
 /**

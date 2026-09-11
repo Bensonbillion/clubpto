@@ -77,10 +77,18 @@ export const noteWords = (note: SplitNote): string => {
       const who = note.aCount === 1
         ? `One A ${each} on Court ${note.courtNumber} needs`
         : `${startsSentence(countWord(note.aCount))} A's ${each} on Court ${note.courtNumber} need`;
-      const bend = note.secondGames <= note.aCount
-        ? `${startsSentence(countWord(note.secondGames))} `
-          + `${note.secondGames === 1 ? "A meets" : "A's meet"} the B's twice.`
-        : "Every A meets the B's more than once.";
+      // One A on the court is an ordinary split, not a corner, and "Every A"
+      // about one person reads as a template showing through. That A takes
+      // every seat the note just counted, so the sentence says how many
+      // rather than how many of them there are (2026-09-11).
+      const bend = note.aCount === 1
+        ? note.seats === 2
+          ? "That A meets the B's twice."
+          : `That A meets the B's ${countWord(note.seats)} times.`
+        : note.secondGames <= note.aCount
+          ? `${startsSentence(countWord(note.secondGames))} `
+            + `${note.secondGames === 1 ? "A meets" : "A's meet"} the B's twice.`
+          : "Every A meets the B's more than once.";
       return `${who} ${countWord(note.seats)} seats across the net from the B's. ${bend}`;
     }
     case "capStuck": {

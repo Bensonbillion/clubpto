@@ -37,11 +37,11 @@ arrived on 2026-09-10: an A plays ONE game with the B's a night and never a
 second, counted per session across courts, with unassessed counting as B.
 Wherever the seats can still be finished with nobody meeting the B's twice it
 is a hard cap, the one thing allowed to hold a least-played player back a
-game, and every A still gives their one game rather than none. Where the
-numbers cannot keep it (six A's at four each with two B's owe the B's eight
-seats across the net), `engine/mixing.ts` prices the night so the second
-games are spread over different A's, and the split screen names the bend
-before anyone plays. The picker
+game, and where the seats allow it every A gives their one game rather than
+none. Where the numbers cannot keep it (six A's at four each with two B's owe
+the B's eight seats across the net), `engine/mixing.ts` prices the night so
+the second games are spread over different A's, and the split screen names
+the bend before anyone plays. The picker
 in `engine/rotation.ts` then prefers four people who have not shared a court
 yet, spreads the mixed games around, and keeps the designated B for the
 beginners while they still owe games. The rotation test replays the

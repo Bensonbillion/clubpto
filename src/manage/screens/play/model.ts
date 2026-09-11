@@ -118,8 +118,16 @@ export const leastPlayedWords = (reason: MatchReason): string => {
   // this branch comes from the picker's own account of the four and never
   // from a match read back off the log, where the list is empty by design.
   if (held.length > 0) {
+    // Two reasons a fairer four is passed over, and they are different
+    // sentences to the player who asked. Usually the four would have put an
+    // A in with the B's a second time. Sometimes it only leaves seats
+    // nobody can deal out, and saying "a second game with the B's" there
+    // would name the wrong rule to somebody sitting down (2026-09-11).
+    const why = reason.mixing.heldBackBy === "unfinished"
+      ? "would have left somebody short of their games"
+      : "would have cost an A a second game with the B's";
     return `${names} are on. ${joinNames(held.map((p) => p.name))} had played fewer, but putting`
-      + " them on would have cost an A a second game with the B's, so they wait a round.";
+      + ` them on ${why}, so they wait a round.`;
   }
   return `${names} had played the fewest games, so they are on.`
     + (reason.withinOneGame ? " Nobody on this court is ever more than one game behind." : "");
