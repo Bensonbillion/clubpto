@@ -927,7 +927,7 @@ export function explainMatch(
   // count, so a player who ties the four is not listed as waiting.
   const onCourt = new Set([...teamA, ...teamB]);
   const most = Math.max(...leastPlayed.map((p) => p.matchesPlayed));
-  const waiting: ReasonPlayer[] = players
+  const fewer: ReasonPlayer[] = players
     .filter((p) => isPlayable(p, court) && !onCourt.has(p.id))
     .map((p) => ({
       playerId: p.id,
@@ -937,12 +937,21 @@ export function explainMatch(
     .filter((p) => p.matchesPlayed < most)
     .sort((a, b) => a.matchesPlayed - b.matchesPlayed
       || (seat.get(a.playerId) ?? 0) - (seat.get(b.playerId) ?? 0));
+  // Two different facts, and the screen needs both. Anyone with fewer games
+  // falsifies "they had played the fewest", finished or not. Only somebody
+  // STILL OWED a game is waiting for one: a disrupted night grows the card
+  // past the target (useSession.ts slotCount), so the four on court can be
+  // above it while a player who has had all their games sits below them, and
+  // telling that player they wait a round promises them one the queue has
+  // already let go of (2026-09-11).
+  const waiting = targetMatches === undefined
+    ? fewer : fewer.filter((p) => p.matchesPlayed < targetMatches);
 
   return {
     leastPlayed,
     courtSpread: spread,
     withinOneGame: spread <= 1,
-    fewestPlayed: waiting.length === 0,
+    fewestPlayed: fewer.length === 0,
     waiting,
     balance: { kind, cPlayers, swap: null },
     mixing: drawn ?? { kind: mixingKind, aPlayers, heldBack: [] },

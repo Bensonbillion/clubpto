@@ -74,14 +74,18 @@ export const BalanceRule = ({ round, courtNumber, reason, onDismiss }: BalanceRu
       </div>
 
       <Body style={{ padding: "16px 22px 22px", display: "flex", flexDirection: "column", gap: 12 }}>
-        {/* The frame's title for the ordinary draw. Where the third law held
-            a least-played player back, the body says so, and a heading over
-            it reading "Least played, first on" is the frame contradicting
-            its own card. The held-back branch gets a title the body
-            supports; the frame drew no case for it. */}
+        {/* The frame's title for the ordinary draw. Where the body declines
+            the superlative, a heading over it reading "Least played, first
+            on" is the frame contradicting its own card, so the title turns
+            with the body and not on its own. Two things make the body
+            decline: the third law held a least-played player back, or the
+            four simply are not the fewest played, which the laws can do
+            without the third one (2026-09-11). The frame drew no case for
+            either title. */}
         <Card>
           <CardTitle>
-            {reason.mixing.heldBack.length > 0 ? "Who goes on next" : "Least played, first on"}
+            {reason.mixing.heldBack.length > 0 || !reason.fewestPlayed
+              ? "Who goes on next" : "Least played, first on"}
           </CardTitle>
           <CardBody>{leastPlayed}</CardBody>
         </Card>

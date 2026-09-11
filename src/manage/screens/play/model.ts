@@ -140,10 +140,27 @@ export const leastPlayedWords = (reason: MatchReason): string => {
   // names them and stops short of a reason, because at this point nothing on
   // the screen knows which rule it was.
   if (!reason.fewestPlayed) {
-    const waiting = joinNames(reason.waiting.map((p) => p.name));
-    const waits = reason.waiting.length === 1 ? "waits" : "wait";
-    return `${names} are on. ${waiting} had played fewer and ${waits} a round: the`
-      + ` balance laws decide who can stand on court together.${promise}`;
+    // NO CAUSE IS NAMED HERE, and that is the point. The four on court are
+    // not always a four this engine drew: the operator can swap somebody in
+    // (frame 15) or tap a row out of turn (frame 12b), and "the laws did it"
+    // over a lineup a person built by hand is the lie the frame's whole
+    // design avoids. The held-back branch above may name its rule because
+    // the replay proved the picker drew that four. This one says only what
+    // the log supports, which is who has had fewer games.
+    //
+    // Three names and a count, rather than the roll call: on a big court
+    // reached out of order every off-court player can be below the four,
+    // and eleven names in one sentence is not a sentence anybody reads out.
+    const all = reason.waiting.map((p) => p.name);
+    // Everyone below them has finished their games, so nobody is waiting and
+    // the card says only who is on. Reached on a night the card grew past
+    // the target, where the four playing on are above a player the queue has
+    // already let go of.
+    if (all.length === 0) return `${names} are on.${promise}`;
+    const shown = all.length <= 3 ? joinNames(all)
+      : `${all.slice(0, 3).join(", ")} and ${all.length - 3} others`;
+    const waits = all.length === 1 ? "waits" : "wait";
+    return `${names} are on. ${shown} had played fewer and ${waits} a round.${promise}`;
   }
   return `${names} had played the fewest games, so they are on.${promise}`;
 };

@@ -142,6 +142,69 @@ describe("the first card stays true", () => {
     for (const p of shown!.waiting) expect(words).toContain(p.name);
   });
 
+  it("names no cause, because the four on court is not always a four this engine drew", () => {
+    // The operator can swap somebody in (frame 15) or tap a row out of turn
+    // (frame 12b), and the reason is then describing a lineup a person built.
+    // Blaming the balance laws over one of those is the lie the frame's whole
+    // design avoids, so this branch says only what the log supports: who has
+    // had fewer games. The held-back branch may name its rule, because the
+    // replay proved the picker drew that four (2026-09-11).
+    const shown = frameElevenAt(roster(3, 5), 3, (r) => !r.fewestPlayed);
+    expect(shown).not.toBeNull();
+    const words = leastPlayedWords(shown!);
+    expect(words).not.toContain("balance law");
+    expect(words).not.toContain("because");
+    expect(words).not.toContain("so they are on");
+  });
+
+  it("never promises a round to somebody who has finished their games", () => {
+    // A disrupted night grows the card past the target, so the four on court
+    // can be above it while a player who has had all their games sits below
+    // them. They are out of the queue and no row is coming, so the card may
+    // not tell them they wait a round. Built directly, because the state
+    // needs a court whose counts have run past the target.
+    const players = roster(2, 2).map((p, i) => ({ ...p, name: `P${i + 1}` }));
+    const done = players[0];
+    const ms: Match[] = [
+      { id: "m1", courtNumber: 1, matchIndex: 1, teamA: [players[1].id, players[2].id],
+        teamB: [players[3].id, done.id], scoreA: 2, scoreB: 0, status: "played",
+        startedAt: 0, completedAt: 0, stage: null },
+      { id: "m2", courtNumber: 1, matchIndex: 2, teamA: [players[1].id, players[2].id],
+        teamB: [players[3].id, done.id], scoreA: 2, scoreB: 0, status: "played",
+        startedAt: 0, completedAt: 0, stage: null },
+    ];
+    // Everyone is on two games and the target is two, so nobody is owed one.
+    const r = explainMatch(players, ms, 1,
+      [players[1].id, players[2].id], [players[3].id, done.id], 2);
+    for (const p of r.waiting) expect(p.matchesPlayed).toBeLessThan(2);
+    // And the fact the sentence is gated on still counts everybody, finished
+    // or not, so a four that is not the fewest can never claim it is.
+    const words = leastPlayedWords(r);
+    if (!r.fewestPlayed) expect(words).not.toContain("had played the fewest games");
+  });
+
+  it("hands a phone three names and a count rather than a roll call", () => {
+    // Reached out of order on a big court, every player off it can be below
+    // the four, and eleven names in one sentence is not a sentence anybody
+    // reads out to the person who asked.
+    const many = reasonOf({
+      fewestPlayed: false,
+      waiting: ["Ese", "Idara", "Kai", "Olu", "Khalid", "Evelyn"].map((name, i) => ({
+        playerId: `w${i}`, name, matchesPlayed: 0,
+      })),
+    });
+    expect(leastPlayedWords(many)).toBe(
+      "Benson, Timi, Ade and Sam are on. Ese, Idara, Kai and 3 others had played"
+      + " fewer and wait a round. Nobody on this court is ever more than one game behind.",
+    );
+    // One name keeps its own verb.
+    const one = reasonOf({
+      fewestPlayed: false,
+      waiting: [{ playerId: "w0", name: "Ese", matchesPlayed: 0 }],
+    });
+    expect(leastPlayedWords(one)).toContain("Ese had played fewer and waits a round.");
+  });
+
   it("keeps the fewest-played sentence on the ordinary nights it is true of", () => {
     // The guard above must not swallow the frame's own sentence. Eight A's
     // and eight B's at three each, and the Wednesday roster: every draw of
