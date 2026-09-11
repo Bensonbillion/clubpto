@@ -14,6 +14,7 @@ import {
   bench, buildQueue, courtComplete, explainMatch, matchesPlayedBy, nextMatch,
   totalMatches, validTargets,
 } from "../rotation";
+import { designateB } from "../tiers";
 
 const P = (id: string, over: Partial<Player> = {}): Player => ({
   id, name: id.toUpperCase(), walkIn: false, courtNumber: 1, away: false,
@@ -497,38 +498,46 @@ describe("the same four do not come round again", () => {
 });
 
 
-describe("a walk-in or a leaver on the Wednesday roster", () => {
-  const wednesday = (): Player[] => [
-    ...["benson", "tamilore", "david", "folarin", "timi", "ade", "chibuike", "elvis", "fiyin", "sam", "abiola", "martins"]
-      .map((x) => P(x, { tier: "A" })),
-    ...["albright", "evelyn", "ese", "idara", "goanaer", "kai", "olu", "khalid"].map((x) => P(x, { tier: "B" })),
-  ];
-  const runWith = (roster: Player[], target: number, at: number, change: (r: Player[]) => Player[]) => {
-    let players = roster;
-    const matches: Match[] = [];
-    const spreads: number[] = [];
-    let seatsOwedAtChange = 0;
-    for (let guard = 0; guard < 40; guard++) {
-      if (matches.length === at - 1) {
-        players = change(players);
-        seatsOwedAtChange = players.filter((p) => !p.away)
-          .reduce((sum, p) => sum + Math.max(0, target - matchesPlayedBy(matches, p.id)), 0);
-      }
-      const next = nextMatch(players, matches, 1, target);
-      if (!next) break;
-      matches.push({
-        id: `sim${matches.length}`, courtNumber: 1, matchIndex: matches.length + 1,
-        teamA: next.teamA, teamB: next.teamB,
-        scoreA: 2, scoreB: 0, status: "played", startedAt: 0, completedAt: 0, stage: null,
-      });
-      const counts = players.filter((p) => !p.away).map((p) => matchesPlayedBy(matches, p.id));
-      spreads.push(Math.max(...counts) - Math.min(...counts));
-    }
-    // Seats a game cannot fill exactly become one extra game for somebody.
-    const extraSeats = (4 - (seatsOwedAtChange % 4)) % 4;
-    return { players, matches, spreads, extraSeats, counts: players.filter((p) => !p.away).map((p) => matchesPlayedBy(matches, p.id)) };
-  };
+/** The night the owner watched: twelve A's and eight B's on one court. */
+const wednesday = (): Player[] => [
+  ...["benson", "tamilore", "david", "folarin", "timi", "ade", "chibuike", "elvis", "fiyin", "sam", "abiola", "martins"]
+    .map((x) => P(x, { tier: "A" })),
+  ...["albright", "evelyn", "ese", "idara", "goanaer", "kai", "olu", "khalid"].map((x) => P(x, { tier: "B" })),
+];
 
+/**
+ * The same night with somebody arriving or leaving partway through, and the
+ * seats the change leaves over. Both the walk-in block and the cap block
+ * below replay it, because a card that grew mid-night is where the cap is
+ * hardest to keep.
+ */
+const runWith = (roster: Player[], target: number, at: number, change: (r: Player[]) => Player[]) => {
+  let players = roster;
+  const matches: Match[] = [];
+  const spreads: number[] = [];
+  let seatsOwedAtChange = 0;
+  for (let guard = 0; guard < 40; guard++) {
+    if (matches.length === at - 1) {
+      players = change(players);
+      seatsOwedAtChange = players.filter((p) => !p.away)
+        .reduce((sum, p) => sum + Math.max(0, target - matchesPlayedBy(matches, p.id)), 0);
+    }
+    const next = nextMatch(players, matches, 1, target);
+    if (!next) break;
+    matches.push({
+      id: `sim${matches.length}`, courtNumber: 1, matchIndex: matches.length + 1,
+      teamA: next.teamA, teamB: next.teamB,
+      scoreA: 2, scoreB: 0, status: "played", startedAt: 0, completedAt: 0, stage: null,
+    });
+    const counts = players.filter((p) => !p.away).map((p) => matchesPlayedBy(matches, p.id));
+    spreads.push(Math.max(...counts) - Math.min(...counts));
+  }
+  // Seats a game cannot fill exactly become one extra game for somebody.
+  const extraSeats = (4 - (seatsOwedAtChange % 4)) % 4;
+  return { players, matches, spreads, extraSeats, counts: players.filter((p) => !p.away).map((p) => matchesPlayedBy(matches, p.id)) };
+};
+
+describe("a walk-in or a leaver on the Wednesday roster", () => {
   it("a B walking in before game nine finishes on three with everyone else, nobody on four", () => {
     const r = runWith(wednesday(), 3, 9, (ps) => [...ps, P("late", { tier: "B", walkIn: true, joinedAtMatchIndex: 9 })]);
     // Twenty-one on three each is sixty-three seats, and a game seats four,
@@ -558,9 +567,10 @@ describe("an A has one game with the B's, and never a second", () => {
   // is any game with a B in it. Found on the Wednesday of 2026-09-09, where
   // the picker spread the mixed games around but nothing capped them, so an
   // A could be dealt a second, and on eight A's and eight B's every A was.
-  const roster = (as: number, bs: number): Player[] => [
+  const roster = (as: number, bs: number, cs = 0): Player[] => [
     ...Array.from({ length: as }, (_, i) => P(`a${i + 1}`, { tier: "A" })),
     ...Array.from({ length: bs }, (_, i) => P(`b${i + 1}`, { tier: "B" })),
+    ...Array.from({ length: cs }, (_, i) => P(`c${i + 1}`, { tier: "C" })),
   ];
   const isMixed = (r: readonly Player[], m: Match) => {
     const tiers = [...m.teamA, ...m.teamB].map((id) => r.find((p) => p.id === id)?.tier ?? "B");
@@ -614,6 +624,153 @@ describe("an A has one game with the B's, and never a second", () => {
         expect(counts.every((c) => c === 3), `${as}A/${bs}B`).toBe(true);
         expect(worstA(r, matches), `${as}A/${bs}B`).toBeLessThanOrEqual(1);
       }
+    }
+  });
+
+  it("seven A's and one lone B at three: two A's meet the B twice, never one A three times", () => {
+    // The free law, where the cap cannot hold. A lone B on a court of seven
+    // A's plays three games and every one of them is three A's against the
+    // B, so nine A-seats go over seven A's and two seconds are forced. They
+    // are spread: one A taking a second and a third costs one plus two,
+    // where two A's taking a second each costs one plus one.
+    const r = roster(7, 1);
+    const { matches, counts } = runNight(r, 3);
+    expect(matches).toHaveLength(6);
+    expect(counts.every((c) => c === 3)).toBe(true);
+    expect(worstA(r, matches)).toBeLessThanOrEqual(2);
+    const charged = r.filter((p) => p.tier === "A" && bGamesOf(r, matches, p.id) > 1);
+    expect(charged).toHaveLength(2);
+  });
+
+  it("six A's and two B's at four: the two second games land on two DIFFERENT A's", () => {
+    // The same spreading, on the night the brief names. Eight A-seats are
+    // needed across the net and there are six A's, so two seconds are
+    // forced. One A taking both would be the cheap-looking answer for a
+    // picker that only counts games; it is the dear one for the club.
+    const r = roster(6, 2);
+    const { matches, counts } = runNight(r, 4);
+    expect(counts.every((c) => c === 4)).toBe(true);
+    const charged = r.filter((p) => p.tier === "A" && bGamesOf(r, matches, p.id) > 1);
+    expect(charged).toHaveLength(2);
+    expect(charged.map((p) => bGamesOf(r, matches, p.id))).toEqual([2, 2]);
+  });
+
+  it("last Wednesday at three: every B gets their game with the A's, and nobody meets anybody three times", () => {
+    // The B side of the rule. A cap read as "mix as little as possible"
+    // would keep the A's among themselves all night and leave the B's in
+    // their own corner; the club's rule is exactly one, which is what gives
+    // the B's their games up. Four mixed games instead of six is also what
+    // put abiola on court with martins three times, so the promise from the
+    // block above is asserted here again on the same night.
+    const r = wednesday();
+    const { matches, counts } = runNight(r, 3);
+    expect(matches).toHaveLength(15);
+    expect(counts.every((c) => c === 3)).toBe(true);
+    expect(worstA(r, matches)).toBeLessThanOrEqual(1);
+    for (const b of r.filter((p) => p.tier === "B")) {
+      expect(bGamesOf(r, matches, b.id), b.id).toBeGreaterThanOrEqual(1);
+    }
+    const met = new Map<string, number>();
+    for (const m of matches) {
+      const ids = [...m.teamA, ...m.teamB];
+      for (let i = 0; i < 4; i++) for (let j = i + 1; j < 4; j++) {
+        const k = [ids[i], ids[j]].sort().join("+");
+        met.set(k, (met.get(k) ?? 0) + 1);
+      }
+    }
+    expect(Math.max(...met.values())).toBeLessThanOrEqual(2);
+  });
+
+  it("six A's and six B's at four: the two mixed games go to four different B's", () => {
+    // The other half of "exactly one where the seats allow". Twelve games,
+    // two of them mixed, and the B seats in them could all fall to the same
+    // two B's. Spreading them is what the mixing preference is for.
+    const r = roster(6, 6);
+    const { matches } = runNight(r, 4);
+    const mixed = matches.filter((m) => isMixed(r, m));
+    expect(mixed).toHaveLength(2);
+    const bs = mixed.flatMap((m) => [...m.teamA, ...m.teamB]).filter((id) => id.startsWith("b"));
+    expect(bs).toHaveLength(4);
+    expect(new Set(bs).size).toBe(4);
+  });
+
+  it("with beginners on the court too, the cap still holds", () => {
+    // Three C's take the one designated B into every C game, which flips
+    // what the A's and B's have left over and over. The A's meet the B's
+    // one at a time in those nights rather than two at a time, and a picker
+    // that assumed at most one such game read these courts as hopeless and
+    // dealt needless seconds. The start state of all three is clean, so
+    // nothing here may be charged.
+    for (const [as, bs, cs, target] of [[4, 4, 3, 4], [5, 4, 3, 2], [5, 4, 3, 3]] as const) {
+      const label = `${as}A/${bs}B/${cs}C T${target}`;
+      const r = roster(as, bs, cs);
+      const { matches, counts } = runNight(r, target);
+      expect(matches, label).toHaveLength(totalMatches(as + bs + cs, target));
+      expect(counts.every((c) => c === target), label).toBe(true);
+      expect(worstA(r, matches), label).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("an A walking in before game nine has their one game with the B's and no more", () => {
+    // The card grows for a walk-in, so the seats no longer divide by four
+    // and the oracle is looking at a night it cannot finish exactly. The
+    // slack seat is what keeps the cap on: without it every four after the
+    // walk-in prices the same and the rule is quietly off for the rest of
+    // the night.
+    const r = runWith(wednesday(), 3, 9, (ps) => [...ps, P("late", { tier: "A", walkIn: true, joinedAtMatchIndex: 9 })]);
+    expect(r.counts.every((c) => c >= 3)).toBe(true);
+    expect(r.counts.filter((c) => c > 3)).toHaveLength(r.extraSeats);
+    expect(Math.max(...r.spreads.slice(9))).toBeLessThanOrEqual(1);
+    expect(worstA(r.players, r.matches)).toBeLessThanOrEqual(1);
+  });
+
+  it("a B walking in before game nine costs no A a second game", () => {
+    // The same night from the other side: one more B to give games to, and
+    // the A's who have already had theirs stay out of it.
+    const r = runWith(wednesday(), 3, 9, (ps) => [...ps, P("late", { tier: "B", walkIn: true, joinedAtMatchIndex: 9 })]);
+    expect(r.counts.every((c) => c >= 3)).toBe(true);
+    expect(r.counts.filter((c) => c > 3)).toHaveLength(r.extraSeats);
+    expect(Math.max(...r.spreads.slice(9))).toBeLessThanOrEqual(1);
+    expect(worstA(r.players, r.matches)).toBeLessThanOrEqual(1);
+  });
+
+  it("an A leaving before game six takes their ticket with them", () => {
+    // Eleven A's and eight B's from game six on. The cap holds, and it is
+    // paid for once: at game ten a least-played player waits a game because
+    // the four ahead of them would have charged an A. That is the one thing
+    // the rule is allowed to cost, and the spread touches two, never three.
+    const r = runWith(wednesday(), 3, 6, (ps) => ps.map((p) => (p.id === "abiola" ? { ...p, away: true } : p)));
+    expect(r.counts.every((c) => c >= 3)).toBe(true);
+    expect(r.counts.filter((c) => c > 3)).toHaveLength(r.extraSeats);
+    expect(Math.max(...r.spreads)).toBeLessThanOrEqual(2);
+    expect(worstA(r.players, r.matches)).toBeLessThanOrEqual(1);
+  });
+
+  it("a B leaving before game six leaves the cap where it was", () => {
+    // The leaver had one game. Seven B's and twelve A's finish the night,
+    // the spread never leaves one, and no A meets the B's twice.
+    const r = runWith(wednesday(), 3, 6, (ps) => ps.map((p) => (p.id === "ese" ? { ...p, away: true } : p)));
+    expect(r.counts.every((c) => c >= 3)).toBe(true);
+    expect(r.counts.filter((c) => c > 3)).toHaveLength(r.extraSeats);
+    expect(Math.max(...r.spreads)).toBeLessThanOrEqual(1);
+    expect(worstA(r.players, r.matches)).toBeLessThanOrEqual(1);
+  });
+
+  it("the exactly-three-C's roster still gives the bridge no more than it had", () => {
+    // The bridge already plays a game more than anyone, because every C
+    // game needs them. The cap must not add to that: it is a rule about the
+    // A's, and this court has none. Ten players, every fourth one a C, at
+    // four each. The bridge finishes on five, no C is short, and the number
+    // the setup screen quotes is unchanged.
+    const r = Array.from({ length: 10 }, (_, i) =>
+      P(`p${i}`, i % 4 === 0 ? { tier: "C" } : {}));
+    const { matches, counts } = runNight(r, 4);
+    expect(counts.every((c) => c >= 4)).toBe(true);
+    expect(Math.max(...counts)).toBeLessThanOrEqual(5);
+    const bridge = designateB(r, 1)!;
+    expect(matchesPlayedBy(matches, bridge)).toBe(5);
+    for (const c of r.filter((p) => p.tier === "C")) {
+      expect(matchesPlayedBy(matches, c.id), c.id).toBe(4);
     }
   });
 
