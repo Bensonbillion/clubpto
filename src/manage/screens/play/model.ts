@@ -129,8 +129,23 @@ export const leastPlayedWords = (reason: MatchReason): string => {
     return `${names} are on. ${joinNames(held.map((p) => p.name))} had played fewer, but putting`
       + ` them on ${why}, so they wait a round.`;
   }
-  return `${names} had played the fewest games, so they are on.`
-    + (reason.withinOneGame ? " Nobody on this court is ever more than one game behind." : "");
+  const promise = reason.withinOneGame
+    ? " Nobody on this court is ever more than one game behind." : "";
+  // The superlative is a claim about the whole court, so it is printed only
+  // when the court bears it out. The third law is not the only rule that can
+  // pass a least-played player over: the mixing laws do it too, on a court
+  // where the four at the minimum are not a shape any game allows, and there
+  // the picker reaches one row further down with nothing to say about it
+  // (2026-09-11). So where somebody off court has had fewer games, the card
+  // names them and stops short of a reason, because at this point nothing on
+  // the screen knows which rule it was.
+  if (!reason.fewestPlayed) {
+    const waiting = joinNames(reason.waiting.map((p) => p.name));
+    const waits = reason.waiting.length === 1 ? "waits" : "wait";
+    return `${names} are on. ${waiting} had played fewer and ${waits} a round: the`
+      + ` balance laws decide who can stand on court together.${promise}`;
+  }
+  return `${names} had played the fewest games, so they are on.${promise}`;
 };
 
 /** "second", "third", up to a night's worth. Past that, digits. */

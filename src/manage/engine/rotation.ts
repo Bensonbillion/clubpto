@@ -219,6 +219,28 @@ export interface MatchReason {
   courtSpread: number;
   /** Frame 11's "never more than one game behind", as fact rather than promise. */
   withinOneGame: boolean;
+  /**
+   * Frame 11's "they had played the fewest games", as fact rather than claim.
+   *
+   * False when somebody off court has had fewer games than the most-played of
+   * the four, counted on the card's own log. THE LAWS DO THIS, not only the
+   * third one: on three A's and five B's at three each the four players at the
+   * minimum are three A's and a B, which is not a shape either mixing law
+   * allows, so the picker reaches a player on two games while an A on one sits
+   * (2026-09-11). `mixing.heldBack` names who waited only when the third law
+   * was the rule that did it, so the sentence needs this as well before it can
+   * be printed.
+   */
+  fewestPlayed: boolean;
+  /**
+   * Players off court who had played fewer than the most-played of the four,
+   * in queue order. Empty whenever `fewestPlayed` is true.
+   *
+   * A fact read off the court, not a counterfactual: it says who has had fewer
+   * games, never why they are not on. `mixing.heldBack` is the one that knows
+   * why, and only for the third law.
+   */
+  waiting: ReasonPlayer[];
   balance: BalanceNote;
   mixing: MixingNote;
 }
@@ -897,10 +919,31 @@ export function explainMatch(
     ? null
     : pickerNote(players, asDrawn, court, targetMatches, teamA, teamB);
 
+  // Is "they had played the fewest games" true? Off the card's clock, like
+  // everything else about the draw. The four are the fewest when nobody left
+  // on the court has had fewer games than the most-played of them; anyone who
+  // has is waiting while somebody ahead of them plays, and the frame may not
+  // say otherwise. The four themselves are excluded by id rather than by
+  // count, so a player who ties the four is not listed as waiting.
+  const onCourt = new Set([...teamA, ...teamB]);
+  const most = Math.max(...leastPlayed.map((p) => p.matchesPlayed));
+  const waiting: ReasonPlayer[] = players
+    .filter((p) => isPlayable(p, court) && !onCourt.has(p.id))
+    .map((p) => ({
+      playerId: p.id,
+      name: p.name,
+      matchesPlayed: matchesPlayedBy(asDrawn, p.id),
+    }))
+    .filter((p) => p.matchesPlayed < most)
+    .sort((a, b) => a.matchesPlayed - b.matchesPlayed
+      || (seat.get(a.playerId) ?? 0) - (seat.get(b.playerId) ?? 0));
+
   return {
     leastPlayed,
     courtSpread: spread,
     withinOneGame: spread <= 1,
+    fewestPlayed: waiting.length === 0,
+    waiting,
     balance: { kind, cPlayers, swap: null },
     mixing: drawn ?? { kind: mixingKind, aPlayers, heldBack: [] },
   };

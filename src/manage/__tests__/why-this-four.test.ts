@@ -26,6 +26,8 @@ const reasonOf = (over: Partial<MatchReason> = {}): MatchReason => ({
   })),
   courtSpread: 0,
   withinOneGame: true,
+  fewestPlayed: true,
+  waiting: [],
   balance: { kind: "noAssessedC", cPlayers: [], swap: null },
   mixing: { kind: "noAs", aPlayers: [], heldBack: [] },
   ...over,
@@ -119,6 +121,53 @@ describe("the first card stays true", () => {
       "Benson, Timi, Ade and Sam had played the fewest games, so they are on.",
     );
   });
+
+  it("never claims the fewest when the MIXING law, not the cap, passed somebody over", () => {
+    // Three A's and five B's at three each, in order, nothing stepped past.
+    // At the fourth game the four at the minimum are the three A's and one B,
+    // which is a shape neither mixing law allows, so the picker reaches a
+    // player on two games while an A on one sits. The cap did nothing here,
+    // so heldBack is empty, and until 2026-09-11 the card answered the player
+    // who asked with "they had played the fewest games", which was false.
+    const shown = frameElevenAt(roster(3, 5), 3, (r) => !r.fewestPlayed);
+    expect(shown).not.toBeNull();
+    expect(shown!.mixing.heldBack).toEqual([]);
+    const most = Math.max(...shown!.leastPlayed.map((p) => p.matchesPlayed));
+    // Somebody off court really has had fewer games than somebody on it.
+    expect(shown!.waiting.length).toBeGreaterThan(0);
+    for (const p of shown!.waiting) expect(p.matchesPlayed).toBeLessThan(most);
+    const words = leastPlayedWords(shown!);
+    expect(words).not.toContain("had played the fewest games");
+    expect(words).toMatch(/had played fewer and waits? a round/);
+    for (const p of shown!.waiting) expect(words).toContain(p.name);
+  });
+
+  it("keeps the fewest-played sentence on the ordinary nights it is true of", () => {
+    // The guard above must not swallow the frame's own sentence. Eight A's
+    // and eight B's at three each, and the Wednesday roster: every draw of
+    // both nights is genuinely the fewest played, so every card says so.
+    for (const [as, bs] of [[8, 8], [12, 8]] as const) {
+      const players = roster(as, bs);
+      const played: Match[] = [];
+      for (let n = 1; n <= 40; n += 1) {
+        const drawn = nextMatch(players, played, 1, 3);
+        if (!drawn) break;
+        const live: Match = {
+          id: `m${n}`, courtNumber: 1, matchIndex: n, teamA: drawn.teamA, teamB: drawn.teamB,
+          scoreA: null, scoreB: null, status: "onCourt", startedAt: 0, completedAt: null, stage: null,
+        };
+        const shown = explainMatch(players, [...played, live], 1, drawn.teamA, drawn.teamB, 3);
+        // Either the four are the fewest, or the card names who is waiting.
+        // What it may never do is claim the superlative without the fact.
+        const words = leastPlayedWords(shown);
+        if (words.includes("had played the fewest games")) {
+          expect(shown.fewestPlayed, `${as}A/${bs}B game ${n}`).toBe(true);
+          expect(shown.waiting, `${as}A/${bs}B game ${n}`).toEqual([]);
+        }
+        played.push({ ...live, status: "played", scoreA: 2, scoreB: 0, completedAt: 0 });
+      }
+    }
+  }, 30_000);
 
   it("says who was passed over rather than claiming these four played fewest", () => {
     // The cap held somebody back, so "they had played the fewest games" is
