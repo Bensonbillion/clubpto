@@ -197,6 +197,27 @@ describe("the first card stays true", () => {
       "Benson, Timi, Ade and Sam are on. Ese, Idara, Kai and 3 others had played"
       + " fewer and wait a round. Nobody on this court is ever more than one game behind.",
     );
+    // Four names are named. "and 1 others" is both ungrammatical and longer
+    // than the name it hides, so the list only collapses at five.
+    const four = reasonOf({
+      fewestPlayed: false,
+      waiting: ["Ese", "Idara", "Kai", "Olu"].map((name, i) => ({
+        playerId: `w${i}`, name, matchesPlayed: 0,
+      })),
+    });
+    expect(leastPlayedWords(four)).toContain("Ese, Idara, Kai and Olu had played fewer and wait a round.");
+    expect(leastPlayedWords(four)).not.toContain("others");
+    // And the held-back sentence is shortened the same way, since the fairest
+    // four minus the chosen four can be four different names.
+    const heldMany = reasonOf({
+      fewestPlayed: false,
+      mixing: {
+        kind: "pure",
+        aPlayers: [],
+        heldBack: ["Ese", "Idara", "Kai", "Olu", "Khalid"].map((name) => ({ name })),
+      },
+    });
+    expect(leastPlayedWords(heldMany)).toContain("Ese, Idara, Kai and 2 others had played fewer");
     // One name keeps its own verb.
     const one = reasonOf({
       fewestPlayed: false,

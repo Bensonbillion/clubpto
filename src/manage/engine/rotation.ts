@@ -620,8 +620,15 @@ function lawfulFour(
       const fairIds = [...fairest.lineup.teamA, ...fairest.lineup.teamB];
       if (fairerThan(playedVector(played, fairIds), chosenVector)) {
         const most = Math.max(...chosenVector);
+        // Still owed a game, for the reason MatchReason.waiting is: the card
+        // says these people "wait a round", and a player who has had all the
+        // games they are owed is waiting for nothing. buildQueue keeps them
+        // at owed 0, so without this the sentence promised a round to
+        // somebody the queue had already let go of, on a night whose card
+        // had grown past the target (2026-09-11).
         heldBack = queue
-          .filter((e) => fairIds.includes(e.playerId) && !chosenSet.has(e.playerId) && e.matchesPlayed < most)
+          .filter((e) => fairIds.includes(e.playerId) && !chosenSet.has(e.playerId)
+            && e.matchesPlayed < most && e.owed > 0)
           .map((e) => ({ name: e.name }));
         // Which of the two terms in the cost passed that four over. Usually
         // the charge: dealing it puts an A in with the B's a second time,

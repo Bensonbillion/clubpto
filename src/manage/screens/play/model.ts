@@ -99,6 +99,21 @@ export const joinNames = (names: readonly string[]): string => {
 };
 
 /**
+ * A list of names a phone card can hold, and the verb that agrees with it.
+ *
+ * Four names is barely longer than three and a count, and shorter than "and
+ * 1 others", so the roll call only collapses at five. Past that a big court
+ * reached out of order can put every player off it below the four, and
+ * eleven names in one sentence is not a sentence anybody reads out to the
+ * person who asked (2026-09-11).
+ */
+const fewNames = (names: readonly string[]): { list: string; verb: (v: string) => string } => ({
+  list: names.length <= 4 ? joinNames([...names])
+    : `${names.slice(0, 3).join(", ")} and ${names.length - 3} others`,
+  verb: (v) => (names.length === 1 ? `${v}s` : v),
+});
+
+/**
  * The first card's sentence, which has to stay true.
  *
  * "They had played the fewest games" was simply true until 2026-09-10. The
@@ -126,7 +141,12 @@ export const leastPlayedWords = (reason: MatchReason): string => {
     const why = reason.mixing.heldBackBy === "unfinished"
       ? "would have left somebody short of their games"
       : "would have cost an A a second game with the B's";
-    return `${names} are on. ${joinNames(held.map((p) => p.name))} had played fewer, but putting`
+    // The same shortening as the branch below: heldBack is the fairest four
+    // minus the chosen four, so all four of its names can be different ones.
+    // The subject of the last clause is "they", whatever the count, so only
+    // the list is shortened here and the verb stays as the frame wrote it.
+    const { list } = fewNames(held.map((p) => p.name));
+    return `${names} are on. ${list} had played fewer, but putting`
       + ` them on ${why}, so they wait a round.`;
   }
   const promise = reason.withinOneGame
@@ -148,19 +168,14 @@ export const leastPlayedWords = (reason: MatchReason): string => {
     // the replay proved the picker drew that four. This one says only what
     // the log supports, which is who has had fewer games.
     //
-    // Three names and a count, rather than the roll call: on a big court
-    // reached out of order every off-court player can be below the four,
-    // and eleven names in one sentence is not a sentence anybody reads out.
     const all = reason.waiting.map((p) => p.name);
     // Everyone below them has finished their games, so nobody is waiting and
     // the card says only who is on. Reached on a night the card grew past
     // the target, where the four playing on are above a player the queue has
     // already let go of.
     if (all.length === 0) return `${names} are on.${promise}`;
-    const shown = all.length <= 3 ? joinNames(all)
-      : `${all.slice(0, 3).join(", ")} and ${all.length - 3} others`;
-    const waits = all.length === 1 ? "waits" : "wait";
-    return `${names} are on. ${shown} had played fewer and ${waits} a round.${promise}`;
+    const { list, verb } = fewNames(all);
+    return `${names} are on. ${list} had played fewer and ${verb("wait")} a round.${promise}`;
   }
   return `${names} had played the fewest games, so they are on.${promise}`;
 };
