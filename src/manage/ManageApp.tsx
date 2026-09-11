@@ -482,17 +482,25 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
   const [query, setQuery] = useState("");
   const [courtCount, setCourtCount] = useState(2);
   /**
-   * Has the operator picked the games-each target yet, on this way in?
+   * Which courts the operator has picked a games-each target for, on this
+   * way in.
    *
    * The courts step comes BEFORE the target step, so the target its two cap
    * notes quote is whatever applySuggestedSplit seeded, and they say "the
    * suggested four each" while that is what it is. Reading "is the stored
    * target still valid" instead said no such thing on a fresh night: the
    * seeded target is valid by construction, so the notes called the split's
-   * own suggestion a choice the operator had made (2026-09-11). Set on the
-   * target step's first tap, cleared whenever the split re-seeds targets.
+   * own suggestion a choice the operator had made (2026-09-11).
+   *
+   * PER COURT, because targets are (frame B31, and MatchesEach says so in as
+   * many words): sixteen divides at three, fourteen only at four, and each
+   * card answers for itself. Held as one boolean, tapping court one's target
+   * dropped "the suggested" from court two's note while court two's number
+   * was still nothing but the split's seed. Court numbers go in on the
+   * target step's tap; the set is emptied whenever the split re-seeds every
+   * court's target.
    */
-  const [targetChosen, setTargetChosen] = useState(false);
+  const [targetChosen, setTargetChosen] = useState<ReadonlySet<number>>(() => new Set());
   const [tierPromptId, setTierPromptId] = useState<string | null>(null);
   // The pair-up screen's first tap, waiting for its second (frame 30).
   const [heldId, setHeldId] = useState<string | null>(null);
@@ -615,9 +623,9 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
     }
     if (fresh) {
       for (const [number, t] of suggestion.targets) s.setTarget(number, t);
-      // Re-seeding overwrites whatever the target step was told, so the
-      // number on the courts screen is a suggestion again.
-      setTargetChosen(false);
+      // Re-seeding overwrites whatever the target step was told, on every
+      // court, so every number on the courts screen is a suggestion again.
+      setTargetChosen(new Set());
     }
   };
 
@@ -1112,9 +1120,11 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
       // The setup warnings, read off the split AS IT STANDS, drags included.
       // suggestSplit can only speak about its own assignment, so freezing the
       // notes it returned on the way in would keep warning about a court the
-      // operator has already fixed. The same three facts are therefore derived
-      // live, with the module's own constant and suggestTarget so the
-      // thresholds cannot drift from engine/split.ts.
+      // operator has already fixed. All six kinds are therefore derived live,
+      // the two C notes and the four per-court ones, with the module's own
+      // constant and suggestTarget so the thresholds cannot drift from
+      // engine/split.ts. Courts.tsx counts the same six when it decides which
+      // of them wear the destructive ink.
       const csIn = s.session.players.filter((p) => tierOf(p) === "C");
       const splitNotes: SplitNote[] = [];
       if (csIn.length > 0 && csIn.length < MIN_CS_FOR_A_C_MATCH) {
@@ -1169,7 +1179,8 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           // is playing to, so that one is theirs whatever this screen shows,
           // and a target the split no longer takes is a fresh suggestion
           // whoever chose the old one.
-          const seeded = !fits || (s.session.status !== "running" && !targetChosen);
+          const seeded = !fits
+            || (s.session.status !== "running" && !targetChosen.has(c.courtNumber));
           const bend = target == null ? null : forcedMixing(s.session.players, c.courtNumber, target);
           if (bend) {
             splitNotes.push({
@@ -1236,7 +1247,10 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
             selected: c.targetMatches,
           }))}
           minutesPerMatch={MINUTES_PER_MATCH}
-          onSelect={(courtNumber, t) => { s.setTarget(courtNumber, t); setTargetChosen(true); }}
+          onSelect={(courtNumber, t) => {
+            s.setTarget(courtNumber, t);
+            setTargetChosen((was) => new Set(was).add(courtNumber));
+          }}
           onBack={() => setStep("courts")}
           onNext={() => setStep("ready")}
         />

@@ -39,10 +39,15 @@
 //      are spread, never stacked on one A. And where the seats allow it every
 //      A GIVES their one game: among equally fair fours, one that spends an
 //      unused ticket beats a pure game, which is also what keeps the
-//      Wednesday roster from meeting the same person three times. Some courts
-//      have no room for it, and there the law is a ceiling rather than a
-//      promise: six A's and six B's at four each fit two mixed games, so two
-//      of those A's never meet the B's at all.
+//      Wednesday roster AT THREE EACH from meeting the same person three
+//      times. That qualifier is a measurement rather than modesty: the same
+//      twenty at four each and at five each meet somebody a third time
+//      whatever this preference does, because twenty and twenty-five games
+//      among twenty people leave no room not to (2026-09-11). The law above
+//      covers all three targets; this consequence of it covers three each.
+//      Some courts have no room for the one game at all, and there the law
+//      is a ceiling rather than a promise: six A's and six B's at four each
+//      fit two mixed games, so two of those A's never meet the B's at all.
 //
 // Three consequences of the third law worth knowing before a night.
 // Unassessed players count as B (see tierOf), so after one game an assessed A
@@ -397,8 +402,12 @@ export function chooseFour(
   //      that gives A's their one game with the B's beats a pure game, so
   //      every A gives that game rather than the B's being mixed as little
   //      as the seats allow. That is also what keeps the Wednesday roster
-  //      from meeting the same person three times: with only the mixed
-  //      games the seats force, the A's fill seven pure games among twelve;
+  //      AT THREE EACH from meeting the same person three times: with only
+  //      the mixed games the seats force, the A's fill seven pure games
+  //      among twelve. At three each and no further. The same twenty at
+  //      four and at five meet somebody a third time however this key
+  //      ranks, because fifteen games leave room for it and twenty and
+  //      twenty-five do not (2026-09-11);
   //   6. who has met whom, so the same four does not come round again;
   //   7. mixed games had, so the same B's do not take every mixed game;
   //   8. repeated partnerships, so the same two are not dealt together again

@@ -68,6 +68,47 @@ const frameElevenAt = (
   return null;
 };
 
+/**
+ * The card walked the way useSession's projectCard walks it, stepping past
+ * the slots the caller names, with frame 11's reason for every row as it
+ * goes live and the counts the card itself was drawing from beside it.
+ *
+ * Stepping past a row is an ordinary night (frame 12b), and it is the one
+ * thing that separates the two logs frame 11 could be read off: the card
+ * seeds a held row as played, the night's raw list counts it for nobody.
+ * So the counts handed back here are the card's, taken before the live row
+ * is added, which is what every sentence on the screen has to be true of.
+ */
+const cardWithSkips = (
+  players: Player[],
+  target: number,
+  skipped: readonly number[],
+): { reason: MatchReason; counts: Map<string, number> }[] => {
+  const night: Match[] = [];
+  const out: { reason: MatchReason; counts: Map<string, number> }[] = [];
+  const total = (players.length * target) / 4;
+  for (let slot = 1; slot <= total; slot += 1) {
+    const asPlayed: Match[] = night.map((m) => ({ ...m, status: "played" as const }));
+    const drawn = nextMatch(players, asPlayed, 1, target);
+    if (!drawn) break;
+    const live: Match = {
+      id: `m${slot}`, courtNumber: 1, matchIndex: slot, teamA: drawn.teamA, teamB: drawn.teamB,
+      scoreA: null, scoreB: null, status: "onCourt", startedAt: 0, completedAt: null, stage: null,
+    };
+    out.push({
+      reason: explainMatch(players, [...night, live], 1, drawn.teamA, drawn.teamB, target),
+      counts: new Map(players.map((p) => [
+        p.id,
+        asPlayed.filter((m) => [...m.teamA, ...m.teamB].includes(p.id)).length,
+      ])),
+    });
+    night.push(skipped.includes(slot)
+      ? { ...live, status: "skipped" }
+      : { ...live, status: "played", scoreA: 2, scoreB: 0, completedAt: 0 });
+  }
+  return out;
+};
+
 describe("the first card stays true", () => {
   it("promises the court only while the court is keeping the promise", () => {
     expect(leastPlayedWords(reasonOf())).toBe(
@@ -130,6 +171,59 @@ describe("the first card stays true", () => {
     const upTop = shown!.leastPlayed.map((p) => p.name)
       .filter((n) => shown!.mixing.aPlayers.some((a) => a.name === n));
     expect(shown!.mixing.aPlayers.map((a) => a.name)).toEqual(upTop);
+  });
+
+  it("a stepped-past row cannot make the two cards disagree", () => {
+    // Eight A's and four B's at three each, with slot two stepped past
+    // (frame 12b). Frame 11 draws the first card and the fourth on one
+    // screen, and until 2026-09-11 they were counted off two different
+    // logs: the fourth off the card's, where a held row is already played,
+    // and the first off the raw list, where it counts for nothing. From
+    // slot six on the first card claimed "had played the fewest games"
+    // about a four the raw counts did not put lowest, and the same four
+    // came out "A3, A4, A1 and A2" up top and "A1, A2, A3 and A4"
+    // underneath. Both now read the log the card drew from, so the check
+    // below is the printed count against the card's own.
+    const players = roster(8, 4);
+    const rows = cardWithSkips(players, 3, [2]);
+    expect(rows.length).toBe(9);
+    for (const { reason, counts } of rows) {
+      // The numbers the first card's sentence is printed from ARE the
+      // card's numbers. Everything else on the screen follows from this:
+      // "had played the fewest games" is said about a four the card put
+      // lowest, and "X had played fewer" about somebody the card puts
+      // lower, rather than about somebody the raw list does.
+      expect(reason.leastPlayed.map((p) => [p.name, p.matchesPlayed]))
+        .toEqual(reason.leastPlayed.map((p) => [p.name, counts.get(p.playerId)]));
+      // And one four is listed one way. The fourth card's A's are in queue
+      // order, the first card's in played order, and on one log those are
+      // the same order.
+      const upTop = reason.leastPlayed.map((p) => p.name)
+        .filter((n) => reason.mixing.aPlayers.some((a) => a.name === n));
+      expect(reason.mixing.aPlayers.map((a) => a.name)).toEqual(upTop);
+    }
+  });
+
+  it("holds with two rows stepped past, on the roster that printed the wrong held-back name", () => {
+    // Six A's and six B's at four each with slots two and three stepped
+    // past. Slot nine was the draw that read "had played fewer" over a
+    // name the printed counts did not put lower: heldBack came off the
+    // replay, which counts a held row as played, and the counts beside it
+    // did not. One log, one answer.
+    const players = roster(6, 6);
+    const rows = cardWithSkips(players, 4, [2, 3]);
+    expect(rows.length).toBe(12);
+    for (const { reason, counts } of rows) {
+      expect(reason.leastPlayed.map((p) => p.matchesPlayed))
+        .toEqual(reason.leastPlayed.map((p) => counts.get(p.playerId)));
+      const most = Math.max(...reason.leastPlayed.map((p) => p.matchesPlayed));
+      // Whoever the cap held back had played fewer than the four it held
+      // them back from, by the counts the same screen shows.
+      for (const held of reason.mixing.heldBack) {
+        const id = players.find((p) => p.name === held.name)!.id;
+        expect(counts.get(id)!).toBeLessThan(most);
+      }
+    }
   });
 
   it("reaches the screen: a real held-back draw read back through explainMatch", () => {

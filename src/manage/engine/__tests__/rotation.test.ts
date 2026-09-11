@@ -817,6 +817,57 @@ describe("an A has one game with the B's, and never a second", () => {
     }
   });
 
+  it("two changes in one night stack the overshoot on the B's, and nobody finishes short", () => {
+    // Pinned rather than fixed (2026-09-11). Five A's, four B's and three
+    // C's at four each. A leaver after game two and a B walking in after
+    // game nine are each harmless alone: over this roster every single
+    // change lands at a spread of two or less, and a fresh night on it is
+    // level at zero. Together they run the card to fifteen games where
+    // twelve would do, and the overshoot goes on the B's. A court of three
+    // C's has one legal C shape, three C's and one B, so every game the
+    // C's still owe drafts a B, and slotCount grows the card to the rows
+    // spent plus the most anybody is owed. A court whose only owed players
+    // are B's and C's therefore keeps drawing the same bridge. Ten of this
+    // roster's ninety-one two-change scenarios do it, no other roster
+    // exceeds a spread of two under any change or pair, and the cap itself
+    // is not what bends: the A's here are on their one game with the B's.
+    //
+    // The lever is the card rather than the cap, and reaching into the
+    // picker this late to buy a spread of two here would put every night
+    // above it at risk. So what the night actually promises is guarded
+    // instead: nobody finishes short, the second change costs no A a game
+    // with the B's the seats were not already forcing, and the overshoot
+    // sits where it sat when it was measured rather than growing quietly.
+    const base = roster(5, 4, 3);
+    let players = base;
+    const matches: Match[] = [];
+    for (let guard = 0; guard < 40; guard++) {
+      if (matches.length === 2) players = players.map((p) => (p.id === "b1" ? { ...p, away: true } : p));
+      if (matches.length === 9) players = [...players, P("late", { tier: "B", walkIn: true, joinedAtMatchIndex: 9 })];
+      const next = nextMatch(players, matches, 1, 4);
+      if (!next) break;
+      matches.push({
+        id: `two${matches.length}`, courtNumber: 1, matchIndex: matches.length + 1,
+        teamA: next.teamA, teamB: next.teamB,
+        scoreA: 2, scoreB: 0, status: "played", startedAt: 0, completedAt: 0, stage: null,
+      });
+    }
+    const live = players.filter((p) => !p.away);
+    const counts = live.map((p) => matchesPlayedBy(matches, p.id));
+    // The promise. Everyone who is still here plays their four.
+    expect(counts.every((c) => c >= 4), counts.join(",")).toBe(true);
+    // Not a cap failure. Two is the bound the seats on this roster already
+    // force under single changes, and the pair does not go past it.
+    expect(worstA(live, matches)).toBeLessThanOrEqual(2);
+    // And the overshoot, where it lands and how far it goes. Measured at
+    // four on 2026-09-11, on a B: the bound is here so that a later change
+    // to the card cannot widen it without somebody reading this comment.
+    const spread = Math.max(...counts) - Math.min(...counts);
+    expect(spread, counts.join(",")).toBeLessThanOrEqual(4);
+    const most = live[counts.indexOf(Math.max(...counts))];
+    expect(most.tier).toBe("B");
+  });
+
   it("the cap costs nobody a game: the night still ends with everyone on target", () => {
     // Where the rule cannot be kept at all, it bends rather than the night
     // breaking: six A's and two B's at four each need eight A seats across the

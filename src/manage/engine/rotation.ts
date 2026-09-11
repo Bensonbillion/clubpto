@@ -92,7 +92,15 @@ export function bench(
 
 /* ── the balance rule, and the words the screen puts around it ───── */
 
-/** A name and the count frame 11 prints beside it. */
+/**
+ * A name and the count it is ordered by.
+ *
+ * Frame 11 prints the names and not the numbers, so what the count has to
+ * be right about is the ORDER and the claim the first card makes over it.
+ * Both are counted off the log the card drew from (see explainMatch), which
+ * is why this number can sit a game above the roster tab's for the same
+ * player while a row is stepped past.
+ */
 export interface ReasonPlayer {
   playerId: string;
   name: string;
@@ -612,6 +620,14 @@ function lawfulFour(
   // screen, once from `leastPlayed` and once from here, and explainMatch's
   // own fallback reads them off the queue. Built from the lineup until
   // 2026-09-11, so the two lists jumbled the same names differently.
+  //
+  // That the two orders agree is not luck. Queue order is owed descending,
+  // which is played ascending until it saturates at zero and then played
+  // ascending again to break the tie, and `leastPlayed` is played ascending
+  // with the same roster seat under it. What they must share is the log,
+  // and since 2026-09-11 they do: this queue and explainMatch's counts are
+  // both read off the card's log. On the raw list they disagreed the moment
+  // a row was skipped, and the screen listed one four two ways.
   const inQueue = new Map(queue.map((e, i) => [e.playerId, i]));
   const aPlayers: MixingMember[] = four
     .filter((e) => tierHere(e.playerId) === "A")
@@ -696,10 +712,23 @@ export function courtSpread(
  * deal. Stepping past a row is an ordinary night (frame 12b), so the held
  * rows on this court are seeded here the same way.
  *
- * All but the row being explained. That is the game the four are standing
- * in, and it counts for nobody yet: the counts frame 11 prints are the ones
- * that stood when the four walked on. Rows on other courts are left alone,
- * because the card only ever seeds its own court's.
+ * All but the row being explained, and only where that row is still on
+ * court or stepped past. That is the game the four are standing in, and it
+ * counts for nobody yet: what frame 11 reads is the court as it stood when
+ * the four walked on.
+ *
+ * A row already marked played is left where it is, which is narrower than
+ * the sentence above and deliberate. The row is found by its four, not by
+ * its id, and a four comes round again honestly on a court of exactly four
+ * A's (see the tiers.ts header), so dropping a played one would take the
+ * wrong game out of somebody's count. Frame 11 only ever opens on the live
+ * row, which is the `live` match ManageApp hands it, and nextMatch asks
+ * about a row that does not exist yet. A caller who ever wants to explain a
+ * finished row should hand in that row's id and drop it by identity, rather
+ * than widening the match below.
+ *
+ * Rows on other courts are left alone, because the card only ever seeds its
+ * own court's.
  */
 function asCardDrew(
   matches: readonly Match[],
@@ -767,9 +796,11 @@ function pickerNote(
  *
  * Frame 11 is reached from a court that is mid-match, so the explanation has
  * to be derivable from the persisted match rather than only from the moment it
- * was drawn. `matches` should be the night's matches; a match on court counts
- * for nobody, so passing the full list and the match's own sides gives the
- * counts as they stood when the four walked on.
+ * was drawn. `matches` should be the night's matches, raw: everything the
+ * screen says about the four is then counted off the card's own log, which
+ * asCardDrew rebuilds from that list, so the cards cannot tell an operator
+ * different things. The single exception, and its reason, is the court's
+ * spread below.
  *
  * `targetMatches` is optional and only the screens pass it. With it the draw
  * is replayed (see pickerNote) so the frame can say who the third law held
@@ -786,14 +817,28 @@ export function explainMatch(
   const byId = new Map(players.map((p) => [p.id, p]));
   const seat = new Map(players.map((p, i) => [p.id, i]));
 
+  // ONE CLOCK FOR THE WHOLE SCREEN (2026-09-11). Frame 11 is an account of a
+  // DRAW, and the draw was made off the card's log: played rows, plus this
+  // court's held rows seeded as played, less the row the four are standing
+  // in. So everything on the screen that explains the draw is read from that
+  // log and nothing else. Counting one thing off the raw list and another
+  // off this one put three disagreements on one screen the moment a row was
+  // stepped past: the first card claimed "had played the fewest games" over
+  // a four that had not on the raw counts it was printed from, the same four
+  // came out in two different orders in the first card and the fourth, and
+  // "X had played fewer" named somebody the raw counts did not put lower.
+  const asDrawn = asCardDrew(matches, court, new Set([...teamA, ...teamB]));
+
   // Queue order, rebuilt without needing the target: owed is a decreasing
   // function of games played, so sorting on played ascending gives exactly the
   // order buildQueue would, and the roster seat breaks ties the same way.
+  // Same log as the replay below, so the two lists on the screen are two
+  // views of one set of counts rather than two answers.
   const leastPlayed: ReasonPlayer[] = [...teamA, ...teamB]
     .map((id) => ({
       playerId: id,
       name: byId.get(id)?.name ?? id,
-      matchesPlayed: matchesPlayedBy(matches, id),
+      matchesPlayed: matchesPlayedBy(asDrawn, id),
     }))
     .sort(
       (a, b) =>
@@ -801,6 +846,15 @@ export function explainMatch(
         (seat.get(a.playerId) ?? 0) - (seat.get(b.playerId) ?? 0),
     );
 
+  // The one number here that is NOT about this draw, and the one exception
+  // to the clock above. The spread answers "how far apart are this court's
+  // counts right now", which is the roster tab's question, not the picker's,
+  // and both screens read it from courtSpread so that neither can promise
+  // what the other denies. Seeded, it would say nobody on the court is more
+  // than one game behind while the roster tab showed two players two games
+  // apart, and the roster tab is the screen holding the real numbers. So the
+  // sentence about the court is counted off played rows, and the sentences
+  // about the four are counted off the card's log.
   const spread = courtSpread(players, matches, court);
 
   const cPlayers: BalanceMember[] = leastPlayed
@@ -817,15 +871,11 @@ export function explainMatch(
         : sides.size === 2 ? "acrossTheNet"
           : "alongside";
 
-  // The third law, read off the log THE CARD DREW FROM: played rows, plus
-  // this court's held rows seeded as played the way projectCard seeds them,
-  // less the row being explained. Frame 11 is opened on a match that is on
-  // court and passes the night's whole list, so counting every non-voided
+  // The third law, off the same log. Frame 11 is opened on a match that is
+  // on court and passes the night's whole list, so counting every non-voided
   // row here would charge the four for the game they are standing in, and
   // counting only played ones would forget the game a skipped row already
-  // spent. Both the count below and the replay read the one list, so the
-  // fourth card and the first cannot tell an operator different things.
-  const asDrawn = asCardDrew(matches, court, new Set([...teamA, ...teamB]));
+  // spent.
   const bGames = countBGames(players, asDrawn, countsAsPlayed);
   const tier = (id: string): Tier => {
     const p = byId.get(id);

@@ -89,10 +89,16 @@ export type SplitNote =
   /**
    * This court cannot give everyone the target at all.
    *
-   * Two A's, two B's and two C's at four each is the shape: the eight
-   * A-seats force four A B against A B games, those use up every game the
-   * B's owe, and the C's are left with nobody the laws allow them on court
-   * with. The night deals lawful fours and nobody reaches the target.
+   * Two A's, two B's and two C's at four each is the shape, and what it
+   * does is worth reading before the note is trusted. The two A's have one
+   * lawful game between them, A B against A B, and the third law spends it
+   * on their one game with the B's. A pure game of A's wants four A's and
+   * there are two, so from the second game on there is no lawful four with
+   * an A in it at all. The B's and the C's carry on without them, on a
+   * court of two C's that the C law relaxes, and the same four keeps coming
+   * round. Driven on 2026-09-11: twenty games in, both A's still on one
+   * game while the B's sat on twenty and the C's on nineteen. So the court
+   * misses in both directions at once, which is what the note says.
    *
    * The target step's own check only asks whether size times target divides
    * by four, and the stranding check only asks whether each player has one

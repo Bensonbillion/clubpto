@@ -388,7 +388,11 @@ describe("deficit: slack, the walk-in's signature", () => {
     // schedule its slack seats freely could reach.
     expect(paddedBruteForce(players, 2, false, true)).toBe(1);
     expect(bruteForce(players, 2, false, true)).toBe(0);
-  });
+    // Two brute forces over eight A's and three B's, about three seconds of
+    // them, and vitest's default is five. It went red under load and took
+    // the suite with it (2026-09-11), so it carries a timeout like the
+    // comparison tests below.
+  }, 60_000);
 
   it("a C game only turns the B parity over when the B in it is owed a game", () => {
     // Three games from the end of six A's, three B's and three C's at five
