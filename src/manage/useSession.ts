@@ -14,7 +14,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSessionStore, type Envelope, type RemoteSync, type SessionStore, type SyncStatus } from "@/court-manager/persistence";
 import type { Court, CourtNumber, KnockoutPair, Match, NightFormat, Player, PlayerTier, ScheduleSlot, Session } from "./types";
-import { buildQueue, lawContextFor, nextMatch, courtComplete, matchesPlayedBy, totalMatches } from "./engine/rotation";
+import { buildQueue, explainMatch, lawContextFor, nextMatch, courtComplete, matchesPlayedBy,
+  totalMatches, type MatchReason } from "./engine/rotation";
 import { canFieldACMatch, designateB, tierOf as tierOfPlayer } from "./engine/tiers";
 import { legalSubstitutes, swapIntoMatch } from "./engine/substitutes";
 import { computeStandings, type PlayedMatch, type StandingsRow } from "./engine/standings";
@@ -199,15 +200,73 @@ const slotCount = (session: Session, court: Court): number => {
 
 /**
  * The whole card for one court: stored rows where they exist, projections
- * everywhere else.
+ * everywhere else. Worked out once per session per court.
  *
- * The walk is in slot order and carries the night forward with it. A row that
- * is on court or skipped goes into the running log AS PLAYED before the next
- * row is drawn, because the card is a picture of a night in which every row
- * gets played. Without that, the projections would hand the same four their
- * games twice and the last rows would have nobody left to fill them.
+ * scheduleFor projects the WHOLE night: N*T/4 sequential draws, and on the
+ * Wednesday roster a draw is tens of milliseconds. One tap used to pay for
+ * two or three cards, because the render memo builds one and putOnCourt,
+ * playNextSlot and skipLiveMatch each build another to read a single row out
+ * of it. A Session is immutable, and so is every court on it, so the card
+ * for a given session cannot change: the second caller gets the first
+ * caller's answer.
+ *
+ * Keyed on the session object, which is replaced on every change, so an
+ * entry can never go stale; keyed on the WeakMap so a session nobody holds
+ * takes its cards with it. Nothing in the codebase mutates the rows it gets
+ * back, and nothing may start: they are shared now.
  */
+const cards = new WeakMap<Session, Map<string, ScheduleSlot[]>>();
+
 export function scheduleFor(session: Session, court: Court): ScheduleSlot[] {
+  const key = `${court.number}:${court.targetMatches}`;
+  let forSession = cards.get(session);
+  if (!forSession) { forSession = new Map(); cards.set(session, forSession); }
+  const hit = forSession.get(key);
+  if (hit) return hit;
+  const rows = projectCard(session, court);
+  forSession.set(key, rows);
+  return rows;
+}
+
+/**
+ * Frame 11's answer for the four on court, worked out once per session.
+ *
+ * explainMatch with a target REPLAYS the draw (see pickerNote in
+ * engine/rotation.ts), which is a full scan of every four in the queue plus
+ * the mixing oracle: 51 ms on the Wednesday roster at twelve A's and eight
+ * B's, 118 ms at fourteen and ten. The frame is modal, so it was paying that
+ * on every render while it sat open, sync ticks included. Same argument as
+ * the cards above: a Session is immutable, so the answer for one session,
+ * one court and one four cannot change (2026-09-11).
+ */
+const reasons = new WeakMap<Session, Map<string, MatchReason>>();
+
+export function reasonFor(
+  session: Session,
+  court: Court,
+  teamA: readonly [string, string],
+  teamB: readonly [string, string],
+): MatchReason {
+  const key = `${court.number}:${court.targetMatches}:${[...teamA, ...teamB].join(",")}`;
+  let forSession = reasons.get(session);
+  if (!forSession) { forSession = new Map(); reasons.set(session, forSession); }
+  const hit = forSession.get(key);
+  if (hit) return hit;
+  const reason = explainMatch(
+    session.players, session.matches, court.number, teamA, teamB, court.targetMatches);
+  forSession.set(key, reason);
+  return reason;
+}
+
+/**
+ * The walk down the card, in slot order, carrying the night forward with it.
+ * A row that is on court or skipped goes into the running log AS PLAYED
+ * before the next row is drawn, because the card is a picture of a night in
+ * which every row gets played. Without that, the projections would hand the
+ * same four their games twice and the last rows would have nobody left to
+ * fill them.
+ */
+function projectCard(session: Session, court: Court): ScheduleSlot[] {
   const held = bySlot(session.matches, court.number);
   const total = slotCount(session, court);
 

@@ -25,11 +25,14 @@
 import { useMemo, useEffect, useState } from "react";
 import { ensureManageFonts } from "./ui/fonts";
 import { applyInstanceAccent, Body, DangerButton, PrimaryButton, Screen, SecondaryButton, Sheet, T, TabBar, Tag, TertiaryButton, type Tab } from "./ui/primitives";
-import { recordedResultCount, storageKeyFor, useManageSession } from "./useSession";
+import { reasonFor, recordedResultCount, storageKeyFor, useManageSession } from "./useSession";
 import { useRoster } from "./roster/useRoster";
 import { appearsInAMatch } from "./engine/roster-guard";
 import { dedupeWalkIn } from "./roster/merge";
-import { bench, explainMatch, lawContextFor, validTargets, totalMatches } from "./engine/rotation";
+import {
+  bench, courtSpread, forcedMixing, lawContextFor, unfinishableCourt,
+  validTargets, totalMatches,
+} from "./engine/rotation";
 import { legalSubstitutes, strandedPlayers } from "./engine/substitutes";
 import { suggestSplit, suggestTarget, type SplitNote } from "./engine/split";
 import { MIN_CS_FOR_A_C_MATCH, tierOf } from "./engine/tiers";
@@ -43,7 +46,9 @@ import type { Match, PlayerTier, PlayoffStage, NightFormat } from "./types";
 import { Passcode, PasscodeFailed, HomeNothingRunning, HomeNightInProgress } from "./screens/door-home";
 import { WhichNight, WhoIsHere, Courts, MatchesEach, Ready, Chip } from "./screens/setup";
 import { CourtHeader, BalanceRule, CourtView, CourtSwitcher, Schedule, ScoreEntry , startValue } from "./screens/play";
-import { CorrectOrVoid, Extend, LateArrival, LeavesEarly, MoveCourts, PlayersTab } from "./screens/people";
+import {
+  CorrectOrVoid, Extend, LateArrival, LeavesEarly, MoveCourts, PlayersTab, roundRobinCounts,
+} from "./screens/people";
 import { CourtsFree } from "./screens/knockout/CourtsFree";
 import { KnockoutPlay } from "./screens/knockout/KnockoutPlay";
 import { KnockoutReady } from "./screens/knockout/KnockoutReady";
@@ -476,6 +481,26 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
   const [night, setNight] = useState("Wednesday");
   const [query, setQuery] = useState("");
   const [courtCount, setCourtCount] = useState(2);
+  /**
+   * Which courts the operator has picked a games-each target for, on this
+   * way in.
+   *
+   * The courts step comes BEFORE the target step, so the target its two cap
+   * notes quote is whatever applySuggestedSplit seeded, and they say "the
+   * suggested four each" while that is what it is. Reading "is the stored
+   * target still valid" instead said no such thing on a fresh night: the
+   * seeded target is valid by construction, so the notes called the split's
+   * own suggestion a choice the operator had made (2026-09-11).
+   *
+   * PER COURT, because targets are (frame B31, and MatchesEach says so in as
+   * many words): sixteen divides at three, fourteen only at four, and each
+   * card answers for itself. Held as one boolean, tapping court one's target
+   * dropped "the suggested" from court two's note while court two's number
+   * was still nothing but the split's seed. Court numbers go in on the
+   * target step's tap; the set is emptied whenever the split re-seeds every
+   * court's target.
+   */
+  const [targetChosen, setTargetChosen] = useState<ReadonlySet<number>>(() => new Set());
   const [tierPromptId, setTierPromptId] = useState<string | null>(null);
   // The pair-up screen's first tap, waiting for its second (frame 30).
   const [heldId, setHeldId] = useState<string | null>(null);
@@ -596,7 +621,12 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
       const placed = p.courtNumber != null && p.courtNumber <= count;
       if (to != null && ((everyone && fresh) || !placed)) s.assignCourt(p.id, to);
     }
-    if (fresh) for (const [number, t] of suggestion.targets) s.setTarget(number, t);
+    if (fresh) {
+      for (const [number, t] of suggestion.targets) s.setTarget(number, t);
+      // Re-seeding overwrites whatever the target step was told, on every
+      // court, so every number on the courts screen is a suggestion again.
+      setTargetChosen(new Set());
+    }
   };
 
   /* ── keeping every court playing ───────────────────────────────── */
@@ -1090,9 +1120,11 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
       // The setup warnings, read off the split AS IT STANDS, drags included.
       // suggestSplit can only speak about its own assignment, so freezing the
       // notes it returned on the way in would keep warning about a court the
-      // operator has already fixed. The same three facts are therefore derived
-      // live, with the module's own constant and suggestTarget so the
-      // thresholds cannot drift from engine/split.ts.
+      // operator has already fixed. All six kinds are therefore derived live,
+      // the two C notes and the four per-court ones, with the module's own
+      // constant and suggestTarget so the thresholds cannot drift from
+      // engine/split.ts. Courts.tsx counts the same six when it decides which
+      // of them wear the destructive ink.
       const csIn = s.session.players.filter((p) => tierOf(p) === "C");
       const splitNotes: SplitNote[] = [];
       if (csIn.length > 0 && csIn.length < MIN_CS_FOR_A_C_MATCH) {
@@ -1123,6 +1155,53 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
               kind: "stranded",
               courtNumber: c.courtNumber,
               names: stuck.map((p) => p.name),
+            });
+          }
+          // The third law bending on this court's numbers, priced by the same
+          // oracle the picker uses, so the warning and the night cannot
+          // disagree. The target step comes AFTER this one, so the target
+          // here is whatever the split seeded, which a drag can leave behind:
+          // when the court's size no longer takes it, the suggestion for the
+          // size as it stands is used instead and the note says so.
+          // The headcount here is who can actually be dealt a game, away
+          // players left out, because forcedMixing, unfinishableCourt and
+          // strandedPlayers all price the court that way. Read off the chips
+          // instead, a court holding somebody marked away would be judged at
+          // a target its playable headcount does not divide into, and these
+          // two notes quote numbers rather than just naming a court.
+          const playableHere = s.session.players
+            .filter((p) => p.courtNumber === c.courtNumber && !p.away).length;
+          const chosen = s.session.courts.find((x) => x.number === c.courtNumber)?.targetMatches;
+          const fits = chosen != null && validTargets(playableHere).includes(chosen);
+          const target = fits ? chosen : suggestTarget(playableHere);
+          // A suggestion until the operator has been offered the target step
+          // and answered it. A court already running has a target the night
+          // is playing to, so that one is theirs whatever this screen shows,
+          // and a target the split no longer takes is a fresh suggestion
+          // whoever chose the old one.
+          const seeded = !fits
+            || (s.session.status !== "running" && !targetChosen.has(c.courtNumber));
+          const bend = target == null ? null : forcedMixing(s.session.players, c.courtNumber, target);
+          if (bend) {
+            splitNotes.push({
+              kind: "capBends",
+              courtNumber: c.courtNumber,
+              aCount: bend.aCount,
+              target: bend.target,
+              suggested: seeded,
+              seats: bend.seats,
+              secondGames: bend.secondGames,
+            });
+          }
+          // And the harder answer from the same oracle: a court whose seats
+          // do not divide into whole lawful games at all. validTargets only
+          // checks the headcount times the target, and the stranding check
+          // only asks whether each player has one legal foursome, so a court
+          // like two A's, two B's and two C's at four each passed both and
+          // then ran a night nobody could finish.
+          if (target != null && unfinishableCourt(s.session.players, c.courtNumber, target)) {
+            splitNotes.push({
+              kind: "capStuck", courtNumber: c.courtNumber, target, suggested: seeded,
             });
           }
         }
@@ -1168,7 +1247,10 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
             selected: c.targetMatches,
           }))}
           minutesPerMatch={MINUTES_PER_MATCH}
-          onSelect={(courtNumber, t) => s.setTarget(courtNumber, t)}
+          onSelect={(courtNumber, t) => {
+            s.setTarget(courtNumber, t);
+            setTargetChosen((was) => new Set(was).add(courtNumber));
+          }}
           onBack={() => setStep("courts")}
           onNext={() => setStep("ready")}
         />
@@ -2310,6 +2392,11 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           onAddPlayer={() => {
             setLateName(""); setLateTier(null); setLateCourt(courtNumber); setSheet("lateArrival");
           }}
+          // The footer reads the court rather than promising it. Since the
+          // third law arrived the cap may hold a least-played player back a
+          // game, so the gap is looked up, exactly as frame 11 looks it up.
+          countsLine={roundRobinCounts(
+            courtSpread(s.session.players, s.session.matches, courtNumber))}
           onChangeTab={(t) => here({ tab: t })}
         />
         {overlays}
@@ -2440,8 +2527,11 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           courtNumber={courtNumber}
           // engine/rotation.ts decided who is on and why. This reads its answer
           // back for the four already on court; nothing is worked out here.
-          reason={explainMatch(
-            s.session.players, s.session.matches, courtNumber, live.teamA, live.teamB)}
+          // The court goes with it so the engine can replay its own draw and
+          // hand back who the third law held back, which the match row on its
+          // own cannot know. Through useSession so the replay is worked out
+          // once a session rather than on every render of an open frame.
+          reason={reasonFor(s.session, view.court, live.teamA, live.teamB)}
           onDismiss={() => here({ pane: "match" })}
         />
         {overlays}

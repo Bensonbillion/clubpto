@@ -57,7 +57,61 @@ export type SplitNote =
    * operator has fixed. The shell judges it after each drag with
    * engine/substitutes.ts strandedPlayers and phrases the names it gets back.
    */
-  | { kind: "stranded"; courtNumber: number; names: string[] };
+  | { kind: "stranded"; courtNumber: number; names: string[] }
+  /**
+   * The numbers on this court force an A to meet the B's twice.
+   *
+   * The third law is one game with the B's a night and never a second, and
+   * some headcounts cannot keep it: on a court of six A's and two B's at
+   * four each the two B's owe eight games between them, which is four games
+   * across the net, and each of those seats two A's, so eight seats over six
+   * A's. The night still finishes everyone on target and the picker spreads
+   * the second games rather than stacking them, but the operator hears the
+   * bend at setup rather than in round six.
+   *
+   * `seats` is the places across the net from the B's the A's have to fill
+   * over the night and `secondGames` is how many of those are somebody's
+   * second. `suggested` says the target is this screen's suggestion rather
+   * than one the operator has chosen, because the target step comes after
+   * this one and a court drag can leave the seeded target behind. True until
+   * the target step has been answered, and true again whenever the split
+   * re-seeds; false on a court already running, whose target is the night's.
+   *
+   * suggestSplit never emits this note, for the same reason it never emits
+   * "stranded": the bend is a fact about the court AS IT STANDS and about a
+   * target chosen on the NEXT step, and a note frozen at suggestion time
+   * would keep warning about a court the operator has already fixed. The
+   * shell re-derives it after every drag from engine/rotation.ts
+   * forcedMixing, which prices the night the same way the picker does.
+   */
+  | { kind: "capBends"; courtNumber: number; aCount: number; target: number;
+      suggested: boolean; seats: number; secondGames: number }
+  /**
+   * This court cannot give everyone the target at all.
+   *
+   * Two A's, two B's and two C's at four each is the shape, and what it
+   * does is worth reading before the note is trusted. The two A's have one
+   * lawful game between them, A B against A B, and the third law spends it
+   * on their one game with the B's. A pure game of A's wants four A's and
+   * there are two, so from the second game on there is no lawful four with
+   * an A in it at all. The B's and the C's carry on without them, on a
+   * court of two C's that the C law relaxes, and the same four keeps coming
+   * round. Driven on 2026-09-11: twenty games in, both A's still on one
+   * game while the B's sat on twenty and the C's on nineteen. So the court
+   * misses in both directions at once, which is what the note says.
+   *
+   * The target step's own check only asks whether size times target divides
+   * by four, and the stranding check only asks whether each player has one
+   * legal foursome, so a court like this passed setup in silence until
+   * 2026-09-11. engine/rotation.ts unfinishableCourt asks the oracle, which
+   * has known all along: it prices such a court at Infinity.
+   *
+   * suggestSplit never emits this one either, and for the same reason as
+   * "capBends": it is a fact about the court as it stands and about a target
+   * chosen on the next step. `suggested` means what it means on capBends, and
+   * is set from the same place.
+   */
+  | { kind: "capStuck"; courtNumber: number; target: number; suggested: boolean };
 
 /**
  * The suggested target for a court of this size.

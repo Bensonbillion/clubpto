@@ -1,11 +1,12 @@
-// The two balance laws, and who is allowed on court together.
+// The balance laws, and who is allowed on court together.
 //
 // The whole design in one line: the round robin is long, so that is where
 // people need protecting, and the playoff is short, earned and partnered, so
 // that is where everyone mixes. Nothing in this file applies to a playoff.
 // Seeding comes off the standings and from there tier is irrelevant.
 //
-// THE LAWS, same shape, one at each end of the room:
+// THE LAWS. The first two are the same shape, one at each end of the room;
+// the third arrived on 2026-09-10 and stands on its own:
 //
 //   1. If a match holds both A's and B's, the two teams have the same make-up:
 //      an A and a B on each side. Never AB against BB, never AA against AB.
@@ -22,6 +23,41 @@
 // rides with the beginner group for the whole session, so the C's see one
 // consistent stronger face instead of a rotating cast, and nobody ends up
 // having played with a parade of different B's.
+//
+//   3. An A plays ONE game with the B's a night, and never a second. The
+//      owner's words, 2026-09-10, after the Wednesday of 2026-09-09 dealt
+//      A's a second and a third: "An A should not get more than one B game
+//      throughout the whole session, whether it's three games, four or five.
+//      They should never get more than one B game. I know the math is
+//      confusing, it's always a weird number, but this is highly important
+//      for our business." A B game is any game with a B in it, counted per
+//      session across courts. Wherever the seats can still be finished with
+//      no A meeting the B's twice, that is a hard cap, and it is the one
+//      thing allowed to hold a least-played player back a game. Where the
+//      seats cannot (fewer than four A's, a lone B, six A's and two B's at
+//      four each), the night still finishes on target and the second games
+//      are spread, never stacked on one A. And where the seats allow it every
+//      A GIVES their one game: among equally fair fours, one that spends an
+//      unused ticket beats a pure game, which is also what keeps the
+//      Wednesday roster AT THREE EACH from meeting the same person three
+//      times. That qualifier is a measurement rather than modesty: the same
+//      twenty at four each and at five each meet somebody a third time
+//      whatever this preference does, because twenty and twenty-five games
+//      among twenty people leave no room not to (2026-09-11). The law above
+//      covers all three targets; this consequence of it covers three each.
+//      Some courts have no room for the one game at all, and there the law
+//      is a ceiling rather than a promise: six A's and six B's at four each
+//      fit two mixed games, so two of those A's never meet the B's at all.
+//
+// Three consequences of the third law worth knowing before a night.
+// Unassessed players count as B (see tierOf), so after one game an assessed A
+// is walled off from every unassessed player on the court for the rest of the
+// night. A court of exactly four A's plays the same four A's more than once
+// after their one B game, which is accepted, the partners still rotate. And a
+// B who walks in late plays only B's: the Wednesday roster at three each with
+// a B arriving before game nine finds all twelve A's have spent their ticket,
+// and the cap walls every one of them off, so the night gives that B three
+// games and never an A in any of them.
 
 import type { Player } from "../types";
 
@@ -311,46 +347,98 @@ export function chooseFour(
      */
     sameFour?: (ids: readonly string[]) => number;
     /**
-     * The players on the lowest played count who are still owed a game:
-     * the band the next games are dealt from. With eight in it, the four
-     * not chosen now are the four dealt next, and if THEY have already
-     * played together the repeat is being dealt one game early; that is
-     * charged here too.
+     * Groups who play only each other from here. The first is the players
+     * on the lowest played count who are still owed a game, the band the
+     * next games are dealt from; with the cap on, the A's in that band who
+     * have had their game with the B's are a band of their own, and so are
+     * the B's when no A in the band can still mix. With eight in a group,
+     * the four not chosen now are the four dealt next, and if THEY have
+     * already played together, or met, the repeat is being dealt one game
+     * early; that is charged here too. Found on the Wednesday roster under
+     * the cap, where the last pure game of A's was whoever the two before
+     * it happened to leave, and twice it was two pairs on their third
+     * meeting.
      */
-    owed?: readonly string[];
+    bands?: readonly (readonly string[])[];
+    /**
+     * The third law's price for dealing these four: what this game charges
+     * the A's in it (their k-th game with the B's costs k-1) plus the
+     * smallest charge any lawful finish of the rest of the night carries
+     * after it. Zero means the cap still holds; a positive number means
+     * these four force somebody's second B game, now or later. Ranked
+     * FIRST. Absent on a court with no A or no B, where it is 0 for every
+     * four.
+     */
+    cost?: (ids: readonly string[]) => number;
+    /**
+     * This game's own part of `cost`: the sum of the B games the A's in it
+     * have already had, when the four holds a B. Read separately so a game
+     * that gives A's their FIRST game with the B's (charge 0) can be told
+     * from one that only avoids the B's.
+     */
+    charge?: (ids: readonly string[]) => number;
   } = {},
 ): Chosen | null {
-  const { windowSize = 12, playedBy, partnered, met, bridgeBusy = false, mixed, sameFour, owed } = options;
+  const { windowSize = 12, playedBy, partnered, met, bridgeBusy = false, mixed, sameFour, bands = [], cost, charge } = options;
   const mixedGames = mixed ?? (() => 0);
   const repeatOf = sameFour ?? (() => 0);
+  const priceOf = cost ?? (() => 0);
+  const chargeOf = charge ?? (() => 0);
   const window = queue.slice(0, Math.max(4, windowSize));
   let best: Chosen | null = null;
   // Ranked in this order, and the order is the whole fairness argument:
-  //   1. games already played, so the people owed a game go on;
-  //   2. the soft C preference, which only ever separates equals;
-  //   3. repeated partnerships, so the same two are not dealt together again
+  //   1. the third law's cost, so no A is dealt a second game with the B's
+  //      while a four that avoids one exists. This is the ONE key above
+  //      fairness, by the owner's word on 2026-09-10 ("highly important for
+  //      our business"), and it is what it sounds like: the cap can hold a
+  //      least-played player back a game. Measured on the Wednesday roster,
+  //      the spread touches 2 (never 3) on about half of A-and-B nights
+  //      and stays at 1 on the rest. Where the seats force second games the
+  //      cost still ranks, so they are spread over different A's;
+  //   2. games already played, so the people owed a game go on;
+  //   3. the same four again, now or as the game this choice leaves last;
+  //   4. the soft C preference, which only ever separates equals;
+  //   5. spending an unused ticket: among fours as fair as each other, one
+  //      that gives A's their one game with the B's beats a pure game, so
+  //      every A gives that game rather than the B's being mixed as little
+  //      as the seats allow. That is also what keeps the Wednesday roster
+  //      AT THREE EACH from meeting the same person three times: with only
+  //      the mixed games the seats force, the A's fill seven pure games
+  //      among twelve. At three each and no further. The same twenty at
+  //      four and at five meet somebody a third time however this key
+  //      ranks, because fifteen games leave room for it and twenty and
+  //      twenty-five do not (2026-09-11);
+  //   6. who has met whom, so the same four does not come round again;
+  //   7. mixed games had, so the same B's do not take every mixed game;
+  //   8. repeated partnerships, so the same two are not dealt together again
   //      while an untried split costs nothing in fairness;
-  //   4. queue position, so the result is deterministic.
+  //   9. queue position, so the result is deterministic.
   // The fairness key is the four players' played counts SORTED, compared
   // lexicographically, not their sum. A sum lets [0,0,3,3] tie with [1,1,2,2],
   // which would put somebody on their fourth game while somebody else was
   // still on their first: exactly the drift the court is supposed to prevent.
   // Sorted-and-lexicographic makes "the least played four" precise, and any
   // other four with the same vector is equally fair by definition.
-  let bestKey: { played: number[]; exact: number; penalty: number; familiar: number; mixedSum: number; repeats: number; position: number } | null = null;
+  type Key = { cost: number; played: number[]; exact: number; penalty: number; spend: number;
+               familiar: number; mixedSum: number; repeats: number; position: number };
+  let bestKey: Key | null = null;
   const games = playedBy ?? (() => 0);
   const together = partnered ?? (() => 0);
   const shared = met ?? (() => 0);
-  const better = (
-    k: { played: number[]; exact: number; penalty: number; familiar: number; mixedSum: number; repeats: number; position: number },
-    b: typeof bestKey,
-  ): boolean => {
+  const metAmong = (ids: readonly string[]) => {
+    let sum = 0;
+    for (let x = 0; x < ids.length; x++) for (let y = x + 1; y < ids.length; y++) sum += shared(ids[x], ids[y]);
+    return sum;
+  };
+  const better = (k: Key, b: Key | null): boolean => {
     if (!b) return true;
+    if (k.cost !== b.cost) return k.cost < b.cost;
     for (let n = 0; n < k.played.length; n++) {
       if (k.played[n] !== b.played[n]) return k.played[n] < b.played[n];
     }
     if (k.exact !== b.exact) return k.exact < b.exact;
     if (k.penalty !== b.penalty) return k.penalty < b.penalty;
+    if (k.spend !== b.spend) return k.spend < b.spend;
     if (k.familiar !== b.familiar) return k.familiar < b.familiar;
     if (k.mixedSum !== b.mixedSum) return k.mixedSum < b.mixedSum;
     if (k.repeats !== b.repeats) return k.repeats < b.repeats;
@@ -365,27 +453,42 @@ export function chooseFour(
           const played = ids.map(games).sort((m, n) => m - n);
           const position = i + j + k + l;
           // Every pair among the four: how often they have shared a court.
-          let familiar = 0;
-          for (let x = 0; x < 4; x++) for (let y = x + 1; y < 4; y++) familiar += shared(ids[x], ids[y]);
+          let familiar = metAmong(ids);
           // The same four again, now or as the game this choice leaves last.
           let exact = repeatOf(ids);
-          if (owed && owed.length === 8 && ids.every((id) => owed.includes(id))) {
-            exact += repeatOf(owed.filter((id) => !ids.includes(id)));
+          // A band of eight makes the four not chosen the next four, so
+          // what they would repeat is charged to this choice as well.
+          const band = bands.find((b) => b.length === 8 && ids.every((id) => b.includes(id)));
+          if (band) {
+            const left = band.filter((id) => !ids.includes(id));
+            exact += repeatOf(left);
+            familiar += metAmong(left);
           }
           // A mixed game counts against whoever has already had one.
           const tiersHere = ids.map(ctx.tierById);
           const isMixed = tiersHere.includes("A") && tiersHere.includes("B");
           const mixedSum = isMixed ? ids.reduce((sum, id) => sum + mixedGames(id), 0) : 0;
+          // The third law's price, asked once per four and only of a four
+          // with a lawful split, so the oracle behind it is never run for
+          // a game that could not be dealt anyway.
+          let price: { cost: number; spend: number } | null = null;
           for (const [x, y, z, w] of SPLITS) {
             const lineup: Lineup = { teamA: [ids[x], ids[y]], teamB: [ids[z], ids[w]] };
             if (!isLegal(lineup, ctx)) continue;
+            if (!price) {
+              // A ticket is spent when the four mixes and no A in it has
+              // met the B's yet: these A's are having their one game.
+              price = { cost: priceOf(ids), spend: isMixed && chargeOf(ids) === 0 ? 0 : 1 };
+            }
             const borrowsBridge = bridgeBusy && ctx.designatedB !== null
               && ids.includes(ctx.designatedB)
               && !ids.some((id) => ctx.tierById(id) === "C");
-            const key = {
+            const key: Key = {
+              cost: price.cost,
               played,
               exact,
               penalty: softPenalty(lineup, ctx) + (borrowsBridge ? 1 : 0),
+              spend: price.spend,
               familiar,
               mixedSum,
               repeats: together(lineup.teamA[0], lineup.teamA[1])

@@ -9,6 +9,8 @@
 // files export components and nothing else, which is what keeps fast refresh
 // working on them.
 
+import type { MatchReason, MixingMember, MixingNote } from "../../engine/rotation";
+
 /** One side of the match. `pairLabel` is the two names as the frames write
  *  them, joined with an ampersand: "Chizea & Ayo". */
 export interface PairSide {
@@ -94,4 +96,163 @@ export const joinNames = (names: readonly string[]): string => {
   if (names.length === 0) return "";
   if (names.length === 1) return names[0];
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+};
+
+/**
+ * A list of names a phone card can hold, and the verb that agrees with it.
+ *
+ * Four names is barely longer than three and a count, and shorter than "and
+ * 1 others", so the roll call only collapses at five. Past that a big court
+ * reached out of order can put every player off it below the four, and
+ * eleven names in one sentence is not a sentence anybody reads out to the
+ * person who asked (2026-09-11).
+ */
+const fewNames = (names: readonly string[]): { list: string; verb: (v: string) => string } => ({
+  list: names.length <= 4 ? joinNames(names)
+    : `${names.slice(0, 3).join(", ")} and ${names.length - 3} others`,
+  verb: (v) => (names.length === 1 ? `${v}s` : v),
+});
+
+/**
+ * The first card's sentence, which has to stay true.
+ *
+ * "They had played the fewest games" was simply true until 2026-09-10. The
+ * third law is now allowed to hold a least-played player back a game, so on
+ * the draws where it did, the sentence says who was passed over and why
+ * rather than claiming something the four does not support. The second
+ * sentence is a promise about the whole court, so it is only printed when
+ * the court is actually keeping it. A court whose counts have drifted, which
+ * takes someone arriving mid-night and being marked away again, gets the
+ * first sentence alone. The frame draws no wording for either exception and
+ * none is invented beyond its register.
+ */
+export const leastPlayedWords = (reason: MatchReason): string => {
+  const names = joinNames(reason.leastPlayed.map((p) => p.name));
+  const held = reason.mixing.heldBack;
+  // Who was held back is a counterfactual only the draw itself knows, so
+  // this branch comes from the picker's own account of the four and never
+  // from a match read back off the log, where the list is empty by design.
+  if (held.length > 0) {
+    // Two reasons a fairer four is passed over, and they are different
+    // sentences to the player who asked. Usually the four would have put an
+    // A in with the B's a second time. Sometimes it only leaves seats
+    // nobody can deal out, and saying "a second game with the B's" there
+    // would name the wrong rule to somebody sitting down (2026-09-11).
+    const why = reason.mixing.heldBackBy === "unfinished"
+      ? "would have left somebody short of their games"
+      : "would have cost an A a second game with the B's";
+    // The same shortening as the branch below: heldBack is the fairest four
+    // minus the chosen four, so all four of its names can be different ones.
+    // The subject of the last clause is "they", whatever the count, so only
+    // the list is shortened here and the verb stays as the frame wrote it.
+    const { list } = fewNames(held.map((p) => p.name));
+    return `${names} are on. ${list} had played fewer, but putting`
+      + ` them on ${why}, so they wait a round.`;
+  }
+  const promise = reason.withinOneGame
+    ? " Nobody on this court is ever more than one game behind." : "";
+  // The superlative is a claim about the whole court, so it is printed only
+  // when the court bears it out. The third law is not the only rule that can
+  // pass a least-played player over: the mixing laws do it too, on a court
+  // where the four at the minimum are not a shape any game allows, and there
+  // the picker reaches one row further down with nothing to say about it
+  // (2026-09-11). So where somebody off court has had fewer games, the card
+  // names them and stops short of a reason, because at this point nothing on
+  // the screen knows which rule it was.
+  if (!reason.fewestPlayed) {
+    // NO CAUSE IS NAMED HERE, and that is the point. The four on court are
+    // not always a four this engine drew: the operator can swap somebody in
+    // (frame 15) or tap a row out of turn (frame 12b), and "the laws did it"
+    // over a lineup a person built by hand is the lie the frame's whole
+    // design avoids. The held-back branch above may name its rule because
+    // the replay proved the picker drew that four. This one says only what
+    // the log supports, which is who has had fewer games.
+    //
+    const all = reason.waiting.map((p) => p.name);
+    // Everyone below them has finished their games, so nobody is waiting and
+    // the card says only who is on. Reached on a night the card grew past
+    // the target, where the four playing on are above a player the queue has
+    // already let go of.
+    if (all.length === 0) return `${names} are on.${promise}`;
+    const { list, verb } = fewNames(all);
+    return `${names} are on. ${list} had played fewer and ${verb("wait")} a round.${promise}`;
+  }
+  return `${names} had played the fewest games, so they are on.${promise}`;
+};
+
+/** "second", "third", up to a night's worth. Past that, digits. */
+const ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth"];
+const ordinal = (n: number): string => ORDINALS[n - 1] ?? `${n}th`;
+
+/**
+ * Which time round this is for the A's meeting the B's again.
+ *
+ * They do not have to agree. On a court that bends the law one A can be on
+ * their second while another is on their third, so the clause names each
+ * count it has to name and collapses to one only when they all match.
+ */
+const againWords = (again: readonly MixingMember[]): string => {
+  const same = again.every((a) => a.bGames === again[0].bGames);
+  if (same) {
+    return `${joinNames(again.map((a) => a.name))} ${again.length === 1 ? "meets" : "meet"}`
+      + ` them for the ${ordinal(again[0].bGames + 1)} time.`;
+  }
+  return `${again[0].name} meets them for the ${ordinal(again[0].bGames + 1)} time, `
+    + `${joinNames(again.slice(1).map((a) => `${a.name} for the ${ordinal(a.bGames + 1)}`))}.`;
+};
+
+/**
+ * The fourth card's sentence: what the third law did for this four.
+ *
+ * Null when there is no A in the match, because the law is then silent and a
+ * card that says so is a card the operator reads for nothing. Each wording
+ * says only what the reason supports, and since 2026-09-11 the note carries
+ * every A's count into the match, so the card counts rather than guesses.
+ *
+ * "pure" knows no B is in the match. Where every A in it has already spent
+ * their ticket it says so; where somebody has not, it names them, because
+ * the old flat wording told A's their game was behind them on a card drawn
+ * one round before they got it. It does not say the missing game is coming:
+ * six A's and six B's at four each have room for two mixed games, so two of
+ * those A's never meet the B's at all. "firstBGame" knows every A in the
+ * four is on their first. "secondBGame" knows at least one is not, and says
+ * which time round it is for each of them: "a second game" was flatly false
+ * on the courts that bend the law, where a third and a fourth happen.
+ *
+ * No wording here names a CAUSE. A repeat can be the court's numbers or a
+ * four the operator built by hand, and a match on its own cannot tell them
+ * apart. The setup note is the screen that actually prices the court, so it
+ * is the one that gets to say why.
+ */
+export const mixingWords = (mixing: MixingNote): string | null => {
+  const names = joinNames(mixing.aPlayers.map((a) => a.name));
+  const one = mixing.aPlayers.length === 1;
+  switch (mixing.kind) {
+    case "noAs":
+      return null;
+    case "pure": {
+      const owing = mixing.aPlayers.filter((a) => a.bGames === 0);
+      if (owing.length === 0) {
+        return `${names} ${one ? "has" : "have"} had their game with the B's already. One game`
+          + " a night is the whole allowance, so this one is among the A's.";
+      }
+      return `${names} ${one ? "is" : "are"} in a match with no B in it. One game with the B's`
+        + ` a night is the whole allowance, and ${joinNames(owing.map((a) => a.name))}`
+        + ` ${owing.length === 1 ? "has" : "have"} not had theirs.`;
+    }
+    case "firstBGame":
+      return `${names} ${one ? "is" : "are"} having their one game with the B's.`;
+    case "secondBGame": {
+      const again = mixing.aPlayers.filter((a) => a.bGames > 0);
+      // Both producers set this kind only when somebody is repeating, so the
+      // list is never empty in practice. A note that says otherwise is a note
+      // disagreeing with itself, and the card says the thing the counts
+      // support rather than throwing on the operator's screen.
+      if (again.length === 0) {
+        return `${names} ${one ? "is" : "are"} having their one game with the B's.`;
+      }
+      return `${names} ${one ? "is" : "are"} in with the B's. ${againWords(again)}`
+        + " One game with the B's a night is the allowance, and this four is past it.";
+    }
+  }
 };

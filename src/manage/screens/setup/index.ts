@@ -19,6 +19,7 @@ export { WhoIsHere } from "./WhoIsHere";
 export type { WhoIsHereProps, RosterRow, TierPrompt } from "./WhoIsHere";
 
 export { Courts } from "./Courts";
+export { noteWords } from "./model";
 export type { CourtsProps, SetupCourt, CourtChip } from "./Courts";
 
 export { MatchesEach } from "./MatchesEach";

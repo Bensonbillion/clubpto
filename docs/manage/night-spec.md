@@ -30,9 +30,10 @@ played changes. They are a private note for whoever is splitting the courts.
 They show in the roster and on the split screen, and **never on court, in a
 game, or in standings** (frame 29).
 
-## The two balance laws
+## The balance laws
 
-Same shape, one at each end of the room.
+The first two are the same shape, one at each end of the room. The third
+arrived on 2026-09-10 and is a law in its own right.
 
 **If a match holds both A's and B's, each team has a B.** No B is ever the lone
 weaker player being hunted.
@@ -46,8 +47,43 @@ beginner group for the whole session, so the C's see one consistent stronger
 face instead of a rotating cast, and no player ends up playing with more than
 one B this way in a night.
 
+**An A plays one game with the B's a night, and never a second.** Whether it is
+three games, four or five, they should never get more than one B game. The math
+is confusing, it is always a weird number, but this is highly important for our
+business, and it goes for both managers. Unassessed players count as B, so that
+one game covers them too.
+
+What the code does with it, since 2026-09-10. Wherever the night can still be
+finished with nobody meeting the B's twice, this is a hard cap, and it is the
+one rule allowed to hold a least-played player back a game, so a court's counts
+can honestly sit two apart. Where the seats allow it, every A gives their one
+game rather than none: among equally fair fours, the one that spends an unused
+ticket wins. Some courts have no room for it. Six A's and six B's at four each
+fit two mixed games, so two of those A's never meet the B's at all, and the
+rule is a ceiling there rather than a promise. The count is per session and not
+per court: a player moved mid-night takes their game with the B's with them.
+Where the numbers cannot keep it, six A's at four each with two B's owe the B's
+eight seats across the net and six A's cannot fill eight seats once each, the
+night still finishes everyone on target, the second games are spread over
+different A's rather than stacked on one, and the split screen says so before
+the night starts rather than letting it be discovered in round six.
+
+A few courts cannot be dealt out level at all: two A's, two B's and two C's
+at four each gives the two A's their one game with the B's and then has no
+lawful four with an A in it, so the A's stall on one game while the B's and
+the C's play on past four, and two A's with three B's at four each finishes
+the two on six games while the three finish on four. Six at four each is six
+whole games, five at four each is five, and nobody is stranded in either, so
+neither the target check nor the stranding check catches them. The same
+pricing that finds the bend finds these, and the split screen says the court
+cannot give everyone exactly that many games (2026-09-11).
+
 Underneath all of it, least-played-first still picks who goes on next, so
-nobody drifts behind on games.
+nobody drifts behind on games. The one game with the B's is the only law
+allowed to override it, and only ever by a game. The same pricing also passes
+over a four that would leave seats nobody can deal out, so somebody would
+finish short, and the card says that in its own words rather than naming the
+third law at a player it is not about.
 
 The laws hold whether the group is spread over three courts or sharing one.
 On a single court for everyone, the A-and-B mixing stays as it is, and C plays
