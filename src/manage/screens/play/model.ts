@@ -108,7 +108,7 @@ export const joinNames = (names: readonly string[]): string => {
  * person who asked (2026-09-11).
  */
 const fewNames = (names: readonly string[]): { list: string; verb: (v: string) => string } => ({
-  list: names.length <= 4 ? joinNames([...names])
+  list: names.length <= 4 ? joinNames(names)
     : `${names.slice(0, 3).join(", ")} and ${names.length - 3} others`,
   verb: (v) => (names.length === 1 ? `${v}s` : v),
 });

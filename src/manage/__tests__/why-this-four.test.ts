@@ -183,7 +183,7 @@ describe("the first card stays true", () => {
     if (!r.fewestPlayed) expect(words).not.toContain("had played the fewest games");
   });
 
-  it("hands a phone three names and a count rather than a roll call", () => {
+  it("hands a phone four names, or three and a count, rather than a roll call", () => {
     // Reached out of order on a big court, every player off it can be below
     // the four, and eleven names in one sentence is not a sentence anybody
     // reads out to the person who asked.
