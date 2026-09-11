@@ -734,6 +734,19 @@ describe("an A has one game with the B's, and never a second", () => {
     expect(worstA(r.players, r.matches)).toBeLessThanOrEqual(1);
   });
 
+  it("that late B plays only B's, and the night never offers them an A", () => {
+    // The consequence nobody is on screen to explain to the late arrival, so
+    // it is pinned here and in the tiers.ts header rather than left to be
+    // discovered. By game nine all twelve A's have spent their one ticket,
+    // the cap walls every one of them off, and the three games the night
+    // still owes this B are three games among B's. The rule holds, the night
+    // finishes on target, and this is what it costs.
+    const r = runWith(wednesday(), 3, 9, (ps) => [...ps, P("late", { tier: "B", walkIn: true, joinedAtMatchIndex: 9 })]);
+    const theirs = r.matches.filter((m) => [...m.teamA, ...m.teamB].includes("late"));
+    expect(theirs).toHaveLength(3);
+    expect(theirs.some((m) => isMixed(r.players, m))).toBe(false);
+  });
+
   it("an A leaving before game six takes their ticket with them", () => {
     // Eleven A's and eight B's from game six on. The cap holds, and it is
     // paid for once: at game ten a least-played player waits a game because

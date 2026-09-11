@@ -147,17 +147,22 @@ export const Courts = ({
       </div>
 
       {/* Setup warnings, drawn between the count and the cards so they are
-          read before anybody starts dragging. A court that cannot run, and a
-          player nobody can legally stand with, wear the destructive ink
-          because the night cannot honestly start around either; the two C
-          notes are facts about how the night will play, not blockers, so
-          they stay in the muted body tone. */}
+          read before anybody starts dragging. Three wear the destructive ink,
+          because the night cannot honestly start around any of them: a court
+          too small to run, a player nobody can legally stand with, and a
+          court whose target the laws cannot deal out, which would promise
+          everyone a number of games the night is not going to give them. The
+          other three are facts about how the night will play rather than
+          blockers, so they stay in the muted body tone: the two C notes, and
+          the third law bending on a court that still finishes everyone on
+          target (2026-09-11). */}
       {notes.map((note) => (
         <p
           key={`${note.kind}-${"courtNumber" in note ? note.courtNumber : note.cCount}`}
           style={{
             font: `400 14px/1.5 ${T.fontBody}`, margin: 0, textWrap: "pretty",
-            color: note.kind === "courtTooSmall" || note.kind === "stranded" ? T.redInk : T.mut,
+            color: note.kind === "courtTooSmall" || note.kind === "stranded"
+              || note.kind === "capStuck" ? T.redInk : T.mut,
           }}
         >{noteWords(note)}</p>
       ))}

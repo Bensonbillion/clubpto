@@ -481,6 +481,18 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
   const [night, setNight] = useState("Wednesday");
   const [query, setQuery] = useState("");
   const [courtCount, setCourtCount] = useState(2);
+  /**
+   * Has the operator picked the games-each target yet, on this way in?
+   *
+   * The courts step comes BEFORE the target step, so the target its two cap
+   * notes quote is whatever applySuggestedSplit seeded, and they say "the
+   * suggested four each" while that is what it is. Reading "is the stored
+   * target still valid" instead said no such thing on a fresh night: the
+   * seeded target is valid by construction, so the notes called the split's
+   * own suggestion a choice the operator had made (2026-09-11). Set on the
+   * target step's first tap, cleared whenever the split re-seeds targets.
+   */
+  const [targetChosen, setTargetChosen] = useState(false);
   const [tierPromptId, setTierPromptId] = useState<string | null>(null);
   // The pair-up screen's first tap, waiting for its second (frame 30).
   const [heldId, setHeldId] = useState<string | null>(null);
@@ -601,7 +613,12 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
       const placed = p.courtNumber != null && p.courtNumber <= count;
       if (to != null && ((everyone && fresh) || !placed)) s.assignCourt(p.id, to);
     }
-    if (fresh) for (const [number, t] of suggestion.targets) s.setTarget(number, t);
+    if (fresh) {
+      for (const [number, t] of suggestion.targets) s.setTarget(number, t);
+      // Re-seeding overwrites whatever the target step was told, so the
+      // number on the courts screen is a suggestion again.
+      setTargetChosen(false);
+    }
   };
 
   /* ── keeping every court playing ───────────────────────────────── */
@@ -1147,6 +1164,12 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           const chosen = s.session.courts.find((x) => x.number === c.courtNumber)?.targetMatches;
           const fits = chosen != null && validTargets(playableHere).includes(chosen);
           const target = fits ? chosen : suggestTarget(playableHere);
+          // A suggestion until the operator has been offered the target step
+          // and answered it. A court already running has a target the night
+          // is playing to, so that one is theirs whatever this screen shows,
+          // and a target the split no longer takes is a fresh suggestion
+          // whoever chose the old one.
+          const seeded = !fits || (s.session.status !== "running" && !targetChosen);
           const bend = target == null ? null : forcedMixing(s.session.players, c.courtNumber, target);
           if (bend) {
             splitNotes.push({
@@ -1154,7 +1177,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
               courtNumber: c.courtNumber,
               aCount: bend.aCount,
               target: bend.target,
-              suggested: !fits,
+              suggested: seeded,
               seats: bend.seats,
               secondGames: bend.secondGames,
             });
@@ -1167,7 +1190,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           // then ran a night nobody could finish.
           if (target != null && unfinishableCourt(s.session.players, c.courtNumber, target)) {
             splitNotes.push({
-              kind: "capStuck", courtNumber: c.courtNumber, target, suggested: !fits,
+              kind: "capStuck", courtNumber: c.courtNumber, target, suggested: seeded,
             });
           }
         }
@@ -1213,7 +1236,7 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
             selected: c.targetMatches,
           }))}
           minutesPerMatch={MINUTES_PER_MATCH}
-          onSelect={(courtNumber, t) => s.setTarget(courtNumber, t)}
+          onSelect={(courtNumber, t) => { s.setTarget(courtNumber, t); setTargetChosen(true); }}
           onBack={() => setStep("courts")}
           onNext={() => setStep("ready")}
         />

@@ -36,16 +36,23 @@
 //      thing allowed to hold a least-played player back a game. Where the
 //      seats cannot (fewer than four A's, a lone B, six A's and two B's at
 //      four each), the night still finishes on target and the second games
-//      are spread, never stacked on one A. And every A GIVES their one game:
-//      among equally fair fours, one that spends an unused ticket beats a
-//      pure game, which is also what keeps the Wednesday roster from meeting
-//      the same person three times.
+//      are spread, never stacked on one A. And where the seats allow it every
+//      A GIVES their one game: among equally fair fours, one that spends an
+//      unused ticket beats a pure game, which is also what keeps the
+//      Wednesday roster from meeting the same person three times. Some courts
+//      have no room for it, and there the law is a ceiling rather than a
+//      promise: six A's and six B's at four each fit two mixed games, so two
+//      of those A's never meet the B's at all.
 //
-// Two consequences of the third law worth knowing before a night: unassessed
-// players count as B (see tierOf), so after one game an assessed A is walled
-// off from every unassessed player on the court for the rest of the night;
-// and a court of exactly four A's plays the same four A's more than once
-// after their one B game, which is accepted, the partners still rotate.
+// Three consequences of the third law worth knowing before a night.
+// Unassessed players count as B (see tierOf), so after one game an assessed A
+// is walled off from every unassessed player on the court for the rest of the
+// night. A court of exactly four A's plays the same four A's more than once
+// after their one B game, which is accepted, the partners still rotate. And a
+// B who walks in late plays only B's: the Wednesday roster at three each with
+// a B arriving before game nine finds all twelve A's have spent their ticket,
+// and the cap walls every one of them off, so the night gives that B three
+// games and never an A in any of them.
 
 import type { Player } from "../types";
 

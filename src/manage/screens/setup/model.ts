@@ -22,12 +22,21 @@ const listNames = (names: readonly string[]): string =>
 
 /**
  * A small count spelled out, because the notes are sentences and the frames
- * spell counts inside a sentence. Past twelve it falls back to digits rather
- * than growing an English number speller for counts a night does not reach.
+ * spell counts inside a sentence.
+ *
+ * It stopped at twelve until 2026-09-11, on the grounds that a night does not
+ * reach further. The cap notes do: the target step offers up to eight games
+ * each, and three A's with a lone B at eight each need twenty-four seats
+ * across the net, so the note read "need 24 seats" in a sentence that had
+ * just spelled "Three A's". Twenty-four is the largest number either note can
+ * quote on a court of twenty-four, so the list runs to there and the digits
+ * are left as a fallback nothing is expected to reach.
  */
 const NUMBER_WORDS = [
   "zero", "one", "two", "three", "four", "five", "six",
   "seven", "eight", "nine", "ten", "eleven", "twelve",
+  "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen",
+  "nineteen", "twenty", "twenty-one", "twenty-two", "twenty-three", "twenty-four",
 ];
 const countWord = (n: number): string =>
   n >= 0 && n < NUMBER_WORDS.length ? NUMBER_WORDS[n] : String(n);

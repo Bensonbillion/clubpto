@@ -18,7 +18,7 @@ import type { Match, Player } from "../types";
 import type { MatchReason } from "../engine/rotation";
 import { courtSpread, explainMatch, nextMatch } from "../engine/rotation";
 import { leastPlayedWords, mixingWords } from "../screens/play/model";
-import { roundRobinCounts } from "../screens/people/model";
+import { countWord, roundRobinCounts } from "../screens/people/model";
 
 const reasonOf = (over: Partial<MatchReason> = {}): MatchReason => ({
   leastPlayed: ["Benson", "Timi", "Ade", "Sam"].map((name, i) => ({
@@ -273,6 +273,74 @@ describe("the fourth card, one game with the B's", () => {
   });
 });
 
+describe("the card after a row is skipped", () => {
+  /**
+   * The card, walked the way useSession projectCard walks one: a row already
+   * on court or stepped past goes into the running log AS PLAYED before the
+   * next row is drawn, because the card is a picture of a night in which
+   * every row gets played. Each slot hands back the picker's own note and
+   * the note frame 11 shows over the same four once it is on court.
+   */
+  const cardWithASkippedRow = (players: Player[], target: number, slots: number) => {
+    const matches: Match[] = [];
+    const row = (n: number, four: { teamA: readonly [string, string]; teamB: readonly [string, string] },
+      status: Match["status"]): Match => ({
+      id: `m${n}`, courtNumber: 1, matchIndex: n,
+      teamA: [...four.teamA] as [string, string], teamB: [...four.teamB] as [string, string],
+      scoreA: status === "played" ? 2 : null, scoreB: status === "played" ? 0 : null,
+      status, startedAt: 0, completedAt: status === "played" ? 0 : null, stage: null,
+    });
+    const seeded = () => matches.map((m) => ({ ...m, status: "played" as const }));
+
+    // Frame 12b: the operator steps past the first row. It keeps its slot and
+    // the four keep the game they owe, so the card draws around it.
+    const first = nextMatch(players, [], 1, target)!;
+    matches.push(row(1, first, "skipped"));
+
+    const walked: { picker: MatchReason["mixing"]; frame: MatchReason["mixing"] }[] = [];
+    for (let n = 2; n <= slots; n += 1) {
+      const drawn = nextMatch(players, seeded(), 1, target);
+      if (!drawn) break;
+      const live = row(n, drawn, "onCourt");
+      walked.push({
+        picker: drawn.reason.mixing,
+        frame: explainMatch(players, [...matches, live], 1, drawn.teamA, drawn.teamB, target).mixing,
+      });
+      matches.push(row(n, drawn, "played"));
+    }
+    return walked;
+  };
+
+  it("counts the skipped row's game with the B's, the way the picker already did", () => {
+    // Eight A's and four B's at three each, with the first row stepped past.
+    // That row is A1 and A2's one game with the B's: the picker has spent
+    // their allowance and will never deal them another mixed game. Until
+    // 2026-09-11 frame 11 read the night's raw list, where a skipped row
+    // counts for nothing, and printed "A1 and A2 have not had theirs" over
+    // the pure four in slot six. The card was promising a game the night
+    // could not keep, which is the one thing the frame exists to avoid.
+    const walked = cardWithASkippedRow(roster(8, 4), 3, 9);
+    expect(walked.length).toBeGreaterThan(5);
+    for (const { picker, frame } of walked) {
+      expect(frame.kind).toBe(picker.kind);
+      expect(frame.aPlayers).toEqual(picker.aPlayers);
+      expect(frame.heldBack).toEqual(picker.heldBack);
+    }
+  });
+
+  it("never offers an A a game with the B's their allowance is already spent on", () => {
+    const walked = cardWithASkippedRow(roster(8, 4), 3, 9);
+    const pure = walked.filter((w) => w.frame.kind === "pure"
+      && w.frame.aPlayers.some((a) => a.name === "A1"));
+    expect(pure.length).toBeGreaterThan(0);
+    for (const { frame } of pure) {
+      expect(frame.aPlayers.find((a) => a.name === "A1")!.bGames).toBe(1);
+      expect(mixingWords(frame)).toContain("have had their game with the B's already");
+      expect(mixingWords(frame)).not.toContain("have not had theirs");
+    }
+  });
+});
+
 describe("the roster footer reads the court", () => {
   it("keeps the old promise while the counts keep it", () => {
     expect(roundRobinCounts(0)).toBe("Counts never drift more than one game apart.");
@@ -288,6 +356,16 @@ describe("the roster footer reads the court", () => {
     expect(roundRobinCounts(3)).toBe("Counts are three games apart right now.");
     expect(roundRobinCounts(4)).not.toContain("one game with the B's");
     expect(roundRobinCounts(4)).not.toContain("hold a player back");
+  });
+
+  it("spells the gap rather than printing a figure", () => {
+    // The list these words come from stopped at twelve until 2026-09-11, on
+    // the grounds that a court does not hold more. It does: twenty on one
+    // court is the Wednesday roster, and the same list counts the room on
+    // the leaves-early screen.
+    expect(roundRobinCounts(13)).toBe("Counts are thirteen games apart right now.");
+    expect(countWord(20)).toBe("twenty");
+    expect(countWord(21)).toBe("twenty-one");
   });
 
   it("takes its number from the same place frame 11 takes its promise", () => {

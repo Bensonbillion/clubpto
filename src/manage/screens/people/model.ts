@@ -17,14 +17,19 @@ export const pairName = (pair: readonly [string, string]): string => `${pair[0]}
 const WORDS = [
   "zero", "one", "two", "three", "four", "five", "six",
   "seven", "eight", "nine", "ten", "eleven", "twelve",
+  "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen",
+  "nineteen", "twenty", "twenty-one", "twenty-two", "twenty-three", "twenty-four",
 ];
 
 /**
  * A small count spelled out, because the frames spell them in sentences:
  * "the seven still here", "Leave it at three".
  *
- * Past twelve it falls back to digits rather than growing an English number
- * speller for counts a padel court cannot hold.
+ * It stopped at twelve until 2026-09-11, which a court does hold: twenty on
+ * one court is the Wednesday roster, and "13 still here" sat in a sentence
+ * the rest of which spelled its numbers. Past twenty-four it falls back to
+ * digits rather than growing an English number speller for a room no court
+ * takes.
  */
 export const countWord = (n: number): string =>
   n >= 0 && n < WORDS.length ? WORDS[n] : String(n);

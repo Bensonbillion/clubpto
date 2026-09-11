@@ -115,6 +115,22 @@ describe("the night the numbers bend the rule", () => {
     );
   });
 
+  it("spells the seat count a big target reaches", () => {
+    // The target step offers up to eight games each, so the seats a note
+    // counts go well past twelve. Three A's with a lone B at eight each need
+    // twenty-four of them, and until 2026-09-11 the sentence spelled "Three
+    // A's" and then printed "24 seats" in the same breath.
+    const players = court(3, 1);
+    expect(forcedMixing(players, 1, 8)).toEqual({
+      aCount: 3, target: 8, seats: 24, secondGames: 21,
+    });
+    expect(words(players, 8)).toBe(
+      "Three A's at eight each on Court 1 need twenty-four seats across the net"
+      + " from the B's. Every A meets the B's more than once.",
+    );
+    expect(words(players, 8)).not.toContain("24");
+  });
+
   it("says nothing about the Wednesday roster, which keeps the rule", () => {
     // Twelve A's and eight B's on one court, the night the law was written
     // for. It holds at three and at four each.

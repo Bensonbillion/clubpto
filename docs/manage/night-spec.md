@@ -56,8 +56,12 @@ one game covers them too.
 What the code does with it, since 2026-09-10. Wherever the night can still be
 finished with nobody meeting the B's twice, this is a hard cap, and it is the
 one rule allowed to hold a least-played player back a game, so a court's counts
-can honestly sit two apart. Every A still gives their one game rather than
-none: among equally fair fours, the one that spends an unused ticket wins.
+can honestly sit two apart. Where the seats allow it, every A gives their one
+game rather than none: among equally fair fours, the one that spends an unused
+ticket wins. Some courts have no room for it. Six A's and six B's at four each
+fit two mixed games, so two of those A's never meet the B's at all, and the
+rule is a ceiling there rather than a promise. The count is per session and not
+per court: a player moved mid-night takes their game with the B's with them.
 Where the numbers cannot keep it, six A's at four each with two B's owe the B's
 eight seats across the net and six A's cannot fill eight seats once each, the
 night still finishes everyone on target, the second games are spread over
@@ -74,8 +78,11 @@ these, and the split screen says the court cannot give everyone exactly that
 many games (2026-09-11).
 
 Underneath all of it, least-played-first still picks who goes on next, so
-nobody drifts behind on games. The one game with the B's is the only thing
-allowed to override it, and only ever by a game.
+nobody drifts behind on games. The one game with the B's is the only law
+allowed to override it, and only ever by a game. The same pricing also passes
+over a four that would leave seats nobody can deal out, so somebody would
+finish short, and the card says that in its own words rather than naming the
+third law at a player it is not about.
 
 The laws hold whether the group is spread over three courts or sharing one.
 On a single court for everyone, the A-and-B mixing stays as it is, and C plays

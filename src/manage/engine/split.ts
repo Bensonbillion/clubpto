@@ -73,7 +73,9 @@ export type SplitNote =
    * over the night and `secondGames` is how many of those are somebody's
    * second. `suggested` says the target is this screen's suggestion rather
    * than one the operator has chosen, because the target step comes after
-   * this one and a court drag can leave the seeded target behind.
+   * this one and a court drag can leave the seeded target behind. True until
+   * the target step has been answered, and true again whenever the split
+   * re-seeds; false on a court already running, whose target is the night's.
    *
    * suggestSplit never emits this note, for the same reason it never emits
    * "stranded": the bend is a fact about the court AS IT STANDS and about a
@@ -100,8 +102,8 @@ export type SplitNote =
    *
    * suggestSplit never emits this one either, and for the same reason as
    * "capBends": it is a fact about the court as it stands and about a target
-   * chosen on the next step. `suggested` says the target is this screen's
-   * suggestion rather than one the operator has chosen.
+   * chosen on the next step. `suggested` means what it means on capBends, and
+   * is set from the same place.
    */
   | { kind: "capStuck"; courtNumber: number; target: number; suggested: boolean };
 

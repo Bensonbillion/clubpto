@@ -410,9 +410,10 @@ function lawfulFour(
   // Group matches on this court only, and voided ones count for nothing
   // here the same way they count for nothing everywhere. These tallies
   // include onCourt and skipped rows while buildQueue counts only status
-  // "played"; that agrees in production only because scheduleFor seeds held
-  // rows as played before calling nextMatch, and both are read from the one
-  // `matches` argument.
+  // "played", so the two only agree on a log whose held rows are already
+  // seeded as played. That is what scheduleFor hands in, and it is why
+  // anything replaying a draw has to seed the same way (explainMatch does,
+  // through asCardDrew); both are read from the one `matches` argument.
   const tallies = countLog(matches, court, ctx);
   // Partnership counts feed the variety preference: who has already stood on
   // the same side of the net tonight.
@@ -452,12 +453,13 @@ function lawfulFour(
   // are counted per SESSION and across courts, from every non-voided group
   // row on any court, with tiers off the full roster. Two things about that
   // count are worth knowing. It includes onCourt and skipped rows while
-  // buildQueue counts only status "played" for what is owed; that agrees in
-  // production only because scheduleFor seeds every held row as played
-  // before it calls nextMatch, and both are read off the one `matches`
-  // argument so a caller who does the same gets the same answer. And a
-  // tier flipped mid-night is read through current tiers on both sides,
-  // which is fine: the count follows the assessment as it stands.
+  // buildQueue counts only status "played" for what is owed, so the two
+  // agree only on a log whose held rows are already seeded as played, which
+  // is what scheduleFor hands in and what asCardDrew rebuilds for a replay.
+  // Both are read off the one `matches` argument, so a caller who seeds it
+  // the same way gets the same answer. And a tier flipped mid-night is read
+  // through current tiers on both sides, which is fine: the count follows
+  // the assessment as it stands.
   const bGames = countBGames(players, matches, (m) => m.status !== "voided");
   const tierHere = (id: string) => ctx.tierById(id);
   const hasA = queue.some((e) => tierHere(e.playerId) === "A");
@@ -682,6 +684,44 @@ export function courtSpread(
 }
 
 /**
+ * The log the card drew a four from, rebuilt from the night's raw list.
+ *
+ * The card seeds every row already on court or stepped past AS PLAYED
+ * before it draws the next one (useSession.ts projectCard), because the card
+ * is a picture of a night in which every row gets played. Frame 11 hands
+ * this module the raw list instead, where a skipped row counts for nothing,
+ * so until 2026-09-11 the two disagreed the moment a row was skipped: the
+ * picker had already spent those A's one game with the B's, while the frame
+ * read their count as zero and offered them a game the night could no longer
+ * deal. Stepping past a row is an ordinary night (frame 12b), so the held
+ * rows on this court are seeded here the same way.
+ *
+ * All but the row being explained. That is the game the four are standing
+ * in, and it counts for nobody yet: the counts frame 11 prints are the ones
+ * that stood when the four walked on. Rows on other courts are left alone,
+ * because the card only ever seeds its own court's.
+ */
+function asCardDrew(
+  matches: readonly Match[],
+  court: number,
+  four: ReadonlySet<string>,
+): Match[] {
+  let dropped = false;
+  const out: Match[] = [];
+  for (const m of matches) {
+    if (countsAsPlayed(m)) { out.push(m); continue; }
+    if (m.courtNumber !== court || m.stage !== null || m.status === "voided") continue;
+    const ids = new Set([...m.teamA, ...m.teamB]);
+    if (!dropped && ids.size === four.size && [...ids].every((id) => four.has(id))) {
+      dropped = true;
+      continue;
+    }
+    out.push({ ...m, status: "played" });
+  }
+  return out;
+}
+
+/**
  * The picker's own account of a match already on court, replayed.
  *
  * Who the third law held back is a counterfactual: it is the fairer four the
@@ -690,8 +730,9 @@ export function courtSpread(
  * 2026-09-11 the frame's first card read a note with an empty heldBack and
  * went on printing "had played the fewest games" over a four the cap had
  * reordered. So the draw is run again from the court as it stood when the
- * four walked on: played rows only, which is exactly the log scheduleFor
- * hands nextMatch for a row drawn in turn.
+ * four walked on. `matches` has to be that log already, which is what
+ * asCardDrew builds; the filter below is only a guard against a caller who
+ * hands in the raw list.
  *
  * Null unless the replay deals the SAME four the caller asked about. A four
  * put together by hand, or a card played out of order, is not a draw this
@@ -776,13 +817,16 @@ export function explainMatch(
         : sides.size === 2 ? "acrossTheNet"
           : "alongside";
 
-  // The third law, read off the log the same way the counts beside the
-  // names are: played rows only. Frame 11 is opened on a match that is on
+  // The third law, read off the log THE CARD DREW FROM: played rows, plus
+  // this court's held rows seeded as played the way projectCard seeds them,
+  // less the row being explained. Frame 11 is opened on a match that is on
   // court and passes the night's whole list, so counting every non-voided
-  // row here would charge the four for the game they are standing in.
-  // Played rows are the counts as they stood when the four walked on, which
-  // is the question being answered.
-  const bGames = countBGames(players, matches, countsAsPlayed);
+  // row here would charge the four for the game they are standing in, and
+  // counting only played ones would forget the game a skipped row already
+  // spent. Both the count below and the replay read the one list, so the
+  // fourth card and the first cannot tell an operator different things.
+  const asDrawn = asCardDrew(matches, court, new Set([...teamA, ...teamB]));
+  const bGames = countBGames(players, asDrawn, countsAsPlayed);
   const tier = (id: string): Tier => {
     const p = byId.get(id);
     return p ? tierOfPlayer(p) : "B";
@@ -801,7 +845,7 @@ export function explainMatch(
   // and the counts but never the four that was passed over.
   const drawn = targetMatches === undefined
     ? null
-    : pickerNote(players, matches, court, targetMatches, teamA, teamB);
+    : pickerNote(players, asDrawn, court, targetMatches, teamA, teamB);
 
   return {
     leastPlayed,
