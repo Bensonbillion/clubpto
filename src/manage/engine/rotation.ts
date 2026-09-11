@@ -21,8 +21,8 @@
 
 import type { Match, Player, PlayerTier, QueueEntry } from "../types";
 import {
-  abLawFor, canFieldACMatch, chooseFour, designateB, tierOf as tierOfPlayer,
-  type LawContext, type Tier,
+  abLawFor, canFieldACMatch, chooseFour, designateB, lawForOwedSeats,
+  tierOf as tierOfPlayer, type LawContext, type Tier,
 } from "./tiers";
 import {
   deficit, slackFor, stateOf,
@@ -452,17 +452,39 @@ function lawfulFour(
   // measure that keeps the same four from coming round again.
   const met = (x: string, y: string) => tallies.met.get(pairKey(x, y)) ?? 0;
   const bridgeBusy = queue.some((e) => e.owed > 0 && ctx.tierById(e.playerId) === "C");
-  // The mixing law by what is still owed, not by headcount: strict only
-  // while the games the A's still owe and the games the B's still owe are
-  // both even, because a strict game spends A-slots in twos, and an odd
-  // total would leave one player waiting a whole game while others played
-  // twice. Found by the review's fuzz: a walk-in or a leaver mid-night can
-  // flip the parity of an evenly matched court.
+  // The mixing law by what is still owed, not by headcount: the strictest
+  // law the seats the A's and the B's still owe can actually be finished
+  // under (lawForOwedSeats). Hold the club's rule wherever the night can be
+  // dealt out in strict shapes, four A's, four B's, and an A and a B against
+  // an A and a B; drop a rung only where those shapes leave somebody a seat
+  // the night cannot field, because a law that cannot be finished does not
+  // protect anybody, it just makes one player wait a whole game while others
+  // play twice.
+  //
+  // This used to read as parity, both owed totals even, and parity is only
+  // half of the rule (the helper carries the other half, and why). Two A's
+  // and three B's at four each owe eight seats and twelve, even all night,
+  // so the law read strict all night and every game spent two A seats: the
+  // A's were spent after four games with the B's still owing four, and the
+  // card dealt a sixth game to finish them, the two A's ending on six games
+  // against the other three's four. Three A's and two B's is the mirror. The
+  // same six games were dealt long before the cap arrived; this is an old
+  // fault in the draw, found by the cap's own sweep (2026-09-11).
+  //
+  // NOT ON A COURT WITH BEGINNERS. There the C games spend B seats as well,
+  // in a number nothing fixes until the finish is chosen, so seats read off
+  // the A and B totals alone would be answering a question they cannot see
+  // all of. Those courts keep the parity reading they have always had, and
+  // the exactly-three-C's overshoot is a fault of its own with its own test.
   const owedOf = (tier: "A" | "B") => queue
     .filter((e) => ctx.tierById(e.playerId) === tier)
     .reduce((sum, e) => sum + e.owed, 0);
+  const countOf = (tier: "A" | "B") => queue
+    .filter((e) => ctx.tierById(e.playerId) === tier).length;
   const law = ctx.abLaw === "free" ? "free"
-    : (owedOf("A") % 2 === 0 && owedOf("B") % 2 === 0) ? "strict" : "soft";
+    : ctx.cCount === 0
+      ? lawForOwedSeats(owedOf("A"), owedOf("B"), countOf("A"), countOf("B"))
+      : (owedOf("A") % 2 === 0 && owedOf("B") % 2 === 0) ? "strict" : "soft";
   const lawCtx: LawContext = { ...ctx, abLaw: law };
   // Mixed games had so far: a game with an A and a B on each side.
   const mixed = (id: string) => tallies.mixed.get(id) ?? 0;

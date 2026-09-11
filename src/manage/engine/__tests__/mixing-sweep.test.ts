@@ -11,6 +11,15 @@
 //
 //   MANAGE_SWEEP=1 npx vitest run src/manage/engine/__tests__/mixing-sweep.test.ts
 //
+// Every court in the range is in it. Two five-player courts used to be
+// carved out, two A's with three B's at four each and the same the other way
+// round: the draw dealt them six games where five fit, the two of the
+// smaller tier finishing on six games while the three finished on four, and
+// it had dealt them that way since before the cap existed. The mixing law
+// read as parity was the cause, and it now reads as the strictest law the
+// seats still owed can be finished under, so the carve-out and the test that
+// held it to account came out on 2026-09-11.
+//
 // Three promises, on every night:
 //   1. Everybody finishes EXACTLY on target, in exactly the number of games
 //      the card projected. The cap costs nobody a game.
@@ -39,18 +48,6 @@ const roster = (nA: number, nB: number, nC = 0): Player[] => [
   ...Array.from({ length: nB }, (_, i) => P(`b${i + 1}`, "B")),
   ...Array.from({ length: nC }, (_, i) => P(`c${i + 1}`, "C")),
 ];
-
-/**
- * Two five-player courts the picker overshoots on, and has since before the
- * cap: two A's and three B's at four each, and the same the other way
- * round. Five players at four each is five games, and the engine deals six,
- * the two of the minority tier finishing on six games while the three
- * finish on four. Verified identical on d524422, the commit before the cap
- * arrived, so it is an older fault in the draw and not this rule's doing.
- * They sit out of the sweep until it is fixed, and the test below says so.
- */
-const overshoots = (nA: number, nB: number, nC: number) =>
-  nC === 0 && nA + nB === 5 && nA >= 2 && nB >= 2;
 
 /**
  * The night's start state, built the way lawfulFour builds it on the first
@@ -141,7 +138,7 @@ describe("the sweep: every court the room can field", () => {
     for (let nA = 1; nA <= 12; nA++) {
       for (let nB = 1; nB <= 12; nB++) {
         // Four is the smallest court that can field a game at all.
-        if (nA + nB < 4 || nA + nB > 20 || overshoots(nA, nB, 0)) continue;
+        if (nA + nB < 4 || nA + nB > 20) continue;
         const players = roster(nA, nB);
         for (const target of targetsFor(nA + nB)) {
           record(t, sweepNight(players, target, `${nA}A/${nB}B T${target}`));
@@ -168,16 +165,4 @@ describe("the sweep: every court the room can field", () => {
     console.log(report("C sweep", t));
     expect(t.nights).toBeGreaterThan(0);
   }, 1_800_000);
-
-  it.skipIf(skip)("the two five-player courts the sweep leaves out are still the ones it left out", () => {
-    // Not an approval of what they do. This is the carve-out above holding
-    // itself to account: the day the draw stops overshooting on five
-    // players at four each, this goes red and `overshoots` comes out.
-    for (const [nA, nB] of [[2, 3], [3, 2]] as const) {
-      const players = roster(nA, nB);
-      const { matches } = runNight(players, 4);
-      expect(matches.length, `${nA}A/${nB}B T4 no longer overshoots, drop the carve-out`)
-        .toBeGreaterThan(totalMatches(5, 4));
-    }
-  });
 });

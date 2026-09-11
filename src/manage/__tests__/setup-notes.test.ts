@@ -169,10 +169,15 @@ describe("the night the laws cannot deal out at all", () => {
   });
 
   it("misses in the other direction too, which is why it says off target", () => {
-    // Two A's and three B's at four each is the shape mixing-sweep.ts carves
-    // out: five players, five games' worth of seats, and the engine deals
-    // six, the two A's finishing on six games and the three B's on four.
-    // Nobody finishes short there, so the sentence says off target.
+    // Two A's and three B's at four each, and the mirror of it. The picker
+    // deals these out level since 2026-09-11: the mixing law now holds a
+    // court to strict only where the seats can be finished strict, and three
+    // strict games with two of one A among three B's fit exactly. THE PRICE
+    // HAS NOT CAUGHT UP. deficit() still reads the law as parity, so it
+    // counts no such finish and answers Infinity, and the note still fires
+    // on a court that finishes fine. Nobody ever finishes short here, which
+    // is why the sentence says off target rather than short. The assertions
+    // below are the oracle as it stands, not an approval of it.
     expect(unfinishableCourt(court(2, 3), 1, 4)).toBe(true);
     expect(unfinishableCourt(court(3, 2), 1, 4)).toBe(true);
     expect(stuckWords(1, 4)).not.toContain("short");

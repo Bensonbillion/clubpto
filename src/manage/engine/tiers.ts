@@ -112,14 +112,18 @@ export interface LawContext {
    */
   cCount: number;
   /**
-   * How hard the first law holds on this court tonight, read off who is
-   * here. "strict" is the club's rule, A B against A B and nothing else,
-   * and it is only asked when the A's and the B's can both pair off (an
-   * even number of each). With an odd count one A or one B would sit while
-   * the others played twice, so the law goes "soft": a B on each side, the
-   * older shape, which lets the odd one out play. With a single A or a
-   * single B not even that can be made, and the law is "free". Absent
-   * means strict.
+   * How hard the first law holds on this court tonight. "strict" is the
+   * club's rule, A B against A B and nothing else. "soft" is the older
+   * shape, a B on each side, which lets an odd A or an odd B play rather
+   * than sit while the others play twice. "free" is no shape rule at all,
+   * which is where a lone B ends up. Absent means strict.
+   *
+   * abLawFor answers it off the headcount, which is what the setup screen
+   * and anything judging a lineup on its own get. lawfulFour then answers it
+   * again for each draw off the seats still owed (lawForOwedSeats), because
+   * the headcount does not know what the night has left to deal: a court can
+   * hold the club's rule for four games and then have no strict game left in
+   * it. The per-draw answer only ever loosens this one, never tightens it.
    */
   abLaw?: "strict" | "soft" | "free";
 }
@@ -202,6 +206,98 @@ export function abLawFor(tiers: readonly Tier[]): "strict" | "soft" | "free" {
   if (as === 0 || bs === 0) return "strict";
   if (as < 2 || bs < 2) return "free";
   return as % 2 === 0 && bs % 2 === 0 ? "strict" : "soft";
+}
+
+/**
+ * The seats one game spends, as (A seats, B seats), under each law.
+ *
+ * Strict is the club's rule: four A's, four B's, or an A and a B against an
+ * A and a B. Soft adds the one shape a B on each side still allows, an A
+ * among three B's. Free has no list, because free is every shape there is,
+ * including the mirror of that one: a B among three A's, the shape that
+ * leaves a B with nobody on their own side of the net.
+ */
+const STRICT_SHAPES = [[4, 0], [0, 4], [2, 2]] as const;
+const SOFT_SHAPES = [...STRICT_SHAPES, [1, 3]] as const;
+
+/**
+ * Can the games these two tiers still owe be dealt out in these shapes
+ * alone, with this many of each tier on the court?
+ *
+ * Seats and headcounts, and nothing else. A shape is only available where
+ * the court holds the players it seats, so a tier of three can never field
+ * its own pure game and every seat it owes has to come out of a mixed one.
+ * What this deliberately does NOT model is who owes what: four A seats owed
+ * by one A is arithmetic no pure game can fill either, and this answers yes
+ * there. Saying yes is the safe way to be wrong. A yes leaves the law where
+ * the parity reading already had it, so every court this cannot see all of
+ * deals the games it dealt yesterday, and it is a no that moves a court.
+ */
+function finishExists(
+  shapes: readonly (readonly [number, number])[],
+  owedA: number,
+  owedB: number,
+  aCount: number,
+  bCount: number,
+): boolean {
+  const here = shapes.filter(([sa, sb]) => sa <= aCount && sb <= bCount);
+  // Every total the shapes can reach, built up from nothing. The grid is the
+  // seats still owed, which is a court's headcount times its target.
+  const reached = new Set<number>([0]);
+  const key = (a: number, b: number) => a * (owedB + 1) + b;
+  for (let a = 0; a <= owedA; a++) {
+    for (let b = 0; b <= owedB; b++) {
+      if (a === 0 && b === 0) continue;
+      for (const [sa, sb] of here) {
+        if (sa > a || sb > b) continue;
+        if (reached.has(key(a - sa, b - sb))) { reached.add(key(a, b)); break; }
+      }
+    }
+  }
+  return reached.has(key(owedA, owedB));
+}
+
+/**
+ * The strictest mixing law the seats still owed can be finished under.
+ *
+ * This is the question lawfulFour has to answer before it holds a court to
+ * the strict law for another draw, and until 2026-09-11 it read as parity:
+ * strict while both tiers owed an even number of games. Parity is NECESSARY
+ * for an all-strict night, because every strict shape spends A seats and B
+ * seats in twos and fours. It is not sufficient, and two courts of five
+ * showed it. Two A's and three B's at four each owe eight seats and twelve;
+ * neither tier can field a pure game, so every seat has to come out of a
+ * mixed one, and four strict games spend the A's while the B's still owe
+ * four. The card dealt a sixth game to finish the B's and the two A's ended
+ * the night on six games against the other three's four. The night that fits
+ * is three strict games and two of one A among three B's, which is the soft
+ * law. Three A's and two B's is the mirror, and soft cannot deal it: with
+ * two B's a game with a B on each side is always an A and a B against an A
+ * and a B, so the mirror needs the one shape only the free law allows, a B
+ * among three A's, twice.
+ *
+ * So the ladder, rather than a parity test: hold the club's rule wherever
+ * the seats can still be finished under it, drop one rung where they cannot,
+ * and drop to free only where nothing else deals the night out level. The
+ * alternative on those two courts is not a stricter night, it is two players
+ * finishing two games ahead of the other three.
+ *
+ * C's are not in this, and the caller is the one that knows. A C game spends
+ * B seats too (three C's and the bridge, or two or three B's on a relaxed
+ * court), and how many of them the night spends is not fixed until the
+ * finish is chosen, so an answer read off the A and B totals alone would be
+ * answering a question it cannot see all of. lawfulFour asks this only where
+ * there are no C's on the court.
+ */
+export function lawForOwedSeats(
+  owedA: number,
+  owedB: number,
+  aCount: number,
+  bCount: number,
+): "strict" | "soft" | "free" {
+  if (finishExists(STRICT_SHAPES, owedA, owedB, aCount, bCount)) return "strict";
+  if (finishExists(SOFT_SHAPES, owedA, owedB, aCount, bCount)) return "soft";
+  return "free";
 }
 
 /**

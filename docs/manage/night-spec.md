@@ -71,12 +71,24 @@ the night starts rather than letting it be discovered in round six.
 A few courts cannot be dealt out level at all: two A's, two B's and two C's
 at four each gives the two A's their one game with the B's and then has no
 lawful four with an A in it, so the A's stall on one game while the B's and
-the C's play on past four, and two A's with three B's at four each finishes
-the two on six games while the three finish on four. Six at four each is six
-whole games, five at four each is five, and nobody is stranded in either, so
-neither the target check nor the stranding check catches them. The same
-pricing that finds the bend finds these, and the split screen says the court
-cannot give everyone exactly that many games (2026-09-11).
+the C's play on past four. Six at four each is six whole games and nobody is
+stranded, so neither the target check nor the stranding check catches it. The
+same pricing that finds the bend finds this, and the split screen says the
+court cannot give everyone exactly that many games (2026-09-11).
+
+Two courts of five used to be in that paragraph and are not any more. Two A's
+with three B's at four each, and three A's with two B's, finished the two on
+six games while the three finished on four. Five at four each is twenty seats
+and five games, and the mixing law was the thing in the way: it was read as
+parity, both tiers owing an even number of games, and parity is only half of
+it. Neither tier of a five-player court can field a pure game, so every seat
+has to come out of a game that mixes, and eight seats against twelve cannot
+be dealt as an A and a B against an A and a B all night. The law is now the
+strictest one the seats still owed can actually be finished under, so those
+two courts deal out level: three strict games and two of one A among three
+B's, or, the other way round, two of one B among three A's (2026-09-11). The
+pricing behind the split screen has not caught up with them yet and still
+calls them stuck, which is the next thing to fix there.
 
 Underneath all of it, least-played-first still picks who goes on next, so
 nobody drifts behind on games. The one game with the B's is the only law

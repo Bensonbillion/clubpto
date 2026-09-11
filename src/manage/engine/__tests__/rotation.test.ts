@@ -880,3 +880,53 @@ describe("an A has one game with the B's, and never a second", () => {
     expect(worstA(r, matches)).toBeLessThanOrEqual(2);
   });
 });
+
+describe("a court of five plays five games, not six", () => {
+  // Found by the cap's own sweep on 2026-09-11, and older than the cap: the
+  // same two nights deal the same six games at d524422, before the third law
+  // existed. Five players at four each is twenty seats and five games, one
+  // player sitting out each. The engine dealt six, the two of the smaller
+  // tier finishing on six games while the three finished on four.
+  //
+  // The cause is the mixing law read off parity alone. Two A's and three B's
+  // owe eight A seats and twelve B seats; both totals are even at every draw,
+  // so the law reads strict and every game is an A and a B against an A and a
+  // B. That shape spends two A seats a game, so the A's are spent after four
+  // games while the B's still owe four seats, and the card has to seat an A
+  // past their target to field a fifth. Parity is necessary for a strict
+  // night and not sufficient: with fewer than four of a tier that tier can
+  // never field a pure game, so every seat it owes has to come out of a mixed
+  // one, and strict only works when the two tiers owe the same number.
+  //
+  // The night that does fit is three strict games and two of an A among three
+  // B's: eight A seats and twelve B seats, five games, everyone on four.
+  const fives = (nA: number, nB: number): Player[] => [
+    ...Array.from({ length: nA }, (_, i) => P(`a${i + 1}`, { tier: "A" })),
+    ...Array.from({ length: nB }, (_, i) => P(`b${i + 1}`, { tier: "B" })),
+  ];
+
+  it("two A's and three B's at four each, and the same the other way round", () => {
+    for (const [nA, nB] of [[2, 3], [3, 2]] as const) {
+      const players = fives(nA, nB);
+      const { matches, counts } = runNight(players, 4);
+      expect(matches, `${nA}A/${nB}B`).toHaveLength(totalMatches(5, 4));
+      expect(counts, `${nA}A/${nB}B`).toEqual([4, 4, 4, 4, 4]);
+    }
+  });
+
+  it("every court of five the room can field finishes on its target", () => {
+    // The two above are the ones that broke, but nothing about five players
+    // is special to those splits, so the whole row is asserted.
+    for (let nA = 0; nA <= 5; nA++) {
+      const nB = 5 - nA;
+      const players = fives(nA, nB);
+      for (const target of validTargets(5)) {
+        if (target > 5) continue;
+        const { matches, counts } = runNight(players, target);
+        const label = `${nA}A/${nB}B T${target}`;
+        expect(matches, label).toHaveLength(totalMatches(5, target));
+        expect(counts.every((c) => c === target), label).toBe(true);
+      }
+    }
+  });
+});
