@@ -1,11 +1,12 @@
-// The two balance laws, and who is allowed on court together.
+// The balance laws, and who is allowed on court together.
 //
 // The whole design in one line: the round robin is long, so that is where
 // people need protecting, and the playoff is short, earned and partnered, so
 // that is where everyone mixes. Nothing in this file applies to a playoff.
 // Seeding comes off the standings and from there tier is irrelevant.
 //
-// THE LAWS, same shape, one at each end of the room:
+// THE LAWS. The first two are the same shape, one at each end of the room;
+// the third arrived on 2026-09-10 and stands on its own:
 //
 //   1. If a match holds both A's and B's, the two teams have the same make-up:
 //      an A and a B on each side. Never AB against BB, never AA against AB.

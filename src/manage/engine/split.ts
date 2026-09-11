@@ -62,11 +62,12 @@ export type SplitNote =
    * The numbers on this court force an A to meet the B's twice.
    *
    * The third law is one game with the B's a night and never a second, and
-   * some headcounts cannot keep it: six A's at four each with two B's owe
-   * the B's eight games, each one seats two A's across the net, and six A's
-   * cannot fill eight seats once each. The night still finishes everyone on
-   * target and the picker spreads the second games rather than stacking
-   * them, but the operator hears the bend at setup rather than in round six.
+   * some headcounts cannot keep it: on a court of six A's and two B's at
+   * four each the two B's owe eight games between them, which is four games
+   * across the net, and each of those seats two A's, so eight seats over six
+   * A's. The night still finishes everyone on target and the picker spreads
+   * the second games rather than stacking them, but the operator hears the
+   * bend at setup rather than in round six.
    *
    * `seats` is the places across the net from the B's the A's have to fill
    * over the night and `secondGames` is how many of those are somebody's
@@ -82,7 +83,27 @@ export type SplitNote =
    * forcedMixing, which prices the night the same way the picker does.
    */
   | { kind: "capBends"; courtNumber: number; aCount: number; target: number;
-      suggested: boolean; seats: number; secondGames: number };
+      suggested: boolean; seats: number; secondGames: number }
+  /**
+   * This court cannot give everyone the target at all.
+   *
+   * Two A's, two B's and two C's at four each is the shape: the eight
+   * A-seats force four A B against A B games, those use up every game the
+   * B's owe, and the C's are left with nobody the laws allow them on court
+   * with. The night deals lawful fours and nobody reaches the target.
+   *
+   * The target step's own check only asks whether size times target divides
+   * by four, and the stranding check only asks whether each player has one
+   * legal foursome, so a court like this passed setup in silence until
+   * 2026-09-11. engine/rotation.ts unfinishableCourt asks the oracle, which
+   * has known all along: it prices such a court at Infinity.
+   *
+   * suggestSplit never emits this one either, and for the same reason as
+   * "capBends": it is a fact about the court as it stands and about a target
+   * chosen on the next step. `suggested` says the target is this screen's
+   * suggestion rather than one the operator has chosen.
+   */
+  | { kind: "capStuck"; courtNumber: number; target: number; suggested: boolean };
 
 /**
  * The suggested target for a court of this size.

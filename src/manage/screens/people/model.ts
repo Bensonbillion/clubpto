@@ -40,9 +40,16 @@ export const countWord = (n: number): string =>
  * and the promise is only made on a court that is keeping it. The spread
  * comes from engine/rotation.ts courtSpread, the same number frame 11 guards
  * its own promise on.
+ *
+ * The gap is stated and the cause is NOT (2026-09-11). This function is
+ * handed one number and nothing else, so it cannot know which of the three
+ * opened the gap, and a court three games apart is certainly not the cap,
+ * which is allowed to cost exactly one game. It briefly named the cap for
+ * any gap at all, which told a player who had just walked in something
+ * untrue about the rule. Frame 11 names a cause only where the picker's own
+ * account supports it; so does this.
  */
 export const roundRobinCounts = (spread: number): string =>
   spread <= 1
     ? "Counts never drift more than one game apart."
-    : `Counts are ${countWord(spread)} games apart right now. `
-      + "The one game with the B's can hold a player back.";
+    : `Counts are ${countWord(spread)} games apart right now.`;

@@ -30,7 +30,8 @@ import { useRoster } from "./roster/useRoster";
 import { appearsInAMatch } from "./engine/roster-guard";
 import { dedupeWalkIn } from "./roster/merge";
 import {
-  bench, courtSpread, explainMatch, forcedMixing, lawContextFor, validTargets, totalMatches,
+  bench, courtSpread, explainMatch, forcedMixing, lawContextFor, unfinishableCourt,
+  validTargets, totalMatches,
 } from "./engine/rotation";
 import { legalSubstitutes, strandedPlayers } from "./engine/substitutes";
 import { suggestSplit, suggestTarget, type SplitNote } from "./engine/split";
@@ -1148,6 +1149,17 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
               suggested: !fits,
               seats: bend.seats,
               secondGames: bend.secondGames,
+            });
+          }
+          // And the harder answer from the same oracle: a court whose seats
+          // do not divide into whole lawful games at all. validTargets only
+          // checks the headcount times the target, and the stranding check
+          // only asks whether each player has one legal foursome, so a court
+          // like two A's, two B's and two C's at four each passed both and
+          // then ran a night nobody could finish.
+          if (target != null && unfinishableCourt(s.session.players, c.courtNumber, target)) {
+            splitNotes.push({
+              kind: "capStuck", courtNumber: c.courtNumber, target, suggested: !fits,
             });
           }
         }
@@ -2470,8 +2482,12 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           courtNumber={courtNumber}
           // engine/rotation.ts decided who is on and why. This reads its answer
           // back for the four already on court; nothing is worked out here.
+          // The target goes with it so the engine can replay its own draw and
+          // hand back who the third law held back, which the match row on its
+          // own cannot know.
           reason={explainMatch(
-            s.session.players, s.session.matches, courtNumber, live.teamA, live.teamB)}
+            s.session.players, s.session.matches, courtNumber, live.teamA, live.teamB,
+            view.court.targetMatches)}
           onDismiss={() => here({ pane: "match" })}
         />
         {overlays}

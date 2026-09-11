@@ -1,4 +1,5 @@
-// The setup warning for a night whose numbers bend the third law.
+// The setup warnings for a night whose numbers bend the third law, and for
+// one the laws cannot deal out at all.
 //
 // Frame 07's notes are sentences the operator reads before anyone plays, so
 // they are tested as sentences rather than through a render. The arithmetic
@@ -9,7 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Match, Player } from "../types";
-import { forcedMixing, nextMatch } from "../engine/rotation";
+import { forcedMixing, matchesPlayedBy, nextMatch, unfinishableCourt } from "../engine/rotation";
 import { tierOf } from "../engine/tiers";
 import type { Tier } from "../engine/tiers";
 import { noteWords } from "../screens/setup/model";
@@ -109,6 +110,87 @@ describe("the night the numbers bend the rule", () => {
     expect(forcedMixing(court(8, 0), 1, 3)).toBeNull();
     expect(forcedMixing(court(0, 8), 1, 3)).toBeNull();
     expect(forcedMixing(court(4, 4, 3), 1, 4)).toBeNull();
+  });
+});
+
+describe("the night the laws cannot deal out at all", () => {
+  /** The note the courts step would push for a stuck court. */
+  const stuckWords = (courtNumber: number, target: number, suggested = false) =>
+    noteWords({ kind: "capStuck", courtNumber, target, suggested });
+
+  it("names the court that cannot give everyone the target", () => {
+    // Two A's, two B's and two C's at four each. The eight A-seats force
+    // four A B against A B games, those use up every game the B's owe, and
+    // the C's are left with nobody the laws allow them on court with.
+    // validTargets takes it (six at four each is six whole games) and no
+    // player is stranded, so nothing else at setup catches it.
+    expect(unfinishableCourt(court(2, 2, 2), 1, 4)).toBe(true);
+    expect(stuckWords(1, 4)).toBe(
+      "The balance laws cannot give everyone on Court 1 exactly four games."
+      + " Some players finish off target. Change the target, or move somebody across.",
+    );
+    expect(stuckWords(2, 3, true)).toBe(
+      "The balance laws cannot give everyone on Court 2 exactly the suggested three games."
+      + " Some players finish off target. Change the target, or move somebody across.",
+    );
+  });
+
+  it("misses in the other direction too, which is why it says off target", () => {
+    // Two A's and three B's at four each is the shape mixing-sweep.ts carves
+    // out: five players, five games' worth of seats, and the engine deals
+    // six, the two A's finishing on six games and the three B's on four.
+    // Nobody finishes short there, so the sentence says off target.
+    expect(unfinishableCourt(court(2, 3), 1, 4)).toBe(true);
+    expect(unfinishableCourt(court(3, 2), 1, 4)).toBe(true);
+    expect(stuckWords(1, 4)).not.toContain("short");
+  });
+
+  it("stays quiet on every court that deals out level", () => {
+    // The Wednesday roster at each of its targets, the court the third law
+    // bends on, and a court with beginners on it.
+    expect(unfinishableCourt(court(12, 8), 1, 3)).toBe(false);
+    expect(unfinishableCourt(court(12, 8), 1, 4)).toBe(false);
+    expect(unfinishableCourt(court(12, 8), 1, 5)).toBe(false);
+    expect(unfinishableCourt(court(6, 2), 1, 4)).toBe(false);
+    expect(unfinishableCourt(court(7, 1), 1, 3)).toBe(false);
+    expect(unfinishableCourt(court(4, 4, 3), 1, 4)).toBe(false);
+  });
+
+  it("says nothing about a court the oracle is not worth asking", () => {
+    // No A or no B is the case the oracle has nothing to say about, not a
+    // court that is fine, and the picker skips it for the same reason.
+    expect(unfinishableCourt(court(8, 0), 1, 3)).toBe(false);
+    expect(unfinishableCourt(court(0, 8), 1, 3)).toBe(false);
+  });
+
+  it("is the note and the bend, never both", () => {
+    // capBends is the law bending on a night that still finishes; capStuck
+    // is a night that does not. forcedMixing drops the Infinity price for
+    // exactly that reason.
+    const stuck = court(2, 2, 2);
+    expect(unfinishableCourt(stuck, 1, 4)).toBe(true);
+    expect(forcedMixing(stuck, 1, 4)).toBeNull();
+    const bends = court(6, 2);
+    expect(unfinishableCourt(bends, 1, 4)).toBe(false);
+    expect(forcedMixing(bends, 1, 4)).not.toBeNull();
+  });
+
+  it("describes a night that really does leave people off target", () => {
+    const players = court(2, 2, 2);
+    const matches: Match[] = [];
+    // Six at four each is six games. The guard turns "the engine never
+    // stops" into a finished loop rather than a hung run.
+    for (let guard = 0; guard < 30; guard++) {
+      const next = nextMatch(players, matches, 1, 4);
+      if (!next) break;
+      matches.push({
+        id: `m${matches.length}`, courtNumber: 1, matchIndex: matches.length + 1,
+        teamA: next.teamA, teamB: next.teamB,
+        scoreA: 2, scoreB: 0, status: "played", startedAt: 0, completedAt: 0, stage: null,
+      });
+    }
+    const counts = players.map((p) => matchesPlayedBy(matches, p.id));
+    expect(counts.some((n) => n !== 4)).toBe(true);
   });
 });
 

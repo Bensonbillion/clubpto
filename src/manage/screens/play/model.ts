@@ -9,7 +9,7 @@
 // files export components and nothing else, which is what keeps fast refresh
 // working on them.
 
-import type { MatchReason, MixingNote } from "../../engine/rotation";
+import type { MatchReason, MixingMember, MixingNote } from "../../engine/rotation";
 
 /** One side of the match. `pairLabel` is the two names as the frames write
  *  them, joined with an ampersand: "Chizea & Ayo". */
@@ -125,35 +125,79 @@ export const leastPlayedWords = (reason: MatchReason): string => {
     + (reason.withinOneGame ? " Nobody on this court is ever more than one game behind." : "");
 };
 
+/** "second", "third", up to a night's worth. Past that, digits. */
+const ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth"];
+const ordinal = (n: number): string => ORDINALS[n - 1] ?? `${n}th`;
+
+/**
+ * Which time round this is for the A's meeting the B's again.
+ *
+ * They do not have to agree. On a court that bends the law one A can be on
+ * their second while another is on their third, so the clause names each
+ * count it has to name and collapses to one only when they all match.
+ */
+const againWords = (again: readonly MixingMember[]): string => {
+  const same = again.every((a) => a.bGames === again[0].bGames);
+  if (same) {
+    return `${joinNames(again.map((a) => a.name))} ${again.length === 1 ? "meets" : "meet"}`
+      + ` them for the ${ordinal(again[0].bGames + 1)} time.`;
+  }
+  return `${again[0].name} meets them for the ${ordinal(again[0].bGames + 1)} time, `
+    + `${joinNames(again.slice(1).map((a) => `${a.name} for the ${ordinal(a.bGames + 1)}`))}.`;
+};
+
 /**
  * The fourth card's sentence: what the third law did for this four.
  *
  * Null when there is no A in the match, because the law is then silent and a
  * card that says so is a card the operator reads for nothing. Each wording
- * says only what the reason supports. "pure" knows one thing, that no B is in
- * the match: it does NOT know whether those A's have already had their game,
- * and it cannot count the four either, because a hand-made substitution can
- * put somebody else in one of the seats. So it states the allowance rather
- * than claiming the game is behind them or the four is four A's. "firstBGame"
- * knows every A in the four is on their first. "secondBGame" knows one of
- * them is not, and the honest thing there is the arithmetic: the court's
- * numbers leave the B's more seats across the net than the A's can fill once
- * each, which is the one case the law bends (2026-09-10).
+ * says only what the reason supports, and since 2026-09-11 the note carries
+ * every A's count into the match, so the card counts rather than guesses.
+ *
+ * "pure" knows no B is in the match. Where every A in it has already spent
+ * their ticket it says so; where somebody has not, it names them, because
+ * the old flat wording told A's their game was behind them on a card drawn
+ * one round before they got it. It does not say the missing game is coming:
+ * six A's and six B's at four each have room for two mixed games, so two of
+ * those A's never meet the B's at all. "firstBGame" knows every A in the
+ * four is on their first. "secondBGame" knows at least one is not, and says
+ * which time round it is for each of them: "a second game" was flatly false
+ * on the courts that bend the law, where a third and a fourth happen.
+ *
+ * No wording here names a CAUSE. A repeat can be the court's numbers or a
+ * four the operator built by hand, and a match on its own cannot tell them
+ * apart. The setup note is the screen that actually prices the court, so it
+ * is the one that gets to say why.
  */
 export const mixingWords = (mixing: MixingNote): string | null => {
-  const names = joinNames(mixing.aNames);
+  const names = joinNames(mixing.aPlayers.map((a) => a.name));
+  const one = mixing.aPlayers.length === 1;
   switch (mixing.kind) {
     case "noAs":
       return null;
-    case "pure":
-      return `${names} are in a match with no B in it. One game with the B's a night is the`
-        + " whole allowance, so the rest of an A's night is played among the A's.";
+    case "pure": {
+      const owing = mixing.aPlayers.filter((a) => a.bGames === 0);
+      if (owing.length === 0) {
+        return `${names} ${one ? "has" : "have"} had their game with the B's already. One game`
+          + " a night is the whole allowance, so this one is among the A's.";
+      }
+      return `${names} ${one ? "is" : "are"} in a match with no B in it. One game with the B's`
+        + ` a night is the whole allowance, and ${joinNames(owing.map((a) => a.name))}`
+        + ` ${owing.length === 1 ? "has" : "have"} not had theirs.`;
+    }
     case "firstBGame":
-      return `${names} ${mixing.aNames.length === 1 ? "is" : "are"} having their one game`
-        + " with the B's.";
-    case "secondBGame":
-      return `${names} are in with the B's, and for one of them it is a second game.`
-        + " The numbers leave more seats across the net than the A's can fill once each,"
-        + " so the second games are spread rather than stacked on one A.";
+      return `${names} ${one ? "is" : "are"} having their one game with the B's.`;
+    case "secondBGame": {
+      const again = mixing.aPlayers.filter((a) => a.bGames > 0);
+      // Both producers set this kind only when somebody is repeating, so the
+      // list is never empty in practice. A note that says otherwise is a note
+      // disagreeing with itself, and the card says the thing the counts
+      // support rather than throwing on the operator's screen.
+      if (again.length === 0) {
+        return `${names} ${one ? "is" : "are"} having their one game with the B's.`;
+      }
+      return `${names} ${one ? "is" : "are"} in with the B's. ${againWords(again)}`
+        + " One game with the B's a night is the allowance, and this four is past it.";
+    }
   }
 };

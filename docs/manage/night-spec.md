@@ -30,9 +30,10 @@ played changes. They are a private note for whoever is splitting the courts.
 They show in the roster and on the split screen, and **never on court, in a
 game, or in standings** (frame 29).
 
-## The two balance laws
+## The balance laws
 
-Same shape, one at each end of the room.
+The first two are the same shape, one at each end of the room. The third
+arrived on 2026-09-10 and is a law in its own right.
 
 **If a match holds both A's and B's, each team has a B.** No B is ever the lone
 weaker player being hunted.
@@ -62,6 +63,14 @@ eight seats across the net and six A's cannot fill eight seats once each, the
 night still finishes everyone on target, the second games are spread over
 different A's rather than stacked on one, and the split screen says so before
 the night starts rather than letting it be discovered in round six.
+
+A few courts cannot be dealt out level at all: two A's, two B's and two C's
+at four each leaves the C's nobody the laws allow them on court with, and two
+A's with three B's at four each finishes the two on six games while the three
+finish on four. Six at four each is six whole games and nobody is stranded,
+so neither the target check nor the stranding check catches them. The same
+pricing that finds the bend finds these, and the split screen says the court
+cannot give everyone exactly that many games (2026-09-11).
 
 Underneath all of it, least-played-first still picks who goes on next, so
 nobody drifts behind on games. The one game with the B's is the only thing

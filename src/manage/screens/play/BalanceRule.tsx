@@ -74,8 +74,15 @@ export const BalanceRule = ({ round, courtNumber, reason, onDismiss }: BalanceRu
       </div>
 
       <Body style={{ padding: "16px 22px 22px", display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* The frame's title for the ordinary draw. Where the third law held
+            a least-played player back, the body says so, and a heading over
+            it reading "Least played, first on" is the frame contradicting
+            its own card. The held-back branch gets a title the body
+            supports; the frame drew no case for it. */}
         <Card>
-          <CardTitle>Least played, first on</CardTitle>
+          <CardTitle>
+            {reason.mixing.heldBack.length > 0 ? "Who goes on next" : "Least played, first on"}
+          </CardTitle>
           <CardBody>{leastPlayed}</CardBody>
         </Card>
 

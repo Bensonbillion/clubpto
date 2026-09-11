@@ -154,17 +154,33 @@ export type MixingKind =
   /** An A in it is meeting the B's again: the seats forced it. */
   | "secondBGame";
 
+/**
+ * An A in the match, with the games they had had with the B's BEFORE this
+ * one.
+ *
+ * The count is the whole reason this is an object rather than a name. A card
+ * that reads "for one of them it is a second game" off a bare list is wrong
+ * the moment somebody is on their third, and on the courts that bend the law
+ * a third happens (2026-09-10). Zero is an A having their one game; one or
+ * more is an A meeting the B's again, and the card says which time it is.
+ */
+export interface MixingMember {
+  name: string;
+  bGames: number;
+}
+
 export interface MixingNote {
   kind: MixingKind;
   /** The A's in the match, in queue order. */
-  aNames: string[];
+  aPlayers: MixingMember[];
   /**
    * Players who had played fewer games than somebody in this four and were
    * passed over because dealing them would have cost an A a second B game.
    * Empty when the four are the least played the laws allow, and empty when
-   * the reason was reconstructed from a match already on court, for the
-   * same reason BalanceNote.swap is: who was passed over is a counterfactual
-   * a match on its own cannot know.
+   * a match already on court could not be matched to a draw, for the same
+   * reason BalanceNote.swap is: who was passed over is a counterfactual a
+   * match on its own cannot know. explainMatch recovers it by replaying the
+   * draw when it is given the court's target; see pickerNote.
    */
   heldBack: { name: string }[];
 }
@@ -561,16 +577,20 @@ function lawfulFour(
       }
     }
   }
-  const aNames = four.filter((e) => tierHere(e.playerId) === "A").map((e) => e.name);
+  // The A's with the count each carried INTO this four, which is what lets
+  // the card name the game rather than guess at it.
+  const aPlayers: MixingMember[] = four
+    .filter((e) => tierHere(e.playerId) === "A")
+    .map((e) => ({ name: e.name, bGames: bGames.get(e.playerId) ?? 0 }));
   const mixes = four.some((e) => tierHere(e.playerId) === "B");
-  const kind: MixingKind = aNames.length === 0 ? "noAs"
+  const kind: MixingKind = aPlayers.length === 0 ? "noAs"
     : !mixes ? "pure"
-      : four.every((e) => tierHere(e.playerId) !== "A" || (bGames.get(e.playerId) ?? 0) === 0) ? "firstBGame"
+      : aPlayers.every((a) => a.bGames === 0) ? "firstBGame"
         : "secondBGame";
 
   return { four, teamA: [...chosen.lineup.teamA] as [string, string],
            teamB: [...chosen.lineup.teamB] as [string, string], swap,
-           mixing: { kind, aNames, heldBack } };
+           mixing: { kind, aPlayers, heldBack } };
 }
 
 /**
@@ -629,6 +649,46 @@ export function courtSpread(
 }
 
 /**
+ * The picker's own account of a match already on court, replayed.
+ *
+ * Who the third law held back is a counterfactual: it is the fairer four the
+ * picker priced higher and passed over, and the match row itself carries no
+ * trace of it. Frame 11 opens on a match that is ON COURT, so until
+ * 2026-09-11 the frame's first card read a note with an empty heldBack and
+ * went on printing "had played the fewest games" over a four the cap had
+ * reordered. So the draw is run again from the court as it stood when the
+ * four walked on: played rows only, which is exactly the log scheduleFor
+ * hands nextMatch for a row drawn in turn.
+ *
+ * Null unless the replay deals the SAME four the caller asked about. A four
+ * put together by hand, or a card played out of order, is not a draw this
+ * module made, and describing it as one would be the lie the frame's whole
+ * design avoids. The caller then falls back to what the log alone supports.
+ *
+ * Only reached when the caller passes the court's target, which nextMatch
+ * never does: it already holds the picker's note and a replay there would
+ * draw every row of the card twice.
+ */
+function pickerNote(
+  players: readonly Player[],
+  matches: readonly Match[],
+  court: number,
+  targetMatches: number,
+  teamA: readonly [string, string],
+  teamB: readonly [string, string],
+): MixingNote | null {
+  const before = matches.filter(countsAsPlayed);
+  const queue = buildQueue(players, before, court, targetMatches);
+  if (queue.length < 4) return null;
+  const drawn = lawfulFour(queue, lawContextFor(players, court), before, court, players);
+  if (!drawn) return null;
+  const asked = new Set([...teamA, ...teamB]);
+  const dealt = drawn.four.map((e) => e.playerId);
+  if (dealt.length !== asked.size || !dealt.every((id) => asked.has(id))) return null;
+  return drawn.mixing;
+}
+
+/**
  * Describe a match that already exists, in the same shape nextMatch returns.
  *
  * Frame 11 is reached from a court that is mid-match, so the explanation has
@@ -636,6 +696,10 @@ export function courtSpread(
  * was drawn. `matches` should be the night's matches; a match on court counts
  * for nobody, so passing the full list and the match's own sides gives the
  * counts as they stood when the four walked on.
+ *
+ * `targetMatches` is optional and only the screens pass it. With it the draw
+ * is replayed (see pickerNote) so the frame can say who the third law held
+ * back; without it the note carries what the log alone supports.
  */
 export function explainMatch(
   players: readonly Player[],
@@ -643,6 +707,7 @@ export function explainMatch(
   court: number,
   teamA: readonly [string, string],
   teamB: readonly [string, string],
+  targetMatches?: number,
 ): MatchReason {
   const byId = new Map(players.map((p) => [p.id, p]));
   const seat = new Map(players.map((p, i) => [p.id, i]));
@@ -689,19 +754,28 @@ export function explainMatch(
     const p = byId.get(id);
     return p ? tierOfPlayer(p) : "B";
   };
-  const aNames = leastPlayed.filter((p) => tier(p.playerId) === "A").map((p) => p.name);
+  const aPlayers: MixingMember[] = leastPlayed
+    .filter((p) => tier(p.playerId) === "A")
+    .map((p) => ({ name: p.name, bGames: bGames.get(p.playerId) ?? 0 }));
   const mixes = leastPlayed.some((p) => tier(p.playerId) === "B");
-  const mixingKind: MixingKind = aNames.length === 0 ? "noAs"
+  const mixingKind: MixingKind = aPlayers.length === 0 ? "noAs"
     : !mixes ? "pure"
-      : leastPlayed.every((p) => tier(p.playerId) !== "A" || (bGames.get(p.playerId) ?? 0) === 0) ? "firstBGame"
+      : aPlayers.every((a) => a.bGames === 0) ? "firstBGame"
         : "secondBGame";
+
+  // The picker's note where the replay recognises this four, so frame 11 can
+  // say who waited a round for the third law. The log alone knows the kind
+  // and the counts but never the four that was passed over.
+  const drawn = targetMatches === undefined
+    ? null
+    : pickerNote(players, matches, court, targetMatches, teamA, teamB);
 
   return {
     leastPlayed,
     courtSpread: spread,
     withinOneGame: spread <= 1,
     balance: { kind, cPlayers, swap: null },
-    mixing: { kind: mixingKind, aNames, heldBack: [] },
+    mixing: drawn ?? { kind: mixingKind, aPlayers, heldBack: [] },
   };
 }
 
@@ -735,6 +809,61 @@ export function totalMatches(courtSize: number, targetMatches: number): number {
   return (courtSize * targetMatches) / 4;
 }
 
+/**
+ * The night this court is about to play, priced by the same oracle the picker
+ * uses: the least any finish has to charge the A's in second games with the
+ * B's.
+ *
+ * Null when there is no A or no B on the court, or no target to play for:
+ * nobody can be charged there and the oracle is not worth asking, exactly as
+ * the picker skips it. Infinity when the seats do not divide into whole
+ * lawful games at all.
+ */
+function nightCharge(
+  players: readonly Player[],
+  court: number,
+  targetMatches: number,
+): number | null {
+  const onCourt = players.filter((p) => isPlayable(p, court));
+  const hasA = onCourt.some((p) => tierOfPlayer(p) === "A");
+  const hasB = onCourt.some((p) => tierOfPlayer(p) === "B");
+  if (!hasA || !hasB || targetMatches <= 0) return null;
+  const ctx = lawContextFor(players, court);
+  const seats: Seat[] = onCourt.map((p) => ({
+    tier: tierOfPlayer(p),
+    owed: targetMatches,
+    bGames: 0,
+    bridge: p.id === ctx.designatedB,
+  }));
+  return deficit(stateOf(seats, ctx.abLaw === "free" ? "free" : "bound", ctx.relaxed));
+}
+
+/**
+ * Can this court give everyone the target at all?
+ *
+ * validTargets only asks whether N x T divides by four, and strandedPlayers
+ * only asks whether each player has one legal foursome. Both pass on a court
+ * like two A's, two B's and two C's at four each, where the eight A-seats
+ * force four A B against A B games, those consume every seat the B's owe,
+ * and the C's are left with nobody the laws allow them on court with. The
+ * night then deals lawful fours forever and nobody reaches the target.
+ *
+ * The oracle already knows: it prices such a court at Infinity, which is its
+ * own word for "these seats do not divide into whole games". Until
+ * 2026-09-11 that answer was dropped on the floor and a hand-dragged court
+ * could pass setup in silence. False for a court the oracle is not worth
+ * asking (no A, or no B), because that is the case it has nothing to say
+ * about rather than a court that is fine.
+ */
+export function unfinishableCourt(
+  players: readonly Player[],
+  court: number,
+  targetMatches: number,
+): boolean {
+  const charge = nightCharge(players, court, targetMatches);
+  return charge !== null && !Number.isFinite(charge);
+}
+
 /** What the third law costs a court, in the numbers a setup warning needs. */
 export interface ForcedMixing {
   /** A's on the court. */
@@ -751,10 +880,11 @@ export interface ForcedMixing {
  * What the third law costs a court, worked out before the night starts.
  *
  * An A plays one game with the B's and never a second, and most nights that
- * holds. Some nights it cannot: six A's at four each on a court with two B's
- * owe the B's eight games, every one of those games seats two A's across the
- * net, and six A's cannot fill eight seats once each. The numbers bend the
- * rule, and the operator hears it at setup rather than in round six.
+ * holds. Some nights it cannot: on a court of six A's and two B's at four
+ * each the two B's owe eight games between them, which is four games across
+ * the net, and each of those seats two A's, so eight seats over six A's. The
+ * numbers bend the rule, and the operator hears it at setup rather than in
+ * round six.
  *
  * Null when nothing bends: no A on the court, no B on the court, or the
  * seats can still be finished with nobody meeting the B's twice. Otherwise
@@ -773,24 +903,15 @@ export function forcedMixing(
   court: number,
   targetMatches: number,
 ): ForcedMixing | null {
-  const onCourt = players.filter((p) => isPlayable(p, court));
-  const aCount = onCourt.filter((p) => tierOfPlayer(p) === "A").length;
-  // A court with no A or no B charges nobody anything, and the oracle is not
-  // worth asking there, exactly as the picker skips it.
-  if (aCount === 0 || !onCourt.some((p) => tierOfPlayer(p) === "B")) return null;
-  if (targetMatches <= 0) return null;
-
-  const ctx = lawContextFor(players, court);
-  const seats: Seat[] = onCourt.map((p) => ({
-    tier: tierOfPlayer(p),
-    owed: targetMatches,
-    bGames: 0,
-    bridge: p.id === ctx.designatedB,
-  }));
-  const charge = deficit(stateOf(seats, ctx.abLaw === "free" ? "free" : "bound", ctx.relaxed));
-  // Infinity is a court whose seats do not divide into whole games at all.
-  // The target step says that in its own words, so this note stays quiet.
-  if (!Number.isFinite(charge) || charge <= 0) return null;
+  const aCount = players
+    .filter((p) => isPlayable(p, court) && tierOfPlayer(p) === "A").length;
+  // Null is a court with no A or no B on it, or no target: nobody can be
+  // charged there and the oracle is not asked, exactly as the picker skips it.
+  const charge = nightCharge(players, court, targetMatches);
+  // Infinity is a court the laws cannot finish at all. It is its own warning
+  // (see unfinishableCourt), not a bend of the third law, so this note stays
+  // quiet about it.
+  if (charge === null || !Number.isFinite(charge) || charge <= 0) return null;
 
   // An A's k-th game with the B's costs k-1, so a level hand-out of m seats
   // over n A's carries a price that only goes up as m does. The first m

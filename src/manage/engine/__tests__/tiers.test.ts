@@ -1,4 +1,4 @@
-// The two balance laws.
+// The balance laws.
 //
 // These are the promises the club makes to the people at either end of the
 // room, so every test below names the person who gets hurt when it breaks.

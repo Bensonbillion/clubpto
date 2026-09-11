@@ -83,5 +83,17 @@ export const noteWords = (note: SplitNote): string => {
         : "Every A meets the B's more than once.";
       return `${who} ${countWord(note.seats)} seats across the net from the B's. ${bend}`;
     }
+    case "capStuck": {
+      // Not a bend of the third law, a court that cannot be dealt out level
+      // at all. "Off target" rather than "short", because the court misses
+      // in both directions: two A's and two B's with two C's at four each
+      // leaves the C's stranded on none, and two A's with three B's at four
+      // each finishes the two on six while the three finish on four.
+      // The two ways out are named the way the stranding note names its own.
+      const each = `${note.suggested ? "the suggested " : ""}${countWord(note.target)}`;
+      return `The balance laws cannot give everyone on Court ${note.courtNumber} exactly`
+        + ` ${each} games. Some players finish off target. Change the target, or move`
+        + " somebody across.";
+    }
   }
 };
