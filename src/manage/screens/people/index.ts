@@ -25,4 +25,4 @@ export type { LeavesEarlyProps } from "./LeavesEarly";
 export { Extend } from "./Extend";
 export type { ExtendProps } from "./Extend";
 
-export { countWord, pairName } from "./model";
+export { countWord, pairName, roundRobinCounts } from "./model";

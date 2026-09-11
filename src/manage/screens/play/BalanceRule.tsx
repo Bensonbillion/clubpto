@@ -13,7 +13,7 @@
 import type { ReactNode } from "react";
 import type { MatchReason } from "../../engine/rotation";
 import { Body, Card, Eyebrow, Screen, T, TertiaryButton } from "../../ui/primitives";
-import { joinNames } from "./model";
+import { leastPlayedWords, mixingWords } from "./model";
 
 export interface BalanceRuleProps {
   round: number;
@@ -40,16 +40,8 @@ const CardBody = ({ children }: { children: ReactNode }) => (
 );
 
 export const BalanceRule = ({ round, courtNumber, reason, onDismiss }: BalanceRuleProps) => {
-  const names = joinNames(reason.leastPlayed.map((p) => p.name));
-
-  // The second sentence of the first card is a promise about the whole court,
-  // so it is only printed when the court is actually keeping it. A court whose
-  // counts have drifted, which takes someone arriving mid-night and being
-  // marked away again, gets the first sentence alone. The frame draws no
-  // wording for the drifted case and none is invented.
-  const leastPlayed = reason.withinOneGame
-    ? `${names} had played the fewest games, so they are on. Nobody on this court is ever more than one game behind.`
-    : `${names} had played the fewest games, so they are on.`;
+  const leastPlayed = leastPlayedWords(reason);
+  const mixing = mixingWords(reason.mixing);
 
   // The balance card only has something to say when two Cs ended up on
   // opposite sides, which is the rule working. The frame draws no wording for
@@ -106,6 +98,17 @@ export const BalanceRule = ({ round, courtNumber, reason, onDismiss }: BalanceRu
             only with other Cs or with one B, never in a game with an A.
           </CardBody>
         </Card>
+
+        {/* The fourth card is the third law, and it is drawn only where the
+            law has something to say about THIS four: with no A in the match
+            it is absent. No frame draws it, so the wording is the law kept
+            in the register of the three cards above it. */}
+        {mixing != null && (
+          <Card>
+            <CardTitle>One game with the B's</CardTitle>
+            <CardBody>{mixing}</CardBody>
+          </Card>
+        )}
 
         <p style={{ font: `400 14px/1.6 ${T.fontBody}`, color: T.soft, margin: 0, textWrap: "pretty" }}>
           This is why the courts do not need to be pure. A gradient court still gives everyone a

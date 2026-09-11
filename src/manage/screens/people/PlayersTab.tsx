@@ -92,11 +92,14 @@ export interface PlayersTabProps {
   /** Reworded tabs, e.g. Bracket where a knockout night has no standings. */
   tabLabels?: Partial<Record<"match" | "players" | "standings", string>>;
   /**
-   * The footer's one sentence. The round robin's default promises what its
-   * queue enforces; a knockout night, where byes mean counts DO drift, says
-   * its own true thing instead.
+   * The footer's one sentence, and every caller states it. It was optional,
+   * with the round robin's promise as the default, until the third law
+   * arrived on 2026-09-10 and made that promise conditional: a default
+   * sentence nobody had checked against the court is the one way this footer
+   * can lie. A round robin passes roundRobinCounts above; a knockout night,
+   * where byes mean counts DO drift, says its own true thing.
    */
-  countsLine?: string;
+  countsLine: string;
   onChangeTab: (tab: Tab) => void;
 }
 
@@ -266,7 +269,7 @@ export const PlayersTab = ({
         })}
       </Body>
 
-      <FooterBar helper={countsLine ?? "Counts never drift more than one game apart."}>
+      <FooterBar helper={countsLine}>
         {onAddPlayer != null && (
           <SecondaryButton onClick={onAddPlayer}>Add a walk-in</SecondaryButton>
         )}

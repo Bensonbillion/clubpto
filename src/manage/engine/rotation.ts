@@ -24,7 +24,10 @@ import {
   abLawFor, canFieldACMatch, chooseFour, designateB, tierOf as tierOfPlayer,
   type LawContext, type Tier,
 } from "./tiers";
-import { deficit, slackFor, type MixingA, type MixingB, type MixingC, type MixingState } from "./mixing";
+import {
+  deficit, slackFor, stateOf,
+  type MixingA, type MixingB, type MixingC, type MixingState, type Seat,
+} from "./mixing";
 
 const isPlayable = (p: Player, court: number) =>
   p.courtNumber === court && !p.away;
@@ -606,6 +609,26 @@ export function nextMatch(
 }
 
 /**
+ * The widest gap in games played across a court, as it stands.
+ *
+ * Frame 11 hangs its "nobody is ever more than one game behind" on this, and
+ * since 2026-09-10 so does the roster footer: the third law is allowed to
+ * hold a least-played player back a game, so a court can honestly sit two
+ * apart. Both screens read the gap from here rather than counting rows
+ * themselves, so neither can promise something the other denies.
+ */
+export function courtSpread(
+  players: readonly Player[],
+  matches: readonly Match[],
+  court: number,
+): number {
+  // Guarded rather than spread straight into Math.max: an empty court would
+  // otherwise report a spread of -Infinity and the screen would print it.
+  const counts = players.filter((p) => isPlayable(p, court)).map((p) => matchesPlayedBy(matches, p.id));
+  return counts.length ? Math.max(...counts) - Math.min(...counts) : 0;
+}
+
+/**
  * Describe a match that already exists, in the same shape nextMatch returns.
  *
  * Frame 11 is reached from a court that is mid-match, so the explanation has
@@ -639,10 +662,7 @@ export function explainMatch(
         (seat.get(a.playerId) ?? 0) - (seat.get(b.playerId) ?? 0),
     );
 
-  // Guarded rather than spread straight into Math.max: an empty court would
-  // otherwise report a spread of -Infinity and the screen would print it.
-  const counts = players.filter((p) => isPlayable(p, court)).map((p) => matchesPlayedBy(matches, p.id));
-  const courtSpread = counts.length ? Math.max(...counts) - Math.min(...counts) : 0;
+  const spread = courtSpread(players, matches, court);
 
   const cPlayers: BalanceMember[] = leastPlayed
     .filter((p) => byId.get(p.playerId)?.tier === "C")
@@ -678,8 +698,8 @@ export function explainMatch(
 
   return {
     leastPlayed,
-    courtSpread,
-    withinOneGame: courtSpread <= 1,
+    courtSpread: spread,
+    withinOneGame: spread <= 1,
     balance: { kind, cPlayers, swap: null },
     mixing: { kind: mixingKind, aNames, heldBack: [] },
   };
@@ -713,4 +733,80 @@ export function validTargets(courtSize: number): number[] {
 /** Matches a court will play in total at this size and target. */
 export function totalMatches(courtSize: number, targetMatches: number): number {
   return (courtSize * targetMatches) / 4;
+}
+
+/** What the third law costs a court, in the numbers a setup warning needs. */
+export interface ForcedMixing {
+  /** A's on the court. */
+  aCount: number;
+  /** Games each of them is owed, which the note names. */
+  target: number;
+  /** Seats across the net from the B's, over the whole night. */
+  seats: number;
+  /** How many of those seats are an A's second game with the B's or later. */
+  secondGames: number;
+}
+
+/**
+ * What the third law costs a court, worked out before the night starts.
+ *
+ * An A plays one game with the B's and never a second, and most nights that
+ * holds. Some nights it cannot: six A's at four each on a court with two B's
+ * owe the B's eight games, every one of those games seats two A's across the
+ * net, and six A's cannot fill eight seats once each. The numbers bend the
+ * rule, and the operator hears it at setup rather than in round six.
+ *
+ * Null when nothing bends: no A on the court, no B on the court, or the
+ * seats can still be finished with nobody meeting the B's twice. Otherwise
+ * `seats` is how many places across the net from the B's the A's have to
+ * fill and `secondGames` is how many of those are somebody's second.
+ *
+ * The rule itself is not worked out here. `deficit` prices the night the
+ * same way the picker does, and the seats are read back off its answer:
+ * every A on the court is owed the same games and has had the same none of
+ * them, so the cheapest finish hands the mixed seats out level, and the
+ * level hand-out of `seats` seats over `aCount` A's is the only one that
+ * carries that price.
+ */
+export function forcedMixing(
+  players: readonly Player[],
+  court: number,
+  targetMatches: number,
+): ForcedMixing | null {
+  const onCourt = players.filter((p) => isPlayable(p, court));
+  const aCount = onCourt.filter((p) => tierOfPlayer(p) === "A").length;
+  // A court with no A or no B charges nobody anything, and the oracle is not
+  // worth asking there, exactly as the picker skips it.
+  if (aCount === 0 || !onCourt.some((p) => tierOfPlayer(p) === "B")) return null;
+  if (targetMatches <= 0) return null;
+
+  const ctx = lawContextFor(players, court);
+  const seats: Seat[] = onCourt.map((p) => ({
+    tier: tierOfPlayer(p),
+    owed: targetMatches,
+    bGames: 0,
+    bridge: p.id === ctx.designatedB,
+  }));
+  const charge = deficit(stateOf(seats, ctx.abLaw === "free" ? "free" : "bound", ctx.relaxed));
+  // Infinity is a court whose seats do not divide into whole games at all.
+  // The target step says that in its own words, so this note stays quiet.
+  if (!Number.isFinite(charge) || charge <= 0) return null;
+
+  // An A's k-th game with the B's costs k-1, so a level hand-out of m seats
+  // over n A's carries a price that only goes up as m does. The first m
+  // whose price reaches the night's is the number of seats the night needs.
+  for (let m = aCount + 1; m <= aCount * targetMatches; m++) {
+    if (levelCharge(m, aCount) >= charge) {
+      return { aCount, target: targetMatches, seats: m, secondGames: m - aCount };
+    }
+  }
+  return null;
+}
+
+/** The price of handing `seats` mixed seats out level over `aCount` A's. */
+function levelCharge(seats: number, aCount: number): number {
+  const each = Math.floor(seats / aCount);
+  const over = seats % aCount;
+  const price = (s: number) => (s * (s - 1)) / 2;
+  return over * price(each + 1) + (aCount - over) * price(each);
 }

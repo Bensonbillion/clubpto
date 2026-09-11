@@ -57,7 +57,32 @@ export type SplitNote =
    * operator has fixed. The shell judges it after each drag with
    * engine/substitutes.ts strandedPlayers and phrases the names it gets back.
    */
-  | { kind: "stranded"; courtNumber: number; names: string[] };
+  | { kind: "stranded"; courtNumber: number; names: string[] }
+  /**
+   * The numbers on this court force an A to meet the B's twice.
+   *
+   * The third law is one game with the B's a night and never a second, and
+   * some headcounts cannot keep it: six A's at four each with two B's owe
+   * the B's eight games, each one seats two A's across the net, and six A's
+   * cannot fill eight seats once each. The night still finishes everyone on
+   * target and the picker spreads the second games rather than stacking
+   * them, but the operator hears the bend at setup rather than in round six.
+   *
+   * `seats` is the places across the net from the B's the A's have to fill
+   * over the night and `secondGames` is how many of those are somebody's
+   * second. `suggested` says the target is this screen's suggestion rather
+   * than one the operator has chosen, because the target step comes after
+   * this one and a court drag can leave the seeded target behind.
+   *
+   * suggestSplit never emits this note, for the same reason it never emits
+   * "stranded": the bend is a fact about the court AS IT STANDS and about a
+   * target chosen on the NEXT step, and a note frozen at suggestion time
+   * would keep warning about a court the operator has already fixed. The
+   * shell re-derives it after every drag from engine/rotation.ts
+   * forcedMixing, which prices the night the same way the picker does.
+   */
+  | { kind: "capBends"; courtNumber: number; aCount: number; target: number;
+      suggested: boolean; seats: number; secondGames: number };
 
 /**
  * The suggested target for a court of this size.

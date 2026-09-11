@@ -29,7 +29,9 @@ import { recordedResultCount, storageKeyFor, useManageSession } from "./useSessi
 import { useRoster } from "./roster/useRoster";
 import { appearsInAMatch } from "./engine/roster-guard";
 import { dedupeWalkIn } from "./roster/merge";
-import { bench, explainMatch, lawContextFor, validTargets, totalMatches } from "./engine/rotation";
+import {
+  bench, courtSpread, explainMatch, forcedMixing, lawContextFor, validTargets, totalMatches,
+} from "./engine/rotation";
 import { legalSubstitutes, strandedPlayers } from "./engine/substitutes";
 import { suggestSplit, suggestTarget, type SplitNote } from "./engine/split";
 import { MIN_CS_FOR_A_C_MATCH, tierOf } from "./engine/tiers";
@@ -43,7 +45,9 @@ import type { Match, PlayerTier, PlayoffStage, NightFormat } from "./types";
 import { Passcode, PasscodeFailed, HomeNothingRunning, HomeNightInProgress } from "./screens/door-home";
 import { WhichNight, WhoIsHere, Courts, MatchesEach, Ready, Chip } from "./screens/setup";
 import { CourtHeader, BalanceRule, CourtView, CourtSwitcher, Schedule, ScoreEntry , startValue } from "./screens/play";
-import { CorrectOrVoid, Extend, LateArrival, LeavesEarly, MoveCourts, PlayersTab } from "./screens/people";
+import {
+  CorrectOrVoid, Extend, LateArrival, LeavesEarly, MoveCourts, PlayersTab, roundRobinCounts,
+} from "./screens/people";
 import { CourtsFree } from "./screens/knockout/CourtsFree";
 import { KnockoutPlay } from "./screens/knockout/KnockoutPlay";
 import { KnockoutReady } from "./screens/knockout/KnockoutReady";
@@ -1123,6 +1127,27 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
               kind: "stranded",
               courtNumber: c.courtNumber,
               names: stuck.map((p) => p.name),
+            });
+          }
+          // The third law bending on this court's numbers, priced by the same
+          // oracle the picker uses, so the warning and the night cannot
+          // disagree. The target step comes AFTER this one, so the target
+          // here is whatever the split seeded, which a drag can leave behind:
+          // when the court's size no longer takes it, the suggestion for the
+          // size as it stands is used instead and the note says so.
+          const chosen = s.session.courts.find((x) => x.number === c.courtNumber)?.targetMatches;
+          const fits = chosen != null && validTargets(c.players.length).includes(chosen);
+          const target = fits ? chosen : suggestTarget(c.players.length);
+          const bend = target == null ? null : forcedMixing(s.session.players, c.courtNumber, target);
+          if (bend) {
+            splitNotes.push({
+              kind: "capBends",
+              courtNumber: c.courtNumber,
+              aCount: bend.aCount,
+              target: bend.target,
+              suggested: !fits,
+              seats: bend.seats,
+              secondGames: bend.secondGames,
             });
           }
         }
@@ -2310,6 +2335,11 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
           onAddPlayer={() => {
             setLateName(""); setLateTier(null); setLateCourt(courtNumber); setSheet("lateArrival");
           }}
+          // The footer reads the court rather than promising it. Since the
+          // third law arrived the cap may hold a least-played player back a
+          // game, so the gap is looked up, exactly as frame 11 looks it up.
+          countsLine={roundRobinCounts(
+            courtSpread(s.session.players, s.session.matches, courtNumber))}
           onChangeTab={(t) => here({ tab: t })}
         />
         {overlays}

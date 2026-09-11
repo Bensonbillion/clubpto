@@ -46,8 +46,26 @@ beginner group for the whole session, so the C's see one consistent stronger
 face instead of a rotating cast, and no player ends up playing with more than
 one B this way in a night.
 
+**An A plays one game with the B's a night, and never a second.** Whether it is
+three games, four or five, they should never get more than one B game. The math
+is confusing, it is always a weird number, but this is highly important for our
+business, and it goes for both managers. Unassessed players count as B, so that
+one game covers them too.
+
+What the code does with it, since 2026-09-10. Wherever the night can still be
+finished with nobody meeting the B's twice, this is a hard cap, and it is the
+one rule allowed to hold a least-played player back a game, so a court's counts
+can honestly sit two apart. Every A still gives their one game rather than
+none: among equally fair fours, the one that spends an unused ticket wins.
+Where the numbers cannot keep it, six A's at four each with two B's owe the B's
+eight seats across the net and six A's cannot fill eight seats once each, the
+night still finishes everyone on target, the second games are spread over
+different A's rather than stacked on one, and the split screen says so before
+the night starts rather than letting it be discovered in round six.
+
 Underneath all of it, least-played-first still picks who goes on next, so
-nobody drifts behind on games.
+nobody drifts behind on games. The one game with the B's is the only thing
+allowed to override it, and only ever by a game.
 
 The laws hold whether the group is spread over three courts or sharing one.
 On a single court for everyone, the A-and-B mixing stays as it is, and C plays

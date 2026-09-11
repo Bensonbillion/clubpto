@@ -37,7 +37,7 @@ export type { ScoreSlatProps } from "./ScoreSlat";
 export { WaitingBlock } from "./WaitingBlock";
 export type { WaitingBlockProps } from "./WaitingBlock";
 
-export { courtActivityLine, joinNames, padScore } from "./model";
+export { courtActivityLine, joinNames, leastPlayedWords, mixingWords, padScore } from "./model";
 export type {
   CourtActivity,
   CourtChip,

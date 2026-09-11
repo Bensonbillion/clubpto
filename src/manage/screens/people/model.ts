@@ -28,3 +28,21 @@ const WORDS = [
  */
 export const countWord = (n: number): string =>
   n >= 0 && n < WORDS.length ? WORDS[n] : String(n);
+
+/**
+ * The footer's one sentence for a round robin court.
+ *
+ * It used to be printed flat, as a promise: counts never drift more than one
+ * game apart. Since 2026-09-10 that is not always true. The third law, one
+ * game with the B's and never a second, is allowed to hold a least-played
+ * player back a game, and a walk-in or a leaver can open a gap of its own.
+ * So the sentence is now a reading of the court in front of the operator,
+ * and the promise is only made on a court that is keeping it. The spread
+ * comes from engine/rotation.ts courtSpread, the same number frame 11 guards
+ * its own promise on.
+ */
+export const roundRobinCounts = (spread: number): string =>
+  spread <= 1
+    ? "Counts never drift more than one game apart."
+    : `Counts are ${countWord(spread)} games apart right now. `
+      + "The one game with the B's can hold a player back.";
