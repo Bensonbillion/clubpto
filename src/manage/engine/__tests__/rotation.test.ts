@@ -550,3 +550,82 @@ describe("a walk-in or a leaver on the Wednesday roster", () => {
     expect(Math.max(...r.spreads)).toBeLessThanOrEqual(1);
   });
 });
+
+
+describe("an A has one game with the B's, and never a second", () => {
+  // The club's rule, in the owner's words: whether the night is three games,
+  // four or five, an A never gets more than one B game. A "B game" for an A
+  // is any game with a B in it. Found on the Wednesday of 2026-09-09, where
+  // the picker spread the mixed games around but nothing capped them, so an
+  // A could be dealt a second, and on eight A's and eight B's every A was.
+  const roster = (as: number, bs: number): Player[] => [
+    ...Array.from({ length: as }, (_, i) => P(`a${i + 1}`, { tier: "A" })),
+    ...Array.from({ length: bs }, (_, i) => P(`b${i + 1}`, { tier: "B" })),
+  ];
+  const isMixed = (r: readonly Player[], m: Match) => {
+    const tiers = [...m.teamA, ...m.teamB].map((id) => r.find((p) => p.id === id)?.tier ?? "B");
+    return tiers.includes("A") && tiers.includes("B");
+  };
+  const bGamesOf = (r: readonly Player[], ms: readonly Match[], id: string) =>
+    ms.filter((m) => isMixed(r, m) && [...m.teamA, ...m.teamB].includes(id)).length;
+  const worstA = (r: readonly Player[], ms: readonly Match[]) =>
+    Math.max(...r.filter((p) => p.tier === "A").map((p) => bGamesOf(r, ms, p.id)));
+
+  it("last Wednesday's roster at three, four and five games each", () => {
+    for (const target of [3, 4, 5]) {
+      const r = [
+        ...["benson", "tamilore", "david", "folarin", "timi", "ade", "chibuike", "elvis", "fiyin", "sam", "abiola", "martins"]
+          .map((x) => P(x, { tier: "A" })),
+        ...["albright", "evelyn", "ese", "idara", "goanaer", "kai", "olu", "khalid"].map((x) => P(x, { tier: "B" })),
+      ];
+      const { matches, counts } = runNight(r, target);
+      expect(matches).toHaveLength(totalMatches(20, target));
+      expect(counts.every((c) => c === target)).toBe(true);
+      expect(worstA(r, matches)).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("eight A's and eight B's at three each: nobody's second B game", () => {
+    const r = roster(8, 8);
+    const { matches, counts } = runNight(r, 3);
+    expect(matches).toHaveLength(12);
+    expect(counts.every((c) => c === 3)).toBe(true);
+    expect(worstA(r, matches)).toBeLessThanOrEqual(1);
+  });
+
+  it("six A's and six B's at four each, where the A's were dealt three and four B games", () => {
+    const r = roster(6, 6);
+    const { matches, counts } = runNight(r, 4);
+    expect(matches).toHaveLength(12);
+    expect(counts.every((c) => c === 4)).toBe(true);
+    expect(worstA(r, matches)).toBeLessThanOrEqual(1);
+  });
+
+  it("holds on every court of four or more A's and four or more B's, at three each", () => {
+    // Four of a tier is what it takes to field that tier's own game, and from
+    // there the seats always work out: the A's play each other and at most
+    // one game in the night has to cross over. The engine has to find it.
+    for (let as = 4; as <= 10; as++) {
+      for (let bs = 4; bs <= 10; bs++) {
+        if (!validTargets(as + bs).includes(3)) continue;
+        const r = roster(as, bs);
+        const { matches, counts } = runNight(r, 3);
+        expect(matches, `${as}A/${bs}B`).toHaveLength(totalMatches(as + bs, 3));
+        expect(counts.every((c) => c === 3), `${as}A/${bs}B`).toBe(true);
+        expect(worstA(r, matches), `${as}A/${bs}B`).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it("the cap costs nobody a game: the night still ends with everyone on target", () => {
+    // Where the rule cannot be kept at all, it bends rather than the night
+    // breaking: six A's and two B's at four each need eight A seats across the
+    // net from the B's and there are only six A's to give them, so two A's
+    // meet the B's twice and everybody still finishes on four.
+    const r = roster(6, 2);
+    const { matches, counts } = runNight(r, 4);
+    expect(matches).toHaveLength(8);
+    expect(counts.every((c) => c === 4)).toBe(true);
+    expect(worstA(r, matches)).toBeLessThanOrEqual(2);
+  });
+});

@@ -22,8 +22,9 @@
 import type { Match, Player, PlayerTier, QueueEntry } from "../types";
 import {
   abLawFor, canFieldACMatch, chooseFour, designateB, tierOf as tierOfPlayer,
-  type LawContext,
+  type LawContext, type Tier,
 } from "./tiers";
+import { deficit, slackFor, type MixingA, type MixingB, type MixingC, type MixingState } from "./mixing";
 
 const isPlayable = (p: Player, court: number) =>
   p.courtNumber === court && !p.away;
@@ -136,6 +137,36 @@ export interface BalanceNote {
 }
 
 /**
+ * What the third law (one game with the B's, never a second) did for this
+ * match, so frame 11 can say why an A is playing A's or why a least-played
+ * pair waited a game.
+ */
+export type MixingKind =
+  /** No A in the match, so the law is silent. */
+  | "noAs"
+  /** A's among A's: they have had their game with the B's, or are keeping it. */
+  | "pure"
+  /** The A's in it are having their one game with the B's. */
+  | "firstBGame"
+  /** An A in it is meeting the B's again: the seats forced it. */
+  | "secondBGame";
+
+export interface MixingNote {
+  kind: MixingKind;
+  /** The A's in the match, in queue order. */
+  aNames: string[];
+  /**
+   * Players who had played fewer games than somebody in this four and were
+   * passed over because dealing them would have cost an A a second B game.
+   * Empty when the four are the least played the laws allow, and empty when
+   * the reason was reconstructed from a match already on court, for the
+   * same reason BalanceNote.swap is: who was passed over is a counterfactual
+   * a match on its own cannot know.
+   */
+  heldBack: { name: string }[];
+}
+
+/**
  * Everything frame 11 needs to justify the four on court.
  *
  * The screen is a real screen an operator reads out to a player who asked why
@@ -151,6 +182,7 @@ export interface MatchReason {
   /** Frame 11's "never more than one game behind", as fact rather than promise. */
   withinOneGame: boolean;
   balance: BalanceNote;
+  mixing: MixingNote;
 }
 
 const tierOf = (players: readonly Player[]): ReadonlyMap<string, PlayerTier | undefined> =>
@@ -274,13 +306,56 @@ function countLog(
   return { met, partnered, fours, mixed };
 }
 
+/**
+ * How many games with a B in them each A has had THIS SESSION, from the
+ * group rows `include` admits on any court.
+ *
+ * Per session and across courts, because that is the owner's rule: "an A
+ * should not get more than one B game throughout the whole session". A
+ * player moved between courts (frame 28) keeps their count. Tiers are read
+ * off the full roster, not a court's LawContext, whose tierById answers "B"
+ * for anyone off that court and would have read every A moved in from
+ * elsewhere as a B. A player no longer on the roster reads as B, the way an
+ * unassessed player does, so a game with them in it counts against the A's
+ * who were in it. Every A in a game with a B is charged, which under the
+ * free law (a lone B among A's) is what spreads that B's games across the
+ * A's rather than stacking them on one.
+ */
+function countBGames(
+  players: readonly Player[],
+  matches: readonly Match[],
+  include: (m: Match) => boolean,
+): Map<string, number> {
+  const tiers = new Map(players.map((p) => [p.id, tierOfPlayer(p)]));
+  const tier = (id: string): Tier => tiers.get(id) ?? "B";
+  const out = new Map<string, number>();
+  for (const m of matches) {
+    if (m.stage !== null || !include(m)) continue;
+    const ids = [...new Set([...m.teamA, ...m.teamB])];
+    if (!ids.some((id) => tier(id) === "B")) continue;
+    for (const id of ids) if (tier(id) === "A") bump(out, id);
+  }
+  return out;
+}
+
+/** The queue's played counts for these four, sorted: the fairness key. */
+const playedVector = (played: ReadonlyMap<string, number>, ids: readonly string[]) =>
+  ids.map((id) => played.get(id) ?? 0).sort((m, n) => m - n);
+
+/** Is the first played vector strictly fairer than the second? */
+const fairerThan = (k: readonly number[], b: readonly number[]) => {
+  for (let n = 0; n < k.length; n++) if (k[n] !== b[n]) return k[n] < b[n];
+  return false;
+};
+
 function lawfulFour(
   queue: readonly QueueEntry[],
   ctx: LawContext,
   matches: readonly Match[],
   court: number,
+  players: readonly Player[],
 ): { four: QueueEntry[]; teamA: [string, string]; teamB: [string, string];
-     swap: BalanceNote["swap"] } | null {
+     swap: BalanceNote["swap"]; mixing: MixingNote } | null {
   const byId = new Map(queue.map((e) => [e.playerId, e]));
   const played = new Map(queue.map((e) => [e.playerId, e.matchesPlayed]));
   // The log, counted once a draw. The picker asks four questions of every
@@ -331,9 +406,120 @@ function lawfulFour(
   // leaves in it, because those four play next whatever else is true.
   const stillOwed = queue.filter((e) => e.owed > 0);
   const lowest = Math.min(...stillOwed.map((e) => e.matchesPlayed));
-  const owed = stillOwed.filter((e) => e.matchesPlayed === lowest).map((e) => e.playerId);
-  const chosen = chooseFour(queue.map((e) => e.playerId), lawCtx,
-    { windowSize: queue.length, playedBy: (id) => played.get(id) ?? 0, partnered, met, bridgeBusy, mixed, sameFour, owed });
+  const band = stillOwed.filter((e) => e.matchesPlayed === lowest);
+  const bands: string[][] = [band.map((e) => e.playerId)];
+
+  // THE THIRD LAW, looked ahead (2026-09-10). The B games each A has had
+  // are counted per SESSION and across courts, from every non-voided group
+  // row on any court, with tiers off the full roster. Two things about that
+  // count are worth knowing. It includes onCourt and skipped rows while
+  // buildQueue counts only status "played" for what is owed; that agrees in
+  // production only because scheduleFor seeds every held row as played
+  // before it calls nextMatch, and both are read off the one `matches`
+  // argument so a caller who does the same gets the same answer. And a
+  // tier flipped mid-night is read through current tiers on both sides,
+  // which is fine: the count follows the assessment as it stands.
+  const bGames = countBGames(players, matches, (m) => m.status !== "voided");
+  const tierHere = (id: string) => ctx.tierById(id);
+  const hasA = queue.some((e) => tierHere(e.playerId) === "A");
+  const hasB = queue.some((e) => tierHere(e.playerId) === "B");
+  let cost: ((ids: readonly string[]) => number) | undefined;
+  let charge: ((ids: readonly string[]) => number) | undefined;
+  // The oracle is only worth asking on a court with an A and a B; anywhere
+  // else no four can charge anybody and the cost is 0 for every four.
+  if (hasA && hasB) {
+    // The court as the oracle sees it: everyone playable, at-target players
+    // included at owed 0, because the slack seats (a card that grew after a
+    // walk-in or a leaver) go to an at-target member of a class when one
+    // exists. Each entry is given a class once per draw: tier, games owed,
+    // B games had for an A, bridge or not for a B. Two fours of the same
+    // classes leave after-states the oracle prices the same, so the memo is
+    // keyed on the sorted class ids of a four packed into one number, never
+    // a string; on the Wednesday roster there are a dozen classes and a few
+    // thousand fours a draw.
+    const as: MixingA[] = [];
+    const bs: MixingB[] = [];
+    const cs: MixingC[] = [];
+    const seatOf = new Map<string, { tier: Tier; at: number }>();
+    const classIds = new Map<string, number>();
+    const classOf = new Map<string, number>();
+    let owedSeats = 0;
+    for (const e of queue) {
+      const tier = tierHere(e.playerId);
+      const had = bGames.get(e.playerId) ?? 0;
+      const bridge = e.playerId === ctx.designatedB;
+      owedSeats += e.owed;
+      let at: number;
+      if (tier === "A") { at = as.length; as.push({ owed: e.owed, bGames: had }); }
+      else if (tier === "B") { at = bs.length; bs.push({ owed: e.owed, bridge }); }
+      else { at = cs.length; cs.push({ owed: e.owed }); }
+      seatOf.set(e.playerId, { tier, at });
+      const cls = `${tier}${e.owed}:${tier === "A" ? had : tier === "B" && bridge ? 1 : 0}`;
+      let id = classIds.get(cls);
+      if (id === undefined) { id = classIds.size; classIds.set(cls, id); }
+      classOf.set(e.playerId, id);
+    }
+    const state: MixingState = {
+      as, bs, cs,
+      headcountLaw: ctx.abLaw === "free" ? "free" : "bound",
+      relaxed: ctx.relaxed,
+      slack: slackFor(owedSeats),
+    };
+    const base = classIds.size;
+    const memo = new Map<number, number>();
+    // Large enough that a four the oracle cannot finish the seats behind
+    // ranks below any it can, and small enough that the charge still
+    // separates two it cannot: when nothing fits, the seconds still spread.
+    const BIG = 1e6;
+    charge = (ids) => {
+      if (!ids.some((id) => seatOf.get(id)?.tier === "B")) return 0;
+      let sum = 0;
+      for (const id of ids) if (seatOf.get(id)?.tier === "A") sum += bGames.get(id) ?? 0;
+      return sum;
+    };
+    cost = (ids) => {
+      const cls = ids.map((id) => classOf.get(id)!).sort((m, n) => m - n);
+      const key = ((cls[0] * base + cls[1]) * base + cls[2]) * base + cls[3];
+      const hit = memo.get(key);
+      if (hit !== undefined) return hit;
+      // The court after these four play: the owed come down one, an
+      // at-target member spends a slack seat, and an A in a four with a B
+      // has had a B game. The charge for that game is added here, not in
+      // the state, so the oracle prices only what is still to come.
+      const after: MixingState = {
+        ...state,
+        as: as.map((a) => ({ ...a })),
+        bs: bs.map((b) => ({ ...b })),
+        cs: cs.map((c) => ({ ...c })),
+      };
+      const mixes = ids.some((id) => seatOf.get(id)?.tier === "B");
+      for (const id of ids) {
+        const seat = seatOf.get(id)!;
+        const row = seat.tier === "A" ? after.as[seat.at] : seat.tier === "B" ? after.bs[seat.at] : after.cs[seat.at];
+        if (row.owed > 0) row.owed -= 1;
+        else after.slack -= 1;
+        if (seat.tier === "A" && mixes) after.as[seat.at].bGames += 1;
+      }
+      const price = charge!(ids) + Math.min(deficit(after), BIG);
+      memo.set(key, price);
+      return price;
+    };
+  }
+
+  // With the cap on, once every A in the band has had their game with the
+  // B's the band splits by tier: the A's play only A's from here and, on a
+  // court with no C's, the B's only B's. Each half is then a band in its
+  // own right for the picker's look at what a choice leaves. Found on the
+  // Wednesday roster: the eight A's at two each were dealt as whichever
+  // four had met least and whichever four that left, and the leftover was
+  // twice a pair on their third meeting.
+  if (cost && band.every((e) => tierHere(e.playerId) !== "A" || (bGames.get(e.playerId) ?? 0) > 0)) {
+    bands.push(band.filter((e) => tierHere(e.playerId) === "A").map((e) => e.playerId));
+    if (ctx.cCount === 0) bands.push(band.filter((e) => tierHere(e.playerId) === "B").map((e) => e.playerId));
+  }
+  const options = { windowSize: queue.length, playedBy: (id: string) => played.get(id) ?? 0,
+    partnered, met, bridgeBusy, mixed, sameFour, bands };
+  const chosen = chooseFour(queue.map((e) => e.playerId), lawCtx, { ...options, cost, charge });
   if (!chosen) return null;
 
   const ids = [...chosen.lineup.teamA, ...chosen.lineup.teamB];
@@ -350,8 +536,38 @@ function lawfulFour(
         outPlayerId: head.playerId, outName: head.name }
     : null;
 
+  // Who the cap held back. The cost is the only key above fairness, so if
+  // a fairer lawful four exists it was priced higher than this one, and
+  // the people in it who had played fewer than somebody chosen waited for
+  // the third law. Found by asking the picker once more without the cost,
+  // and only when this four is not already as fair as the head of the
+  // queue, which is the fairest any four can be; that is a handful of
+  // draws a night, not every draw.
+  const chosenVector = playedVector(played, ids);
+  const headVector = playedVector(played, queue.slice(0, 4).map((e) => e.playerId));
+  let heldBack: MixingNote["heldBack"] = [];
+  if (cost && fairerThan(headVector, chosenVector)) {
+    const fairest = chooseFour(queue.map((e) => e.playerId), lawCtx, options);
+    if (fairest) {
+      const fairIds = [...fairest.lineup.teamA, ...fairest.lineup.teamB];
+      if (fairerThan(playedVector(played, fairIds), chosenVector)) {
+        const most = Math.max(...chosenVector);
+        heldBack = queue
+          .filter((e) => fairIds.includes(e.playerId) && !chosenSet.has(e.playerId) && e.matchesPlayed < most)
+          .map((e) => ({ name: e.name }));
+      }
+    }
+  }
+  const aNames = four.filter((e) => tierHere(e.playerId) === "A").map((e) => e.name);
+  const mixes = four.some((e) => tierHere(e.playerId) === "B");
+  const kind: MixingKind = aNames.length === 0 ? "noAs"
+    : !mixes ? "pure"
+      : four.every((e) => tierHere(e.playerId) !== "A" || (bGames.get(e.playerId) ?? 0) === 0) ? "firstBGame"
+        : "secondBGame";
+
   return { four, teamA: [...chosen.lineup.teamA] as [string, string],
-           teamB: [...chosen.lineup.teamB] as [string, string], swap };
+           teamB: [...chosen.lineup.teamB] as [string, string], swap,
+           mixing: { kind, aNames, heldBack } };
 }
 
 /**
@@ -374,16 +590,19 @@ export function nextMatch(
   const queue = buildQueue(players, matches, court, targetMatches);
   if (queue.length < 4) return null;
 
-  const chosen = lawfulFour(queue, lawContextFor(players, court), matches, court);
+  const chosen = lawfulFour(queue, lawContextFor(players, court), matches, court, players);
   // No lawful four exists. A court holding one C and three As has no legal
   // match in it at all, and handing back the least-played four anyway would
   // put that C in a game with three As, which is the one thing the laws never
   // allow. The caller shows the bench rather than an illegal game.
   if (!chosen) return null;
 
-  const { teamA, teamB, swap } = chosen;
+  const { teamA, teamB, swap, mixing } = chosen;
+  // The picker's own account of the third law replaces the reconstructed
+  // one: it knows who was held back, and it counted B games off the same
+  // rows it dealt from.
   const reason = explainMatch(players, matches, court, teamA, teamB);
-  return { teamA, teamB, reason: { ...reason, balance: { ...reason.balance, swap } } };
+  return { teamA, teamB, reason: { ...reason, balance: { ...reason.balance, swap }, mixing } };
 }
 
 /**
@@ -439,11 +658,30 @@ export function explainMatch(
         : sides.size === 2 ? "acrossTheNet"
           : "alongside";
 
+  // The third law, read off the log the same way the counts beside the
+  // names are: played rows only. Frame 11 is opened on a match that is on
+  // court and passes the night's whole list, so counting every non-voided
+  // row here would charge the four for the game they are standing in.
+  // Played rows are the counts as they stood when the four walked on, which
+  // is the question being answered.
+  const bGames = countBGames(players, matches, countsAsPlayed);
+  const tier = (id: string): Tier => {
+    const p = byId.get(id);
+    return p ? tierOfPlayer(p) : "B";
+  };
+  const aNames = leastPlayed.filter((p) => tier(p.playerId) === "A").map((p) => p.name);
+  const mixes = leastPlayed.some((p) => tier(p.playerId) === "B");
+  const mixingKind: MixingKind = aNames.length === 0 ? "noAs"
+    : !mixes ? "pure"
+      : leastPlayed.every((p) => tier(p.playerId) !== "A" || (bGames.get(p.playerId) ?? 0) === 0) ? "firstBGame"
+        : "secondBGame";
+
   return {
     leastPlayed,
     courtSpread,
     withinOneGame: courtSpread <= 1,
     balance: { kind, cPlayers, swap: null },
+    mixing: { kind: mixingKind, aNames, heldBack: [] },
   };
 }
 
