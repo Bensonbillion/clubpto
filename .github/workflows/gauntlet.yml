@@ -90,9 +90,19 @@ jobs:
       # Dependabot, so pinned shas here would simply rot: the trade lands on
       # the side of patches arriving without a commit. Add a sha the day a
       # step comes from somebody other than actions/.
-      - uses: actions/checkout@v4
+      #
+      # v7 because v4 ran on Node 20, which the runners have deprecated: the
+      # first real run of this gate, on 2026-09-12, passed and then warned
+      # that both steps were being forced onto Node 24 anyway. v5 through v7
+      # all declare node24, so any of them silences it; v7 is the one that
+      # does not need doing again. Checked before the bump rather than after:
+      # the only inputs asked for here are node-version-file and cache, both
+      # present through v7, and checkout is given none at all. v7's one
+      # behaviour change blocks fork checkouts for pull_request_target and
+      # workflow_run, and this gate uses neither.
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           # Read from .nvmrc so CI and the laptop cannot drift. Changing the
           # Node version is then one edit in one file, visible in review.
