@@ -124,7 +124,19 @@ export interface LawContext {
    * again for each draw off the seats still owed (lawForOwedSeats), because
    * the headcount does not know what the night has left to deal: a court can
    * hold the club's rule for four games and then have no strict game left in
-   * it. The per-draw answer only ever loosens this one, never tightens it.
+   * it.
+   *
+   * THE PER-DRAW ANSWER GOES BOTH WAYS. It usually loosens, and that is
+   * what it was written for, but the headcount reads soft the moment either
+   * tier is odd and the seats can be stricter than that: three A's and
+   * three B's at four each is twelve seats each side and every one of them
+   * fits an A and a B against an A and a B, so the ladder says strict where
+   * the headcount said soft. Over the courts the fixed sweep walks, one to
+   * twelve of each tier at every target, 100 start the night with the
+   * ladder stricter than the headcount law and one starts looser, three A's
+   * and two B's at four each, which needs the lone B among A's twice
+   * (2026-09-12). A court whose HEADCOUNT law is free is never asked, so
+   * free is never tightened away mid-night.
    */
   abLaw?: "strict" | "soft" | "free";
 }
@@ -193,9 +205,9 @@ export function judge(lineup: Lineup, ctx: LawContext): Illegality | null {
   // to allow. Read as "free means no rule at all", free also let two A's
   // stand against two B's, the game law one was written to prevent. A fixed
   // roster never reaches the free rung, but a walk-in, a leaver or an
-  // extended target reaches it at once: 135 games of two A's against two
-  // B's over a sweep of 1,206 mid-night courts, against none before the
-  // rung existed.
+  // extended target reaches it at once: 441 games of two A's against two
+  // B's over 379 of the 5,224 mid-night nights the sweep walks, against
+  // none before the rung existed and none now (2026-09-12).
   const law = ctx.abLaw ?? "strict";
   if (as > 0 && bs > 0) {
     // The lone B among A's. Only the free law deals that shape at all, so
@@ -528,6 +540,13 @@ export function chooseFour(
      * have already had, when the four holds a B. Read separately so a game
      * that gives A's their FIRST game with the B's (charge 0) can be told
      * from one that only avoids the B's.
+     *
+     * Absent exactly where `cost` is, and it means the same thing: nobody
+     * is counting. The ticket key below then says nothing about any four,
+     * rather than calling every mixed four a first game. Read through a
+     * fallback of zero it inverted: every four that mixed looked like an
+     * A's one game with the B's and every pure four like a repeat, on the
+     * one kind of draw where no count of crossings is kept (2026-09-12).
      */
     charge?: (ids: readonly string[]) => number;
   } = {},
@@ -560,11 +579,15 @@ export function chooseFour(
   //      among twelve. At three each and no further. The same twenty at
   //      four and at five meet somebody a third time however this key
   //      ranks, because fifteen games leave room for it and twenty and
-  //      twenty-five do not (2026-09-11);
+  //      twenty-five do not (2026-09-11). The key is SILENT on every draw
+  //      the cost key is off for, because what it asks is whether these
+  //      A's have crossed the net yet and nothing there is counting;
   //   6. the even mixed shape, two and two, over the lone A among B's and
-  //      the lone B among A's. The even one spends the scarcer tier's
-  //      seats two at a time, so the night needs fewer mixed games and
-  //      fewer A's are called across the net (2026-09-12);
+  //      the lone B among A's. The even one is the club's own shape, A B
+  //      against A B; the other two are what the ladder allows where the
+  //      seats cannot be finished without them, so among fours as fair as
+  //      each other the concession is left for the draw that needs it
+  //      (2026-09-12);
   //   7. who has met whom, so the same four does not come round again;
   //   8. mixed games had, so the same B's do not take every mixed game;
   //   9. repeated partnerships, so the same two are not dealt together again
@@ -628,17 +651,28 @@ export function chooseFour(
           const isMixed = tiersHere.includes("A") && tiersHere.includes("B");
           // How lopsided a mixed four is: 0 for two and two, 2 for the
           // lone A among B's and the lone B among A's. The even shape is
-          // preferred among fours as fair as each other, because it
-          // spends the scarcer tier's seats two at a time where the
-          // uneven one spends them singly, and every mixed seat left over
-          // is another game some A has to take with the B's. Only the
-          // uneven shape the scarce tier can actually field is ever on
-          // offer, so "even" and "spend the scarce tier fastest" are the
-          // same preference. Measured on 2026-09-12 over the mid-night
-          // sweep: 3,309 uneven games where there were 3,564, the lone B
-          // among three A's on a bound law down from 61 to 33, and the
-          // three nights that gave an A an extra game with the B's for an
-          // identical finish stop doing it.
+          // preferred among fours as fair as each other, because it is the
+          // shape the club wrote down, A B against A B. The other two are
+          // concessions the ladder makes where the seats cannot be
+          // finished without them, so a draw that does not need one does
+          // not spend one.
+          //
+          // It is NOT that the even shape spends the scarcer tier faster,
+          // which is what this said until 2026-09-12. On a court with more
+          // A's than B's and three B's or more, five A's and three B's at
+          // four each for instance, the uneven four on offer is one A
+          // among three B's, and that spends the scarce tier three seats
+          // at a time where the even one spends two. The argument ran the
+          // wrong way round; the preference itself is worth having.
+          //
+          // Measured on 2026-09-12 over the mid-night sweep, against the
+          // same tree with this key taken out: 6,082 uneven mixed games
+          // where there were 6,882, the lone B among three A's on a bound
+          // law down from 81 to 49, and three of the six nights that gave
+          // an A an extra game with the B's for main's exact finish stop
+          // doing it. Three still do it: three A's with five B's and an A
+          // arriving before game seven, with seven B's before game nine,
+          // and with eight B's before game ten.
           const shape = isMixed
             ? Math.abs(tiersHere.filter((t) => t === "A").length
               - tiersHere.filter((t) => t === "B").length)
@@ -653,8 +687,17 @@ export function chooseFour(
             if (!isLegal(lineup, ctx)) continue;
             if (!price) {
               // A ticket is spent when the four mixes and no A in it has
-              // met the B's yet: these A's are having their one game.
-              price = { cost: priceOf(ids), spend: isMixed && chargeOf(ids) === 0 ? 0 : 1 };
+              // met the B's yet: these A's are having their one game. With
+              // no charge to read the key says NOTHING, rather than saying
+              // it of every mixed four: on a blind draw chargeOf falls back
+              // to zero, which read every mixed four as a first game and
+              // every pure one as a repeat, on exactly the draws where
+              // nothing is counting how many times those A's have already
+              // crossed the net (2026-09-12).
+              price = {
+                cost: priceOf(ids),
+                spend: charge === undefined ? 0 : isMixed && chargeOf(ids) === 0 ? 0 : 1,
+              };
             }
             const borrowsBridge = bridgeBusy && ctx.designatedB !== null
               && ids.includes(ctx.designatedB)

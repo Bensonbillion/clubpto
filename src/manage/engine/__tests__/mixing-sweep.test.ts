@@ -11,9 +11,11 @@
 //
 //   MANAGE_SWEEP=1 npx vitest run src/manage/engine/__tests__/mixing-sweep.test.ts
 //
-// One test at the foot of the file is NOT gated. It replays three named
-// nights and takes milliseconds, and it is the residue the swept tests only
-// ever see as a number, so it is worth a gate of its own.
+// One block at the foot of the file is NOT gated. It replays the fourteen
+// nights that leave a player further past the target than main does, each
+// with main's own finish written beside it, and it takes milliseconds. The
+// swept tests only ever see that residue as a number, so it is worth a gate
+// of its own.
 //
 // Every court in the range is in it. Two five-player courts used to be
 // carved out, two A's with three B's at four each and the same the other way
@@ -269,7 +271,9 @@ describe("the sweep: a change mid-night, on every court the room can field", () 
   // untested: the walk-in and leaver tests in rotation.test.ts ride on
   // twelve A's with eight B's and eight with eight, whose seats stay
   // finishable strict, so they passed unchanged while free was dealing two
-  // A's against two B's on 117 of the 1,206 courts below.
+  // A's against two B's: 441 games over 379 of the 5,224 nights below. That
+  // is the rung as it was first written, measured over this enumeration as
+  // it now stands (2026-09-12).
   //
   // THE CHANGE LANDS AT EVERY GAME OF THE NIGHT since 2026-09-12, not just
   // at games two, three and four. Three faults were found by hand that this
@@ -280,6 +284,16 @@ describe("the sweep: a change mid-night, on every court the room can field", () 
   // change at game nine, because by game nine the cap has walled the A's
   // off and the card has already grown.
   //
+  // AND THE COURT GOES TO TWELVE, where it stopped at ten until 2026-09-12.
+  // Five of the fourteen nights that finish further past the target than
+  // main does are courts of eleven and twelve, and while the loop stopped
+  // at ten no pin in this file could see them. Twelve is where the line is
+  // for the clock and nothing else: the walk is 5,224 nights where ten was
+  // 2,618, it takes a little over two minutes on this machine, and each
+  // further player multiplies the fours a draw scores. The fixed sweep
+  // above reaches twenty because a fixed roster is one night per court, not
+  // one per game of the night.
+  //
   // What every night is held to: every four legal, at the draw and under
   // the loosest law there is, and no game anywhere putting two A's against
   // two B's.
@@ -288,35 +302,58 @@ describe("the sweep: a change mid-night, on every court the room can field", () 
   // keep two players through the change and the change lands on a night
   // still owing somebody a game: nobody finishes short, and the card does
   // not run more than one game past the fewest the seats can be dealt in.
-  // Measured over 554 such nights on 2026-09-11: four run one game long,
-  // none runs two, and three finish somebody short. Those are the nights
-  // whose change lands at game two, three or four, and they are still
-  // counted and pinned on their own, so widening the sweep cannot soften
-  // what it already promised. The two courts outside that regime are older
-  // faults with names. A lone tier that arrives LATE cannot be finished at
-  // all: the cap has walled every A off from the B's by then, so a single A
-  // walking in onto a court of B's plays one game and the card deals
-  // forever (the same night at d1aa383, and worse: the ladder's own courts
-  // finish nine games where they used to take forty). And a player arriving
+  // 2,936 of the nights below are in that regime. Of the 1,052 of them
+  // whose change lands at game two, three or four, the window this sweep
+  // walked before 2026-09-12, four run one game long, none runs two, and
+  // three finish somebody short; those two counts are still pinned on their
+  // own, so widening the sweep cannot soften what it already promised.
+  //
+  // The nights outside that regime are older faults with names. A lone tier
+  // that arrives LATE cannot be finished at all: the cap has walled every A
+  // off from the B's by then, so a single A walking in onto a court of four
+  // B's before game two plays one game while the B's play sixteen and
+  // seventeen, and the card only stops at this file's guard. That night is
+  // the same at d1aa383. Its mirror got better rather than worse: a single
+  // B walking in onto a court of four A's before game one took eighteen
+  // games at d1aa383 and left two players on nothing and one game, and the
+  // ladder deals it in six with everyone on four. And a player arriving
   // onto a court where everybody has finished needs three at-target players
   // a game to give them theirs.
   //
-  // THREE NUMBERS ARE PINNED rather than argued, because each is a thing
-  // the engine is allowed to do a little of and must not start doing a lot
-  // of (2026-09-12):
+  // SIX NUMBERS ARE PINNED rather than argued, because each is a thing the
+  // engine is allowed to do a little of and must not start doing a lot of.
+  // Every one is measured over the enumeration below on 2026-09-12, and
+  // main's score on the same enumeration is beside it, so a reader can tell
+  // which pins are improvements and which are prices:
   //   - the lone B among three A's, dealt on a court whose HEADCOUNT law is
-  //     soft or strict. The free rung brought the shape in, the per-draw
-  //     ladder lets it reach courts the headcount would not have given it,
-  //     and 25 of the 37 nights carrying one finish better for it. Nothing
-  //     else says how far it may travel;
+  //     soft or strict: 49 games, against none at main, where the shape did
+  //     not exist. The free rung brought it in and the per-draw ladder lets
+  //     it reach courts the headcount would not have given it. 42 of the 44
+  //     nights carrying one finish better than main did, none worse, and
+  //     the other two finish the same distance off target in the same
+  //     number of games. Nothing else says how far the shape may travel;
+  //   - nights running one game long: 27, against main's 14. The card is
+  //     allowed to miss the fewest games the seats can be dealt in, by one,
+  //     and must not start missing it often. This pin is a price;
+  //   - nights finishing somebody short: 50, against main's 84. The same
+  //     miss in the other direction, and this one is an improvement;
   //   - how far past the target one player may finish. An odd headcount
   //     leaves seats the card cannot avoid dealing, and the question is
   //     never whether they exist but whether they land on different people.
   //     So the gap is what is pinned: the worst single overshoot against
   //     the fewest seats any spread of them could leave that player,
-  //     ceil(extra seats / players), which is 0 on a night that shares them
-  //     out and 1 on a night that stacks two on one person;
-  //   - the spread itself, worst overshoot against the target in force.
+  //     ceil(extra seats / players). It is 0 on a night that shares them
+  //     out, and the pin is 3, which main also scores: three A's and eight
+  //     B's at four each with an A arriving before game eleven finishes one
+  //     player four games past the target where an even share is one;
+  //   - nights stacking a seat at all, a gap above zero: 266, against
+  //     main's 256. A price, and the one the ticket key's repair on
+  //     2026-09-12 charged: sixteen nights went from an even share to one
+  //     stacked seat, one came back the other way, and one that stacked
+  //     two now stacks one, so the worst gap is where it was and fifteen
+  //     more nights carry a small one;
+  //   - the spread itself, worst overshoot against the target in force: 5,
+  //     which main also scores.
   it.skipIf(skip)("a walk-in or a leaver of each tier, at every game of the night", () => {
     let nights = 0;
     let settled = 0;
@@ -334,7 +371,7 @@ describe("the sweep: a change mid-night, on every court the room can field", () 
     let worstOver = 0;
     const late = (tier: "A" | "B", at: number): Player =>
       ({ ...P("late", tier), walkIn: true, joinedAtMatchIndex: at });
-    for (let size = 4; size <= 10; size++) {
+    for (let size = 4; size <= 12; size++) {
       for (let nA = 0; nA <= size; nA++) {
         const nB = size - nA;
         const base = roster(nA, nB);
@@ -399,7 +436,7 @@ describe("the sweep: a change mid-night, on every court the room can field", () 
       + `${loneB} of one B among three A's on a bound law`);
     console.log(`  past the target: worst overshoot ${worstOver}, `
       + `${stacked} nights stacking a seat, worst gap ${worstGap}`);
-    expect(nights).toBeGreaterThan(2_000);
+    expect(nights).toBeGreaterThan(5_000);
     // The game law one exists to prevent this shape, under every law on the
     // ladder. Not a ceiling, a zero.
     expect(hunted, "two A's against two B's").toBe(0);
@@ -409,62 +446,148 @@ describe("the sweep: a change mid-night, on every court the room can field", () 
     // And the same two over the whole night, which is a looser hand because
     // a change at the last game of a card is a harder night than a change
     // at the second.
-    expect(long).toBeLessThanOrEqual(17);
-    expect(short).toBeLessThanOrEqual(34);
-    // The three pinned numbers. Each is measured today, and each is here so
-    // it cannot grow without somebody saying why.
-    expect(loneB, "lone B among three A's on a bound law").toBeLessThanOrEqual(33);
+    expect(long, "nights running one game long").toBeLessThanOrEqual(27);
+    expect(short, "nights finishing somebody short").toBeLessThanOrEqual(50);
+    // The rest of the pinned numbers. Each is measured today, and each is
+    // here so it cannot grow without somebody saying why.
+    expect(loneB, "lone B among three A's on a bound law").toBeLessThanOrEqual(49);
     expect(worstOver, "worst overshoot").toBeLessThanOrEqual(5);
     expect(worstGap, "worst stacked seat").toBeLessThanOrEqual(3);
-    expect(stacked, "nights stacking a seat").toBeLessThanOrEqual(143);
+    expect(stacked, "nights stacking a seat").toBeLessThanOrEqual(266);
   }, 1_800_000);
 });
 
 /* ── the residue, named ──────────────────────────────────────────── */
 
 /**
- * Three nights that finish further off target than they did at d1aa383,
- * pinned by name because the sweep above only counts them (2026-09-12).
+ * Every night that leaves a player further past the target than d1aa383
+ * leaves them, written out rather than counted, because the sweep above
+ * only ever sees these as a number (2026-09-12).
  *
- * All three are an A walking in late onto a court with an odd headcount, and
- * all three deal the same number of games as they always did. What changed
- * is where the seats that number cannot avoid land: main spread them one
- * each over four players, and the ladder's free rung stacks two on one.
+ * The set is the whole of it over the enumeration the sweep walks. It was
+ * measured night by night against a run of main at d1aa383, not guessed at
+ * and not read off the aggregate pins, which measure against the target
+ * rather than against main and so cannot see these at all. Fourteen nights,
+ * each dealing exactly the number of games main dealt, and on each of them
+ * the player furthest past the target is one game further past it than
+ * main's furthest was, never more. What changed is where the seats the card
+ * cannot avoid land, not how many of them there are.
+ *
+ * Thirteen of the fourteen are SETTLED MID-CARD, the regime the sweep holds
+ * to finishing level: both tiers keep two players through the change and
+ * somebody other than the arrival is still owed a game when it lands. The
+ * fourteenth, one A and ten B's with a B leaving before game ten, is
+ * outside it, because a court with one A cannot field every shape the
+ * mixing law names. That one finishes a single player one game over where
+ * main finished everybody level.
  *
  * They were traced rather than guessed at. The night diverges on a BLIND
  * draw, where the oracle cannot price the court and the cost key comes off,
  * and by the closing games the cap itself is what puts the extra seat on a
  * player who already had one: the fairer four gives two A's a second game
  * with the B's, and the cap ranks first by the owner's word. Two ways out
- * were measured on 2026-09-12 and both cost more than they bought. Ranking
- * the four's highest played count above the fairness vector changes none of
- * these three and pushes 49 nights past the target where 23 go now. Pricing
- * a blind draw by its charge alone fixes two of the three and costs 318
- * nights an extra game. So the three stand, and they stand written down.
+ * were measured on 2026-09-12 and each cost more than it bought. Pricing a
+ * blind draw by its charge alone cuts this set to six and leaves 106 nights
+ * with somebody short of their games. Keeping the charge while the
+ * lookahead stays silent costs nothing in games or short finishes and
+ * leaves fifteen nights here rather than fourteen. So these stand, and they
+ * stand written down.
+ *
+ * Keeping the set from growing in silence is what the pins above are for: a
+ * night that newly stacks a seat lands in `stacked`, and one that stacks
+ * more than any night stacks today lands in `worstGap`.
  */
+interface Residue {
+  /** The sweep's own name for the night. */
+  name: string;
+  nA: number;
+  nB: number;
+  target: number;
+  /** Games played when the change lands, so `at` 4 is "before game five". */
+  at: number;
+  change: "+A" | "-B";
+  /** What this tree deals: games, then every live player's count. */
+  games: number;
+  counts: number[];
+  /** What d1aa383 dealt on the same night, in the same number of games. */
+  main: number[];
+}
+
+const RESIDUE: readonly Residue[] = [
+  { name: "1A/10B T4 -B@9", nA: 1, nB: 10, target: 4, at: 9, change: "-B",
+    games: 11, counts: [4, 5, 4, 4, 4, 4, 4, 4, 4, 4],
+    main: [4, 4, 4, 4, 4, 4, 4, 4, 4, 4] },
+  { name: "2A/3B T4 +A@5", nA: 2, nB: 3, target: 4, at: 5, change: "+A",
+    games: 9, counts: [5, 5, 8, 7, 7, 4], main: [6, 6, 7, 7, 6, 4] },
+  { name: "3A/3B T4 +A@4", nA: 3, nB: 3, target: 4, at: 4, change: "+A",
+    games: 8, counts: [6, 5, 5, 4, 4, 4, 4], main: [5, 5, 5, 5, 4, 4, 4] },
+  { name: "3A/4B T4 +A@5", nA: 3, nB: 4, target: 4, at: 5, change: "+A",
+    games: 9, counts: [6, 5, 5, 4, 4, 4, 4, 4], main: [5, 5, 5, 5, 4, 4, 4, 4] },
+  { name: "3A/4B T4 +A@7", nA: 3, nB: 4, target: 4, at: 7, change: "+A",
+    games: 11, counts: [7, 7, 8, 5, 5, 4, 4, 4], main: [7, 7, 7, 5, 5, 5, 4, 4] },
+  { name: "3A/5B T4 +A@8", nA: 3, nB: 5, target: 4, at: 8, change: "+A",
+    games: 12, counts: [7, 7, 8, 5, 4, 4, 5, 4, 4],
+    main: [7, 7, 7, 4, 5, 5, 4, 5, 4] },
+  { name: "3A/6B T4 +A@7", nA: 3, nB: 6, target: 4, at: 7, change: "+A",
+    games: 11, counts: [5, 6, 5, 4, 4, 4, 4, 4, 4, 4],
+    main: [5, 5, 5, 5, 4, 4, 4, 4, 4, 4] },
+  { name: "3A/6B T4 +A@9", nA: 3, nB: 6, target: 4, at: 9, change: "+A",
+    games: 13, counts: [8, 7, 7, 5, 4, 4, 4, 5, 4, 4],
+    main: [7, 7, 7, 4, 5, 5, 5, 4, 4, 4] },
+  { name: "3A/7B T4 +A@10", nA: 3, nB: 7, target: 4, at: 10, change: "+A",
+    games: 14, counts: [7, 8, 7, 4, 4, 5, 5, 4, 4, 4, 4],
+    main: [7, 7, 7, 5, 4, 5, 5, 4, 4, 4, 4] },
+  { name: "3A/8B T4 +A@11", nA: 3, nB: 8, target: 4, at: 11, change: "+A",
+    games: 15, counts: [7, 7, 8, 4, 5, 4, 4, 4, 5, 4, 4, 4],
+    main: [7, 7, 7, 5, 4, 4, 5, 4, 5, 4, 4, 4] },
+  { name: "3A/9B T4 +A@12", nA: 3, nB: 9, target: 4, at: 12, change: "+A",
+    games: 16, counts: [7, 8, 7, 4, 4, 4, 5, 4, 4, 5, 4, 4, 4],
+    main: [7, 7, 7, 5, 4, 4, 5, 4, 4, 5, 4, 4, 4] },
+  { name: "7A/3B T4 +A@9", nA: 7, nB: 3, target: 4, at: 9, change: "+A",
+    games: 13, counts: [6, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4],
+    main: [5, 5, 5, 5, 5, 5, 5, 4, 5, 4, 4] },
+  { name: "7A/4B T4 +A@10", nA: 7, nB: 4, target: 4, at: 10, change: "+A",
+    games: 14, counts: [6, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4],
+    main: [5, 5, 5, 5, 5, 5, 5, 4, 4, 5, 4, 4] },
+  { name: "7A/5B T4 +A@11", nA: 7, nB: 5, target: 4, at: 11, change: "+A",
+    games: 15, counts: [6, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4],
+    main: [5, 5, 5, 5, 5, 5, 5, 4, 5, 4, 4, 4, 4] },
+];
+
 describe("the nights that finish further off target than main", () => {
-  const nightOf = (nA: number, nB: number, target: number, at: number) => {
-    const base = roster(nA, nB);
-    const late: Player = { ...P("late", "A"), walkIn: true, joinedAtMatchIndex: at };
-    const r = runChanged(base, target, at, (ps) => [...ps, late]);
-    return { games: r.games, counts: r.counts };
+  const nightOf = (r: Residue) => {
+    const base = roster(r.nA, r.nB);
+    if (r.change === "+A") {
+      const late: Player = { ...P("late", "A"), walkIn: true, joinedAtMatchIndex: r.at };
+      const run = runChanged(base, r.target, r.at, (ps) => [...ps, late]);
+      return { games: run.games, counts: run.counts };
+    }
+    const goer = base.find((p) => p.tier === "B")!;
+    const run = runChanged(base, r.target, r.at,
+      (ps) => ps.map((p) => (p.id === goer.id ? { ...p, away: true } : p)));
+    return { games: run.games, counts: run.counts };
   };
 
-  it("three and three at four each, an A arriving before game five", () => {
-    // d1aa383 finished 5,5,5,5,4,4,4 in the same eight games.
-    expect(nightOf(3, 3, 4, 4)).toEqual({ games: 8, counts: [6, 5, 5, 4, 4, 4, 4] });
-  });
+  for (const r of RESIDUE) {
+    it(`${r.name}: finishes ${Math.max(...r.counts) - r.target} past the target `
+      + `where main finished ${Math.max(...r.main) - r.target}`, () => {
+      expect(nightOf(r)).toEqual({ games: r.games, counts: r.counts });
+      // The comparison the name makes, read off the two finishes rather
+      // than asserted twice: the same games, and one player further out.
+      expect(r.main.length).toBe(r.counts.length);
+      expect(Math.max(...r.counts)).toBeGreaterThan(Math.max(...r.main));
+    });
+  }
 
-  it("three and four at four each, an A arriving before game six", () => {
-    // d1aa383 finished 5,5,5,5,4,4,4,4 in the same nine games.
-    expect(nightOf(3, 4, 4, 5)).toEqual({ games: 9, counts: [6, 5, 5, 4, 4, 4, 4, 4] });
-  });
-
-  it("two and three at four each, an A arriving before game six", () => {
-    // d1aa383 finished 6,6,7,7,6,4 in the same nine games. Its sister, the
-    // same court with the A arriving a game earlier, came back to main's
-    // finish on 2026-09-12 when the even mixed shape was preferred.
-    expect(nightOf(2, 3, 4, 5)).toEqual({ games: 9, counts: [5, 5, 8, 7, 7, 4] });
-    expect(nightOf(2, 3, 4, 4)).toEqual({ games: 8, counts: [5, 5, 6, 6, 6, 4] });
+  it("two and three at four each, an A arriving before game five, is not one of them", () => {
+    // The sister of 2A/3B T4 +A@5, a game earlier. It came back to main's
+    // finish on 2026-09-12 when the even mixed shape was preferred, and it
+    // is kept here so it cannot drift back out again. d1aa383 finished
+    // 5,5,6,6,6 in the same eight games.
+    const base = roster(2, 3);
+    const late: Player = { ...P("late", "A"), walkIn: true, joinedAtMatchIndex: 4 };
+    const run = runChanged(base, 4, 4, (ps) => [...ps, late]);
+    expect({ games: run.games, counts: run.counts })
+      .toEqual({ games: 8, counts: [5, 5, 6, 6, 6, 4] });
   });
 });

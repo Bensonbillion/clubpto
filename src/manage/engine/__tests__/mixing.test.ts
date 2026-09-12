@@ -61,13 +61,14 @@ const SPLITS: readonly (readonly [number, number, number, number])[] = [
  * It is no longer word for word the law lawfulFour applies at a draw. Since
  * 2026-09-11 the picker asks lawForOwedSeats instead, which holds a court to
  * strict only where the seats still owed can actually be dealt out in strict
- * shapes, and parity is only half of that question. The two differ on the
- * courts of five where parity says strict and no strict finish exists, and
- * on those the oracle still prices the night at Infinity: the picker deals
- * them out level and the setup screen stays quiet, because unfinishableCourt
- * asks seatsFinishable rather than this reading, so the oracle is the last
- * thing still calling those courts stuck. Bringing it up to the same reading
- * is its own change, with its own sweep.
+ * shapes, and parity is only half of that question. Of the courts the fixed
+ * sweep walks, exactly two have the two readings disagreeing from the first
+ * draw: two A's with three B's at four each, where parity says strict and no
+ * strict finish exists, and its mirror. On those the oracle prices the night
+ * at Infinity, the picker deals them out level, and the setup screen stays
+ * quiet because unfinishableCourt asks seatsFinishable rather than this
+ * reading, so the oracle is the last thing still calling those courts stuck.
+ * Bringing it up to the same reading is its own change, with its own sweep.
  */
 const lawFor = (ps: readonly Sim[], free: boolean): "free" | "strict" | "soft" => {
   const owedA = ps.filter((p) => p.tier === "A").reduce((n, p) => n + p.owed, 0);

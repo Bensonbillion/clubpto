@@ -137,8 +137,8 @@ describe("the law the seats can still be finished under", () => {
     // leaver's or an extended target's card, which is to say most of a real
     // Wednesday. Free used to be the answer here, and free was read as no
     // rule at all: those cards then dealt two A's against two B's, the game
-    // law one exists to prevent, 135 times over a sweep of 1,206 mid-night
-    // courts. The floor is the parity reading the ladder replaced, so a
+    // law one exists to prevent, 441 times over a sweep of 5,224 mid-night
+    // nights. The floor is the parity reading the ladder replaced, so a
     // card nothing can finish keeps the law it had rather than losing it.
     expect(lawForOwedSeats(2, 4, 4, 4)).toBe("strict");
     expect(seatsFinishable(2, 4, 4, 4)).toBe(false);

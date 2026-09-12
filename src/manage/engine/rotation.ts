@@ -577,24 +577,36 @@ function lawfulFour(
     // THE CAP IS OFF FOR THAT DRAW, and until 2026-09-12 this said the
     // opposite: that every mixed shape on such a court is forced, so no
     // four could spare anybody a second game with the B's. It is not
-    // true, and it was never cheap. Blind fires on 4,209 draws of the
-    // mid-night sweep and on 3,423 of them the queue still holds four of
-    // one tier, so a four that meets no B is there to be dealt and the
-    // cap had a choice to make. What the silence costs, measured against
-    // the same tree with the lookahead forced on: of the 1,150 mid-night
-    // nights the committed sweep walks, 43 end with one A on a higher
-    // count of games with the B's than they would otherwise have had, and
-    // none ends lower.
+    // true, and it was never cheap. Blind fires on 1,186 of the 48,415
+    // draws the mid-night sweep makes on a court holding both tiers, and
+    // on 1,037 of them the queue still holds four of one tier, so a four
+    // that meets no B is there to be dealt and the cap had a choice to
+    // make. What the silence costs, measured against the same tree with
+    // the lookahead forced on, over the 5,224 mid-night nights the
+    // committed sweep walks: 203 nights end with one A on a higher count
+    // of games with the B's than they would otherwise have had, and 3 end
+    // lower.
     //
-    // Two smaller answers were measured on 2026-09-12 and neither was
-    // taken. Keeping `charge`, which is this game's own arithmetic and
-    // never reads deficit(), recovers 8 of those 43 and pushes four more
-    // nights past the target further than they went before the ladder.
-    // Pricing a blind draw by the charge alone recovers 41 of the 43 and
-    // costs 318 nights an extra game, which is the fault the blind spot
-    // was found chasing. So the whole cost key stays off on a blind
-    // draw, lookahead and charge together, and this comment names the
-    // price rather than denying there is one.
+    // WHAT FORCING IT ON WOULD COST, measured the same day over the same
+    // nights: 101 of them finish with somebody short of their games where
+    // the silence finishes everybody level, and 109 run more games than
+    // the silence runs. That is the trade, and the card's promise to a
+    // player who came for four games ranks above its promise to an A.
+    //
+    // Two narrower answers were measured on 2026-09-12 and neither was
+    // taken in this round. Pricing a blind draw by the charge alone
+    // recovers 203 nights and loses 4 the other way, and leaves 106
+    // nights with somebody short of their games, which is the fault the
+    // blind spot was found chasing. Keeping `charge` while the
+    // lookahead stays silent, which is this game's own arithmetic and
+    // never reads deficit(), costs nothing in games or short finishes and
+    // recovers 12 of the 203, but it leaves fifteen nights further past
+    // the target than d1aa383 where the silence leaves fourteen, and
+    // trading a stacked seat for a B game is a change of its own with its
+    // own sweep. So the whole cost key stays off on a blind draw,
+    // lookahead and charge together, and the ticket key that reads the
+    // charge goes quiet with it rather than reading a missing count as
+    // zero.
     const blind = ctx.cCount === 0 && !Number.isFinite(deficit(state))
       && seatsFinishable(owedOf("A"), owedOf("B"), countOf("A"), countOf("B"));
     if (!blind) {

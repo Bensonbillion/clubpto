@@ -96,9 +96,12 @@ now put to the picker's own law as well, and only a court both of them give up
 on gets the note. A court with beginners on it keeps the pricing's answer
 whole, because the law there is read off the A and B totals and a C game
 spends B seats too. The same stale reading is what made the picker deal those
-courts' uneven shapes FIRST, which stranded the B's when a third A walked in,
-so where the pricing cannot finish a card the picker's law can, its lookahead
-now steers nothing for that draw (2026-09-11).
+courts' uneven shapes FIRST, which stranded the B's when a third A walked in.
+So where the pricing cannot finish a card the picker's law can, the whole
+price comes off that draw: not just the look at the rest of the night but the
+game's own charge with it, which is to say the one-B-game cap does not steer
+that draw at all and the fairness and variety keys deal the game. The engine
+says at length what that silence costs (2026-09-11, restated 2026-09-12).
 
 That leaves the two readings of the mixing law still saying different things
 in one engine, which is a change of its own: the pricing counts a whole night

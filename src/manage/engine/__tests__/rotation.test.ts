@@ -938,7 +938,7 @@ describe("a change mid-night, on the courts the laws are tightest on", () => {
   // always finish them. A walk-in, a leaver and an extended target leave
   // seats no law can finish, and on 2026-09-11 the ladder answered "free"
   // there, which judge() read as no shape rule at all. The wide version of
-  // this lives in mixing-sweep.test.ts behind MANAGE_SWEEP, over 1,206
+  // this lives in mixing-sweep.test.ts behind MANAGE_SWEEP, over 5,224
   // nights; these are the courts of five and six it found, kept here so
   // they run on every commit.
   const court = (nA: number, nB: number): Player[] => [
@@ -948,7 +948,7 @@ describe("a change mid-night, on the courts the laws are tightest on", () => {
 
   it("never deals a side without a B, whatever the seats owed do", () => {
     // The shape the first law exists to prevent, two A's standing against
-    // two B's, dealt 135 times over the sweep when free meant no rule and
+    // two B's, dealt 441 times over the sweep when free meant no rule and
     // never once before the rung existed. Judged here under the FREE law,
     // the loosest the engine can apply: free adds the lone B among A's and
     // adds nothing else, so a game that fails this is a game with a side
