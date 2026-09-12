@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "gauntlet": "node scripts/gauntlet.mjs"
+    "gauntlet": "node scripts/gauntlet.mjs",
+    "sweep": "MANAGE_SWEEP=1 vitest run src/manage/engine/__tests__/mixing-sweep.test.ts --reporter=default --reporter=json --outputFile=sweep-report.json && node scripts/check-sweep-report.mjs sweep-report.json"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

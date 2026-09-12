@@ -26,7 +26,21 @@ const SWEEPS = [
   "a walk-in or a leaver of each tier, at every game of the night",
 ];
 
-const report = JSON.parse(readFileSync(process.argv[2] ?? "sweep-report.json", "utf8"));
+const path = process.argv[2] ?? "sweep-report.json";
+let report;
+try {
+  report = JSON.parse(readFileSync(path, "utf8"));
+} catch (err) {
+  // The realistic cause is vitest's --reporter=json or --outputFile drifting
+  // in a future major, which is exactly the silent drift this file exists to
+  // catch, so it says so rather than handing the reader a stack trace out of
+  // node internals.
+  console.error(
+    `No readable sweep report at ${path}. Check vitest's --reporter=json and`
+    + ` --outputFile flags, which is what writes it.\n  ${err.message}`,
+  );
+  process.exit(1);
+}
 const status = new Map(
   (report.testResults ?? [])
     .flatMap((file) => file.assertionResults ?? [])

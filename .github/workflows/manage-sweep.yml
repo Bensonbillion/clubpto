@@ -56,11 +56,15 @@ jobs:
       # Named directly rather than through a script, because MANAGE_SWEEP is
       # the whole reason this run differs from the gate's vitest run.
       #
-      # Then count what ran. Without MANAGE_SWEEP this file still exits 0 with
-      # the three sweeps marked skipped, which is a green that proves nothing,
-      # exactly the trap the gauntlet's own vacuous-typecheck guard exists to
-      # catch. So the run is asked how many tests it skipped, and any skip
-      # fails the job.
+      # Then check that the sweeps themselves ran. Without MANAGE_SWEEP this
+      # file still exits 0 with the three sweeps marked skipped, which is a
+      # green that proves nothing, exactly the trap the gauntlet's own
+      # vacuous-typecheck guard exists to catch. Counting would not close it:
+      # fifteen of the file's eighteen tests are the ungated block, so a run
+      # whose sweeps never fired still reports a healthy number. So the guard
+      # names the three and requires each to have passed; skipped, failed or
+      # absent all fail the job. A skip elsewhere in the file does not, which
+      # is deliberate. See scripts/check-sweep-report.mjs.
       - name: Sweep
         env:
           MANAGE_SWEEP: "1"
