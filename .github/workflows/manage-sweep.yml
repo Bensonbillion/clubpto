@@ -1,0 +1,72 @@
+# The engine's exhaustive guard, run daily instead of never.
+#
+# src/manage/engine/__tests__/mixing-sweep.test.ts deals out one A/B court for
+# every headcount the club can field, at every target the room divides into,
+# to the last game, then does it again with beginners and again with a walk-in
+# or a leaver at every game of the night. It is the only thing that checks the
+# third law across the whole range rather than on the nights the owner
+# watched. It sits behind MANAGE_SWEEP and takes about three minutes, which is
+# why `npm run gauntlet` leaves it skipped.
+#
+# Three minutes is too long to hang on every pull request and too valuable to
+# lose, so it runs here on a schedule and on demand. Never on a pull request.
+#
+# This file is deliberately separate from gauntlet.yml. Deleting it deletes
+# the sweep and touches nothing about the gate.
+#
+# A scheduled workflow only fires from the default branch, so this one starts
+# running the day it lands on main, not the day the pull request opens. Use
+# the Run workflow button to try it before then.
+name: Manage sweep
+
+on:
+  # 09:17 UTC, which is early morning in Toronto and a minute nobody else is
+  # queued on.
+  schedule:
+    - cron: "17 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One sweep at a time, and never cancelled: a run already dealing out courts
+# is the answer being waited for.
+concurrency:
+  group: manage-sweep
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    name: engine sweep (every headcount, every target)
+    runs-on: ubuntu-latest
+    # Three minutes from a cold checkout on a laptop. A runner is slower, and
+    # a regression that loops would sit here, so the ceiling is well clear of
+    # the measurement and still finite.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # Named directly rather than through a script, because MANAGE_SWEEP is
+      # the whole reason this run differs from the gate's vitest run.
+      #
+      # Then count what ran. Without MANAGE_SWEEP this file still exits 0 with
+      # the three sweeps marked skipped, which is a green that proves nothing,
+      # exactly the trap the gauntlet's own vacuous-typecheck guard exists to
+      # catch. So the run is asked how many tests it skipped, and any skip
+      # fails the job.
+      - name: Sweep
+        env:
+          MANAGE_SWEEP: "1"
+        run: |
+          npx vitest run src/manage/engine/__tests__/mixing-sweep.test.ts \
+            --reporter=default --reporter=json --outputFile=sweep-report.json
+          node -e 'const r = require("./sweep-report.json");
+          if (r.numPendingTests > 0) { console.error("MANAGE_SWEEP did not reach vitest: " + r.numPendingTests + " sweeps skipped, so this run proved nothing."); process.exit(1); }
+          console.log(r.numPassedTests + " sweeps ran.");'

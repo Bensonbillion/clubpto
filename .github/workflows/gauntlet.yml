@@ -1,0 +1,94 @@
+# The gate. Nothing merges without this.
+#
+# `npm run gauntlet` is this repo's own bar, the same command the CLAUDE.md
+# names: typecheck against tsconfig.app.json, eslint over src/manage and
+# src/site, the whole vitest run, then the build. It runs here exactly as it
+# runs on a laptop, so there is one bar and not two. It takes about 41 seconds
+# of work once the install is done.
+#
+# Two things this job is NOT, because a pull request shows two kinds of green
+# and they mean different things.
+#
+# 1. The build step here is a COMPILE CHECK. It proves the TypeScript and the
+#    bundler agree and that the integrity test in `npm run build` still holds.
+#    It runs with no VITE_ variables set at all, which is deliberate: the only
+#    file that reads them is src/integrations/supabase/client.ts and Vite
+#    inlines undefined, so the job needs no secrets and cannot leak any. That
+#    also means the dist/ it produces points at no Supabase project. It is not
+#    a deployable artifact and nothing downloads it. Vercel builds its own,
+#    with its own environment.
+#
+# 2. Vercel's check on the same pull request is a DEPLOYMENT, not a test run.
+#    It never ran the suite. Before this workflow existed it was the only
+#    check on a pull request, so a green checkmark meant a preview came up and
+#    nothing more, and two pull requests merged on that basis. Green here is
+#    the one that means the tests passed.
+#
+# The exhaustive engine sweep is not here. It costs two minutes and lives in
+# its own workflow on a schedule.
+name: Gauntlet
+
+on:
+  # Pull requests are the point: this is the check that has to be green before
+  # a merge.
+  pull_request:
+  # And main, because a merge can break what no pull request ran against. Two
+  # branches that each pass alone can fail together, and the merge commit is
+  # the first thing that sees both.
+  push:
+    branches: [main]
+  # No branch-push trigger beyond main. A pushed feature branch is already
+  # covered by its pull request, and triggering on both doubles every run.
+  #
+  # No paths filter either. The gauntlet is cheap, a required check that gets
+  # skipped by a path rule blocks a pull request forever rather than passing
+  # it, and the changes most likely to break the build are the ones a path
+  # list would not predict: a lockfile bump, a tsconfig edit, this file.
+
+# Least privilege. The job clones the repo and reports its own check. It does
+# not comment, label, release, or write anything back.
+permissions:
+  contents: read
+
+# A force-push should not leave the old run burning minutes on a commit
+# nobody will look at again. On main it should, because there each run is the
+# record of a commit that actually landed.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  gauntlet:
+    # This name is what an operator reads in the checks list, so it says what
+    # ran rather than what the file is called.
+    name: typecheck, lint, tests, build
+    runs-on: ubuntu-latest
+    # Generous against 41 seconds of work plus a cold install, and short
+    # enough that a hung vitest gives up in minutes instead of hours.
+    timeout-minutes: 10
+    steps:
+      # actions/* are GitHub's own and tracked by major tag, not by commit
+      # sha. A sha is the stronger supply-chain answer for a third-party
+      # action, and this repo has no third-party actions. It also has no
+      # Dependabot, so pinned shas here would simply rot: the trade lands on
+      # the side of patches arriving without a commit. Add a sha the day a
+      # step comes from somebody other than actions/.
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Read from .nvmrc so CI and the laptop cannot drift. Changing the
+          # Node version is then one edit in one file, visible in review.
+          node-version-file: .nvmrc
+          # setup-node's own npm cache, keyed on package-lock.json. It caches
+          # downloaded tarballs, not node_modules, and npm ci still resolves
+          # the tree from the lockfile, so a stale cache cannot serve a stale
+          # install.
+          cache: npm
+
+      # ci, not install: it installs the committed lockfile exactly and fails
+      # if package.json and the lockfile disagree, rather than quietly
+      # resolving something newer than what was reviewed.
+      - run: npm ci
+
+      - run: npm run gauntlet
