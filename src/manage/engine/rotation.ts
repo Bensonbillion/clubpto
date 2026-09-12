@@ -21,8 +21,8 @@
 
 import type { Match, Player, PlayerTier, QueueEntry } from "../types";
 import {
-  abLawFor, canFieldACMatch, chooseFour, designateB, tierOf as tierOfPlayer,
-  type LawContext, type Tier,
+  abLawFor, canFieldACMatch, chooseFour, designateB, lawForOwedSeats,
+  seatsFinishable, tierOf as tierOfPlayer, type LawContext, type Tier,
 } from "./tiers";
 import {
   deficit, slackFor, stateOf,
@@ -452,17 +452,39 @@ function lawfulFour(
   // measure that keeps the same four from coming round again.
   const met = (x: string, y: string) => tallies.met.get(pairKey(x, y)) ?? 0;
   const bridgeBusy = queue.some((e) => e.owed > 0 && ctx.tierById(e.playerId) === "C");
-  // The mixing law by what is still owed, not by headcount: strict only
-  // while the games the A's still owe and the games the B's still owe are
-  // both even, because a strict game spends A-slots in twos, and an odd
-  // total would leave one player waiting a whole game while others played
-  // twice. Found by the review's fuzz: a walk-in or a leaver mid-night can
-  // flip the parity of an evenly matched court.
+  // The mixing law by what is still owed, not by headcount: the strictest
+  // law the seats the A's and the B's still owe can actually be finished
+  // under (lawForOwedSeats). Hold the club's rule wherever the night can be
+  // dealt out in strict shapes, four A's, four B's, and an A and a B against
+  // an A and a B; drop a rung only where those shapes leave somebody a seat
+  // the night cannot field, because a law that cannot be finished does not
+  // protect anybody, it just makes one player wait a whole game while others
+  // play twice.
+  //
+  // This used to read as parity, both owed totals even, and parity is only
+  // half of the rule (the helper carries the other half, and why). Two A's
+  // and three B's at four each owe eight seats and twelve, even all night,
+  // so the law read strict all night and every game spent two A seats: the
+  // A's were spent after four games with the B's still owing four, and the
+  // card dealt a sixth game to finish them, the two A's ending on six games
+  // against the other three's four. Three A's and two B's is the mirror. The
+  // same six games were dealt long before the cap arrived; this is an old
+  // fault in the draw, found by the cap's own sweep (2026-09-11).
+  //
+  // NOT ON A COURT WITH BEGINNERS. There the C games spend B seats as well,
+  // in a number nothing fixes until the finish is chosen, so seats read off
+  // the A and B totals alone would be answering a question they cannot see
+  // all of. Those courts keep the parity reading they have always had, and
+  // the exactly-three-C's overshoot is a fault of its own with its own test.
   const owedOf = (tier: "A" | "B") => queue
     .filter((e) => ctx.tierById(e.playerId) === tier)
     .reduce((sum, e) => sum + e.owed, 0);
+  const countOf = (tier: "A" | "B") => queue
+    .filter((e) => ctx.tierById(e.playerId) === tier).length;
   const law = ctx.abLaw === "free" ? "free"
-    : (owedOf("A") % 2 === 0 && owedOf("B") % 2 === 0) ? "strict" : "soft";
+    : ctx.cCount === 0
+      ? lawForOwedSeats(owedOf("A"), owedOf("B"), countOf("A"), countOf("B"))
+      : (owedOf("A") % 2 === 0 && owedOf("B") % 2 === 0) ? "strict" : "soft";
   const lawCtx: LawContext = { ...ctx, abLaw: law };
   // Mixed games had so far: a game with an A and a B on each side.
   const mixed = (id: string) => tallies.mixed.get(id) ?? 0;
@@ -536,41 +558,94 @@ function lawfulFour(
       relaxed: ctx.relaxed,
       slack: slackFor(owedSeats),
     };
-    const base = classIds.size;
-    const memo = new Map<number, number>();
-    charge = (ids) => {
-      if (!ids.some((id) => seatOf.get(id)?.tier === "B")) return 0;
-      let sum = 0;
-      for (const id of ids) if (seatOf.get(id)?.tier === "A") sum += bGames.get(id) ?? 0;
-      return sum;
-    };
-    cost = (ids) => {
-      const cls = ids.map((id) => classOf.get(id)!).sort((m, n) => m - n);
-      const key = ((cls[0] * base + cls[1]) * base + cls[2]) * base + cls[3];
-      const hit = memo.get(key);
-      if (hit !== undefined) return hit;
-      // The court after these four play: the owed come down one, an
-      // at-target member spends a slack seat, and an A in a four with a B
-      // has had a B game. The charge for that game is added here, not in
-      // the state, so the oracle prices only what is still to come.
-      const after: MixingState = {
-        ...state,
-        as: as.map((a) => ({ ...a })),
-        bs: bs.map((b) => ({ ...b })),
-        cs: cs.map((c) => ({ ...c })),
+    // THE ORACLE'S BLIND SPOT (2026-09-11), and why this draw may have no
+    // cost key at all. deficit() reads the mixing law off the parities;
+    // the draws run under lawForOwedSeats, the strictest law whose shapes
+    // can finish the seats. On a court even all night with no strict
+    // finish in it, two A's and three B's at four each and its mirror, the
+    // two disagree: the oracle prices the night at Infinity while the
+    // picker deals it out level. Infinity is NO_FINISH, which ranks above
+    // fairness, so the cost key reached for the four that got OUT of it
+    // and dealt the uneven shape first. That shape spends B seats three at
+    // a time, and a third A walking in then found the B's already spent:
+    // eight games where six fit, the three B's on seven each against a
+    // target of four. Where the oracle cannot price a court whose seats
+    // the picker's own law can finish, its answer is about its reading
+    // rather than the night, so it steers nothing here and the fairness
+    // and variety keys deal the games.
+    //
+    // THE CAP IS OFF FOR THAT DRAW, and until 2026-09-12 this said the
+    // opposite: that every mixed shape on such a court is forced, so no
+    // four could spare anybody a second game with the B's. It is not
+    // true, and it was never cheap. Blind fires on 1,186 of the 48,415
+    // draws the mid-night sweep makes on a court holding both tiers, and
+    // on 1,037 of them the queue still holds four of one tier, so a four
+    // that meets no B is there to be dealt and the cap had a choice to
+    // make. What the silence costs, measured against the same tree with
+    // the lookahead forced on, over the 5,224 mid-night nights the
+    // committed sweep walks: 203 nights end with one A on a higher count
+    // of games with the B's than they would otherwise have had, and 3 end
+    // lower.
+    //
+    // WHAT FORCING IT ON WOULD COST, measured the same day over the same
+    // nights: 101 of them finish with somebody short of their games where
+    // the silence finishes everybody level, and 109 run more games than
+    // the silence runs. That is the trade, and the card's promise to a
+    // player who came for four games ranks above its promise to an A.
+    //
+    // Two narrower answers were measured on 2026-09-12 and neither was
+    // taken in this round. Pricing a blind draw by the charge alone
+    // recovers 203 nights and loses 4 the other way, and leaves 106
+    // nights with somebody short of their games, which is the fault the
+    // blind spot was found chasing. Keeping `charge` while the
+    // lookahead stays silent, which is this game's own arithmetic and
+    // never reads deficit(), costs nothing in games or short finishes and
+    // recovers 12 of the 203, but it leaves fifteen nights further past
+    // the target than d1aa383 where the silence leaves fourteen, and
+    // trading a stacked seat for a B game is a change of its own with its
+    // own sweep. So the whole cost key stays off on a blind draw,
+    // lookahead and charge together, and the ticket key that reads the
+    // charge goes quiet with it rather than reading a missing count as
+    // zero.
+    const blind = ctx.cCount === 0 && !Number.isFinite(deficit(state))
+      && seatsFinishable(owedOf("A"), owedOf("B"), countOf("A"), countOf("B"));
+    if (!blind) {
+      const base = classIds.size;
+      const memo = new Map<number, number>();
+      charge = (ids) => {
+        if (!ids.some((id) => seatOf.get(id)?.tier === "B")) return 0;
+        let sum = 0;
+        for (const id of ids) if (seatOf.get(id)?.tier === "A") sum += bGames.get(id) ?? 0;
+        return sum;
       };
-      const mixes = ids.some((id) => seatOf.get(id)?.tier === "B");
-      for (const id of ids) {
-        const seat = seatOf.get(id)!;
-        const row = seat.tier === "A" ? after.as[seat.at] : seat.tier === "B" ? after.bs[seat.at] : after.cs[seat.at];
-        if (row.owed > 0) row.owed -= 1;
-        else after.slack -= 1;
-        if (seat.tier === "A" && mixes) after.as[seat.at].bGames += 1;
-      }
-      const price = charge!(ids) + Math.min(deficit(after), NO_FINISH);
-      memo.set(key, price);
-      return price;
-    };
+      cost = (ids) => {
+        const cls = ids.map((id) => classOf.get(id)!).sort((m, n) => m - n);
+        const key = ((cls[0] * base + cls[1]) * base + cls[2]) * base + cls[3];
+        const hit = memo.get(key);
+        if (hit !== undefined) return hit;
+        // The court after these four play: the owed come down one, an
+        // at-target member spends a slack seat, and an A in a four with a B
+        // has had a B game. The charge for that game is added here, not in
+        // the state, so the oracle prices only what is still to come.
+        const after: MixingState = {
+          ...state,
+          as: as.map((a) => ({ ...a })),
+          bs: bs.map((b) => ({ ...b })),
+          cs: cs.map((c) => ({ ...c })),
+        };
+        const mixes = ids.some((id) => seatOf.get(id)?.tier === "B");
+        for (const id of ids) {
+          const seat = seatOf.get(id)!;
+          const row = seat.tier === "A" ? after.as[seat.at] : seat.tier === "B" ? after.bs[seat.at] : after.cs[seat.at];
+          if (row.owed > 0) row.owed -= 1;
+          else after.slack -= 1;
+          if (seat.tier === "A" && mixes) after.as[seat.at].bGames += 1;
+        }
+        const price = charge!(ids) + Math.min(deficit(after), NO_FINISH);
+        memo.set(key, price);
+        return price;
+      };
+    }
   }
 
   // With the cap on, once every A in the band has had their game with the
@@ -1040,6 +1115,21 @@ function nightCharge(
  * could pass setup in silence. False for a court the oracle is not worth
  * asking (no A, or no B), because that is the case it has nothing to say
  * about rather than a court that is fine.
+ *
+ * AND THE ANSWER IS ASKED OF THE PICKER TOO. Infinity is the oracle's word
+ * for two different things: seats that no lawful game can divide, and seats
+ * its own reading of the mixing law cannot divide. deficit() reads that law
+ * off the parities, the draws read lawForOwedSeats, and on two courts of
+ * five the readings differ: two A's with three B's at four each, and its
+ * mirror, are even all night with no strict finish in them. The screen told
+ * the operator the balance laws could not give everyone on Court 1 exactly
+ * four games while the picker was dealing exactly that, five games with
+ * everyone on four, and pushed them to change a target that was right. So
+ * the seats are asked of the ladder as well, and a court both of them give
+ * up on is the only one that warns. A court WITH beginners keeps the
+ * oracle's answer whole: the ladder reads the A and B totals alone and a C
+ * game spends B seats, so on that court it is not the one to ask, which is
+ * also why the picker does not ask it there (2026-09-11).
  */
 export function unfinishableCourt(
   players: readonly Player[],
@@ -1047,7 +1137,12 @@ export function unfinishableCourt(
   targetMatches: number,
 ): boolean {
   const charge = nightCharge(players, court, targetMatches);
-  return charge !== null && !Number.isFinite(charge);
+  if (charge === null || Number.isFinite(charge)) return false;
+  const onCourt = players.filter((p) => isPlayable(p, court));
+  if (onCourt.some((p) => tierOfPlayer(p) === "C")) return true;
+  const aCount = onCourt.filter((p) => tierOfPlayer(p) === "A").length;
+  const bCount = onCourt.filter((p) => tierOfPlayer(p) === "B").length;
+  return !seatsFinishable(aCount * targetMatches, bCount * targetMatches, aCount, bCount);
 }
 
 /** What the third law costs a court, in the numbers a setup warning needs. */

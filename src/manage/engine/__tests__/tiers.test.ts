@@ -6,7 +6,8 @@
 import { describe, expect, it } from "vitest";
 import type { Player } from "../../types";
 import {
-  abLawFor, canFieldACMatch, chooseFour, designateB, isLegal, judge, tierOf, type LawContext, type Lineup, type Tier,
+  abLawFor, canFieldACMatch, chooseFour, designateB, isLegal, judge, lawForOwedSeats,
+  seatsFinishable, tierOf, type LawContext, type Lineup, type Tier,
 } from "../tiers";
 
 const P = (id: string, tier?: Tier, court = 1): Player => ({
@@ -77,6 +78,76 @@ describe("law one: the same make-up on each side", () => {
     // Free: anything goes for the one who has nobody of their kind to pair with.
     const free = ctxOf({ a1: "A", b1: "B", b2: "B", b3: "B" }, { abLaw: "free" });
     expect(judge(lineup("a1", "b1", "b2", "b3"), free)).toBeNull();
+  });
+});
+
+describe("the law the seats can still be finished under", () => {
+  // lawForOwedSeats, which is what lawfulFour holds a court to draw by draw.
+  // Every case names the night it comes from. The numbers are (A seats owed,
+  // B seats owed, A's on court, B's on court).
+
+  it("holds the club's rule wherever the night can be dealt out strict", () => {
+    // Eight of each at four each: sixteen games, and every one of them can be
+    // an A and a B against an A and a B.
+    expect(lawForOwedSeats(32, 32, 8, 8)).toBe("strict");
+    // Six A's and two B's at four each, the court the third law bends on.
+    // Four mixed games and four pure A games still deal it out strict.
+    expect(lawForOwedSeats(24, 8, 6, 2)).toBe("strict");
+    // A court with nothing left owed is finished, and finished strict.
+    expect(lawForOwedSeats(0, 0, 4, 4)).toBe("strict");
+  });
+
+  it("an odd total is the old parity case, and soft is what absorbs it", () => {
+    // Nothing strict spends an odd number of either tier's seats, so an odd
+    // total was never strict and still is not. Seven A seats and nine B ones
+    // go out as one A among three B's, one strict game, and a pure game at
+    // each end.
+    expect(lawForOwedSeats(7, 9, 4, 4)).toBe("soft");
+    expect(lawForOwedSeats(8, 9, 4, 4)).not.toBe("strict");
+  });
+
+  it("two A's and three B's at four each is even all night and not strict", () => {
+    // The night that overshot (2026-09-11). Eight A seats and twelve B ones,
+    // both even, and neither tier can field a pure game: four strict games
+    // spend the A's while the B's still owe four, and the card had to deal a
+    // sixth game. Three strict games and two of one A among three B's fit.
+    expect(lawForOwedSeats(8, 12, 2, 3)).toBe("soft");
+  });
+
+  it("three A's and two B's is the mirror, and soft cannot deal it", () => {
+    // With two B's every game that keeps a B on each side is an A and a B
+    // against an A and a B, so soft is strict here and overshoots the same
+    // way. The night that fits is three strict games and two of one B among
+    // three A's, which only the free law allows.
+    expect(lawForOwedSeats(12, 8, 3, 2)).toBe("free");
+  });
+
+  it("a tier of three can never field its own pure game", () => {
+    // Four A seats among three A's and twelve B seats among three B's. Strict
+    // wants a pure game at both ends and there are not four of either tier to
+    // fill one, so the four A seats go out one at a time among the B's.
+    expect(lawForOwedSeats(4, 12, 3, 3)).toBe("soft");
+    // The same seats with eight of each on the court are strict again.
+    expect(lawForOwedSeats(4, 12, 8, 8)).toBe("strict");
+  });
+
+  it("keeps the law a card nothing can finish already had", () => {
+    // Two A seats and four B ones is six seats, and games come in fours, so
+    // no rung of the ladder deals this out exactly. It is a walk-in's, a
+    // leaver's or an extended target's card, which is to say most of a real
+    // Wednesday. Free used to be the answer here, and free was read as no
+    // rule at all: those cards then dealt two A's against two B's, the game
+    // law one exists to prevent, 441 times over a sweep of 5,224 mid-night
+    // nights. The floor is the parity reading the ladder replaced, so a
+    // card nothing can finish keeps the law it had rather than losing it.
+    expect(lawForOwedSeats(2, 4, 4, 4)).toBe("strict");
+    expect(seatsFinishable(2, 4, 4, 4)).toBe(false);
+    // An odd total floors to soft the same way, which is where parity had it.
+    expect(lawForOwedSeats(3, 4, 4, 4)).toBe("soft");
+    // And a card the ladder CAN finish is not floored at all: the court of
+    // five that started this, eight A seats against twelve B ones.
+    expect(seatsFinishable(8, 12, 2, 3)).toBe(true);
+    expect(lawForOwedSeats(8, 12, 2, 3)).toBe("soft");
   });
 });
 
@@ -157,6 +228,26 @@ describe("law one: no lone B among A's", () => {
   it("four A's is fine, because no B is present to be hunted", () => {
     const ctx = ctxOf({ a1: "A", a2: "A", a3: "A", a4: "A" });
     expect(judge(lineup("a1", "a2", "a3", "a4"), ctx)).toBeNull();
+  });
+
+  it("and the free law does not license it: two A's against two B's is hunting too", () => {
+    // The law says two separate things, and free only loosens one of them.
+    // Which SHAPES a night may deal is what free adds to: a lone B among
+    // A's, the one four that cannot put a B on each side. How a four is
+    // ARRANGED is the same sentence under every law. Read as "free means no
+    // rule", free dealt two A's against two B's, and mid-night courts reach
+    // free the moment a walk-in leaves seats no law can finish (2026-09-11).
+    const ctx = ctxOf({ a1: "A", a2: "A", b1: "B", b2: "B" }, { abLaw: "free" });
+    expect(judge(lineup("a1", "a2", "b1", "b2"), ctx)).toBe("bNotOnEachTeam");
+    expect(judge(lineup("a1", "b1", "a2", "b2"), ctx)).toBeNull();
+    // What free is FOR still works: the lone B among three A's, and the
+    // lone A among three B's, in any arrangement either allows.
+    const loneB = ctxOf({ a1: "A", a2: "A", a3: "A", b: "B" }, { abLaw: "free" });
+    expect(judge(lineup("a1", "a2", "a3", "b"), loneB)).toBeNull();
+    expect(judge(lineup("a1", "b", "a2", "a3"), loneB)).toBeNull();
+    // And the shape stays illegal under the two laws that do not deal it.
+    const soft = ctxOf({ a1: "A", a2: "A", a3: "A", b: "B" }, { abLaw: "soft" });
+    expect(judge(lineup("a1", "b", "a2", "a3"), soft)).toBe("bNotOnEachTeam");
   });
 });
 

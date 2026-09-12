@@ -147,6 +147,25 @@ describe("the night the numbers bend the rule", () => {
 });
 
 describe("the night the laws cannot deal out at all", () => {
+  /**
+   * The night dealt to its end, so a claim about a court can be checked
+   * against the games it actually plays. The guard turns "the engine never
+   * stops" into a finished loop rather than a hung run.
+   */
+  const dealOut = (players: readonly Player[], target: number) => {
+    const matches: Match[] = [];
+    for (let guard = 0; guard < 30; guard++) {
+      const next = nextMatch(players, matches, 1, target);
+      if (!next) break;
+      matches.push({
+        id: `m${matches.length}`, courtNumber: 1, matchIndex: matches.length + 1,
+        teamA: next.teamA, teamB: next.teamB,
+        scoreA: 2, scoreB: 0, status: "played", startedAt: 0, completedAt: 0, stage: null,
+      });
+    }
+    return { matches, counts: players.map((p) => matchesPlayedBy(matches, p.id)) };
+  };
+
   /** The note the courts step would push for a stuck court. */
   const stuckWords = (courtNumber: number, target: number, suggested = false) =>
     noteWords({ kind: "capStuck", courtNumber, target, suggested });
@@ -168,13 +187,24 @@ describe("the night the laws cannot deal out at all", () => {
     );
   });
 
-  it("misses in the other direction too, which is why it says off target", () => {
-    // Two A's and three B's at four each is the shape mixing-sweep.ts carves
-    // out: five players, five games' worth of seats, and the engine deals
-    // six, the two A's finishing on six games and the three B's on four.
-    // Nobody finishes short there, so the sentence says off target.
-    expect(unfinishableCourt(court(2, 3), 1, 4)).toBe(true);
-    expect(unfinishableCourt(court(3, 2), 1, 4)).toBe(true);
+  it("stays quiet on the two courts of five the picker deals out level", () => {
+    // Two A's and three B's at four each, and the mirror of it. The picker
+    // has dealt these out level since 2026-09-11: the mixing law holds a
+    // court to strict only where the seats can be finished strict, and
+    // three strict games with two of one A among three B's fit exactly.
+    // The price took until the same evening to catch up. deficit() reads
+    // the law as parity, counts no such finish and answers Infinity, and
+    // the note fired on a court that finishes fine, telling the operator to
+    // change a target that was right. The seats are now asked of the
+    // picker's own law as well, and only a court both of them give up on
+    // warns.
+    expect(unfinishableCourt(court(2, 3), 1, 4)).toBe(false);
+    expect(unfinishableCourt(court(3, 2), 1, 4)).toBe(false);
+    const { matches, counts } = dealOut(court(2, 3), 4);
+    expect(matches).toHaveLength(5);
+    expect(counts.every((n) => n === 4)).toBe(true);
+    // And the sentence the courts that DO warn get says off target rather
+    // than short, because nobody on them finishes short of their games.
     expect(stuckWords(1, 4)).not.toContain("short");
   });
 
@@ -209,20 +239,7 @@ describe("the night the laws cannot deal out at all", () => {
   });
 
   it("describes a night that really does leave people off target", () => {
-    const players = court(2, 2, 2);
-    const matches: Match[] = [];
-    // Six at four each is six games. The guard turns "the engine never
-    // stops" into a finished loop rather than a hung run.
-    for (let guard = 0; guard < 30; guard++) {
-      const next = nextMatch(players, matches, 1, 4);
-      if (!next) break;
-      matches.push({
-        id: `m${matches.length}`, courtNumber: 1, matchIndex: matches.length + 1,
-        teamA: next.teamA, teamB: next.teamB,
-        scoreA: 2, scoreB: 0, status: "played", startedAt: 0, completedAt: 0, stage: null,
-      });
-    }
-    const counts = players.map((p) => matchesPlayedBy(matches, p.id));
+    const { counts } = dealOut(court(2, 2, 2), 4);
     expect(counts.some((n) => n !== 4)).toBe(true);
   });
 });

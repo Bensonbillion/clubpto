@@ -71,12 +71,42 @@ the night starts rather than letting it be discovered in round six.
 A few courts cannot be dealt out level at all: two A's, two B's and two C's
 at four each gives the two A's their one game with the B's and then has no
 lawful four with an A in it, so the A's stall on one game while the B's and
-the C's play on past four, and two A's with three B's at four each finishes
-the two on six games while the three finish on four. Six at four each is six
-whole games, five at four each is five, and nobody is stranded in either, so
-neither the target check nor the stranding check catches them. The same
-pricing that finds the bend finds these, and the split screen says the court
-cannot give everyone exactly that many games (2026-09-11).
+the C's play on past four. Six at four each is six whole games and nobody is
+stranded, so neither the target check nor the stranding check catches it. The
+same pricing that finds the bend finds this, and the split screen says the
+court cannot give everyone exactly that many games (2026-09-11).
+
+Two courts of five used to be in that paragraph and are not any more. Two A's
+with three B's at four each, and three A's with two B's, finished the two on
+six games while the three finished on four. Five at four each is twenty seats
+and five games, and the mixing law was the thing in the way: it was read as
+parity, both tiers owing an even number of games, and parity is only half of
+it. Neither tier of a five-player court can field a pure game, so every seat
+has to come out of a game that mixes, and eight seats against twelve cannot
+be dealt as an A and a B against an A and a B all night. The law is now the
+strictest one the seats still owed can actually be finished under, so those
+two courts deal out level: three strict games and two of one A among three
+B's, or, the other way round, two of one B among three A's (2026-09-11).
+
+The split screen no longer calls them stuck. The pricing behind it reads the
+mixing law as parity, so it counts no finish for those two courts and answers
+"cannot be dealt at all", and the screen was telling the operator to change a
+target that was right while the engine dealt the court level. The seats are
+now put to the picker's own law as well, and only a court both of them give up
+on gets the note. A court with beginners on it keeps the pricing's answer
+whole, because the law there is read off the A and B totals and a C game
+spends B seats too. The same stale reading is what made the picker deal those
+courts' uneven shapes FIRST, which stranded the B's when a third A walked in.
+So where the pricing cannot finish a card the picker's law can, the whole
+price comes off that draw: not just the look at the rest of the night but the
+game's own charge with it, which is to say the one-B-game cap does not steer
+that draw at all and the fairness and variety keys deal the game. The engine
+says at length what that silence costs (2026-09-11, restated 2026-09-12).
+
+That leaves the two readings of the mixing law still saying different things
+in one engine, which is a change of its own: the pricing counts a whole night
+under one law, the draws read the law again every game, and the two only agree
+where the law does not move during a night.
 
 Underneath all of it, least-played-first still picks who goes on next, so
 nobody drifts behind on games. The one game with the B's is the only law

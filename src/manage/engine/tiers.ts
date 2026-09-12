@@ -112,14 +112,31 @@ export interface LawContext {
    */
   cCount: number;
   /**
-   * How hard the first law holds on this court tonight, read off who is
-   * here. "strict" is the club's rule, A B against A B and nothing else,
-   * and it is only asked when the A's and the B's can both pair off (an
-   * even number of each). With an odd count one A or one B would sit while
-   * the others played twice, so the law goes "soft": a B on each side, the
-   * older shape, which lets the odd one out play. With a single A or a
-   * single B not even that can be made, and the law is "free". Absent
-   * means strict.
+   * How hard the first law holds on this court tonight. "strict" is the
+   * club's rule, A B against A B and nothing else. "soft" is the older
+   * shape, a B on each side, which lets an odd A or an odd B play rather
+   * than sit while the others play twice. "free" adds the one four that
+   * cannot put a B on each side, a lone B among A's, and adds nothing else:
+   * every law arranges a four the same way. Absent means strict.
+   *
+   * abLawFor answers it off the headcount, which is what the setup screen
+   * and anything judging a lineup on its own get. lawfulFour then answers it
+   * again for each draw off the seats still owed (lawForOwedSeats), because
+   * the headcount does not know what the night has left to deal: a court can
+   * hold the club's rule for four games and then have no strict game left in
+   * it.
+   *
+   * THE PER-DRAW ANSWER GOES BOTH WAYS. It usually loosens, and that is
+   * what it was written for, but the headcount reads soft the moment either
+   * tier is odd and the seats can be stricter than that: three A's and
+   * three B's at four each is twelve seats each side and every one of them
+   * fits an A and a B against an A and a B, so the ladder says strict where
+   * the headcount said soft. Over the courts the fixed sweep walks, one to
+   * twelve of each tier at every target, 100 start the night with the
+   * ladder stricter than the headcount law and one starts looser, three A's
+   * and two B's at four each, which needs the lone B among A's twice
+   * (2026-09-12). A court whose HEADCOUNT law is free is never asked, so
+   * free is never tightened away mid-night.
    */
   abLaw?: "strict" | "soft" | "free";
 }
@@ -177,10 +194,29 @@ export function judge(lineup: Lineup, ctx: LawContext): Illegality | null {
   }
 
   // No C in the match, so the second law is silent and the first speaks.
+  //
+  // The law says two separate things, and until 2026-09-11 the free rung
+  // switched both off at once. Which SHAPES a night may deal is the half
+  // that loosens: soft adds one A among three B's, free adds its mirror,
+  // one B among three A's. How a four already chosen is ARRANGED does not
+  // loosen, because there is only one thing to say about it under any law.
+  // Every team has a B, and the only four that cannot give each side one is
+  // the four holding exactly one B, which is the shape the free law exists
+  // to allow. Read as "free means no rule at all", free also let two A's
+  // stand against two B's, the game law one was written to prevent. A fixed
+  // roster never reaches the free rung, but a walk-in, a leaver or an
+  // extended target reaches it at once: 441 games of two A's against two
+  // B's over 379 of the 5,224 mid-night nights the sweep walks, against
+  // none before the rung existed and none now (2026-09-12).
   const law = ctx.abLaw ?? "strict";
-  if (as > 0 && bs > 0 && law !== "free") {
-    if (!a.some((id) => ctx.tierById(id) === "B")) return "bNotOnEachTeam";
-    if (!b.some((id) => ctx.tierById(id) === "B")) return "bNotOnEachTeam";
+  if (as > 0 && bs > 0) {
+    // The lone B among A's. Only the free law deals that shape at all, so
+    // under strict and soft a team without a B is illegal as it always was.
+    const loneB = law === "free" && bs === 1;
+    if (!loneB) {
+      if (!a.some((id) => ctx.tierById(id) === "B")) return "bNotOnEachTeam";
+      if (!b.some((id) => ctx.tierById(id) === "B")) return "bNotOnEachTeam";
+    }
     // The same make-up on each side: A B against A B, and nothing else.
     if (law === "strict") {
       const shape = (side: string[]) => side.map(ctx.tierById).sort().join("");
@@ -202,6 +238,129 @@ export function abLawFor(tiers: readonly Tier[]): "strict" | "soft" | "free" {
   if (as === 0 || bs === 0) return "strict";
   if (as < 2 || bs < 2) return "free";
   return as % 2 === 0 && bs % 2 === 0 ? "strict" : "soft";
+}
+
+/**
+ * The seats one game spends, as (A seats, B seats), under each law.
+ *
+ * Strict is the club's rule: four A's, four B's, or an A and a B against an
+ * A and a B. Soft adds the one shape a B on each side still allows, an A
+ * among three B's. Free adds the mirror of that one, a B among three A's,
+ * the one four that cannot put a B on each side of the net. Free is a
+ * LONGER LIST, not the absence of one: two A's against two B's is no more
+ * legal under it than under the other two, and judge() says why.
+ */
+const STRICT_SHAPES = [[4, 0], [0, 4], [2, 2]] as const;
+const SOFT_SHAPES = [...STRICT_SHAPES, [1, 3]] as const;
+const FREE_SHAPES = [...SOFT_SHAPES, [3, 1]] as const;
+
+/**
+ * Can the games these two tiers still owe be dealt out in these shapes
+ * alone, with this many of each tier on the court?
+ *
+ * Seats and headcounts, and nothing else. A shape is only available where
+ * the court holds the players it seats, so a tier of three can never field
+ * its own pure game and every seat it owes has to come out of a mixed one.
+ * What this deliberately does NOT model is who owes what: four A seats owed
+ * by one A is arithmetic no pure game can fill either, and this answers yes
+ * there. Saying yes is the safe way to be wrong. A yes leaves the law where
+ * the parity reading already had it, so every court this cannot see all of
+ * deals the games it dealt yesterday, and it is a no that moves a court.
+ */
+function finishExists(
+  shapes: readonly (readonly [number, number])[],
+  owedA: number,
+  owedB: number,
+  aCount: number,
+  bCount: number,
+): boolean {
+  const here = shapes.filter(([sa, sb]) => sa <= aCount && sb <= bCount);
+  // Every total the shapes can reach, built up from nothing. The grid is the
+  // seats still owed, which is a court's headcount times its target.
+  const reached = new Set<number>([0]);
+  const key = (a: number, b: number) => a * (owedB + 1) + b;
+  for (let a = 0; a <= owedA; a++) {
+    for (let b = 0; b <= owedB; b++) {
+      if (a === 0 && b === 0) continue;
+      for (const [sa, sb] of here) {
+        if (sa > a || sb > b) continue;
+        if (reached.has(key(a - sa, b - sb))) { reached.add(key(a, b)); break; }
+      }
+    }
+  }
+  return reached.has(key(owedA, owedB));
+}
+
+/**
+ * The strictest mixing law the seats still owed can be finished under.
+ *
+ * This is the question lawfulFour has to answer before it holds a court to
+ * the strict law for another draw, and until 2026-09-11 it read as parity:
+ * strict while both tiers owed an even number of games. Parity is NECESSARY
+ * for an all-strict night, because every strict shape spends A seats and B
+ * seats in twos and fours. It is not sufficient, and two courts of five
+ * showed it. Two A's and three B's at four each owe eight seats and twelve;
+ * neither tier can field a pure game, so every seat has to come out of a
+ * mixed one, and four strict games spend the A's while the B's still owe
+ * four. The card dealt a sixth game to finish the B's and the two A's ended
+ * the night on six games against the other three's four. The night that fits
+ * is three strict games and two of one A among three B's, which is the soft
+ * law. Three A's and two B's is the mirror, and soft cannot deal it: with
+ * two B's a game with a B on each side is always an A and a B against an A
+ * and a B, so the mirror needs the one shape only the free law allows, a B
+ * among three A's, twice.
+ *
+ * So the ladder, rather than a parity test: hold the club's rule wherever
+ * the seats can still be finished under it, drop one rung where they cannot,
+ * and drop to free only where nothing else deals the night out level. The
+ * alternative on those two courts is not a stricter night, it is two players
+ * finishing two games ahead of the other three.
+ *
+ * C's are not in this, and the caller is the one that knows. A C game spends
+ * B seats too (three C's and the bridge, or two or three B's on a relaxed
+ * court), and how many of them the night spends is not fixed until the
+ * finish is chosen, so an answer read off the A and B totals alone would be
+ * answering a question it cannot see all of. lawfulFour asks this only where
+ * there are no C's on the court.
+ */
+export function lawForOwedSeats(
+  owedA: number,
+  owedB: number,
+  aCount: number,
+  bCount: number,
+): "strict" | "soft" | "free" {
+  if (finishExists(STRICT_SHAPES, owedA, owedB, aCount, bCount)) return "strict";
+  if (finishExists(SOFT_SHAPES, owedA, owedB, aCount, bCount)) return "soft";
+  if (finishExists(FREE_SHAPES, owedA, owedB, aCount, bCount)) return "free";
+  // The floor. Nothing on the ladder finishes these seats, because they are
+  // not a multiple of four: every shape spends four, so a card that grew for
+  // a walk-in or shrank for a leaver, and every extended target, lands here
+  // at once. Returning free then handed those courts the loosest law in the
+  // book for the rest of the night on the strength of a question none of the
+  // rungs could answer. So the floor answers the way the parity reading did
+  // before the ladder existed, and a card nothing can finish keeps the law
+  // it had rather than losing it (2026-09-11).
+  return owedA % 2 === 0 && owedB % 2 === 0 ? "strict" : "soft";
+}
+
+/**
+ * Can the seats still owed be dealt out into whole lawful games at all,
+ * under any of the three laws?
+ *
+ * The ladder's own question, asked as a yes or no. lawForOwedSeats answers
+ * a law and has to answer one even where nothing finishes, so it floors to
+ * the parity reading; this is how a caller tells that floor from a real
+ * finish. Seats and headcounts only, with the same deliberate blind spot:
+ * it does not model who owes what, so it says yes to four A seats owed by
+ * one A. Yes is the safe way to be wrong here as well.
+ */
+export function seatsFinishable(
+  owedA: number,
+  owedB: number,
+  aCount: number,
+  bCount: number,
+): boolean {
+  return finishExists(FREE_SHAPES, owedA, owedB, aCount, bCount);
 }
 
 /**
@@ -366,8 +525,14 @@ export function chooseFour(
      * smallest charge any lawful finish of the rest of the night carries
      * after it. Zero means the cap still holds; a positive number means
      * these four force somebody's second B game, now or later. Ranked
-     * FIRST. Absent on a court with no A or no B, where it is 0 for every
-     * four.
+     * FIRST.
+     *
+     * Absent for two reasons, not one. On a court with no A or no B it is
+     * 0 for every four and not worth asking. And since 2026-09-11 it is
+     * absent on a BLIND court, which has both: one whose seats the
+     * picker's own law can finish while the oracle, reading the law off
+     * the parities, prices every finish at Infinity. lawfulFour says at
+     * length what that costs.
      */
     cost?: (ids: readonly string[]) => number;
     /**
@@ -375,6 +540,13 @@ export function chooseFour(
      * have already had, when the four holds a B. Read separately so a game
      * that gives A's their FIRST game with the B's (charge 0) can be told
      * from one that only avoids the B's.
+     *
+     * Absent exactly where `cost` is, and it means the same thing: nobody
+     * is counting. The ticket key below then says nothing about any four,
+     * rather than calling every mixed four a first game. Read through a
+     * fallback of zero it inverted: every four that mixed looked like an
+     * A's one game with the B's and every pure four like a repeat, on the
+     * one kind of draw where no count of crossings is kept (2026-09-12).
      */
     charge?: (ids: readonly string[]) => number;
   } = {},
@@ -407,20 +579,29 @@ export function chooseFour(
   //      among twelve. At three each and no further. The same twenty at
   //      four and at five meet somebody a third time however this key
   //      ranks, because fifteen games leave room for it and twenty and
-  //      twenty-five do not (2026-09-11);
-  //   6. who has met whom, so the same four does not come round again;
-  //   7. mixed games had, so the same B's do not take every mixed game;
-  //   8. repeated partnerships, so the same two are not dealt together again
+  //      twenty-five do not (2026-09-11). The key is SILENT on every draw
+  //      the cost key is off for, because what it asks is whether these
+  //      A's have crossed the net yet and nothing there is counting;
+  //   6. the even mixed shape, two and two, over the lone A among B's and
+  //      the lone B among A's. The even one is the club's own shape, A B
+  //      against A B; the other two are what the ladder allows where the
+  //      seats cannot be finished without them, so among fours as fair as
+  //      each other the concession is left for the draw that needs it
+  //      (2026-09-12);
+  //   7. who has met whom, so the same four does not come round again;
+  //   8. mixed games had, so the same B's do not take every mixed game;
+  //   9. repeated partnerships, so the same two are not dealt together again
   //      while an untried split costs nothing in fairness;
-  //   9. queue position, so the result is deterministic.
+  //  10. queue position, so the result is deterministic.
   // The fairness key is the four players' played counts SORTED, compared
   // lexicographically, not their sum. A sum lets [0,0,3,3] tie with [1,1,2,2],
   // which would put somebody on their fourth game while somebody else was
   // still on their first: exactly the drift the court is supposed to prevent.
   // Sorted-and-lexicographic makes "the least played four" precise, and any
   // other four with the same vector is equally fair by definition.
-  type Key = { cost: number; played: number[]; exact: number; penalty: number; spend: number;
-               familiar: number; mixedSum: number; repeats: number; position: number };
+  type Key = { cost: number; played: number[]; exact: number; penalty: number;
+               spend: number; shape: number; familiar: number; mixedSum: number;
+               repeats: number; position: number };
   let bestKey: Key | null = null;
   const games = playedBy ?? (() => 0);
   const together = partnered ?? (() => 0);
@@ -439,6 +620,7 @@ export function chooseFour(
     if (k.exact !== b.exact) return k.exact < b.exact;
     if (k.penalty !== b.penalty) return k.penalty < b.penalty;
     if (k.spend !== b.spend) return k.spend < b.spend;
+    if (k.shape !== b.shape) return k.shape < b.shape;
     if (k.familiar !== b.familiar) return k.familiar < b.familiar;
     if (k.mixedSum !== b.mixedSum) return k.mixedSum < b.mixedSum;
     if (k.repeats !== b.repeats) return k.repeats < b.repeats;
@@ -467,6 +649,34 @@ export function chooseFour(
           // A mixed game counts against whoever has already had one.
           const tiersHere = ids.map(ctx.tierById);
           const isMixed = tiersHere.includes("A") && tiersHere.includes("B");
+          // How lopsided a mixed four is: 0 for two and two, 2 for the
+          // lone A among B's and the lone B among A's. The even shape is
+          // preferred among fours as fair as each other, because it is the
+          // shape the club wrote down, A B against A B. The other two are
+          // concessions the ladder makes where the seats cannot be
+          // finished without them, so a draw that does not need one does
+          // not spend one.
+          //
+          // It is NOT that the even shape spends the scarcer tier faster,
+          // which is what this said until 2026-09-12. On a court with more
+          // A's than B's and three B's or more, five A's and three B's at
+          // four each for instance, the uneven four on offer is one A
+          // among three B's, and that spends the scarce tier three seats
+          // at a time where the even one spends two. The argument ran the
+          // wrong way round; the preference itself is worth having.
+          //
+          // Measured on 2026-09-12 over the mid-night sweep, against the
+          // same tree with this key taken out: 6,082 uneven mixed games
+          // where there were 6,882, the lone B among three A's on a bound
+          // law down from 81 to 49, and three of the six nights that gave
+          // an A an extra game with the B's for main's exact finish stop
+          // doing it. Three still do it: three A's with five B's and an A
+          // arriving before game seven, with seven B's before game nine,
+          // and with eight B's before game ten.
+          const shape = isMixed
+            ? Math.abs(tiersHere.filter((t) => t === "A").length
+              - tiersHere.filter((t) => t === "B").length)
+            : 0;
           const mixedSum = isMixed ? ids.reduce((sum, id) => sum + mixedGames(id), 0) : 0;
           // The third law's price, asked once per four and only of a four
           // with a lawful split, so the oracle behind it is never run for
@@ -477,8 +687,17 @@ export function chooseFour(
             if (!isLegal(lineup, ctx)) continue;
             if (!price) {
               // A ticket is spent when the four mixes and no A in it has
-              // met the B's yet: these A's are having their one game.
-              price = { cost: priceOf(ids), spend: isMixed && chargeOf(ids) === 0 ? 0 : 1 };
+              // met the B's yet: these A's are having their one game. With
+              // no charge to read the key says NOTHING, rather than saying
+              // it of every mixed four: on a blind draw chargeOf falls back
+              // to zero, which read every mixed four as a first game and
+              // every pure one as a repeat, on exactly the draws where
+              // nothing is counting how many times those A's have already
+              // crossed the net (2026-09-12).
+              price = {
+                cost: priceOf(ids),
+                spend: charge === undefined ? 0 : isMixed && chargeOf(ids) === 0 ? 0 : 1,
+              };
             }
             const borrowsBridge = bridgeBusy && ctx.designatedB !== null
               && ids.includes(ctx.designatedB)
@@ -489,6 +708,7 @@ export function chooseFour(
               exact,
               penalty: softPenalty(lineup, ctx) + (borrowsBridge ? 1 : 0),
               spend: price.spend,
+              shape,
               familiar,
               mixedSum,
               repeats: together(lineup.teamA[0], lineup.teamA[1])
