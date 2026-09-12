@@ -311,12 +311,15 @@ describe("the sweep: a change mid-night, on every court the room can field", () 
   // The nights outside that regime are older faults with names. A lone tier
   // that arrives LATE cannot be finished at all: the cap has walled every A
   // off from the B's by then, so a single A walking in onto a court of four
-  // B's before game two plays one game while the B's play sixteen and
+  // B's before game three plays one game while the B's play sixteen and
   // seventeen, and the card only stops at this file's guard. That night is
-  // the same at d1aa383. Its mirror got better rather than worse: a single
-  // B walking in onto a court of four A's before game one took eighteen
-  // games at d1aa383 and left two players on nothing and one game, and the
-  // ladder deals it in six with everyone on four. And a player arriving
+  // the same at d1aa383, and so is its literal mirror, four A's with a B
+  // arriving, which runs the same seventeen games in both trees. What the
+  // ladder did get better is the court that already holds one of each: a
+  // second B onto four A's and a B, before game two, took eighteen games at
+  // d1aa383 and left two players on nothing and one game, and the ladder
+  // deals it in six with everyone on four. The arriving B is not the lone
+  // tier there, the B already on court is, which is why it can be finished. And a player arriving
   // onto a court where everybody has finished needs three at-target players
   // a game to give them theirs.
   //
@@ -344,8 +347,9 @@ describe("the sweep: a change mid-night, on every court the room can field", () 
   //     the fewest seats any spread of them could leave that player,
   //     ceil(extra seats / players). It is 0 on a night that shares them
   //     out, and the pin is 3, which main also scores: three A's and eight
-  //     B's at four each with an A arriving before game eleven finishes one
-  //     player four games past the target where an even share is one;
+  //     B's at four each with an A arriving before game twelve finishes one
+  //     player four games past the target where an even share is one. That
+  //     is the +A@11 night the residue table below names;
   //   - nights stacking a seat at all, a gap above zero: 266, against
   //     main's 256. A price, and the one the ticket key's repair on
   //     2026-09-12 charged: sixteen nights went from an even share to one
@@ -583,7 +587,7 @@ describe("the nights that finish further off target than main", () => {
     // The sister of 2A/3B T4 +A@5, a game earlier. It came back to main's
     // finish on 2026-09-12 when the even mixed shape was preferred, and it
     // is kept here so it cannot drift back out again. d1aa383 finished
-    // 5,5,6,6,6 in the same eight games.
+    // 5,5,6,6,6,4 in the same eight games, the walk-in on four.
     const base = roster(2, 3);
     const late: Player = { ...P("late", "A"), walkIn: true, joinedAtMatchIndex: 4 };
     const run = runChanged(base, 4, 4, (ps) => [...ps, late]);
