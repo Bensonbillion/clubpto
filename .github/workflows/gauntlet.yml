@@ -1,10 +1,27 @@
 # The gate: the check a pull request has to be green on.
 #
-# Reporting is all a workflow can do on its own. What stops a merge is branch
-# protection on main naming this job's check, which is a repository setting
-# and not a file. Until somebody sets it, a red run here leaves the merge
-# button green. The check to require is named by the job below, "typecheck,
-# lint, tests, build"; the two strings have to stay in step.
+# Reporting is all a workflow can do on its own. What stops a merge is a
+# repository setting rather than a file: ruleset 23059943 targets the default
+# branch, requires the check this job reports, and requires a pull request to
+# reach main at all. Wired on 2026-09-12 and proven the same day by a
+# throwaway pull request carrying one deliberately failing test, which greyed
+# the merge button out. Required approvals is 0, so the pull request rule is
+# there to stop a direct push past the check, not to gate on a reviewer.
+#
+# THE JOB NAME BELOW IS LOAD-BEARING. The ruleset names the required check by
+# this job's `name:` string, "typecheck, lint, tests, build", and nothing
+# holds the two in step. Renaming the job does NOT fail the pull request that
+# renames it, because the old name still reports on that run; it locks main
+# afterwards, behind a required check that can never arrive again. Change one
+# and change the other in the same commit.
+#
+# If main does lock that way, the unlock is the ruleset's own enforcement
+# status: set it to Disabled, merge the fix, set it back to Active. That is
+# faster than editing the bypass list and leaves no standing exemption.
+#
+# The pull request page renders the check as "Gauntlet / typecheck, lint,
+# tests, build". The "Gauntlet / " is this file's `name:` and the UI's doing.
+# The ruleset matches the job name alone, so that prefix is not part of it.
 #
 # `npm run gauntlet` is this repo's own bar, the same command the CLAUDE.md
 # names: typecheck against tsconfig.app.json, eslint over src/manage and
@@ -78,6 +95,10 @@ jobs:
   gauntlet:
     # This name is what an operator reads in the checks list, so it says what
     # ran rather than what the file is called.
+    #
+    # It is also the string ruleset 23059943 requires, so it is not free to
+    # change: edit it here and main locks behind a check that never reports.
+    # The header explains the failure and the way out.
     name: typecheck, lint, tests, build
     runs-on: ubuntu-latest
     # Generous against 41 seconds of work plus a cold install, and short
