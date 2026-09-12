@@ -11,6 +11,10 @@
 //
 //   MANAGE_SWEEP=1 npx vitest run src/manage/engine/__tests__/mixing-sweep.test.ts
 //
+// One test at the foot of the file is NOT gated. It replays three named
+// nights and takes milliseconds, and it is the residue the swept tests only
+// ever see as a number, so it is worth a gate of its own.
+//
 // Every court in the range is in it. Two five-player courts used to be
 // carved out, two A's with three B's at four each and the same the other way
 // round: the draw dealt them six games where five fit, the two of the
@@ -209,6 +213,14 @@ const runChanged = (
   const matches: Match[] = [];
   let applied = false;
   let need = 0;
+  // Two shapes worth counting as they are dealt, because neither shows in
+  // the finishing counts. `hunted` is the game law one exists to prevent,
+  // two A's standing against two B's, and it must never be dealt at all.
+  // `loneB` is one B among three A's on a court whose HEADCOUNT law is soft
+  // or strict, the shape the free rung brought in: lawful, useful, and
+  // nothing pins how far it travels but this.
+  let hunted = 0;
+  let loneB = 0;
   const guard = totalMatches(base.length + 1, target) + 12;
   for (let n = 0; n < guard; n++) {
     if (!applied && matches.length === at) {
@@ -229,13 +241,21 @@ const runChanged = (
     expect(judge(lineup, ctx), `law of the draw: ${next.teamA.join("+")} v ${next.teamB.join("+")}`).toBeNull();
     expect(judge(lineup, { ...ctx, abLaw: "free" }),
       `every team has a B: ${next.teamA.join("+")} v ${next.teamB.join("+")}`).toBeNull();
+    // The same two verdicts read off the tiers rather than off judge(), so
+    // a law that loosened again could not quietly take the count with it.
+    const side = (ids: readonly string[]) => ids.map(ctx.tierById).sort().join("");
+    const tiers = [...next.teamA, ...next.teamB].map(ctx.tierById);
+    const as = tiers.filter((t) => t === "A").length;
+    const bs = tiers.filter((t) => t === "B").length;
+    if (as === 2 && bs === 2 && side(next.teamA) !== side(next.teamB)) hunted++;
+    if (as === 3 && bs === 1 && lawContextFor(players, 1).abLaw !== "free") loneB++;
     matches.push({
       id: `c${n}`, courtNumber: 1, matchIndex: n + 1, teamA: next.teamA, teamB: next.teamB,
       scoreA: 2, scoreB: 0, status: "played", startedAt: 0, completedAt: 0, stage: null,
     });
   }
   const live = players.filter((p) => !p.away);
-  return { applied, need, games: matches.length, players: live,
+  return { applied, need, games: matches.length, players: live, hunted, loneB,
            counts: live.map((p) => matchesPlayedBy(matches, p.id)) };
 };
 
@@ -251,27 +271,67 @@ describe("the sweep: a change mid-night, on every court the room can field", () 
   // finishable strict, so they passed unchanged while free was dealing two
   // A's against two B's on 117 of the 1,206 courts below.
   //
+  // THE CHANGE LANDS AT EVERY GAME OF THE NIGHT since 2026-09-12, not just
+  // at games two, three and four. Three faults were found by hand that this
+  // file walked straight past, and all three arrive late: an A joining a
+  // court of three and three before game five, an A joining three and four
+  // before game six, and a B leaving a court of three and two at a target
+  // of eight. A change at game two is a different night from the same
+  // change at game nine, because by game nine the cap has walled the A's
+  // off and the card has already grown.
+  //
   // What every night is held to: every four legal, at the draw and under
-  // the loosest law there is.
+  // the loosest law there is, and no game anywhere putting two A's against
+  // two B's.
   //
   // What a night in the SETTLED REGIME is held to as well, where both tiers
   // keep two players through the change and the change lands on a night
   // still owing somebody a game: nobody finishes short, and the card does
   // not run more than one game past the fewest the seats can be dealt in.
   // Measured over 554 such nights on 2026-09-11: four run one game long,
-  // none runs two, and three finish somebody short. The two courts outside
-  // that regime are older faults with names. A lone tier that arrives LATE
-  // cannot be finished at all: the cap has walled every A off from the B's
-  // by then, so a single A walking in onto a court of B's plays one game
-  // and the card deals forever (the same night at d1aa383, and worse: the
-  // ladder's own courts finish nine games where they used to take forty).
-  // And a player arriving onto a court where everybody has finished needs
-  // three at-target players a game to give them theirs.
-  it.skipIf(skip)("a walk-in or a leaver of each tier, at game two, three and four", () => {
+  // none runs two, and three finish somebody short. Those are the nights
+  // whose change lands at game two, three or four, and they are still
+  // counted and pinned on their own, so widening the sweep cannot soften
+  // what it already promised. The two courts outside that regime are older
+  // faults with names. A lone tier that arrives LATE cannot be finished at
+  // all: the cap has walled every A off from the B's by then, so a single A
+  // walking in onto a court of B's plays one game and the card deals
+  // forever (the same night at d1aa383, and worse: the ladder's own courts
+  // finish nine games where they used to take forty). And a player arriving
+  // onto a court where everybody has finished needs three at-target players
+  // a game to give them theirs.
+  //
+  // THREE NUMBERS ARE PINNED rather than argued, because each is a thing
+  // the engine is allowed to do a little of and must not start doing a lot
+  // of (2026-09-12):
+  //   - the lone B among three A's, dealt on a court whose HEADCOUNT law is
+  //     soft or strict. The free rung brought the shape in, the per-draw
+  //     ladder lets it reach courts the headcount would not have given it,
+  //     and 25 of the 37 nights carrying one finish better for it. Nothing
+  //     else says how far it may travel;
+  //   - how far past the target one player may finish. An odd headcount
+  //     leaves seats the card cannot avoid dealing, and the question is
+  //     never whether they exist but whether they land on different people.
+  //     So the gap is what is pinned: the worst single overshoot against
+  //     the fewest seats any spread of them could leave that player,
+  //     ceil(extra seats / players), which is 0 on a night that shares them
+  //     out and 1 on a night that stacks two on one person;
+  //   - the spread itself, worst overshoot against the target in force.
+  it.skipIf(skip)("a walk-in or a leaver of each tier, at every game of the night", () => {
     let nights = 0;
     let settled = 0;
     let long = 0;
     let short = 0;
+    // The same two counts over the window this sweep walked before
+    // 2026-09-12, games two, three and four, so the promise it made then is
+    // still made.
+    let earlyLong = 0;
+    let earlyShort = 0;
+    let hunted = 0;
+    let loneB = 0;
+    let stacked = 0;
+    let worstGap = 0;
+    let worstOver = 0;
     const late = (tier: "A" | "B", at: number): Player =>
       ({ ...P("late", tier), walkIn: true, joinedAtMatchIndex: at });
     for (let size = 4; size <= 10; size++) {
@@ -279,7 +339,7 @@ describe("the sweep: a change mid-night, on every court the room can field", () 
         const nB = size - nA;
         const base = roster(nA, nB);
         for (const target of targetsFor(size)) {
-          for (const at of [2, 3, 4]) {
+          for (let at = 1; at <= totalMatches(size, target); at++) {
             for (const tier of ["A", "B"] as const) {
               const changes: { label: string; how: (ps: readonly Player[]) => Player[];
                                tiers: [number, number] }[] = [
@@ -296,6 +356,8 @@ describe("the sweep: a change mid-night, on every court the room can field", () 
                 const name = `${nA}A/${nB}B T${target} ${label}@${at}`;
                 const r = runChanged(base, target, at, how);
                 nights++;
+                hunted += r.hunted;
+                loneB += r.loneB;
                 // The settled regime: both tiers keep two through the
                 // change, so every shape the mixing law names can be
                 // fielded, and somebody other than the arrival is still
@@ -303,10 +365,27 @@ describe("the sweep: a change mid-night, on every court the room can field", () 
                 const bothTiers = Math.min(nA, tiers[0]) >= 2 && Math.min(nB, tiers[1]) >= 2;
                 if (!r.applied || !bothTiers || r.need === at) continue;
                 settled++;
-                if (r.counts.some((c) => c < target)) { short++; continue; }
-                if (r.games > r.need) long++;
+                const early = at >= 2 && at <= 4;
+                if (r.counts.some((c) => c < target)) {
+                  short++;
+                  if (early) earlyShort++;
+                  continue;
+                }
+                if (r.games > r.need) { long++; if (early) earlyLong++; }
                 expect(r.games, `${name}: ${r.games} games, ${r.need} needed, ${r.counts.join(",")}`)
                   .toBeLessThanOrEqual(r.need + 1);
+                // The seats the night could not avoid, and where they
+                // landed. `floor` is the fewest any one player can be left
+                // holding when they are shared out as evenly as people
+                // allow, so a gap is somebody carrying a second one while
+                // somebody else carries none.
+                const over = r.counts.map((c) => c - target);
+                const extra = over.reduce((sum, o) => sum + o, 0);
+                const floor = Math.ceil(extra / over.length);
+                const gap = Math.max(...over) - floor;
+                worstOver = Math.max(worstOver, Math.max(...over));
+                worstGap = Math.max(worstGap, gap);
+                if (gap > 0) stacked++;
               }
             }
           }
@@ -315,10 +394,77 @@ describe("the sweep: a change mid-night, on every court the room can field", () 
     }
     console.log(`mid-night sweep: ${nights} nights, ${settled} of them settled, `
       + `${long} running one game long, ${short} finishing somebody short`);
-    expect(nights).toBeGreaterThan(1_000);
-    // The two promises above hold on all but a handful, and the handful is
-    // pinned so it cannot grow quietly.
-    expect(long).toBeLessThanOrEqual(4);
-    expect(short).toBeLessThanOrEqual(3);
+    console.log(`  at games two to four: ${earlyLong} long, ${earlyShort} short`);
+    console.log(`  shapes: ${hunted} games of two A's against two B's, `
+      + `${loneB} of one B among three A's on a bound law`);
+    console.log(`  past the target: worst overshoot ${worstOver}, `
+      + `${stacked} nights stacking a seat, worst gap ${worstGap}`);
+    expect(nights).toBeGreaterThan(2_000);
+    // The game law one exists to prevent this shape, under every law on the
+    // ladder. Not a ceiling, a zero.
+    expect(hunted, "two A's against two B's").toBe(0);
+    // The promises this sweep made at games two, three and four, unchanged.
+    expect(earlyLong).toBeLessThanOrEqual(4);
+    expect(earlyShort).toBeLessThanOrEqual(3);
+    // And the same two over the whole night, which is a looser hand because
+    // a change at the last game of a card is a harder night than a change
+    // at the second.
+    expect(long).toBeLessThanOrEqual(17);
+    expect(short).toBeLessThanOrEqual(34);
+    // The three pinned numbers. Each is measured today, and each is here so
+    // it cannot grow without somebody saying why.
+    expect(loneB, "lone B among three A's on a bound law").toBeLessThanOrEqual(33);
+    expect(worstOver, "worst overshoot").toBeLessThanOrEqual(5);
+    expect(worstGap, "worst stacked seat").toBeLessThanOrEqual(3);
+    expect(stacked, "nights stacking a seat").toBeLessThanOrEqual(143);
   }, 1_800_000);
+});
+
+/* ── the residue, named ──────────────────────────────────────────── */
+
+/**
+ * Three nights that finish further off target than they did at d1aa383,
+ * pinned by name because the sweep above only counts them (2026-09-12).
+ *
+ * All three are an A walking in late onto a court with an odd headcount, and
+ * all three deal the same number of games as they always did. What changed
+ * is where the seats that number cannot avoid land: main spread them one
+ * each over four players, and the ladder's free rung stacks two on one.
+ *
+ * They were traced rather than guessed at. The night diverges on a BLIND
+ * draw, where the oracle cannot price the court and the cost key comes off,
+ * and by the closing games the cap itself is what puts the extra seat on a
+ * player who already had one: the fairer four gives two A's a second game
+ * with the B's, and the cap ranks first by the owner's word. Two ways out
+ * were measured on 2026-09-12 and both cost more than they bought. Ranking
+ * the four's highest played count above the fairness vector changes none of
+ * these three and pushes 49 nights past the target where 23 go now. Pricing
+ * a blind draw by its charge alone fixes two of the three and costs 318
+ * nights an extra game. So the three stand, and they stand written down.
+ */
+describe("the nights that finish further off target than main", () => {
+  const nightOf = (nA: number, nB: number, target: number, at: number) => {
+    const base = roster(nA, nB);
+    const late: Player = { ...P("late", "A"), walkIn: true, joinedAtMatchIndex: at };
+    const r = runChanged(base, target, at, (ps) => [...ps, late]);
+    return { games: r.games, counts: r.counts };
+  };
+
+  it("three and three at four each, an A arriving before game five", () => {
+    // d1aa383 finished 5,5,5,5,4,4,4 in the same eight games.
+    expect(nightOf(3, 3, 4, 4)).toEqual({ games: 8, counts: [6, 5, 5, 4, 4, 4, 4] });
+  });
+
+  it("three and four at four each, an A arriving before game six", () => {
+    // d1aa383 finished 5,5,5,5,4,4,4,4 in the same nine games.
+    expect(nightOf(3, 4, 4, 5)).toEqual({ games: 9, counts: [6, 5, 5, 4, 4, 4, 4, 4] });
+  });
+
+  it("two and three at four each, an A arriving before game six", () => {
+    // d1aa383 finished 6,6,7,7,6,4 in the same nine games. Its sister, the
+    // same court with the A arriving a game earlier, came back to main's
+    // finish on 2026-09-12 when the even mixed shape was preferred.
+    expect(nightOf(2, 3, 4, 5)).toEqual({ games: 9, counts: [5, 5, 8, 7, 7, 4] });
+    expect(nightOf(2, 3, 4, 4)).toEqual({ games: 8, counts: [5, 5, 6, 6, 6, 4] });
+  });
 });

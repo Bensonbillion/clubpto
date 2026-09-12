@@ -572,9 +572,29 @@ function lawfulFour(
     // target of four. Where the oracle cannot price a court whose seats
     // the picker's own law can finish, its answer is about its reading
     // rather than the night, so it steers nothing here and the fairness
-    // and variety keys deal the games. The cap is not lost with it: on
-    // such a court every mixed shape is forced, so there is no four that
-    // spares anybody a second game with the B's.
+    // and variety keys deal the games.
+    //
+    // THE CAP IS OFF FOR THAT DRAW, and until 2026-09-12 this said the
+    // opposite: that every mixed shape on such a court is forced, so no
+    // four could spare anybody a second game with the B's. It is not
+    // true, and it was never cheap. Blind fires on 4,209 draws of the
+    // mid-night sweep and on 3,423 of them the queue still holds four of
+    // one tier, so a four that meets no B is there to be dealt and the
+    // cap had a choice to make. What the silence costs, measured against
+    // the same tree with the lookahead forced on: of the 1,150 mid-night
+    // nights the committed sweep walks, 43 end with one A on a higher
+    // count of games with the B's than they would otherwise have had, and
+    // none ends lower.
+    //
+    // Two smaller answers were measured on 2026-09-12 and neither was
+    // taken. Keeping `charge`, which is this game's own arithmetic and
+    // never reads deficit(), recovers 8 of those 43 and pushes four more
+    // nights past the target further than they went before the ladder.
+    // Pricing a blind draw by the charge alone recovers 41 of the 43 and
+    // costs 318 nights an extra game, which is the fault the blind spot
+    // was found chasing. So the whole cost key stays off on a blind
+    // draw, lookahead and charge together, and this comment names the
+    // price rather than denying there is one.
     const blind = ctx.cCount === 0 && !Number.isFinite(deficit(state))
       && seatsFinishable(owedOf("A"), owedOf("B"), countOf("A"), countOf("B"));
     if (!blind) {

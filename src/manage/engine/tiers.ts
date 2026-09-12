@@ -513,8 +513,14 @@ export function chooseFour(
      * smallest charge any lawful finish of the rest of the night carries
      * after it. Zero means the cap still holds; a positive number means
      * these four force somebody's second B game, now or later. Ranked
-     * FIRST. Absent on a court with no A or no B, where it is 0 for every
-     * four.
+     * FIRST.
+     *
+     * Absent for two reasons, not one. On a court with no A or no B it is
+     * 0 for every four and not worth asking. And since 2026-09-11 it is
+     * absent on a BLIND court, which has both: one whose seats the
+     * picker's own law can finish while the oracle, reading the law off
+     * the parities, prices every finish at Infinity. lawfulFour says at
+     * length what that costs.
      */
     cost?: (ids: readonly string[]) => number;
     /**
@@ -555,19 +561,24 @@ export function chooseFour(
   //      four and at five meet somebody a third time however this key
   //      ranks, because fifteen games leave room for it and twenty and
   //      twenty-five do not (2026-09-11);
-  //   6. who has met whom, so the same four does not come round again;
-  //   7. mixed games had, so the same B's do not take every mixed game;
-  //   8. repeated partnerships, so the same two are not dealt together again
+  //   6. the even mixed shape, two and two, over the lone A among B's and
+  //      the lone B among A's. The even one spends the scarcer tier's
+  //      seats two at a time, so the night needs fewer mixed games and
+  //      fewer A's are called across the net (2026-09-12);
+  //   7. who has met whom, so the same four does not come round again;
+  //   8. mixed games had, so the same B's do not take every mixed game;
+  //   9. repeated partnerships, so the same two are not dealt together again
   //      while an untried split costs nothing in fairness;
-  //   9. queue position, so the result is deterministic.
+  //  10. queue position, so the result is deterministic.
   // The fairness key is the four players' played counts SORTED, compared
   // lexicographically, not their sum. A sum lets [0,0,3,3] tie with [1,1,2,2],
   // which would put somebody on their fourth game while somebody else was
   // still on their first: exactly the drift the court is supposed to prevent.
   // Sorted-and-lexicographic makes "the least played four" precise, and any
   // other four with the same vector is equally fair by definition.
-  type Key = { cost: number; played: number[]; exact: number; penalty: number; spend: number;
-               familiar: number; mixedSum: number; repeats: number; position: number };
+  type Key = { cost: number; played: number[]; exact: number; penalty: number;
+               spend: number; shape: number; familiar: number; mixedSum: number;
+               repeats: number; position: number };
   let bestKey: Key | null = null;
   const games = playedBy ?? (() => 0);
   const together = partnered ?? (() => 0);
@@ -586,6 +597,7 @@ export function chooseFour(
     if (k.exact !== b.exact) return k.exact < b.exact;
     if (k.penalty !== b.penalty) return k.penalty < b.penalty;
     if (k.spend !== b.spend) return k.spend < b.spend;
+    if (k.shape !== b.shape) return k.shape < b.shape;
     if (k.familiar !== b.familiar) return k.familiar < b.familiar;
     if (k.mixedSum !== b.mixedSum) return k.mixedSum < b.mixedSum;
     if (k.repeats !== b.repeats) return k.repeats < b.repeats;
@@ -614,6 +626,23 @@ export function chooseFour(
           // A mixed game counts against whoever has already had one.
           const tiersHere = ids.map(ctx.tierById);
           const isMixed = tiersHere.includes("A") && tiersHere.includes("B");
+          // How lopsided a mixed four is: 0 for two and two, 2 for the
+          // lone A among B's and the lone B among A's. The even shape is
+          // preferred among fours as fair as each other, because it
+          // spends the scarcer tier's seats two at a time where the
+          // uneven one spends them singly, and every mixed seat left over
+          // is another game some A has to take with the B's. Only the
+          // uneven shape the scarce tier can actually field is ever on
+          // offer, so "even" and "spend the scarce tier fastest" are the
+          // same preference. Measured on 2026-09-12 over the mid-night
+          // sweep: 3,309 uneven games where there were 3,564, the lone B
+          // among three A's on a bound law down from 61 to 33, and the
+          // three nights that gave an A an extra game with the B's for an
+          // identical finish stop doing it.
+          const shape = isMixed
+            ? Math.abs(tiersHere.filter((t) => t === "A").length
+              - tiersHere.filter((t) => t === "B").length)
+            : 0;
           const mixedSum = isMixed ? ids.reduce((sum, id) => sum + mixedGames(id), 0) : 0;
           // The third law's price, asked once per four and only of a four
           // with a lawful split, so the oracle behind it is never run for
@@ -636,6 +665,7 @@ export function chooseFour(
               exact,
               penalty: softPenalty(lineup, ctx) + (borrowsBridge ? 1 : 0),
               spend: price.spend,
+              shape,
               familiar,
               mixedSum,
               repeats: together(lineup.teamA[0], lineup.teamA[1])

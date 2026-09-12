@@ -64,8 +64,10 @@ const SPLITS: readonly (readonly [number, number, number, number])[] = [
  * shapes, and parity is only half of that question. The two differ on the
  * courts of five where parity says strict and no strict finish exists, and
  * on those the oracle still prices the night at Infinity: the picker deals
- * them out level while the setup screen still calls them stuck. Bringing the
- * oracle up to the same reading is its own change, with its own sweep.
+ * them out level and the setup screen stays quiet, because unfinishableCourt
+ * asks seatsFinishable rather than this reading, so the oracle is the last
+ * thing still calling those courts stuck. Bringing it up to the same reading
+ * is its own change, with its own sweep.
  */
 const lawFor = (ps: readonly Sim[], free: boolean): "free" | "strict" | "soft" => {
   const owedA = ps.filter((p) => p.tier === "A").reduce((n, p) => n + p.owed, 0);
