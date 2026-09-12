@@ -67,6 +67,4 @@ jobs:
         run: |
           npx vitest run src/manage/engine/__tests__/mixing-sweep.test.ts \
             --reporter=default --reporter=json --outputFile=sweep-report.json
-          node -e 'const r = require("./sweep-report.json");
-          if (r.numPendingTests > 0) { console.error("MANAGE_SWEEP did not reach vitest: " + r.numPendingTests + " sweeps skipped, so this run proved nothing."); process.exit(1); }
-          console.log(r.numPassedTests + " sweeps ran.");'
+          node scripts/check-sweep-report.mjs sweep-report.json

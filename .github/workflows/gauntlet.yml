@@ -1,4 +1,10 @@
-# The gate. Nothing merges without this.
+# The gate: the check a pull request has to be green on.
+#
+# Reporting is all a workflow can do on its own. What stops a merge is branch
+# protection on main naming this job's check, which is a repository setting
+# and not a file. Until somebody sets it, a red run here leaves the merge
+# button green. The check to require is named by the job below, "typecheck,
+# lint, tests, build"; the two strings have to stay in step.
 #
 # `npm run gauntlet` is this repo's own bar, the same command the CLAUDE.md
 # names: typecheck against tsconfig.app.json, eslint over src/manage and
@@ -37,6 +43,12 @@ on:
   # the first thing that sees both.
   push:
     branches: [main]
+  # And a merge queue, if one is ever turned on. GitHub evaluates required
+  # checks for a queued entry against merge_group, so without this the gate
+  # would never run for one, the required check would sit pending, and the
+  # queue would drop the pull request on its timeout. That is the same shape
+  # as the paths problem below, so it is answered before anybody meets it.
+  merge_group:
   # No branch-push trigger beyond main. A pushed feature branch is already
   # covered by its pull request, and triggering on both doubles every run.
   #
@@ -53,8 +65,13 @@ permissions:
 # A force-push should not leave the old run burning minutes on a commit
 # nobody will look at again. On main it should, because there each run is the
 # record of a commit that actually landed.
+# Keyed by commit on a push and by ref on a pull request. Three merges in
+# quick succession share one ref, and a run queued into a busy group cancels
+# the one already pending, so the middle merge commit would end up with no
+# result at all: the per-commit record this trigger exists to keep. By sha
+# every main commit gets its own group and its own completed run.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:

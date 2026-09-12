@@ -36,3 +36,6 @@ dist-ssr
 
 # Supabase CLI scratch — written by `supabase link`, not source.
 supabase/.temp/
+
+# Written by the sweep workflow and by a local MANAGE_SWEEP run.
+sweep-report.json
