@@ -138,6 +138,11 @@ const report = (name: string, t: Tally) =>
   `${name}: ${t.nights} nights, ${t.bent} where the seats bend the cap, ` +
   `${t.spread2} touching a spread of two, worst B-game count ${t.worstEver}`;
 
+// THE THREE GATED SWEEPS BELOW ARE NAMED, BY TITLE, IN
+// scripts/check-sweep-report.mjs, which is what stops the nightly workflow
+// reporting green on a run that skipped them. A rename has to land in both
+// files or that guard starts saying "not reported" (2026-09-12). Run the pair
+// the way the workflow does with `npm run sweep`.
 describe("the sweep: every court the room can field", () => {
   it.skipIf(skip)("A's and B's, one to twelve of each, at every target the room divides into", () => {
     const t = tally();

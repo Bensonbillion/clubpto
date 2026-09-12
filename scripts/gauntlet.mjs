@@ -52,8 +52,17 @@ if (resolved === 0) {
 run("typecheck: no new errors", `npx tsc --noEmit -p ${PROJECT}`, {
   allow: (out) => {
     const errs = out.split("\n").filter((l) => l.includes("error TS"));
+    // A tsc that DIED is not a tsc that found nothing. This callback only
+    // runs when tsc exited non-zero, and until 2026-09-12 it passed whenever
+    // no "error TS" line appeared, so a crash reported nothing and read as
+    // green: out of memory, an internal failure, a signal. Proven with a
+    // constrained heap, where tsc exits 134 silently and the gauntlet
+    // printed GAUNTLET GREEN having never typechecked. That is the same
+    // vacuity the step above exists to catch, one layer further in, and it
+    // matters more now the gauntlet is what CI runs.
+    if (errs.length === 0) return false;
     const fresh = errs.filter((l) => !KNOWN_PREEXISTING.some((f) => l.includes(f)));
-    if (fresh.length === 0 && errs.length > 0) {
+    if (fresh.length === 0) {
       console.log(ok(`(${errs.length} known pre-existing, in scope-guarded code)`));
     }
     return fresh.length === 0;
