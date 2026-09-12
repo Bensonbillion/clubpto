@@ -11,10 +11,10 @@
 import { describe, expect, it } from "vitest";
 import type { Match, Player } from "../../types";
 import {
-  bench, buildQueue, courtComplete, explainMatch, matchesPlayedBy, nextMatch,
+  bench, buildQueue, courtComplete, explainMatch, lawContextFor, matchesPlayedBy, nextMatch,
   totalMatches, validTargets,
 } from "../rotation";
-import { designateB } from "../tiers";
+import { designateB, judge, lawForOwedSeats, tierOf } from "../tiers";
 
 const P = (id: string, over: Partial<Player> = {}): Player => ({
   id, name: id.toUpperCase(), walkIn: false, courtNumber: 1, away: false,
@@ -928,5 +928,100 @@ describe("a court of five plays five games, not six", () => {
         expect(counts.every((c) => c === target), label).toBe(true);
       }
     }
+  });
+});
+
+describe("a change mid-night, on the courts the laws are tightest on", () => {
+  // The fixed rosters above are the case the free rung of the mixing law
+  // never reaches: a fixed roster owes N times its target and drops by four
+  // a game, so its seats are a multiple of four all night and some law can
+  // always finish them. A walk-in, a leaver and an extended target leave
+  // seats no law can finish, and on 2026-09-11 the ladder answered "free"
+  // there, which judge() read as no shape rule at all. The wide version of
+  // this lives in mixing-sweep.test.ts behind MANAGE_SWEEP, over 1,206
+  // nights; these are the courts of five and six it found, kept here so
+  // they run on every commit.
+  const court = (nA: number, nB: number): Player[] => [
+    ...Array.from({ length: nA }, (_, i) => P(`a${i + 1}`, { tier: "A" })),
+    ...Array.from({ length: nB }, (_, i) => P(`b${i + 1}`, { tier: "B" })),
+  ];
+
+  it("never deals a side without a B, whatever the seats owed do", () => {
+    // The shape the first law exists to prevent, two A's standing against
+    // two B's, dealt 135 times over the sweep when free meant no rule and
+    // never once before the rung existed. Judged here under the FREE law,
+    // the loosest the engine can apply: free adds the lone B among A's and
+    // adds nothing else, so a game that fails this is a game with a side
+    // holding no B while two B's are on court.
+    let games = 0;
+    for (let nA = 1; nA <= 5; nA++) {
+      for (const target of [3, 4]) {
+        for (const at of [2, 3, 4]) {
+          for (const tier of ["A", "B"] as const) {
+            const base = court(nA, 6 - nA);
+            for (const change of [
+              (ps: Player[]) => [...ps, P("late", { tier, walkIn: true, joinedAtMatchIndex: at })],
+              (ps: Player[]) => ps.map((p) => (p.id === (tier === "A" ? "a1" : "b1") ? { ...p, away: true } : p)),
+            ]) {
+              const r = runWith(base, target, at, change);
+              // Tiers off the whole roster rather than the court, so a
+              // leaver in a game dealt before they left still reads as the
+              // tier they played as. A court's own context answers B for
+              // anybody off it, which would call their old games hunts.
+              const tiers = new Map(r.players.map((p) => [p.id, tierOf(p)]));
+              const ctx = { ...lawContextFor(r.players, 1),
+                            tierById: (id: string) => tiers.get(id) ?? "B",
+                            abLaw: "free" as const };
+              for (const m of r.matches) {
+                const label = `${nA}A/${6 - nA}B T${target} ${tier}@${at}: `
+                  + `${m.teamA.join("+")} v ${m.teamB.join("+")}`;
+                expect(judge({ teamA: m.teamA, teamB: m.teamB }, ctx), label).toBeNull();
+                games++;
+              }
+            }
+          }
+        }
+      }
+    }
+    expect(games).toBeGreaterThan(200);
+  });
+
+  it("a third A onto the court of five still finishes six games with everyone on four", () => {
+    // Two A's and three B's at four each, an A walking in before game
+    // three. The night that fits is six games with all six on four, which
+    // is what this dealt at d1aa383 and what it deals now. Between them it
+    // dealt NINE, the three B's on eight games each against a target of
+    // four: the card opened with an A among three B's, which spends B seats
+    // three at a time, so by the time the third A arrived the B's were
+    // spent and nothing re-planned. The shape was dealt first because the
+    // oracle priced every card that kept the club's own shape at Infinity,
+    // and Infinity ranks above fairness (2026-09-11).
+    const r = runWith(court(2, 3), 4, 3,
+      (ps) => [...ps, P("late", { tier: "A", walkIn: true, joinedAtMatchIndex: 3 })]);
+    expect(r.matches, r.counts.join(",")).toHaveLength(6);
+    expect(r.counts).toEqual([4, 4, 4, 4, 4, 4]);
+    // A game later the same walk-in is owed four games with three games'
+    // worth of seats left on the card, and nobody plays twice in one game,
+    // so four games is the fewest the night can take. Seven in all, nobody
+    // short, nobody more than one game over: the same night as d1aa383.
+    const later = runWith(court(2, 3), 4, 4,
+      (ps) => [...ps, P("late", { tier: "A", walkIn: true, joinedAtMatchIndex: 4 })]);
+    expect(later.matches, later.counts.join(",")).toHaveLength(7);
+    expect(later.counts.every((c) => c >= 4 && c <= 5), later.counts.join(",")).toBe(true);
+  });
+
+  it("and the law it runs under is the one its seats can be finished under", () => {
+    // The ladder, read the way a draw reads it, on a court of three and
+    // three. Eight seats each are four games of an A and a B against an A
+    // and a B, so the club's rule holds; five against three needs the lone
+    // B among A's twice, which only the free law deals; and two seats
+    // against two is one strict game again.
+    expect(lawForOwedSeats(8, 8, 3, 3)).toBe("strict");
+    expect(lawForOwedSeats(5, 3, 3, 3)).toBe("free");
+    expect(lawForOwedSeats(2, 2, 3, 3)).toBe("strict");
+    // And a card no law can finish keeps the law the parity reading gave
+    // it, never free: one seat owed each way is the walk-in's residue, and
+    // free there is what dealt two A's against two B's.
+    expect(lawForOwedSeats(1, 1, 3, 3)).toBe("soft");
   });
 });

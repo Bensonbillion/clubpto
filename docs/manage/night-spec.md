@@ -86,9 +86,24 @@ has to come out of a game that mixes, and eight seats against twelve cannot
 be dealt as an A and a B against an A and a B all night. The law is now the
 strictest one the seats still owed can actually be finished under, so those
 two courts deal out level: three strict games and two of one A among three
-B's, or, the other way round, two of one B among three A's (2026-09-11). The
-pricing behind the split screen has not caught up with them yet and still
-calls them stuck, which is the next thing to fix there.
+B's, or, the other way round, two of one B among three A's (2026-09-11).
+
+The split screen no longer calls them stuck. The pricing behind it reads the
+mixing law as parity, so it counts no finish for those two courts and answers
+"cannot be dealt at all", and the screen was telling the operator to change a
+target that was right while the engine dealt the court level. The seats are
+now put to the picker's own law as well, and only a court both of them give up
+on gets the note. A court with beginners on it keeps the pricing's answer
+whole, because the law there is read off the A and B totals and a C game
+spends B seats too. The same stale reading is what made the picker deal those
+courts' uneven shapes FIRST, which stranded the B's when a third A walked in,
+so where the pricing cannot finish a card the picker's law can, its lookahead
+now steers nothing for that draw (2026-09-11).
+
+That leaves the two readings of the mixing law still saying different things
+in one engine, which is a change of its own: the pricing counts a whole night
+under one law, the draws read the law again every game, and the two only agree
+where the law does not move during a night.
 
 Underneath all of it, least-played-first still picks who goes on next, so
 nobody drifts behind on games. The one game with the B's is the only law

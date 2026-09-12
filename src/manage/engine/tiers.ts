@@ -115,8 +115,9 @@ export interface LawContext {
    * How hard the first law holds on this court tonight. "strict" is the
    * club's rule, A B against A B and nothing else. "soft" is the older
    * shape, a B on each side, which lets an odd A or an odd B play rather
-   * than sit while the others play twice. "free" is no shape rule at all,
-   * which is where a lone B ends up. Absent means strict.
+   * than sit while the others play twice. "free" adds the one four that
+   * cannot put a B on each side, a lone B among A's, and adds nothing else:
+   * every law arranges a four the same way. Absent means strict.
    *
    * abLawFor answers it off the headcount, which is what the setup screen
    * and anything judging a lineup on its own get. lawfulFour then answers it
@@ -181,10 +182,29 @@ export function judge(lineup: Lineup, ctx: LawContext): Illegality | null {
   }
 
   // No C in the match, so the second law is silent and the first speaks.
+  //
+  // The law says two separate things, and until 2026-09-11 the free rung
+  // switched both off at once. Which SHAPES a night may deal is the half
+  // that loosens: soft adds one A among three B's, free adds its mirror,
+  // one B among three A's. How a four already chosen is ARRANGED does not
+  // loosen, because there is only one thing to say about it under any law.
+  // Every team has a B, and the only four that cannot give each side one is
+  // the four holding exactly one B, which is the shape the free law exists
+  // to allow. Read as "free means no rule at all", free also let two A's
+  // stand against two B's, the game law one was written to prevent. A fixed
+  // roster never reaches the free rung, but a walk-in, a leaver or an
+  // extended target reaches it at once: 135 games of two A's against two
+  // B's over a sweep of 1,206 mid-night courts, against none before the
+  // rung existed.
   const law = ctx.abLaw ?? "strict";
-  if (as > 0 && bs > 0 && law !== "free") {
-    if (!a.some((id) => ctx.tierById(id) === "B")) return "bNotOnEachTeam";
-    if (!b.some((id) => ctx.tierById(id) === "B")) return "bNotOnEachTeam";
+  if (as > 0 && bs > 0) {
+    // The lone B among A's. Only the free law deals that shape at all, so
+    // under strict and soft a team without a B is illegal as it always was.
+    const loneB = law === "free" && bs === 1;
+    if (!loneB) {
+      if (!a.some((id) => ctx.tierById(id) === "B")) return "bNotOnEachTeam";
+      if (!b.some((id) => ctx.tierById(id) === "B")) return "bNotOnEachTeam";
+    }
     // The same make-up on each side: A B against A B, and nothing else.
     if (law === "strict") {
       const shape = (side: string[]) => side.map(ctx.tierById).sort().join("");
@@ -213,12 +233,14 @@ export function abLawFor(tiers: readonly Tier[]): "strict" | "soft" | "free" {
  *
  * Strict is the club's rule: four A's, four B's, or an A and a B against an
  * A and a B. Soft adds the one shape a B on each side still allows, an A
- * among three B's. Free has no list, because free is every shape there is,
- * including the mirror of that one: a B among three A's, the shape that
- * leaves a B with nobody on their own side of the net.
+ * among three B's. Free adds the mirror of that one, a B among three A's,
+ * the one four that cannot put a B on each side of the net. Free is a
+ * LONGER LIST, not the absence of one: two A's against two B's is no more
+ * legal under it than under the other two, and judge() says why.
  */
 const STRICT_SHAPES = [[4, 0], [0, 4], [2, 2]] as const;
 const SOFT_SHAPES = [...STRICT_SHAPES, [1, 3]] as const;
+const FREE_SHAPES = [...SOFT_SHAPES, [3, 1]] as const;
 
 /**
  * Can the games these two tiers still owe be dealt out in these shapes
@@ -297,7 +319,36 @@ export function lawForOwedSeats(
 ): "strict" | "soft" | "free" {
   if (finishExists(STRICT_SHAPES, owedA, owedB, aCount, bCount)) return "strict";
   if (finishExists(SOFT_SHAPES, owedA, owedB, aCount, bCount)) return "soft";
-  return "free";
+  if (finishExists(FREE_SHAPES, owedA, owedB, aCount, bCount)) return "free";
+  // The floor. Nothing on the ladder finishes these seats, because they are
+  // not a multiple of four: every shape spends four, so a card that grew for
+  // a walk-in or shrank for a leaver, and every extended target, lands here
+  // at once. Returning free then handed those courts the loosest law in the
+  // book for the rest of the night on the strength of a question none of the
+  // rungs could answer. So the floor answers the way the parity reading did
+  // before the ladder existed, and a card nothing can finish keeps the law
+  // it had rather than losing it (2026-09-11).
+  return owedA % 2 === 0 && owedB % 2 === 0 ? "strict" : "soft";
+}
+
+/**
+ * Can the seats still owed be dealt out into whole lawful games at all,
+ * under any of the three laws?
+ *
+ * The ladder's own question, asked as a yes or no. lawForOwedSeats answers
+ * a law and has to answer one even where nothing finishes, so it floors to
+ * the parity reading; this is how a caller tells that floor from a real
+ * finish. Seats and headcounts only, with the same deliberate blind spot:
+ * it does not model who owes what, so it says yes to four A seats owed by
+ * one A. Yes is the safe way to be wrong here as well.
+ */
+export function seatsFinishable(
+  owedA: number,
+  owedB: number,
+  aCount: number,
+  bCount: number,
+): boolean {
+  return finishExists(FREE_SHAPES, owedA, owedB, aCount, bCount);
 }
 
 /**

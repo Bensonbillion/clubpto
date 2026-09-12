@@ -22,7 +22,7 @@
 import type { Match, Player, PlayerTier, QueueEntry } from "../types";
 import {
   abLawFor, canFieldACMatch, chooseFour, designateB, lawForOwedSeats,
-  tierOf as tierOfPlayer, type LawContext, type Tier,
+  seatsFinishable, tierOf as tierOfPlayer, type LawContext, type Tier,
 } from "./tiers";
 import {
   deficit, slackFor, stateOf,
@@ -558,41 +558,62 @@ function lawfulFour(
       relaxed: ctx.relaxed,
       slack: slackFor(owedSeats),
     };
-    const base = classIds.size;
-    const memo = new Map<number, number>();
-    charge = (ids) => {
-      if (!ids.some((id) => seatOf.get(id)?.tier === "B")) return 0;
-      let sum = 0;
-      for (const id of ids) if (seatOf.get(id)?.tier === "A") sum += bGames.get(id) ?? 0;
-      return sum;
-    };
-    cost = (ids) => {
-      const cls = ids.map((id) => classOf.get(id)!).sort((m, n) => m - n);
-      const key = ((cls[0] * base + cls[1]) * base + cls[2]) * base + cls[3];
-      const hit = memo.get(key);
-      if (hit !== undefined) return hit;
-      // The court after these four play: the owed come down one, an
-      // at-target member spends a slack seat, and an A in a four with a B
-      // has had a B game. The charge for that game is added here, not in
-      // the state, so the oracle prices only what is still to come.
-      const after: MixingState = {
-        ...state,
-        as: as.map((a) => ({ ...a })),
-        bs: bs.map((b) => ({ ...b })),
-        cs: cs.map((c) => ({ ...c })),
+    // THE ORACLE'S BLIND SPOT (2026-09-11), and why this draw may have no
+    // cost key at all. deficit() reads the mixing law off the parities;
+    // the draws run under lawForOwedSeats, the strictest law whose shapes
+    // can finish the seats. On a court even all night with no strict
+    // finish in it, two A's and three B's at four each and its mirror, the
+    // two disagree: the oracle prices the night at Infinity while the
+    // picker deals it out level. Infinity is NO_FINISH, which ranks above
+    // fairness, so the cost key reached for the four that got OUT of it
+    // and dealt the uneven shape first. That shape spends B seats three at
+    // a time, and a third A walking in then found the B's already spent:
+    // eight games where six fit, the three B's on seven each against a
+    // target of four. Where the oracle cannot price a court whose seats
+    // the picker's own law can finish, its answer is about its reading
+    // rather than the night, so it steers nothing here and the fairness
+    // and variety keys deal the games. The cap is not lost with it: on
+    // such a court every mixed shape is forced, so there is no four that
+    // spares anybody a second game with the B's.
+    const blind = ctx.cCount === 0 && !Number.isFinite(deficit(state))
+      && seatsFinishable(owedOf("A"), owedOf("B"), countOf("A"), countOf("B"));
+    if (!blind) {
+      const base = classIds.size;
+      const memo = new Map<number, number>();
+      charge = (ids) => {
+        if (!ids.some((id) => seatOf.get(id)?.tier === "B")) return 0;
+        let sum = 0;
+        for (const id of ids) if (seatOf.get(id)?.tier === "A") sum += bGames.get(id) ?? 0;
+        return sum;
       };
-      const mixes = ids.some((id) => seatOf.get(id)?.tier === "B");
-      for (const id of ids) {
-        const seat = seatOf.get(id)!;
-        const row = seat.tier === "A" ? after.as[seat.at] : seat.tier === "B" ? after.bs[seat.at] : after.cs[seat.at];
-        if (row.owed > 0) row.owed -= 1;
-        else after.slack -= 1;
-        if (seat.tier === "A" && mixes) after.as[seat.at].bGames += 1;
-      }
-      const price = charge!(ids) + Math.min(deficit(after), NO_FINISH);
-      memo.set(key, price);
-      return price;
-    };
+      cost = (ids) => {
+        const cls = ids.map((id) => classOf.get(id)!).sort((m, n) => m - n);
+        const key = ((cls[0] * base + cls[1]) * base + cls[2]) * base + cls[3];
+        const hit = memo.get(key);
+        if (hit !== undefined) return hit;
+        // The court after these four play: the owed come down one, an
+        // at-target member spends a slack seat, and an A in a four with a B
+        // has had a B game. The charge for that game is added here, not in
+        // the state, so the oracle prices only what is still to come.
+        const after: MixingState = {
+          ...state,
+          as: as.map((a) => ({ ...a })),
+          bs: bs.map((b) => ({ ...b })),
+          cs: cs.map((c) => ({ ...c })),
+        };
+        const mixes = ids.some((id) => seatOf.get(id)?.tier === "B");
+        for (const id of ids) {
+          const seat = seatOf.get(id)!;
+          const row = seat.tier === "A" ? after.as[seat.at] : seat.tier === "B" ? after.bs[seat.at] : after.cs[seat.at];
+          if (row.owed > 0) row.owed -= 1;
+          else after.slack -= 1;
+          if (seat.tier === "A" && mixes) after.as[seat.at].bGames += 1;
+        }
+        const price = charge!(ids) + Math.min(deficit(after), NO_FINISH);
+        memo.set(key, price);
+        return price;
+      };
+    }
   }
 
   // With the cap on, once every A in the band has had their game with the
@@ -1062,6 +1083,21 @@ function nightCharge(
  * could pass setup in silence. False for a court the oracle is not worth
  * asking (no A, or no B), because that is the case it has nothing to say
  * about rather than a court that is fine.
+ *
+ * AND THE ANSWER IS ASKED OF THE PICKER TOO. Infinity is the oracle's word
+ * for two different things: seats that no lawful game can divide, and seats
+ * its own reading of the mixing law cannot divide. deficit() reads that law
+ * off the parities, the draws read lawForOwedSeats, and on two courts of
+ * five the readings differ: two A's with three B's at four each, and its
+ * mirror, are even all night with no strict finish in them. The screen told
+ * the operator the balance laws could not give everyone on Court 1 exactly
+ * four games while the picker was dealing exactly that, five games with
+ * everyone on four, and pushed them to change a target that was right. So
+ * the seats are asked of the ladder as well, and a court both of them give
+ * up on is the only one that warns. A court WITH beginners keeps the
+ * oracle's answer whole: the ladder reads the A and B totals alone and a C
+ * game spends B seats, so on that court it is not the one to ask, which is
+ * also why the picker does not ask it there (2026-09-11).
  */
 export function unfinishableCourt(
   players: readonly Player[],
@@ -1069,7 +1105,12 @@ export function unfinishableCourt(
   targetMatches: number,
 ): boolean {
   const charge = nightCharge(players, court, targetMatches);
-  return charge !== null && !Number.isFinite(charge);
+  if (charge === null || Number.isFinite(charge)) return false;
+  const onCourt = players.filter((p) => isPlayable(p, court));
+  if (onCourt.some((p) => tierOfPlayer(p) === "C")) return true;
+  const aCount = onCourt.filter((p) => tierOfPlayer(p) === "A").length;
+  const bCount = onCourt.filter((p) => tierOfPlayer(p) === "B").length;
+  return !seatsFinishable(aCount * targetMatches, bCount * targetMatches, aCount, bCount);
 }
 
 /** What the third law costs a court, in the numbers a setup warning needs. */
