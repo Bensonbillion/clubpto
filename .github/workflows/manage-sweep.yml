@@ -20,8 +20,21 @@
 name: Manage sweep
 
 on:
-  # 09:17 UTC, which is early morning in Toronto and a minute nobody else is
-  # queued on.
+  # 09:17 UTC, early morning in Toronto, and an odd minute rather than the top
+  # of the hour because the top of the hour is where every other repository's
+  # cron piles up.
+  #
+  # That buys a shorter queue, not a start time. GitHub treats a cron as the
+  # earliest a run may fire rather than when it will, and under load a run is
+  # delayed or does not fire at all. The first run of this workflow was queued
+  # at 12:53 UTC on 2026-09-12, three hours thirty-seven minutes past its
+  # 09:17, and passed.
+  #
+  # So this is a sweep that happens most days, not a sweep that happens at a
+  # time. Fine for a guard nobody is waiting on, and worth knowing before
+  # reading a run's timestamp and wondering what broke: the run's own time is
+  # the fact, this cron is the request. When the answer is wanted now, use the
+  # Run workflow button, which is what workflow_dispatch below is for.
   schedule:
     - cron: "17 9 * * *"
   workflow_dispatch:
