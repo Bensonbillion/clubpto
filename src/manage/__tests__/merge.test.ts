@@ -179,8 +179,9 @@ describe("rule 4 and 5: one game, one court, one player", () => {
     //
     // Folding is the owner's call: one kept and the other reported, rather than
     // both counted. The row's copy stands, as it does for every other result
-    // conflict, and the phone that lost its copy is told, so if both games
-    // really were played the operator can put the other one back.
+    // conflict, and the phone that lost its copy is told, so the operator can
+    // decide. That is a promise to say so, not a promise that there is a way
+    // to enter the other game back into a row that is already played.
     const b = score(night(), "m1", 7, 5);
     const l = score(deal(b, live("m-1-2-local", 1, 2, ["a", "c", "b", "d"])), "m-1-2-local", 7, 2);
     const r = score(deal(b, live("m-1-2-row", 1, 2, ["a", "b", "c", "d"])), "m-1-2-row", 7, 4);
