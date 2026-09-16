@@ -158,3 +158,89 @@ describe("who gets a standings row", () => {
     expect(standingsIds(players, played, 1)).toEqual(["stay", "leftPlayed"]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The label has to be true, because three screens act on it.
+//
+// `separatedBy` says what put this row above the one below it, and it is not
+// decoration. ManageApp reads it three times: the reason line on frame 17
+// ("First to this score" / "Reached it later"), which rows are tappable, and
+// which pair frame 18's full-screen explainer opens on, with a clock time
+// against each side.
+//
+// The sort has FOUR keys, not three: points, then difference, then reachedAt,
+// and then a playerId backstop so the table is never non-deterministic. The
+// label only had three answers, so when the backstop decided, the row claimed
+// "reachedFirst" anyway.
+//
+// Two partners who win a game together hit all three real keys identically by
+// construction: same wins, same difference, same match. So after EVERY game
+// the two winners were told one of them got there first, and so were the two
+// losers, and tapping either opened a screen explaining a tie that did not
+// exist, with the same time printed on both halves of it.
+describe("separatedBy names the key that actually separated the rows", () => {
+  it("does not claim 'first to this score' about two partners who won together", () => {
+    seq = 0;
+    // One game. kate and sam are partners and win it, so they are level on
+    // points, on difference and on the match they reached their total in.
+    const rows = computeStandings(["kate", "sam", "ben", "priya"], [
+      M(["kate", "sam"], ["ben", "priya"], 6, 2),
+    ]);
+    const kate = row(rows, "kate"), sam = row(rows, "sam");
+    // The premise: nothing in the night separates them.
+    expect(kate.points).toBe(sam.points);
+    expect(kate.scoreDiff).toBe(sam.scoreDiff);
+    expect(kate.reachedAt).toBe(sam.reachedAt);
+    // So the label must not say one of them got there first.
+    expect(kate.separatedBy).not.toBe("reachedFirst");
+    expect(kate.separatedBy).toBe("level");
+  });
+
+  it("says the same about the two who lost together", () => {
+    seq = 0;
+    const rows = computeStandings(["kate", "sam", "ben", "priya"], [
+      M(["kate", "sam"], ["ben", "priya"], 6, 2),
+    ]);
+    // ben and priya are level on nought points and the same difference, and
+    // the row above them is the pair who beat them.
+    expect(row(rows, "ben").separatedBy).toBe("level");
+  });
+
+  it("still says reachedFirst when somebody really did get there first", () => {
+    seq = 0;
+    // The guard. This is the case the third key exists for, and the fix must
+    // not flatten it into "level" along with the partners.
+    const rows = computeStandings(["early", "late", "x", "y"], [
+      M(["early", "x"], ["late", "y"], 2, 0),
+      M(["x", "y"], ["early", "late"], 2, 0),
+      M(["late", "x"], ["early", "y"], 2, 0),
+    ]);
+    const e = row(rows, "early"), l = row(rows, "late");
+    expect(e.reachedAt).toBeLessThan(l.reachedAt!);
+    expect(e.separatedBy).toBe("reachedFirst");
+  });
+
+  it("leaves the points and diff labels alone", () => {
+    seq = 0;
+    const rows = computeStandings(["p", "q", "r", "s"], [
+      M(["p", "r"], ["q", "s"], 2, 0),
+      M(["q", "r"], ["p", "s"], 2, 1),
+    ]);
+    expect(row(rows, "p").separatedBy).toBe("diff");
+    // And a real points gap still reads as points.
+    seq = 0;
+    const gap = computeStandings(["w", "x", "y", "z"], [
+      M(["w", "x"], ["y", "z"], 2, 0),
+      M(["w", "y"], ["x", "z"], 2, 0),
+    ]);
+    expect(row(gap, "w").separatedBy).toBe("points");
+  });
+
+  it("still says nothing at all about the last row", () => {
+    seq = 0;
+    const rows = computeStandings(["a", "b", "c", "d"], [
+      M(["a", "b"], ["c", "d"], 2, 0),
+    ]);
+    expect(rows[rows.length - 1].separatedBy).toBeNull();
+  });
+});
