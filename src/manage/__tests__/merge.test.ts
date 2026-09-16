@@ -524,6 +524,23 @@ describe("a slot scored on two phones folds even when this phone has no base", (
     expect(notes).toHaveLength(0);
   });
 
+  it("duplicates the row already carries are left alone when this phone has none of its own there", () => {
+    // Pins the row-only skip. Deleting that one line used to leave every merge
+    // test passing. A row holding two scored copies of one slot is already
+    // broken, by an earlier bad merge, and a phone merging with nothing of its
+    // own in that slot has no business folding it: the only change on this
+    // phone is a game on another slot entirely.
+    const withTwoOnRow = deal(
+      deal(b, { ...live("m-1-2-r1", 1, 2, ["a", "b", "c", "d"]), scoreA: 7, scoreB: 3, status: "played", completedAt: 2000 }),
+      { ...live("m-1-2-r2", 1, 2, ["a", "c", "b", "d"]), scoreA: 7, scoreB: 6, status: "played", completedAt: 2100 },
+    );
+    const local = score(deal(b, live("m-1-3-local", 1, 3, ["a", "d", "b", "c"])), "m-1-3-local", 7, 1);
+    const { state, notes } = mergeSessions(null, local, withTwoOnRow);
+    const slot2 = state.matches.filter((m) => m.courtNumber === 1 && m.matchIndex === 2 && m.status === "played");
+    expect(slot2.map((m) => m.id).sort()).toEqual(["m-1-2-r1", "m-1-2-r2"]);
+    expect(notes).toHaveLength(0);
+  });
+
   it("the same four in a different slot is a rematch, and both games stay", () => {
     const r = score(deal(b, live("m-1-3-row", 1, 3, ["a", "c", "b", "d"])), "m-1-3-row", 7, 4);
     const { state, notes } = mergeSessions(null, localPairing, r);
