@@ -13,11 +13,26 @@
 // The digits are local state on purpose. A half-typed score is not part of the
 // night, it belongs to this sheet, and useSession stays the only thing that
 // writes a result.
+//
+// What a tap on Save MEANS is not in this file any more (2026-09-15). The rule
+// and the two held lines live in model.ts, where a test can reach them. They
+// used to be two booleans and an if-ladder inside the Save key's onClick, and
+// one of the two booleans was never cleared because the function that cleared
+// it was never called. Nothing in a node test run can open this sheet, so that
+// caller could only have been missed by reading, and it was.
 
 import { useState } from "react";
 import { PrimaryButton, SecondaryButton, Screen, Sheet, T } from "../../ui/primitives";
 import { CourtHeader } from "./CourtHeader";
-import type { CourtChip } from "./model";
+import {
+  NOTHING_HELD,
+  askedAbout,
+  bigScoreHeld,
+  heldLevel,
+  levelLineHeld,
+  saveIntent,
+} from "./model";
+import type { CourtChip, HeldLines } from "./model";
 
 export interface ScoreEntryProps {
   /** The header behind the sheet stays live: frame 12 keeps the chip row. */
@@ -48,9 +63,6 @@ export interface ScoreEntryProps {
 export const startValue = (score: number | null | undefined): string =>
   score == null ? "" : String(score);
 
-/** Past this, a number is far more often a mistap than a result. */
-const BIG_SCORE = 20;
-
 export const ScoreEntry = ({
   courts,
   activeCourtNumber,
@@ -66,29 +78,34 @@ export const ScoreEntry = ({
   onDismiss,
 }: ScoreEntryProps) => {
   /**
-   * The big-score nudge. Found on a live walk: a mistap recorded 75-0 and the
-   * night carried a +74 score difference nobody meant. Games at the club go
-   * to about seven, so anything past this line is far more often a typo than
-   * a result. It is a nudge and never a wall: the operator can keep any
-   * number, because the app does not get to overrule a score the room saw.
+   * The two lines this sheet can hold up instead of the margin sentence, in
+   * ONE piece of state.
+   *
+   * The big-score nudge came from a live walk: a mistap recorded 75-0 and the
+   * night carried a +74 score difference nobody meant. Games at the club go to
+   * about seven, so anything past that line is far more often a typo than a
+   * result. It is a nudge and never a wall, because the app does not get to
+   * overrule a score the room saw. The level line is the other one: a draw is
+   * refused by the writer, and refusing silently looked like a save that lost
+   * the numbers, so the sentence says what to do instead.
+   *
+   * Both are stored as the entry they were raised over rather than as a flag,
+   * so an edit withdraws them by moving the numbers out from under them. That
+   * is why write() and setSide() below clear nothing. Before 2026-09-15 they
+   * each cleared the level flag by hand and neither cleared the nudge, and the
+   * nudge then latched for the life of the sheet: nudge on a mistyped 75, fix
+   * it, mistype 99, and the second one saved on a single tap. The reset that
+   * was supposed to stop that existed, with a comment, and had no caller.
    */
-  const [confirmBig, setConfirmBig] = useState(false);
-  // Any edit withdraws the nudge: the number it asked about no longer exists.
-  const unNudge = () => setConfirmBig(false);
-  /**
-   * Level-score line. A draw is refused by the writer, and refusing silently
-   * looked like a save that lost the numbers. The sentence says what to do:
-   * one side won, so tap it and put the winning number right.
-   */
-  const [levelHeld, setLevelHeld] = useState(false);
+  const [held, setHeld] = useState<HeldLines>(NOTHING_HELD);
+  const levelHeld = levelLineHeld(a, b, side, held);
+  const confirmBig = bigScoreHeld(a, b, held);
 
   const current = side === "A" ? a : b;
   const write = (next: string) => {
-    setLevelHeld(false);
     onEntry(side === "A" ? { side, a: next, b } : { side, a, b: next });
   };
   const setSide = (which: "A" | "B") => {
-    setLevelHeld(false);
     onEntry({ side: which, a, b });
   };
 
@@ -97,9 +114,12 @@ export const ScoreEntry = ({
   const digit = (d: string) => write((current + d).slice(0, 2));
   const back = () => write(current.slice(0, -1));
 
-  // Nothing is saved until both boxes hold a number. A one-sided result would
-  // score a match nobody played the other half of.
-  const ready = a !== "" && b !== "";
+  // What the next tap on Save would do. The key is lit off the same answer
+  // that the key acts on, so the dead Save key and the refusal to save can
+  // never disagree: nothing is saved until both boxes hold a number, because
+  // a one-sided result would score a match nobody played the other half of.
+  const intent = saveIntent(a, b, held);
+  const ready = intent !== "notReady";
 
   const box = (label: string, value: string, which: "A" | "B") => {
     const on = side === which;
@@ -205,7 +225,7 @@ export const ScoreEntry = ({
             <div style={{ display: "flex", gap: 10 }}>
               <PrimaryButton
                 style={{ flex: 1, minHeight: 48 }}
-                onClick={() => setConfirmBig(false)}
+                onClick={() => setHeld(NOTHING_HELD)}
               >
                 Fix the score
               </PrimaryButton>
@@ -231,16 +251,21 @@ export const ScoreEntry = ({
           {key(
             "Save",
             () => {
-              if (!ready) return;
-              if (Number(a) === Number(b)) {
-                setLevelHeld(true);
-                return;
+              // Four outcomes, and the sheet only decides which line to hold
+              // up. `onSave` is untouched: the same two numbers in the same
+              // pair order, and the caller still decides who won.
+              switch (intent) {
+                case "notReady":
+                  return;
+                case "holdLevel":
+                  setHeld(heldLevel(a, b, side));
+                  return;
+                case "askBigScore":
+                  setHeld(askedAbout(a, b));
+                  return;
+                case "save":
+                  onSave(Number(a), Number(b));
               }
-              if (Math.max(Number(a), Number(b)) > BIG_SCORE && !confirmBig) {
-                setConfirmBig(true);
-                return;
-              }
-              onSave(Number(a), Number(b));
             },
             {
               font: `700 16px ${T.fontBody}`,

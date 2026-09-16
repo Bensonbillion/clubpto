@@ -21,7 +21,9 @@ import {
   type PlayoffStage,
   type SeededPair,
   type Stage,
+  orderedPlayerIds,
 } from "../playoff";
+import { computeStandings } from "../standings";
 
 const P = (id: string, over: Partial<Player> = {}): Player => ({
   id, name: id.toUpperCase(), walkIn: false, courtNumber: 1, away: false,
@@ -314,5 +316,100 @@ describe("a full first round is quarterfinals, not play-ins", () => {
     expect(fourteen[0].label).toBe("Play-ins");
     expect(fourteen[0].ties).toHaveLength(3);
     expect(fourteen[0].word).toBe("Play-in");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The bracket and the table have to agree about who is winning.
+//
+// A match's matchIndex is its SLOT in the card, and frame 12b lets the
+// operator step past the four standing on court and play a different row, so
+// the slot is not the order the night ran in. useSession.ts groupPlayed
+// already knows this: it sorts the played rows by completedAt and renumbers
+// them 1..n before handing them to computeStandings, and its comment says why
+// in as many words, that feeding slot numbers instead "would let a game scored
+// at nine o'clock rank as though it had been played first because it happened
+// to sit in row two".
+//
+// orderedPlayerIds, which seeds the bracket, does not renumber. It passes
+// m.matchIndex straight through. So the standings screen and the bracket read
+// the same night through two different ladders the moment anything is played
+// out of card order, which is a thing the card is explicitly designed to
+// allow. The audit of 2026-09-15 found it.
+//
+// The existing `group` helper above cannot catch this: it sets matchIndex and
+// completedAt to the same counter, so the two ladders agree by construction.
+// These matches set them apart on purpose.
+describe("seeding reads the night in the order it was played", () => {
+  // Two games on one court, card order and recorded order exactly reversed.
+  //   slot 1, finished LAST:  p1 and p2 beat p3 and p4, 6-4
+  //   slot 2, finished FIRST: p3 and p4 beat p1 and p2, 6-4
+  // Everyone ends on one win, three points and a score difference of zero, so
+  // the only thing left to separate them is who got there first. By the card
+  // that is p1 and p2. By the clock it is p3 and p4.
+  const outOfOrder: Match[] = [
+    {
+      id: "m-slot1", courtNumber: 1, matchIndex: 1,
+      teamA: ["p1", "p2"], teamB: ["p3", "p4"],
+      scoreA: 6, scoreB: 4, status: "played",
+      startedAt: 800, completedAt: 900, stage: null,
+    },
+    {
+      id: "m-slot2", courtNumber: 1, matchIndex: 2,
+      teamA: ["p3", "p4"], teamB: ["p1", "p2"],
+      scoreA: 6, scoreB: 4, status: "played",
+      startedAt: 100, completedAt: 200, stage: null,
+    },
+  ];
+  const four = [P("p1"), P("p2"), P("p3"), P("p4")];
+
+  /**
+   * The standings table's own ladder, built the way useSession.ts groupPlayed
+   * builds it. groupPlayed is not exported, so the renumbering is repeated
+   * here; if it ever changes, this test should be changed with it.
+   */
+  const tableOrder = (matches: readonly Match[], ids: readonly string[]): string[] => {
+    const played = [...matches]
+      .filter((m) => m.status === "played" && m.stage === null)
+      .sort((a, b) => (a.completedAt ?? 0) - (b.completedAt ?? 0) || a.matchIndex - b.matchIndex)
+      .map((m, i) => ({
+        matchIndex: i + 1,
+        completedAt: m.completedAt,
+        teamA: m.teamA,
+        teamB: m.teamB,
+        scoreA: m.scoreA ?? 0,
+        scoreB: m.scoreB ?? 0,
+      }));
+    return computeStandings(ids, played).map((r) => r.playerId);
+  };
+
+  it("seeds the pair who got there first, not the pair in the earlier row", () => {
+    expect(orderedPlayerIds(four, outOfOrder, 1)).toEqual(["p3", "p4", "p1", "p2"]);
+  });
+
+  it("agrees with the standings table the operator is looking at", () => {
+    // The real complaint. Two screens, one night, and no rule anywhere that
+    // says which of them is telling the truth.
+    const ids = four.map((p) => p.id);
+    expect(orderedPlayerIds(four, outOfOrder, 1)).toEqual(tableOrder(outOfOrder, ids));
+  });
+
+  it("still agrees when the card was played in order", () => {
+    // The guard against fixing this by swapping one arbitrary ladder for
+    // another: when nothing was played out of order the answer must not move.
+    const inOrder: Match[] = [
+      { ...outOfOrder[0], startedAt: 100, completedAt: 200 },
+      { ...outOfOrder[1], startedAt: 800, completedAt: 900 },
+    ];
+    const ids = four.map((p) => p.id);
+    expect(orderedPlayerIds(four, inOrder, 1)).toEqual(["p1", "p2", "p3", "p4"]);
+    expect(orderedPlayerIds(four, inOrder, 1)).toEqual(tableOrder(inOrder, ids));
+  });
+
+  it("carries the same order into readiness, which is what the bracket seeds from", () => {
+    // ManageApp seeds the bracket from readiness().eligible, so the ladder has
+    // to be right there too and not only in the function underneath it.
+    const ready = readiness(four, outOfOrder, 1, 1);
+    expect(ready.eligible).toEqual(["p3", "p4", "p1", "p2"]);
   });
 });

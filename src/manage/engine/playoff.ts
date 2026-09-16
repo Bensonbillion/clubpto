@@ -21,7 +21,7 @@
 // two things block a playoff: not enough players, and matches still owed.
 
 import type { Match, Player, PlayoffStage as StoredStage } from "../types";
-import { computeStandings, type PlayedMatch } from "./standings";
+import { computeStandings, groupPlayedInOrder } from "./standings";
 import { matchesPlayedBy } from "./rotation";
 
 /**
@@ -103,24 +103,24 @@ export function readiness(
   return { ready: true, eligible, matchesOutstanding: 0, blocker: null };
 }
 
-/** Standings order for one court, as player ids. */
+/**
+ * Standings order for one court, as player ids.
+ *
+ * The night is read through standings.ts groupPlayedInOrder, which is the same
+ * function useSession.ts hands the standings tab. That is the whole point of
+ * it being a function: the bracket is seeded off the table the operator is
+ * looking at, so the two cannot be allowed to order the night differently.
+ * This used to pass each match's card SLOT through as its sequence, and on a
+ * card played out of order (frame 12b) the board on the wall and the bracket
+ * disagreed about who finished on top.
+ */
 export function orderedPlayerIds(
   players: readonly Player[],
   matches: readonly Match[],
   court: number,
 ): string[] {
   const ids = players.filter((p) => p.courtNumber === court && !p.away).map((p) => p.id);
-  const played: PlayedMatch[] = matches
-    .filter((m) => m.courtNumber === court && m.status === "played" && m.stage === null)
-    .map((m) => ({
-      matchIndex: m.matchIndex,
-      completedAt: m.completedAt,
-      teamA: m.teamA,
-      teamB: m.teamB,
-      scoreA: m.scoreA ?? 0,
-      scoreB: m.scoreB ?? 0,
-    }));
-  return computeStandings(ids, played).map((r) => r.playerId);
+  return computeStandings(ids, groupPlayedInOrder(matches, court)).map((r) => r.playerId);
 }
 
 /** Seeds are walked four at a time, and each block of four makes two sides. */
