@@ -165,12 +165,46 @@ describe("rule 4 and 5: one game, one court, one player", () => {
     expect(notes[0]).toMatchObject({ kind: "resultKept" });
   });
 
-  it("both scored different fours into the same slot: both results stay", () => {
+  it("both scored a different pairing into the same slot: one game stands, the other is reported", () => {
+    // This test used to assert the opposite, "both results stay", on the
+    // reasoning that different fours are different games that both happened.
+    // On a round robin that reasoning does not hold. A slot is one court's one
+    // row, and this fixture is the tell: it is the SAME four people, a b c d,
+    // paired a+c v b+d on one phone and a+b v c+d on the other. Four people
+    // cannot play slot 2 of court 1 twice. Keeping both left the slot holding
+    // two played games on one court, with no note at all, and credited each of
+    // the four with a game that did not happen (2026-09-16: on this exact
+    // fixture the table read three games each on a night of two, and a on nine
+    // points and +10).
+    //
+    // Folding is the owner's call: one kept and the other reported, rather than
+    // both counted. The row's copy stands, as it does for every other result
+    // conflict, and the phone that lost its copy is told, so if both games
+    // really were played the operator can put the other one back.
     const b = score(night(), "m1", 7, 5);
     const l = score(deal(b, live("m-1-2-local", 1, 2, ["a", "c", "b", "d"])), "m-1-2-local", 7, 2);
     const r = score(deal(b, live("m-1-2-row", 1, 2, ["a", "b", "c", "d"])), "m-1-2-row", 7, 4);
-    const { state } = mergeSessions(b, l, r);
-    expect(state.matches.filter((m) => m.matchIndex === 2)).toHaveLength(2);
+    const { state, notes } = mergeSessions(b, l, r);
+    const slot2 = state.matches.filter((m) => m.matchIndex === 2 && m.courtNumber === 1);
+    expect(slot2).toHaveLength(1);
+    expect(slot2[0].id).toBe("m-1-2-row");
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatchObject({ kind: "resultKept", courtNumber: 1 });
+    const note = notes[0] as Extract<typeof notes[number], { kind: "resultKept" }>;
+    expect(note.kept.id).toBe("m-1-2-row");
+    expect(note.dropped.id).toBe("m-1-2-local");
+  });
+
+  it("the same four meeting again in a LATER slot is a rematch, and both games stay", () => {
+    // Scope. The fold is by slot, not by who played. The same four people
+    // legitimately play each other more than once across a night, in
+    // different rows, and nothing here may collapse those.
+    const b = score(night(), "m1", 7, 5);
+    const l = score(deal(b, live("m-1-2-local", 1, 2, ["a", "c", "b", "d"])), "m-1-2-local", 7, 2);
+    const r = score(deal(b, live("m-1-3-row", 1, 3, ["a", "c", "b", "d"])), "m-1-3-row", 7, 4);
+    const { state, notes } = mergeSessions(b, l, r);
+    expect(state.matches.filter((m) => m.status === "played")).toHaveLength(3);
+    expect(notes).toHaveLength(0);
   });
 
   it("the same knockout tie dealt to two courts collapses to the row's court", () => {
