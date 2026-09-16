@@ -11,7 +11,9 @@
 // puts all the A's alone and the B's in with the C's (frame B31), because C
 // never plays with an A and B is the bridge. Some nights have no C at all.
 // One rule generates all of those: C's on the last court, A's on the first,
-// and every B placed onto whichever court is currently smaller.
+// and the B's spread to level the courts, except that the C court is told how
+// many B's it may take BEFORE the spreading starts. That exception is the
+// whole of the 2026-09-15 fix and bQuotasForCCourt says why it exists.
 
 import type { Player } from "../types";
 import { tierOf, MIN_CS_FOR_A_C_MATCH, type Tier } from "./tiers";
@@ -129,6 +131,62 @@ export function suggestTarget(courtSize: number): number | null {
   return valid[0] ?? null;
 }
 
+/** A court is unable to run at all below this, and suggestTarget says null. */
+const MIN_COURT_SIZE = 4;
+
+/**
+ * How many B's the C court is allowed to hold, out of the `bCount` there are,
+ * given the `cCount` C's already standing on it.
+ *
+ * This is read off the laws in ./tiers rather than invented. Once three C's
+ * are present the court can field a real C match, and a C match seats exactly
+ * one B, the designated bridge. So the second B on such a court has only the
+ * other B's to play with, and two B's or three B's cannot make a four among
+ * themselves. Those two counts, and only those two, leave somebody with no
+ * legal foursome on their court for the whole night. Hence the answer: none,
+ * one bridge, or four and up, which is enough B's to run their own games
+ * alongside the C's. Frame B31 is the "four and up" case, sixteen A's alone
+ * while four B's bridge ten C's, and it is why this is not simply "at most
+ * one".
+ *
+ * Below three C's nothing is excluded. The court runs relaxed, the C's mix
+ * among the B's freely, and any count of B's can be dealt a game. A court
+ * left under four players is a different complaint and already has its own
+ * note, so this does not try to answer it as well.
+ *
+ * Found on 2026-09-15. Walking every B onto whichever court was smallest, the
+ * rule this replaces on the C court, stranded somebody in 448 of the 3,534
+ * A/B/C shapes a night of eight to twenty-six people can take, with no
+ * operator error anywhere: six A's, four B's and three C's put B's seven,
+ * eight and nine on the C court and only one of them could ever play.
+ */
+function bQuotasForCCourt(cCount: number, bCount: number): number[] {
+  const out: number[] = [];
+  for (let q = 0; q <= bCount; q++) {
+    if (cCount >= MIN_CS_FOR_A_C_MATCH && (q === 2 || q === 3)) continue;
+    out.push(q);
+  }
+  return out;
+}
+
+/**
+ * The court sizes that follow from sending `extra` more players onto courts
+ * of these sizes, one at a time, each onto whichever court is smallest.
+ *
+ * The same walk the placement itself does, run on numbers alone. It exists so
+ * the C court's quota can be chosen against what the night would actually
+ * look like, before a single name is placed, rather than against a guess.
+ */
+function levelled(base: readonly number[], extra: number): number[] {
+  const sizes = [...base];
+  for (let i = 0; i < extra; i++) {
+    let at = 0;
+    for (let j = 1; j < sizes.length; j++) if (sizes[j] < sizes[at]) at = j;
+    sizes[at] += 1;
+  }
+  return sizes;
+}
+
 /**
  * Suggest a starting split for the night.
  *
@@ -180,10 +238,50 @@ export function suggestSplit(
       place(p, open.length > 0 ? smallest(open) : smallest(aCourts));
     });
     cs.forEach((p) => place(p, cCourt));
-    // B is the bridge: each one goes to whichever court is currently smaller,
-    // which is what turns 16 A, 4 B, 10 C into all-A against B-with-C without
-    // that shape ever being written down as a rule.
-    bs.forEach((p) => place(p, smallest(courts)));
+
+    // B is the bridge, and how many bridges the C court wants is decided here,
+    // once, before a single B is placed. Sending each B to whichever court is
+    // currently smallest is the right instinct on an A court and the wrong one
+    // on the C court, where the laws count the B's and not the bodies: a court
+    // of six holding three B's and three C's looks perfectly balanced and
+    // leaves two of those three B's without a single game all night.
+    //
+    // So the laws speak first and balance chooses among what they leave. It is
+    // still balance that turns 16 A, 4 B and 10 C into all-A against
+    // B-with-C, sixteen against fourteen, without that shape being written
+    // down as a rule anywhere.
+    const aBase = aCourts.map((c) => sizes.get(c) ?? 0);
+    const cBase = sizes.get(cCourt) ?? 0;
+    // What balance means here, in the order it matters. First, how many courts
+    // are left under four and so cannot run at all. Then the gap between the
+    // fullest court and the emptiest, because a court of four plays every game
+    // of the night with the same four people. Ties go to the smaller quota,
+    // which keeps the B's with the A's where sending them to the C court buys
+    // nothing.
+    //
+    // The under-four term reads like tidiness and is not. It is what keeps a
+    // thin Sunday alive: five B's and three C's over three courts comes out
+    // 2/2/4, where the C court fields three C's and the bridge, rather than
+    // the 3/2/3 that a gap-only rule prefers and on which nobody plays a
+    // single game all night. No test pins that, so it is written down here
+    // instead.
+    const cost = (q: number): [number, number] => {
+      const all = [...levelled(aBase, bs.length - q), cBase + q];
+      return [
+        all.filter((n) => n < MIN_COURT_SIZE).length,
+        Math.max(...all) - Math.min(...all),
+      ];
+    };
+    let quota = 0;
+    let bestCost: [number, number] | null = null;
+    for (const q of bQuotasForCCourt(cs.length, bs.length)) {
+      const c = cost(q);
+      if (bestCost === null || c[0] < bestCost[0] || (c[0] === bestCost[0] && c[1] < bestCost[1])) {
+        bestCost = c;
+        quota = q;
+      }
+    }
+    bs.forEach((p, i) => place(p, i < quota ? cCourt : smallest(aCourts)));
   }
 
   const targets = new Map<number, number>();
