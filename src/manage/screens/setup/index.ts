@@ -19,7 +19,11 @@ export { WhoIsHere } from "./WhoIsHere";
 export type { WhoIsHereProps, RosterRow, TierPrompt } from "./WhoIsHere";
 
 export { Courts } from "./Courts";
-export { noteWords } from "./model";
+// noteWords is what frame 07 draws; startBlockers and startBlockerWords are
+// what its Next button asks with when one of those notes means somebody gets
+// no game. The decision is a function over notes rather than a disabled
+// button, and model.ts says at length why.
+export { noteWords, startBlockers, startBlockerWords } from "./model";
 export type { CourtsProps, SetupCourt, CourtChip } from "./Courts";
 
 export { MatchesEach } from "./MatchesEach";

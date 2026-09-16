@@ -15,6 +15,7 @@
 // from the Standings tab and the frame draws no close control. Tapping a tab
 // is the way out.
 
+import { sayableSeparation, type SeparatedBy } from "../../engine/standings";
 import type { Tab } from "../../ui/primitives";
 import { Body, Card, Eyebrow, FooterBar, PrimaryButton, Screen, T, TabBar, TertiaryButton } from "../../ui/primitives";
 import { signed } from "./format";
@@ -62,8 +63,13 @@ export interface SummaryStandingRow {
    * What separated this row from the one directly BELOW it, straight off
    * engine/standings.ts. The paste prints a reason only where points alone did
    * not decide the order, which is how a line stays readable at eight players.
+   *
+   * This used to be the union written out again by hand, and on 2026-09-15 the
+   * engine grew a fourth answer that this copy did not have. It is the engine's
+   * own type now, so the next answer arrives here whether anyone remembers this
+   * file or not.
    */
-  separatedBy?: "points" | "diff" | "reachedFirst" | null;
+  separatedBy?: SeparatedBy;
 }
 
 export interface SummaryCourtStandings {
@@ -126,11 +132,19 @@ export interface SessionSummaryProps {
  * decided on points, apparently so the top two diffs read together. Attaching
  * a reason to a row that did not need one would put a number on most rows of a
  * tied court, so the rule above stands and rank 2 will print bare.
+ *
+ * A row the engine labels "level" prints bare for a harder reason: nothing
+ * separated it from the row below, so there is no reason to give. Two partners
+ * who won a game together are level on every real key by construction, and
+ * before 2026-09-15 both of them carried "(first to score)" into the paste,
+ * into WhatsApp, and into the one record of the night anybody keeps.
  */
-const rankReason = (row: SummaryStandingRow): string =>
-  row.separatedBy === "reachedFirst" ? " (first to score)"
-    : row.separatedBy === "diff" ? ` (${signed(row.diff)})`
+const rankReason = (row: SummaryStandingRow): string => {
+  const split = sayableSeparation(row.separatedBy ?? null);
+  return split === "reachedFirst" ? " (first to score)"
+    : split === "diff" ? ` (${signed(row.diff)})`
       : "";
+};
 
 /**
  * "Wednesday · 16 players · 2 courts", the line the screen and the paste both

@@ -117,3 +117,177 @@ export const noteWords = (note: SplitNote): string => {
     }
   }
 };
+
+// ---------------------------------------------------------------------------
+// The forward action on frame 07.
+//
+// The step drew its warnings in red and then offered a fully enabled "Next:
+// matches each" underneath them. The audit of 2026-09-15 found that an
+// operator setting up at 8:05 with a queue at the desk taps straight past the
+// red, and that the symptom on the night is only a player whose name never
+// comes up.
+//
+// So the step ASKS. It does not refuse, and the measurement is the reason.
+// Over every A/B/C mix a night of five to twenty-six can take, 303 shapes have
+// no court count at all (1, 2 or 3) that clears both warnings, and fourteen of
+// them exist at every headcount from eight to twenty-six. One A at a
+// beginners' night, 1A/2B/9C, is one of them: that A can never be dealt a
+// lawful game at any split, so a disabled Next would stop the night for the
+// other eleven people. engine/standings.ts calls the old coin-flip gate "the
+// single largest source of 'why is the app stopping me' on a live night", and
+// a disabled Next here would have been the second. The app must never be the
+// reason a night does not start.
+//
+// MatchesEach.tsx can safely disable its own Next, and the difference is worth
+// holding on to: on that screen a cure always exists, because every court of
+// four or more has at least one runnable target. This screen has no such
+// guarantee, which is exactly why it asks instead of refusing.
+//
+// Which notes ask and which stay quiet is the whole of the decision, so it
+// lives here as a function over notes, beside the sentences, and is tested as
+// one. There is no DOM test environment (vitest.config.ts sets "node"), so a
+// decision buried in an onClick would be untestable.
+
+/**
+ * The two notes that mean a named person gets no game at all.
+ *
+ * `stranded` is somebody the balance laws leave with no legal foursome, and
+ * `courtTooSmall` is a court of fewer than four that cannot run. Both end the
+ * same way for the people involved: their name never comes up.
+ */
+// Every kind answers, and the compiler makes sure of it. tsconfig.app.json
+// runs with "strict": false and no noImplicitReturns, so the obvious spelling,
+// a type guard listing two kinds by hand, lets a SEVENTH note kind arrive and
+// be silently non-blocking: nothing breaks, nothing warns, and the new warning
+// quietly never asks. The `satisfies` below is a real gate whatever the strict
+// flags say. Adding a kind to SplitNote stops the build here until somebody
+// decides whether it means a person gets no game.
+const BLOCKS_THE_NIGHT = {
+  tooFewCs: false,
+  exactlyThreeCs: false,
+  capBends: false,
+  capStuck: false,
+  courtTooSmall: true,
+  stranded: true,
+} as const satisfies Record<SplitNote["kind"], boolean>;
+
+// Derived from the record rather than retyped, so the two cannot drift apart.
+type BlockingKind = {
+  [K in SplitNote["kind"]]: (typeof BLOCKS_THE_NIGHT)[K] extends true ? K : never;
+}[SplitNote["kind"]];
+type StartBlocker = Extract<SplitNote, { kind: BlockingKind }>;
+
+const isStartBlocker = (note: SplitNote): note is StartBlocker =>
+  BLOCKS_THE_NIGHT[note.kind];
+
+/**
+ * How many NAMED people this note leaves with nobody to play.
+ *
+ * Only the stranded are counted, and that is a correctness point rather than a
+ * stylistic one. Stranded names come from engine/substitutes.ts
+ * strandedPlayers, which deliberately excludes anyone marked away.
+ * `courtTooSmall.size` is the chips on the court and includes them. Summing
+ * the two would say "three people" about a court of three where one of them
+ * went home at nine having played four games, and the headcount is the one
+ * claim in this paragraph that cannot afford to be wrong. A court too small
+ * is named in its own clause instead, which loses nothing: that clause
+ * already quotes the size.
+ */
+const peopleLeftOut = (note: StartBlocker): number =>
+  note.kind === "stranded" ? note.names.length : 0;
+
+/**
+ * One blocker, said as the fact it is.
+ *
+ * Shorter than the same note's `noteWords`, deliberately. The operator has
+ * already read the long version in red on the screen behind the sheet; what
+ * the sheet owes them is the names and the courts, not the advice a second
+ * time in a smaller box.
+ */
+const blockerClause = (note: StartBlocker): string => {
+  switch (note.kind) {
+    case "stranded":
+      return `${listNames(note.names)} ${note.names.length === 1 ? "has" : "have"}`
+        + ` no legal game on Court ${note.courtNumber}.`;
+    case "courtTooSmall":
+      return `Court ${note.courtNumber} has ${countWord(note.size)}`
+        + ` ${note.size === 1 ? "player" : "players"} and a match needs four.`;
+    default: {
+      // The other half of the gate above: a kind marked true in
+      // BLOCKS_THE_NIGHT with no sentence written for it fails to compile here
+      // rather than reaching a sheet with a hole in its paragraph.
+      const unwritten: never = note;
+      return unwritten;
+    }
+  }
+};
+
+/**
+ * The notes that mean somebody will not get a game, in the order they arrived.
+ *
+ * Input order IS the stable order, on purpose: ManageApp builds `splitNotes`
+ * court by court and Courts.tsx draws them in that order, so the sheet reads
+ * down in the same sequence as the red lines the operator was just looking at.
+ * Re-sorting here would make the sheet a second, differently ordered list of
+ * the same complaints, which is how an operator ends up thinking there are
+ * four problems when there are two.
+ *
+ * `capStuck` is NOT here, though the courts step draws it in the same red. Its
+ * own sentence ends "Change the target, or move somebody across", and the
+ * target step comes AFTER this one, so asking about it here would bounce the
+ * operator between two screens to answer one question. `tooFewCs`,
+ * `exactlyThreeCs` and `capBends` are not here either: all three describe a
+ * night that runs and finishes everyone on target.
+ */
+export const startBlockers = (notes: readonly SplitNote[]): SplitNote[] =>
+  notes.filter(isStartBlocker);
+
+/**
+ * The confirm sheet's paragraph, or null when the night can start in silence.
+ *
+ * Frame 26's rule, quoted at the top of screens/summary-states/confirm-sheet.tsx,
+ * is that every destructive action names exactly what will be lost, and that
+ * is the bar this sentence is written to: the people by name where the note
+ * knows their names, the court by number where it does not, and then the
+ * consequence as a headcount, so the operator can weigh it in one glance
+ * against the queue at the desk.
+ *
+ * "As the courts stand" rather than "if you start now", because Next goes to
+ * the target step rather than starting anything, and a sentence that said
+ * "start" two screens early would be the sheet lying about its own button.
+ *
+ * The two kinds never count the same person twice: ManageApp only asks
+ * strandedPlayers about a court of four or more, and only emits courtTooSmall
+ * about a court of fewer than four, so no court can raise both.
+ */
+export const startBlockerWords = (notes: readonly SplitNote[]): string | null => {
+  const blockers = notes.filter(isStartBlocker);
+  if (blockers.length === 0) return null;
+  const people = blockers.reduce((sum, note) => sum + peopleLeftOut(note), 0);
+  const deadCourts = blockers.filter((note) => note.kind === "courtTooSmall");
+  // "As the courts stand" rather than "if you start now", and "has no game to
+  // play" rather than "plays no games at all tonight". The wizard is reachable
+  // mid-night, so a paragraph that talks about starting, or about a whole
+  // evening, is false on the visit where somebody has already played four
+  // games and a drag has just stranded them. What is true on every visit is
+  // the split as it sits on the screen behind the sheet.
+  //
+  // countWord runs out at twenty-four and falls back to digits. Reaching that
+  // needs a twenty-fifth stranded person on one night, which no split of a
+  // roster this manager runs can produce, so the fallback stays theoretical.
+  //
+  // Both halves are said when both are present. Counting only the stranded
+  // and stopping there would undercount the other way: a court of three is
+  // three more people with no game, and a tail that says "one person" under a
+  // clause about Court 2 reads as though the app had not noticed the court.
+  const counted = people === 1
+    ? "one person has no game to play"
+    : `${countWord(people)} people have no game to play`;
+  const dead = deadCourts.length === 1 ? "that court cannot run" : "those courts cannot run";
+  const tail = people > 0 && deadCourts.length > 0
+    ? `As the courts stand, ${counted}, and ${dead}.`
+    : people > 0
+      ? `As the courts stand, ${counted}.`
+      : `As the courts stand, ${dead}.`;
+  return `${blockers.map(blockerClause).join(" ")} ${tail}`;
+};
