@@ -181,6 +181,11 @@ export interface IndividualChampion {
    * 24's closing line, "Chizea second on 9, Timi third on 9 by score
    * difference", is only true when this is "diff", so the screen reads it
    * rather than guessing from the numbers.
+   *
+   * It can also be "level" (2026-09-15), meaning nothing separated them: the
+   * table put second above third on its deterministic backstop and no key of
+   * the night did. The screen draws no clause for that, the same as it draws
+   * none for an order break, because frame 24 has words for neither.
    */
   secondFromThird: StandingsRow["separatedBy"];
 }

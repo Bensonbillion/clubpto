@@ -36,7 +36,7 @@ import {
 import { legalSubstitutes, strandedPlayers } from "./engine/substitutes";
 import { suggestSplit, suggestTarget, type SplitNote } from "./engine/split";
 import { MIN_CS_FOR_A_C_MATCH, tierOf } from "./engine/tiers";
-import { POINTS_PER_WIN, type StandingsRow } from "./engine/standings";
+import { POINTS_PER_WIN, sayableSeparation, type StandingsRow } from "./engine/standings";
 import { buildStages, isTrio, seedPairs } from "./engine/playoff";
 import {
   endingFor, individualChampion, mayChooseEnding, oneMoreRoundChange,
@@ -1426,6 +1426,11 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
       rank: r.rank,
       playerName: pairOf(s.teams!.pairs.find((p) => pairKey(p) === r.playerId)?.playerIds ?? []),
       points: r.points, diff: r.scoreDiff,
+      // The guard stays: a pair with no matches played has nothing to explain,
+      // whatever the engine labelled the gap under it. The engine now says
+      // "level" where two rows are level on every real key, and the paste
+      // prints nothing for that, so the two rules agree rather than one
+      // covering for the other (2026-09-15).
       separatedBy: r.matchesPlayed > 0 ? r.separatedBy : null,
     })),
   }] : [];
@@ -1467,9 +1472,13 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         rank: r.rank, playerName: name(r.playerId),
         points: r.points, diff: r.scoreDiff,
         // Same guard as the standings table. The summary is readable all night,
-        // so most of it is rows on zero, and the engine separates those by
-        // "reachedFirst" because it is the last key left. Passed through, every
-        // one of them read "(first to score)" about a game they have not played.
+        // so most of it is rows on zero, and the engine used to separate those
+        // by "reachedFirst" because it was the last key left. Passed through,
+        // every one of them read "(first to score)" about a game they have not
+        // played. The engine calls that pair "level" now (2026-09-15) and the
+        // paste prints nothing for it, but the guard stays: it is about a row
+        // with no matches, which is a fact this file knows and the label alone
+        // does not carry.
         separatedBy: r.matchesPlayed > 0 ? r.separatedBy : null,
       })),
     })),
@@ -1986,12 +1995,18 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
       const reachedAt = (row: StandingsRow | undefined) =>
         clockTime(row ? inOrder[row.reachedAt - 1]?.completedAt : undefined);
       const explainable = (i: number) => rowsIn[i]?.matchesPlayed > 0;
+      // Same reading as the individual table, through the same funnel, so the
+      // two tabs cannot drift apart on what they claim (2026-09-15). A pair
+      // the engine labels "level" comes back null here and the row carries no
+      // line. Two pairs that have not played yet are the common case on this
+      // tab, and they used to read "First to this score" at each other.
+      const splitBy = (i: number) => sayableSeparation(rowsIn[i]?.separatedBy ?? null);
       const reasonFor = (i: number): StandingsTabRow["reason"] => {
         if (!explainable(i)) return null;
         const at = reachedAt(rowsIn[i]);
-        if (at && rowsIn[i].separatedBy === "reachedFirst") return { kind: "firstToThisScore", atClockTime: at };
-        if (at && rowsIn[i - 1]?.separatedBy === "reachedFirst") return { kind: "reachedItLater", atClockTime: at };
-        if (rowsIn[i - 1]?.separatedBy === "diff") return { kind: "behindOnDiff" };
+        if (at && splitBy(i) === "reachedFirst") return { kind: "firstToThisScore", atClockTime: at };
+        if (at && splitBy(i - 1) === "reachedFirst") return { kind: "reachedItLater", atClockTime: at };
+        if (splitBy(i - 1) === "diff") return { kind: "behindOnDiff" };
         return null;
       };
       return (
@@ -2477,28 +2492,41 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
      */
     const rowsIn = view.standings;
     // A row nobody has played yet explains nothing. Early in the night most of
-    // the table is level on zero, and the engine separates those rows by
-    // "reachedFirst" because that is the last key standing; read straight
+    // the table is level on zero, and the engine used to separate those rows by
+    // "reachedFirst" because that was the last key standing; read straight
     // through, every one of them printed "First to this score" against a blank
     // clock. Two wrong claims in one line: they did not get anywhere first, and
-    // there is no time at which they did it.
+    // there is no time at which they did it. The engine calls two such rows
+    // "level" now, so this guard and the label agree, and it stays because it
+    // knows a fact the label does not: that the row has played nothing at all.
     const explainable = (i: number) => rowsIn[i] != null && rowsIn[i].matchesPlayed > 0;
+    // And a row nothing separated explains nothing either, which is the other
+    // half of the same bug and the half this guard could never cover, because
+    // partners HAVE played (2026-09-15). Two people who win a game together
+    // are level on points, on difference and on the match they reached their
+    // total in, so the engine now labels that pair "level" and
+    // sayableSeparation gives back null for it. Read through here that means
+    // no line on frame 17, and through tiedWith below, no tap into frame 18.
+    // Silence is the whole point: nothing separated them, so there is nothing
+    // truthful to print, and the old line printed one time against both of
+    // them as if it were two different times.
+    const splitBy = (i: number) => sayableSeparation(rowsIn[i]?.separatedBy ?? null);
     const reasonFor = (i: number): StandingsTabRow["reason"] => {
       if (!explainable(i)) return null;
       const at = reachedAt(rowsIn[i]);
-      if (at && rowsIn[i].separatedBy === "reachedFirst") {
+      if (at && splitBy(i) === "reachedFirst") {
         return { kind: "firstToThisScore", atClockTime: at };
       }
-      if (at && rowsIn[i - 1]?.separatedBy === "reachedFirst") {
+      if (at && splitBy(i - 1) === "reachedFirst") {
         return { kind: "reachedItLater", atClockTime: at };
       }
-      if (rowsIn[i - 1]?.separatedBy === "diff") return { kind: "behindOnDiff" };
+      if (splitBy(i - 1) === "diff") return { kind: "behindOnDiff" };
       return null;
     };
     const tiedWith = (i: number): string | null => {
       if (!explainable(i)) return null;
-      if (rowsIn[i].separatedBy === "reachedFirst") return rowsIn[i + 1]?.playerId ?? null;
-      if (rowsIn[i - 1]?.separatedBy === "reachedFirst") return rowsIn[i - 1].playerId;
+      if (splitBy(i) === "reachedFirst") return rowsIn[i + 1]?.playerId ?? null;
+      if (splitBy(i - 1) === "reachedFirst") return rowsIn[i - 1].playerId;
       return null;
     };
 
@@ -2512,15 +2540,24 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
     // Frame 18 explains one pair of rows, and it is always the pair an order
     // break separated. Whichever of the two was tapped, the higher of them
     // opens the sheet.
+    //
+    // A row labelled "level" is not an order break, so it never opens this
+    // screen on itself; it falls to the row above, and the guard below then
+    // asks that row for a drawn reason line. A partner pair reaches neither:
+    // no reason line, no tap, no full screen (2026-09-15).
     const tapped = ui.tiePlayerId != null
       ? rowsIn.findIndex((r) => r.playerId === ui.tiePlayerId)
       : -1;
     const top = tapped < 0 ? -1
-      : rowsIn[tapped].separatedBy === "reachedFirst" ? tapped : tapped - 1;
+      : splitBy(tapped) === "reachedFirst" ? tapped : tapped - 1;
 
     // Only a pair an order break actually separated, which is the pair whose
     // reason line was drawn. Anything else has no times to put on the rows.
-    if (top >= 0 && rows[top]?.reason != null && rows[top + 1]) {
+    // The first clause says that out loud rather than leaving it to be
+    // inferred from which rows the table made tappable: frame 18 prints a
+    // clock time against each side and a line about who got there first, and
+    // on a pair the order did not separate both halves print the same time.
+    if (top >= 0 && splitBy(top) === "reachedFirst" && rows[top]?.reason != null && rows[top + 1]) {
       return (
         <>
           <TieBrokenByOrder
