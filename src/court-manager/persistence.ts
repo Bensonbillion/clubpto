@@ -5,7 +5,10 @@
 //   1. Every state change writes to local storage synchronously, first.
 //   2. Remote (Supabase) syncs in the background; a pending indicator tells the
 //      admin when the last write hasn't reached the server yet.
-//   3. Load order: active local session → remote → defaults, last resort.
+//   3. Load order: active local session → remote → defaults, last resort. A
+//      local session is handed back WITHOUT waiting for the row (2026-09-16),
+//      because rule 1 is worth nothing if the read makes the operator wait on
+//      the wifi anyway; the row follows in the background and merges in.
 //
 // Two phones on one night. The shared row is a straight line of versions,
 // stamped by the server, and every accepted push is a compare-and-set
@@ -55,7 +58,25 @@ export type SyncStatus = "synced" | "pending" | "error";
 export interface SessionStore<T> {
   /** Synchronous local write FIRST, then a background remote push. */
   save(state: T, nowMs: number): void;
-  /** local → remote → defaults. Never throws; wifi failures degrade gracefully. */
+  /**
+   * local → remote → defaults. Never throws; wifi failures degrade gracefully.
+   *
+   * A local copy RESOLVES THIS AT ONCE (2026-09-16), with source "local", and
+   * the row is pulled behind it: the venue's wifi does not get to stand
+   * between the operator and a night already on their phone. News from that
+   * late row arrives through `onRow`, the same way the follow poll delivers
+   * it, so the caller merges it against whatever is on screen by then. With
+   * no local copy this still waits for the row, because an empty session
+   * handed back early is what makes the door offer to start a night over one
+   * that already exists.
+   *
+   * `source` is therefore one of "local", "remote" (no local copy, the row
+   * answered) and "defaults". "merged" stays in the union as a shape the
+   * caller may still be asked to handle, but nothing produces it any more:
+   * the merge now happens after this resolves, through `onRow`. Do not read
+   * `source` as "did the row have news"; ask the sync status, or wait to be
+   * handed the row.
+   */
   load(): Promise<{ state: T; source: "local" | "remote" | "merged" | "defaults" }>;
   /**
    * When the copy this device holds was saved, or null before anything was
@@ -184,6 +205,23 @@ export function createSessionStore<T>(config: SessionStoreConfig<T>): SessionSto
   const versionOf = (env: Envelope<T> | null): number | null =>
     env == null ? null : (env.version ?? 0);
 
+  /**
+   * A free function rather than only a method (2026-09-16), so the background
+   * pull can ask the same question the caller asks. It is answered at the
+   * moment it is asked, against whatever base the store holds then, which is
+   * the point: a row that answers late is judged against the base this phone
+   * has by then, not the one it had when load() was called.
+   */
+  const isNews = (row: Envelope<T>): boolean => {
+    if (!base) return true;
+    // A row without a version came from a function older than this build:
+    // the clock is all there is. With versions, only a row PAST the base is
+    // news; a pull that lands after this phone's own push was accepted can
+    // carry the row from before it, and that is not news, it is history.
+    if (row.version == null) return row.savedAt > base.savedAt;
+    return row.version > (base.version ?? 0);
+  };
+
   /** The row is what this phone shows and agrees with. */
   const takeRow = (row: Envelope<T>) => {
     latest = row;
@@ -270,6 +308,65 @@ export function createSessionStore<T>(config: SessionStoreConfig<T>): SessionSto
     return merged;
   };
 
+  /**
+   * The row, asked for off the critical path (2026-09-16).
+   *
+   * Only load()'s local branch uses this, and only because that branch now
+   * returns before the answer arrives. Everything it does when the answer
+   * lands is what the awaited version did, moved later in time:
+   *   - news goes through config.onRow when there is one, which is the SAME
+   *     door the follow poll uses (useSession's takeRow reconciles inside its
+   *     own state updater). That is what makes a row answering ten seconds
+   *     late merge against whatever is on screen by then, including taps the
+   *     operator made while the portal was still thinking, rather than against
+   *     the copy that was on screen when load() was called.
+   *   - without an onRow the store reconciles against its own `latest`, which
+   *     is exactly what the refused-push path does.
+   *   - a row that is not news, over unpushed taps, still starts the chase.
+   *   - a pull that throws still says error, because a phone that opened the
+   *     night with the row unreachable is keeping the night to itself, and a
+   *     green line claiming it is shared would send a second phone to a blank
+   *     screen. It just says so when the portal gives up rather than before
+   *     the night is drawn.
+   *
+   * Nothing here writes `latest` or `base` itself. reconcile() owns both, and
+   * it reads the CURRENT copy rather than the one load() captured, so a save
+   * made while the pull was out is merged with rather than written over.
+   */
+  const pullInBackground = async (): Promise<void> => {
+    if (!config.remote) return;
+    try {
+      // Let load() resolve first, always. Everything below can hand the caller
+      // a row, and a caller that has not yet been given its own night would
+      // reconcile that row against an empty session and then push the result.
+      // In the app that cannot happen, because pull() is a fetch and a
+      // macrotask always yields to the caller's microtask. But the margin is
+      // exactly one hop, so a test that stubs pull as `async () => row` would
+      // invert it and reconcile against nothing. This makes the ordering a
+      // property of the code rather than of how fast the fake is (2026-09-16).
+      await Promise.resolve();
+      const row = upgrade(await config.remote.pull());
+      // clearLocal() ran while the pull was out: this phone has deliberately
+      // let go of the night and there is nothing left to reconcile against.
+      // Taking the row here would write the cleared night back over the reset.
+      if (latest == null) return;
+      if (row && isNews(row)) {
+        // A device that has been away holds an older row, or holds taps made
+        // over one. Adopt or merge; never republish the stale copy over
+        // everyone else's work.
+        if (config.onRow) config.onRow(row);
+        else reconcile(row, latest.state, Date.now());
+        return;
+      }
+      if (dirty()) {
+        setStatus("pending");
+        void pushLatest();
+      }
+    } catch {
+      setStatus("error");
+    }
+  };
+
   return {
     save(state, nowMs) {
       const envelope: Envelope<T> = {
@@ -304,28 +401,25 @@ export function createSessionStore<T>(config: SessionStoreConfig<T>): SessionSto
       if (local && local.version != null && !base) base = local;
       if (local) {
         latest = local;
-        if (config.remote) {
-          try {
-            const row = upgrade(await config.remote.pull());
-            if (row && this.isNews(row)) {
-              // A device that has been away holds an older row, or holds taps
-              // made over one. Adopt or merge; never return the stale copy to
-              // be republished over everyone else's work.
-              const state = reconcile(row, local.state, Date.now());
-              return { state, source: state === row.state ? ("remote" as const) : ("merged" as const) };
-            }
-            if (dirty()) {
-              setStatus("pending");
-              void pushLatest();
-            }
-          } catch {
-            // Offline: the local copy is the best available, exactly as before,
-            // but the store must say so. A phone that opens the night with the
-            // row unreachable is keeping the night to itself, and a green line
-            // claiming it is shared would send a second phone to a blank screen.
-            setStatus("error");
-          }
-        }
+        // THE LOCAL NIGHT IS HANDED BACK AT ONCE (2026-09-16). This used to
+        // await the pull before returning, and that cost the operator their
+        // night at nine o'clock: The District's wifi is a captive portal,
+        // which HOLDS a request open rather than refusing it, so the pull sat
+        // there for the full REMOTE_TIMEOUT_MS (ten seconds, sync/remote.ts)
+        // with a complete night in localStorage and nothing on screen but the
+        // empty door offering to start a new one.
+        //
+        // The local copy is written synchronously, before anything else, on
+        // every save, precisely so the venue's wifi is never between the
+        // operator and their own night. Awaiting the row to hand it back gave
+        // that away at the one moment it mattered. The pull still happens (see
+        // pullInBackground), it just no longer stands in front of the night.
+        //
+        // The source this branch returns is now always "local": the row has
+        // not answered when it returns, so it can no longer say "remote" or
+        // "merged" here. Nothing in the app read it (useSession.ts:806 takes
+        // only `state`); the tests that did are updated with this change.
+        if (config.remote) void pullInBackground();
         return { state: local.state, source: "local" as const };
       }
       if (config.remote) {
@@ -363,15 +457,7 @@ export function createSessionStore<T>(config: SessionStoreConfig<T>): SessionSto
     isDirty: dirty,
     isPushing: () => pushing,
 
-    isNews(row) {
-      if (!base) return true;
-      // A row without a version came from a function older than this build:
-      // the clock is all there is. With versions, only a row PAST the base is
-      // news; a pull that lands after this phone's own push was accepted can
-      // carry the row from before it, and that is not news, it is history.
-      if (row.version == null) return row.savedAt > base.savedAt;
-      return row.version > (base.version ?? 0);
-    },
+    isNews,
 
     adopt(envelope) {
       const upgraded = upgrade(envelope);
