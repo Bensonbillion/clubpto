@@ -135,6 +135,36 @@ const mergeMatch = (
   else if (hasBase && eq(rr, rb)) winner = local;
   else if (!(base && recorded(base)) && recorded(local) !== recorded(remote)) {
     winner = recorded(local) ? local : remote;
+    // 2026-09-16. The score still wins, and that is settled: one phone strikes
+    // a game, another phone that never saw the strike scores it, and the score
+    // is the thing that actually happened on court. What was missing was
+    // saying so. A void is a deliberate act, somebody held the phone and
+    // struck a result on purpose, and until today it could be overruled in
+    // silence.
+    //
+    // TWO conditions, and the second one is not symmetry, it is truthfulness.
+    //
+    // Only when the loser was VOIDED, because a score landing on a game the
+    // other phone still had onCourt is the ordinary shape of a night and a
+    // note there would fire after almost every game, which teaches the
+    // operator to scroll past the one line that matters.
+    //
+    // And only when the void was THIS phone's. Every sentence useSession.ts
+    // writes for these notes is of the form "another phone did X, your Y was
+    // not kept", so a note only means anything to the side that lost
+    // something. When the row is the one holding the struck copy, this phone
+    // scored and its score stands: it lost nothing and has nothing to read,
+    // and the phone that did strike it is told when IT merges, because each
+    // phone merges the row against its own copy (useSession.ts:796). Pushing
+    // it both ways round told the phone that scored "your void was not kept"
+    // about a game it never voided, and invited it to strike a result that
+    // had just correctly survived.
+    if (local.status === "voided" && winner === remote) {
+      // kept is the game that stands, dropped is this phone's struck copy,
+      // which is the way round useSession.ts:879 reads them to tell the
+      // operator their strike did not take.
+      notes.push({ kind: "resultKept", courtNumber: winner.courtNumber, kept: winner, dropped: local });
+    }
   } else {
     winner = remote;
     lineup = remote;

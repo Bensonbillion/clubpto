@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import type { Player } from "../../types";
 import { suggestSplit, suggestTarget } from "../split";
+import { strandedPlayers } from "../substitutes";
 import type { Tier } from "../tiers";
 
 let n = 0;
@@ -117,5 +118,53 @@ describe("suggestTarget makes whole matches", () => {
 
   it("refuses a court that cannot field a match", () => {
     expect(suggestTarget(3)).toBeNull();
+  });
+});
+
+describe("the suggestion never strands anybody", () => {
+  // Stranding is a player with no legal foursome on their court at all. The
+  // usual shape is the second B on the C court: only the designated B may join
+  // a C match, and two or three B's cannot field a match among themselves, so
+  // every B past the bridge and short of four has nobody to play with.
+  //
+  // The module's own words are that a suggestion which starts the night
+  // illegal is not a suggestion. A suggestion that starts the night with a
+  // paid-up member who cannot be dealt a single game is the same thing, and
+  // it is worse for being invisible: the operator sees a court of six.
+  const stranded = (players: Player[], courtCount: number) => {
+    const { s } = courtsOf(players, courtCount);
+    const placed = players.map((p) => ({ ...p, courtNumber: s.assignment.get(p.id)! }));
+    const tooSmall = new Set(
+      s.notes.flatMap((x) => (x.kind === "courtTooSmall" ? [x.courtNumber] : [])),
+    );
+    const out: string[] = [];
+    for (let c = 1; c <= courtCount; c++) {
+      // A court of fewer than four strands everyone truthfully, and the
+      // courtTooSmall note already says so in its own words.
+      if (tooSmall.has(c)) continue;
+      for (const p of strandedPlayers(placed, c)) out.push(p.name);
+    }
+    return out;
+  };
+
+  it("six A's, four B's and three C's: no B is left without a game", () => {
+    // Thirteen on a thin Wednesday. The suggestion walks three B's onto the C
+    // court, where exactly one of them can ever play.
+    n = 0;
+    const players = [...many(6, "A"), ...many(4, "B"), ...many(3, "C")];
+    expect(stranded(players, 2)).toEqual([]);
+  });
+
+  it("no mix of A, B and C strands anybody, at any headcount a night can have", () => {
+    for (let total = 8; total <= 26; total++) {
+      for (let a = 0; a <= total; a++) {
+        for (let b = 0; a + b <= total; b++) {
+          const c = total - a - b;
+          n = 0;
+          const players = [...many(a, "A"), ...many(b, "B"), ...many(c, "C")];
+          expect(stranded(players, 2), `${a}A/${b}B/${c}C`).toEqual([]);
+        }
+      }
+    }
   });
 });
