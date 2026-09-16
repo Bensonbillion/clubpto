@@ -360,3 +360,59 @@ describe("without a base", () => {
     expect(mergeSessions(null, l, r).state.matches.find((m) => m.id === "m1")?.status).toBe("played");
   });
 });
+
+describe("a void the row overruled is said out loud", () => {
+  // The rule is settled and is not what changes here: a recorded score beats a
+  // void of the same game, either way round, and the test above pins it. What
+  // was wrong is that it happened in silence.
+  //
+  // Voiding is not a phone drifting, it is an operator deciding. Somebody
+  // struck a result on purpose, another phone that never saw the strike scored
+  // the same game, and the score stands, which is right. Saying nothing about
+  // it means the operator watches a result they deleted come back and has
+  // nothing to read.
+  //
+  // useSession.ts already has the sentence, and has had it all along:
+  //   "another phone scored X 7-5 first, so your void was not kept. Void it
+  //    again from the result if that is right."
+  // It sits under `n.dropped.status === "voided"` and merge.ts never pushed a
+  // note on this path, so the branch could not be reached. Written,
+  // commented, unreachable, which is the second one of these found this week
+  // (2026-09-16).
+  //
+  // Driven before the fix: notes was [] in both directions.
+
+  it("keeps the score and says the void was not kept", () => {
+    const b = night();
+    const { state, notes } = mergeSessions(b, voided(b, "m1"), score(b, "m1", 7, 5));
+    // The rule, unchanged.
+    expect(match(state, "m1")?.status).toBe("played");
+    // And now the operator is told why their void vanished.
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatchObject({ kind: "resultKept", courtNumber: 1 });
+    const note = notes[0] as Extract<typeof notes[number], { kind: "resultKept" }>;
+    expect(note.kept.status).toBe("played");
+    expect(note.dropped.status).toBe("voided");
+  });
+
+  it("says it the other way round too, when this phone held the score", () => {
+    const b = night();
+    const { state, notes } = mergeSessions(b, score(b, "m1", 7, 5), voided(b, "m1"));
+    expect(match(state, "m1")?.status).toBe("played");
+    expect(notes).toHaveLength(1);
+    const note = notes[0] as Extract<typeof notes[number], { kind: "resultKept" }>;
+    expect(note.kept.status).toBe("played");
+    expect(note.dropped.status).toBe("voided");
+  });
+
+  it("stays quiet when the other phone simply had not scored it yet", () => {
+    // Scope. A score landing on a game the other phone still had on court is
+    // the ordinary shape of a night, not a decision anybody overruled. A note
+    // there would fire after almost every game and teach the operator to
+    // ignore the line that matters.
+    const b = night();
+    const { state, notes } = mergeSessions(b, score(b, "m1", 7, 5), b);
+    expect(match(state, "m1")?.status).toBe("played");
+    expect(notes).toHaveLength(0);
+  });
+});
