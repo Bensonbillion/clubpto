@@ -13,11 +13,22 @@
 // and it stranded the operator mid-wizard with no way back, which is the
 // reason they are shaped this way.
 //
-// The three confirms live here rather than beside the screens they interrupt
-// because they are one sheet with three sets of words, and frame 26 gives them
+// The four confirms live here rather than beside the screens they interrupt
+// because they are one sheet with four sets of words, and frame 26 gives them
 // one job: name exactly what will be lost. Keeping them together is what stops
-// that promise being kept on two sheets out of three. Their shared heading and
+// that promise being kept on three sheets out of four. Their shared heading and
 // paragraph are in confirm-sheet.tsx, which is internal to the slice.
+//
+// The fourth, ConfirmStartAnyway, arrived on 2026-09-15 and interrupts the
+// SETUP wizard rather than a running night, which makes it the one that tests
+// the paragraph above. It lands here anyway, and the reason is the same
+// sentence: confirm-sheet.tsx is internal on purpose, so a sheet built in the
+// setup slice would have to reach into another slice's private module or copy
+// ConfirmTitle and ConfirmBody, and a second copy of that style is exactly how
+// the heaviest sentence in the manager goes quietly grey on one sheet. The
+// slice line is still drawn where it matters: setup/model.ts owns the words
+// (startBlockerWords), beside every other sentence on frame 07, and this slice
+// owns the sheet they are read on.
 
 export { SessionSummary, buildWhatsAppPayload } from "./SessionSummary";
 export type {
@@ -41,5 +52,8 @@ export type { ConfirmDeletePlayoffProps } from "./ConfirmDeletePlayoff";
 
 export { ConfirmEndNight } from "./ConfirmEndNight";
 export type { ConfirmEndNightProps } from "./ConfirmEndNight";
+
+export { ConfirmStartAnyway } from "./ConfirmStartAnyway";
+export type { ConfirmStartAnywayProps } from "./ConfirmStartAnyway";
 
 export { pad2, signed, joinPair } from "./format";
