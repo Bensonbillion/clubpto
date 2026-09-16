@@ -13,7 +13,8 @@ import type { Match, Player } from "../types";
 import { forcedMixing, matchesPlayedBy, nextMatch, unfinishableCourt } from "../engine/rotation";
 import { tierOf } from "../engine/tiers";
 import type { Tier } from "../engine/tiers";
-import { noteWords } from "../screens/setup/model";
+import type { SplitNote } from "../engine/split";
+import { noteWords, startBlockers, startBlockerWords } from "../screens/setup/model";
 
 let seq = 0;
 const P = (tier?: Tier): Player => {
@@ -278,5 +279,90 @@ describe("the sentence against the night it describes", () => {
     expect(counts.filter((n) => n >= 2)).toHaveLength(bend.secondGames);
     expect(Math.max(...counts)).toBe(2);
     expect(Math.min(...counts)).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The forward action on the courts step.
+//
+// Frame 07 names the people a court has left with nobody to play against, in
+// red, and then offers a fully enabled "Next: matches each" underneath. An
+// operator setting up at 8:05 with a queue at the desk taps it. The audit of
+// 2026-09-15 found this is reachable from the app's OWN suggestion, and the
+// symptom on the night is only a player whose name never comes up.
+//
+// So the step asks. NOT a disabled button: measured over every A/B/C mix a
+// night of five to twenty-six can take, 303 shapes have no court count at all
+// that clears both warnings, and fourteen of them exist at every headcount up
+// to twenty-six. One A at a beginners' night (1A/2B/9C) is one of them: that A
+// can never be dealt a lawful game, and a disabled Next would stop the night
+// for the other eleven people. The app must not be the reason a night does
+// not start.
+//
+// Which notes ask, and which do not, is the whole of the decision, so it is a
+// function over notes and tested as one.
+describe("the courts step asks before starting a night somebody cannot play", () => {
+  it("says nothing when every court can run", () => {
+    expect(startBlockers([])).toEqual([]);
+    expect(startBlockerWords([])).toBeNull();
+  });
+
+  it("stays quiet for the notes that are information, not harm", () => {
+    // These three describe a night that runs. tooFewCs and exactlyThreeCs are
+    // facts about the C's, and capBends is the third law bending on numbers
+    // that still finish everyone on target.
+    const quiet: SplitNote[] = [
+      { kind: "tooFewCs", cCount: 2 },
+      { kind: "exactlyThreeCs", courtNumber: 2 },
+      { kind: "capBends", courtNumber: 1, aCount: 6, target: 4, suggested: true, seats: 8, secondGames: 2 },
+    ];
+    expect(startBlockers(quiet)).toEqual([]);
+    expect(startBlockerWords(quiet)).toBeNull();
+  });
+
+  it("leaves capStuck alone, because its cure is on the next step", () => {
+    // "Change the target, or move somebody across" is what that note says,
+    // and the target step comes after this one. Asking here would send the
+    // operator back and forth between two screens to answer one question.
+    const notes: SplitNote[] = [{ kind: "capStuck", courtNumber: 1, target: 4, suggested: true }];
+    expect(startBlockers(notes)).toEqual([]);
+    expect(startBlockerWords(notes)).toBeNull();
+  });
+
+  it("asks when somebody has no legal game, and names them", () => {
+    const notes: SplitNote[] = [
+      { kind: "stranded", courtNumber: 2, names: ["Kate", "Sam"] },
+    ];
+    expect(startBlockers(notes)).toHaveLength(1);
+    const words = startBlockerWords(notes);
+    expect(words).toContain("Kate");
+    expect(words).toContain("Sam");
+    expect(words).toContain("Court 2");
+  });
+
+  it("asks when a court cannot run at all, and says which", () => {
+    const notes: SplitNote[] = [{ kind: "courtTooSmall", courtNumber: 2, size: 3 }];
+    expect(startBlockers(notes)).toHaveLength(1);
+    expect(startBlockerWords(notes)).toContain("Court 2");
+  });
+
+  it("carries both complaints when a night has both", () => {
+    const notes: SplitNote[] = [
+      { kind: "tooFewCs", cCount: 1 },
+      { kind: "courtTooSmall", courtNumber: 2, size: 3 },
+      { kind: "stranded", courtNumber: 1, names: ["Priya"] },
+    ];
+    expect(startBlockers(notes)).toHaveLength(2);
+    const words = startBlockerWords(notes);
+    expect(words).toContain("Priya");
+    expect(words).toContain("Court 2");
+  });
+
+  it("never uses an em dash, like every other sentence in the manager", () => {
+    const notes: SplitNote[] = [
+      { kind: "stranded", courtNumber: 1, names: ["Kate", "Sam", "Priya"] },
+      { kind: "courtTooSmall", courtNumber: 2, size: 2 },
+    ];
+    expect(startBlockerWords(notes)).not.toContain("—");
   });
 });
