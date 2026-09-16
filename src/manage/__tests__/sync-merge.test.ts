@@ -291,7 +291,7 @@ describe("the store on its own", () => {
     expect(pushes).toEqual([]);
   });
 
-  it("load takes a row this phone has not agreed with, so a phone that was away does not roll the night back", async () => {
+  it("load hands back the local copy, then takes a row this phone has not agreed with, so a phone that was away does not roll the night back", async () => {
     const storage = memoryStorage();
     storage.setItem("k", JSON.stringify({ schemaVersion: 1, savedAt: 10, version: 1, state: { ...night(), dayLabel: "stale" } }));
     const store = createSessionStore<Session>({
@@ -299,10 +299,16 @@ describe("the store on its own", () => {
       remote: { push: async () => { throw new Error("no"); }, pull: async () => ({ schemaVersion: 1, savedAt: 20, version: 2, state: { ...night(), dayLabel: "fresh" } }) },
       defaults: () => night(),
     });
+    // The local copy comes back FIRST and unconditionally (2026-09-16): a
+    // night already on this phone is never held behind the wifi. The row is
+    // still asked for, and still wins, one beat later.
     const { state, source } = await store.load();
-    expect(source).toBe("remote");
-    expect(state.dayLabel).toBe("fresh");
+    expect(source).toBe("local");
+    expect(state.dayLabel).toBe("stale");
+    await settle();
     expect(store.knownVersion()).toBe(2);
+    expect(JSON.parse(storage.getItem("k")!).state.dayLabel).toBe("fresh");
+    expect(JSON.parse(storage.getItem("k.base")!).state.dayLabel).toBe("fresh");
   });
 
   it("without versions on either side the clock is all there is, as before", () => {

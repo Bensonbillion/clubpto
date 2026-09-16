@@ -19,9 +19,15 @@ export interface HomeNothingRunningProps {
    */
   lastSessionDayName?: string | null;
   /**
-   * The "is a night live, and what was the last one" query is still out. The
-   * title and lead paint immediately; the copy action is held back so
-   * `Start tonight` can never appear beside a stale night.
+   * The "is a night live, and what was the last one" query is still out.
+   *
+   * While it is, this screen DOES NOT KNOW that nothing is running, so it
+   * neither says so nor offers to start one (2026-09-16). It used to say both:
+   * `loading` was spent only on holding back the copy ghost, so "No night is
+   * running" sat over a live Start tonight while the answer was still in the
+   * air, and a tap there marks the night for a wipe on the wizard's first act.
+   * The title and the club's name still paint immediately; the sentence and
+   * the action wait for the answer.
    */
   loading?: boolean;
   /** → frame 05 `Which night`, step 1 of four. */
@@ -62,7 +68,9 @@ export const HomeNothingRunning = ({
         <p style={{
           font: `400 16px/1.55 ${T.fontBody}`, color: T.mut, margin: 0, textWrap: "pretty",
         }}>
-          No night is running. Start one and the app walks you through it.
+          {loading
+            ? "Checking whether a night is running."
+            : "No night is running. Start one and the app walks you through it."}
         </p>
         {syncLine != null && syncLine !== "" && (
           <p style={{ font: `400 13.5px/1.5 ${T.fontBody}`, color: T.soft, margin: 0 }}>{syncLine}</p>
@@ -70,7 +78,13 @@ export const HomeNothingRunning = ({
       </Body>
 
       <FooterBar>
-        <PrimaryButton onClick={onStartTonight}>Start tonight</PrimaryButton>
+        {/*
+          Held, not hidden, while the answer is out (2026-09-16). The button
+          keeps its place so the screen does not jump under a thumb already on
+          the way down, and it cannot be tapped over a night this screen has
+          not been told about yet.
+        */}
+        <PrimaryButton disabled={loading} onClick={onStartTonight}>Start tonight</PrimaryButton>
 
         {showCopy && (
           <>
