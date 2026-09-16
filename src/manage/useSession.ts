@@ -18,7 +18,7 @@ import { buildQueue, explainMatch, lawContextFor, nextMatch, courtComplete, matc
   totalMatches, type MatchReason } from "./engine/rotation";
 import { canFieldACMatch, designateB, tierOf as tierOfPlayer } from "./engine/tiers";
 import { legalSubstitutes, swapIntoMatch } from "./engine/substitutes";
-import { computeStandings, type PlayedMatch, type StandingsRow } from "./engine/standings";
+import { computeStandings, groupPlayedInOrder, type PlayedMatch, type StandingsRow } from "./engine/standings";
 import { buildStages, champion, nextTie, orderedPlayerIds, readiness, seedPairs, seedPlayoffMatch,
   type SeededPair, type Stage } from "./engine/playoff";
 import { appearsInAMatch } from "./engine/roster-guard";
@@ -87,18 +87,14 @@ export const standingsIds = (
       && (!p.away || played.some((m) => m.teamA.includes(p.id) || m.teamB.includes(p.id))))
     .map((p) => p.id);
 
-const groupPlayed = (matches: readonly Match[], court: number): PlayedMatch[] =>
-  matches
-    .filter((m) => m.courtNumber === court && m.status === "played" && m.stage === null)
-    .sort((a, b) => (a.completedAt ?? 0) - (b.completedAt ?? 0) || a.matchIndex - b.matchIndex)
-    .map((m, i) => ({
-      matchIndex: i + 1,
-      completedAt: m.completedAt,
-      teamA: m.teamA,
-      teamB: m.teamB,
-      scoreA: m.scoreA ?? 0,
-      scoreB: m.scoreB ?? 0,
-    }));
+// The sort and the renumber that used to live here are now
+// engine/standings.ts groupPlayedInOrder, and this is only an alias so the
+// call sites below still read as they did. It moved because engine/playoff.ts
+// had its own copy that did NOT renumber, so the table on this screen and the
+// bracket seeded off that table ordered the same night differently the moment
+// anything was played out of card order (2026-09-15). One function is what
+// stops a second caller getting half of it right.
+const groupPlayed = groupPlayedInOrder;
 
 /* ── the schedule ────────────────────────────────────────────────── */
 

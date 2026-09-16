@@ -1,4 +1,33 @@
-import { vi } from "vitest";
+import { afterEach, vi } from "vitest";
+
+// The DOM half of the setup, and it only runs for the suites that asked for a
+// DOM.
+//
+// `environment` stays "node" for the whole project (vitest.config.ts), because
+// the engine is pure and six hundred of these tests are arithmetic that has no
+// use for a document and should not pay to build one. A suite that needs to
+// render opts in with a docblock on its first line:
+//
+//   // @vitest-environment jsdom
+//
+// setupFiles runs for EVERY suite either way, so the DOM wiring is guarded on
+// the document actually existing rather than imported at the top. Importing
+// @testing-library/jest-dom unguarded would load a DOM library into six
+// hundred node suites to register matchers none of them call.
+//
+// Why a DOM at all, added 2026-09-16: the engine was testable and the screens
+// were not, so five fixes in a row shipped with the same caveat, that the rule
+// was proven and the wiring that calls it was only read. ScoreEntry.tsx
+// declared `unNudge` with a comment describing what it was for and no caller
+// anywhere, and nothing in six hundred tests could have noticed.
+if (typeof document !== "undefined") {
+  await import("@testing-library/jest-dom/vitest");
+  const { cleanup } = await import("@testing-library/react");
+  // React Testing Library mounts into a container it appends to the body. Left
+  // alone, every test in a file renders on top of the last one's markup and
+  // `getByRole` starts finding two of everything.
+  afterEach(cleanup);
+}
 
 // A localStorage the node environment does not have.
 //

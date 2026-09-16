@@ -44,7 +44,10 @@ import {
 } from "./engine/endings";
 import type { Match, PlayerTier, PlayoffStage, NightFormat } from "./types";
 import { Passcode, PasscodeFailed, HomeNothingRunning, HomeNightInProgress } from "./screens/door-home";
-import { WhichNight, WhoIsHere, Courts, MatchesEach, Ready, Chip } from "./screens/setup";
+import {
+  WhichNight, WhoIsHere, Courts, MatchesEach, Ready, Chip,
+  startBlockers, startBlockerWords,
+} from "./screens/setup";
 import { CourtHeader, BalanceRule, CourtView, CourtSwitcher, Schedule, ScoreEntry , startValue } from "./screens/play";
 import {
   CorrectOrVoid, Extend, LateArrival, LeavesEarly, MoveCourts, PlayersTab, roundRobinCounts,
@@ -68,7 +71,7 @@ import {
 } from "./screens/playoffs";
 import {
   ConfirmDeletePlayoff,
-  buildWhatsAppPayload, ConfirmEndNight, ConfirmVoidResult, SessionSummary,
+  buildWhatsAppPayload, ConfirmEndNight, ConfirmStartAnyway, ConfirmVoidResult, SessionSummary,
   type SummaryChampion,
 } from "./screens/summary-states";
 
@@ -170,8 +173,16 @@ const FRESH_COURT_UI: CourtUi = {
   changeOutId: null,
 };
 
-/** Night-wide overlays. One at a time, and none of them belongs to a court. */
-type NightSheet = "nightMenu" | "summary" | "endNight" | "extend" | "lateArrival" | "courtSwitcher" | "deleteBracket" | "restartSetup" | "resetEverything";
+/**
+ * Night-wide overlays. One at a time, and none of them belongs to a court.
+ *
+ * `startAnyway` is the odd one and is here on purpose: it interrupts the SETUP
+ * wizard rather than a running night, but it is still a single overlay over
+ * whatever screen is up, and giving the courts step a second piece of overlay
+ * state would mean two mechanisms that can both be open at once. Same state,
+ * same setter, one sheet at a time.
+ */
+type NightSheet = "nightMenu" | "summary" | "endNight" | "extend" | "lateArrival" | "courtSwitcher" | "deleteBracket" | "restartSetup" | "resetEverything" | "startAnyway";
 
 /**
  * Frame 25b, the night menu.
@@ -1207,30 +1218,64 @@ export default function ManageApp({ instance = 1 }: ManageAppProps) {
         }
       }
 
+      // The notes that mean somebody gets NO game, as opposed to the ones that
+      // only describe how the night will play. Read at render off the same
+      // live `splitNotes` the screen draws, so the sheet and the red lines
+      // behind it can never disagree, and so a sheet left open across a drag
+      // that cured the split cannot survive it. screens/setup/model.ts carries
+      // the argument for why this asks instead of disabling Next.
+      const blockers = startBlockers(splitNotes);
+
       return (
-        <Courts
-          courts={courts}
-          notes={splitNotes}
-          courtCount={courtCount}
-          onCourtCountChange={(c) => {
-            setCourtCount(c);
-            s.setCourts(Array.from({ length: c }, (_, i) => i + 1));
-            // The screen's contract: changing the count re-splits everyone,
-            // because every drag so far answered a question that is no longer
-            // being asked.
-            applySuggestedSplit(c, true);
-          }}
-          onMovePlayer={(id) => {
-            const p = s.session.players.find((x) => x.id === id);
-            const now = p?.courtNumber ?? 0;
-            s.assignCourt(id, now >= courtCount ? 1 : now + 1);
-          }}
-          // The empty court card's action. Only the unplaced move, so it can
-          // never undo a drag; the suggestion decides where they land.
-          onAssignPlayers={() => applySuggestedSplit(courtCount, false)}
-          onBack={() => setStep("who")}
-          onNext={() => setStep("target")}
-        />
+        <>
+          <Courts
+            courts={courts}
+            notes={splitNotes}
+            courtCount={courtCount}
+            onCourtCountChange={(c) => {
+              setCourtCount(c);
+              s.setCourts(Array.from({ length: c }, (_, i) => i + 1));
+              // The screen's contract: changing the count re-splits everyone,
+              // because every drag so far answered a question that is no longer
+              // being asked.
+              applySuggestedSplit(c, true);
+            }}
+            onMovePlayer={(id) => {
+              const p = s.session.players.find((x) => x.id === id);
+              const now = p?.courtNumber ?? 0;
+              s.assignCourt(id, now >= courtCount ? 1 : now + 1);
+            }}
+            // The empty court card's action. Only the unplaced move, so it can
+            // never undo a drag; the suggestion decides where they land.
+            onAssignPlayers={() => applySuggestedSplit(courtCount, false)}
+            // Clear the sheet on the way out as well as on the way through, so
+            // walking back to the who step and forward again asks the question
+            // against the split as it then stands rather than reopening a sheet
+            // about a court the operator has since fixed.
+            onBack={() => { setSheet(null); setStep("who"); }}
+            // Frame 07 drew its warnings in red and then let this button through
+            // anyway, and at 8:05 with a queue at the desk it gets tapped. It
+            // now ASKS when one of those warnings means a named person gets no
+            // game, and it still never refuses: 303 of the A/B/C shapes a night
+            // of five to twenty-six can take have no court count that clears
+            // both warnings, so a disabled button would stop those nights for
+            // everybody else on them. With no blockers this is exactly what it
+            // always was.
+            onNext={() => {
+              if (blockers.length > 0) { setSheet("startAnyway"); return; }
+              setStep("target");
+            }}
+          />
+          {/* Guarded on `blockers` as well as on the sheet key, so the sheet can
+              only ever be drawn about a split that still has the problem. */}
+          {sheet === "startAnyway" && blockers.length > 0 && (
+            <ConfirmStartAnyway
+              whoCannotPlay={startBlockerWords(splitNotes)}
+              onBackToSplit={() => setSheet(null)}
+              onCarryOn={() => { setSheet(null); setStep("target"); }}
+            />
+          )}
+        </>
       );
     }
 

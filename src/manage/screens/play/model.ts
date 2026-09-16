@@ -256,3 +256,121 @@ export const mixingWords = (mixing: MixingNote): string | null => {
     }
   }
 };
+
+// What a tap on Save does, and the two lines frame 12 holds up instead.
+//
+// This is the sheet's rule rather than the sheet's copy, and it lives here
+// for the reason the header gives: the tsx files export components and
+// nothing else. It also lives here because it is the only place it can be
+// checked. There is no DOM environment in this repo (vitest.config.ts sets
+// "node"), so a rule written inside an onClick can only ever be verified by
+// reading it, and on 2026-09-15 reading it is exactly what nobody did. The
+// big-score nudge on frame 12 shipped with a reset function, a comment
+// explaining the reset, and no caller anywhere in src. It latched for the
+// life of the sheet, so a second mistyped big score saved on a single tap
+// with no nudge at all.
+//
+// The fix is not a reset somebody has to remember. A held line is stored as
+// the ENTRY IT WAS RAISED ABOUT, so retyping the numbers withdraws it
+// because they no longer match. Nothing to wire, nothing to forget, and the
+// sheet keeps one piece of state instead of two booleans that had to be
+// cleared in two different places.
+
+/** Past this, a number is far more often a mistap than a result. */
+export const BIG_SCORE = 20;
+
+/**
+ * The four things a tap on Save can mean.
+ *
+ * Two of them are questions, and a question the sheet has already asked
+ * about numbers that have since been retyped is not a question any more.
+ */
+export type SaveIntent = "notReady" | "holdLevel" | "askBigScore" | "save";
+
+/**
+ * A line frame 12 is holding up, keyed to the entry that raised it.
+ *
+ * Both fields store the digit strings as the boxes hold them rather than
+ * their numeric values, because the question each line asked was asked about
+ * the characters on screen. The nudge prints "Keep 75-0", so 75 and 0 are
+ * what the operator answered for, and a box retyped from "0" to "00" is a
+ * box the operator has been back inside. Asking again there costs one tap
+ * and keeps the sheet honest, which is the safe direction for a line whose
+ * whole job is to catch a mistap.
+ *
+ * The level line carries the focused side as well. It says "tap the side
+ * that won and set its number", so moving the focus is the operator starting
+ * to do the thing it asked for, and the line came down on that tap before
+ * 2026-09-15 too. Keying it the same way as the nudge is what lets write()
+ * and setSide() go back to reading like what they are: two calls that hand
+ * the digits up to the caller and clear nothing.
+ */
+export interface HeldLines {
+  readonly level: { readonly a: string; readonly b: string; readonly side: "A" | "B" } | null;
+  readonly big: { readonly a: string; readonly b: string } | null;
+}
+
+/** A fresh sheet, holding neither line up. */
+export const NOTHING_HELD: HeldLines = { level: null, big: null };
+
+/** The nudge, answered for exactly these two numbers. */
+export const askedAbout = (a: string, b: string): HeldLines => ({
+  level: null,
+  big: { a, b },
+});
+
+/** The level line, raised over exactly this entry. */
+export const heldLevel = (a: string, b: string, side: "A" | "B"): HeldLines => ({
+  level: { a, b, side },
+  big: null,
+});
+
+/**
+ * Is the level line on screen?
+ *
+ * Frame 12 draws it between the boxes and the pad, in front of the sentence
+ * about the margin. It stands while the entry it was raised over is the
+ * entry still in the boxes, and any edit takes it down by changing the
+ * numbers or the focus out from under it.
+ */
+export const levelLineHeld = (
+  a: string,
+  b: string,
+  side: "A" | "B",
+  held: HeldLines,
+): boolean =>
+  held.level !== null && held.level.a === a && held.level.b === b && held.level.side === side;
+
+/**
+ * Is the big-score nudge on screen, and therefore answered?
+ *
+ * The same predicate does both jobs on purpose. The nudge is up exactly
+ * while the numbers it named are the numbers in the boxes, and it counts as
+ * answered exactly while it is up. That is the whole of the fix in one line.
+ * The operator who nudges on 75, corrects it, and then mistypes 99 is
+ * looking at a sheet holding an answer about a score that no longer exists,
+ * so the answer does not apply and the nudge comes back.
+ */
+export const bigScoreHeld = (a: string, b: string, held: HeldLines): boolean =>
+  held.big !== null && held.big.a === a && held.big.b === b;
+
+/**
+ * What a tap on Save should do, given what is typed and what is held.
+ *
+ * The order is the order these outcomes matter in. Nothing is saved until
+ * both boxes hold a number, because a one-sided result would score a match
+ * nobody played the other half of. A level score is refused by the writer
+ * whatever its size, so it is held ahead of the nudge and a big level score
+ * never gets as far as being asked about. The nudge is last because it is a
+ * nudge and never a wall: it asks once about the numbers it can see, and
+ * once answered for those numbers the next tap records them. The app does
+ * not get to overrule a score the room saw.
+ */
+export const saveIntent = (a: string, b: string, held: HeldLines): SaveIntent => {
+  if (a === "" || b === "") return "notReady";
+  if (Number(a) === Number(b)) return "holdLevel";
+  if (Math.max(Number(a), Number(b)) > BIG_SCORE && !bigScoreHeld(a, b, held)) {
+    return "askBigScore";
+  }
+  return "save";
+};
