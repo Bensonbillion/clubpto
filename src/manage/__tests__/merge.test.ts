@@ -395,14 +395,24 @@ describe("a void the row overruled is said out loud", () => {
     expect(note.dropped.status).toBe("voided");
   });
 
-  it("says it the other way round too, when this phone held the score", () => {
+  it("stays quiet the other way round, when this phone's score is the one that stood", () => {
+    // Not symmetry, truthfulness. Every sentence useSession.ts writes for
+    // these notes is "another phone did X, your Y was not kept", so a note
+    // only means anything to the side that lost something. Here this phone
+    // scored and its score stands; it lost nothing. The phone that struck the
+    // game is told when IT merges, because each phone merges the row against
+    // its own copy.
+    //
+    // This case asserted a note in its first draft, which was a mistake in
+    // the spec rather than in the merge, and an adversarial pass caught it by
+    // running useSession's own sentence over the note: it read "so your void
+    // was not kept. Void it again from the result if that is right." to a
+    // phone that never voided, about a score that WAS kept, and invited the
+    // operator to strike a result that had just correctly survived.
     const b = night();
     const { state, notes } = mergeSessions(b, score(b, "m1", 7, 5), voided(b, "m1"));
     expect(match(state, "m1")?.status).toBe("played");
-    expect(notes).toHaveLength(1);
-    const note = notes[0] as Extract<typeof notes[number], { kind: "resultKept" }>;
-    expect(note.kept.status).toBe("played");
-    expect(note.dropped.status).toBe("voided");
+    expect(notes).toEqual([]);
   });
 
   it("stays quiet when the other phone simply had not scored it yet", () => {
