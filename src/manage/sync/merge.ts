@@ -437,17 +437,42 @@ function repair(state: Session, base: Session | null, remote: Session, notes: Me
     } else if (scored.length === 1) {
       for (const m of group) if (m !== scored[0]) drop(m);
     } else {
-      // Both phones scored their own copy. The same four twice is one game
-      // entered twice: the row's stands and the note carries both. Different
-      // fours are different games that happened; both stay.
+      // Both phones scored their own copy. One game stands, the row's, and
+      // every other scored copy is reported in a resultKept note, whoever sat
+      // where in it.
+      //
+      // 2026-09-16. This used to fold only copies with the same four in the
+      // same seats, and kept both when the pairings differed, on the reasoning
+      // that different fours are different games that both happened. On a
+      // round robin that does not hold. A slot key is one row of one court, and
+      // one court plays one game in one row. The case that exposed it was the
+      // SAME four people, a b c d, paired a+c v b+d on one phone and a+b v c+d
+      // on the other, both scored into slot 2 of court 1: keeping both left
+      // two played games on one court, no note at all, and each of the four
+      // credited with a game that never happened, in the table that seeds the
+      // bracket. The owner's call is to fold, keep one and report the other,
+      // rather than count both. The losing phone is told, so the operator can
+      // decide; this does not promise there is a way to enter the other game
+      // back into a row that is already played.
+      //
+      // Scoped to slots, and teams ties and knockout ties are unaffected. Their
+      // keys (tm| and stage|) are built from sidesKey, so every copy in one of
+      // those groups already had the same sides and was already folded by the
+      // old condition; removing it changes nothing for them. A rematch of the
+      // same four in a later row has a different slot key, so it never lands
+      // in this group and both games stay.
+      //
+      // Direction. rank puts the row's copy first, so keep is the row's copy
+      // whenever the row scored one, and the note's kept and dropped match the
+      // sentence the losing phone reads: another phone scored it first, yours
+      // was not kept. Three or more copies (three phones, or a phone that dealt
+      // twice) fold the same way, one kept and one note for each of the others.
       const keep = scored.reduce((a, m) => before(rank(m, inRemote), rank(a, inRemote)) ? m : a);
       for (const m of group) {
         if (m === keep) continue;
         if (!recorded(m)) { drop(m); continue; }
-        if (sidesKey(m) === sidesKey(keep)) {
-          dropped.add(m.id);
-          notes.push({ kind: "resultKept", courtNumber: keep.courtNumber, kept: keep, dropped: m });
-        }
+        dropped.add(m.id);
+        notes.push({ kind: "resultKept", courtNumber: keep.courtNumber, kept: keep, dropped: m });
       }
     }
   }
