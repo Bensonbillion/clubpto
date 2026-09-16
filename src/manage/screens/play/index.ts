@@ -47,3 +47,18 @@ export type {
   ScheduleRowStatus,
   WaitingPlayer,
 } from "./model";
+
+// Frame 12's Save rule, which moved out of ScoreEntry.tsx on 2026-09-15 so a
+// test could reach it. It is exported the same way as the copy builders above
+// rather than hidden behind the component, because the thing that went wrong
+// was a rule nobody could run.
+export {
+  BIG_SCORE,
+  NOTHING_HELD,
+  askedAbout,
+  bigScoreHeld,
+  heldLevel,
+  levelLineHeld,
+  saveIntent,
+} from "./model";
+export type { HeldLines, SaveIntent } from "./model";

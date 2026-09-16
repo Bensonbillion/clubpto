@@ -140,3 +140,64 @@ describe("the big-score nudge", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 });
+
+describe("an answered nudge does not carry over to a different number", () => {
+  // The bug this branch fixes, driven through the sheet rather than through
+  // the rule underneath it. The rule has its own tests in
+  // score-entry-nudge.test.ts; these are here because the rule was never what
+  // was broken. `unNudge` was declared, commented, and never called, and only
+  // a test that can tap could have noticed.
+  //
+  // The path matters and is narrower than it first looks. Tapping "Fix the
+  // score" always did reset the nudge, so a sequence that goes through that
+  // button passes even on the broken code. The operator who gets bitten is
+  // the one who does not tap it: the keypad is still on screen under the
+  // nudge, so a thumb in a hurry just retypes the number.
+
+  it("asks again when the operator retypes under the nudge", async () => {
+    const { user, onSave } = openSheet();
+    await type(user, "75");
+    await tap(user, /Ben & Priya/);
+    await type(user, "0");
+    await tap(user, "Save");
+    expect(screen.getByText(/big score for one game/i)).toBeInTheDocument();
+
+    // No "Fix the score" tap. Straight back to the pad, as the thumb does it.
+    await tap(user, /Kate & Sam/);
+    await tap(user, "⌫");
+    await tap(user, "⌫");
+    await type(user, "99");
+    await tap(user, "Save");
+
+    expect(onSave).not.toHaveBeenCalled();
+    expect(screen.getByText(/big score for one game/i)).toBeInTheDocument();
+  });
+
+  it("asks again when the other box is the one that changed", async () => {
+    const { user, onSave } = openSheet();
+    await type(user, "0");
+    await tap(user, /Ben & Priya/);
+    await type(user, "75");
+    await tap(user, "Save");
+    expect(screen.getByText(/big score for one game/i)).toBeInTheDocument();
+
+    await tap(user, "⌫");
+    await tap(user, "⌫");
+    await type(user, "99");
+    await tap(user, "Save");
+
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("still saves on the second tap when the numbers have not moved", async () => {
+    // The guard. A nudge answered for these exact numbers must not start
+    // asking forever, or the fix has traded one broken sheet for another.
+    const { user, onSave } = openSheet();
+    await type(user, "75");
+    await tap(user, /Ben & Priya/);
+    await type(user, "0");
+    await tap(user, "Save");
+    await tap(user, "Save");
+    expect(onSave).toHaveBeenCalledWith(75, 0);
+  });
+});
