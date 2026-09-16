@@ -15,7 +15,7 @@ import type { ReactNode } from "react";
 // The way back is the standings, not a bracket, because the table IS the
 // result. Correcting a score goes through the row that recorded it.
 
-import type { StandingsRow } from "../../engine/standings";
+import { sayableSeparation, type StandingsRow } from "../../engine/standings";
 import {
   Body,
   Eyebrow,
@@ -79,6 +79,16 @@ export interface IndividualChampionProps {
  * different points no clause is needed at all.
  * FLAG: a court with no third place is not drawn. The sentence truncates to
  * second, which is a shorter true sentence rather than a new one.
+ *
+ * "level" (engine/standings.ts, 2026-09-15) is the case where second and third
+ * were separated by nothing at all: same points, same difference, same match
+ * they reached the total in, and their order is the table's deterministic
+ * backstop. It writes no clause either, and it is the one place in this sweep
+ * where silence costs something real. "Chizea second on 9, Timi third on 9."
+ * is true, and it is all the frame draws, but the room would be interested to
+ * know the two of them finished dead level. Saying so needs copy frame 24 does
+ * not have, and this screen does not invent copy, so it stops at the numbers.
+ * Worth raising the next time the frame is opened.
  */
 const runnersUpLine = (
   second: RunnerUpLine | null,
@@ -89,7 +99,7 @@ const runnersUpLine = (
   const head = `${second.displayName} second on ${second.points}`;
   if (third == null) return `${head}.`;
   const tail = `${third.displayName} third on ${third.points}`;
-  const clause = secondFromThird === "diff" ? " by score difference" : "";
+  const clause = sayableSeparation(secondFromThird) === "diff" ? " by score difference" : "";
   return `${head}, ${tail}${clause}.`;
 };
 
