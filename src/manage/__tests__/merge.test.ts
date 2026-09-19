@@ -461,3 +461,45 @@ describe("a void the row overruled is said out loud", () => {
     expect(notes).toHaveLength(0);
   });
 });
+
+describe("a result note only goes to a phone that recorded something", () => {
+  // resultKept is documented in merge.ts as "both phones recorded this game
+  // differently", and every sentence useSession writes for it reads "your X
+  // was not kept". A phone that recorded nothing has nothing that was not kept.
+  //
+  // With a base, a score landing on a game this phone had skipped or had live
+  // on court is silent: it is the ordinary shape of a two-phone night. With NO
+  // base the same thing fell through to the conflict branch, because the merge
+  // treats the row as the base and the score-beats-unplayed rule does not
+  // apply once that stand-in base holds a score. The row's score still won,
+  // which is right, but a note went with it. Driven on the real merge and the
+  // real sentence, 2026-09-18:
+  //
+  //   "another phone scored A & B against C & D 7-4 first. Your null-null
+  //    was not kept"
+  //
+  // The data was right. Only the line on screen was wrong.
+  const onRow = (status: Match["status"]) =>
+    ({ ...night(), matches: [live("m1", 1, 1, ["a", "b", "c", "d"], { status, scoreA: null, scoreB: null })] });
+  const rowScored = score(night(), "m1", 7, 4);
+
+  it("no base, this phone had skipped it, the row scored it: the score stands, silently", () => {
+    const { state, notes } = mergeSessions(null, onRow("skipped"), rowScored);
+    expect([match(state, "m1")?.status, match(state, "m1")?.scoreA, match(state, "m1")?.scoreB]).toEqual(["played", 7, 4]);
+    expect(notes).toEqual([]);
+  });
+
+  it("no base, this phone had it live on court, the row scored it: silent too", () => {
+    const { state, notes } = mergeSessions(null, onRow("onCourt"), rowScored);
+    expect(match(state, "m1")?.status).toBe("played");
+    expect(notes).toEqual([]);
+  });
+
+  it("no base, both phones scored it differently: still a conflict, still told", () => {
+    // The guard. The note must not go quiet where this phone DID record.
+    const { state, notes } = mergeSessions(null, score(night(), "m1", 7, 2), rowScored);
+    expect([match(state, "m1")?.scoreA, match(state, "m1")?.scoreB]).toEqual([7, 4]);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatchObject({ kind: "resultKept" });
+  });
+});

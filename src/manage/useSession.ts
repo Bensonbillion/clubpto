@@ -24,6 +24,7 @@ import { buildStages, champion, nextTie, orderedPlayerIds, readiness, seedPairs,
 import { appearsInAMatch } from "./engine/roster-guard";
 import { createManageRemote, type ManageRemoteConfig } from "./sync/remote";
 import { mergeSessions, type MergeNote } from "./sync/merge";
+import { mergeNoteWords } from "./sync/noteWords";
 import { buildKnockoutStages, buildPlateStages, orphanKnockoutMatchIds, planKnockoutDispatch, playableTies } from "./engine/knockout";
 import {
   mintTeamMatch, nextTeamTie, pairCounts, seedByTable, teamStandings, teamsComplete, waitingPairs,
@@ -864,34 +865,7 @@ export function useManageSession(
     if (pendingNotes.current.length === 0) return;
     const batch = pendingNotes.current.splice(0);
     const nameOf = (id: string) => session.players.find((p) => p.id === id)?.name ?? id;
-    const pair = (ids: readonly string[]) => ids.map(nameOf).join(" & ");
-    const word = (n: MergeNote): string => {
-      switch (n.kind) {
-        case "nightReplaced":
-          return "Another phone restarted the night. Your last change was not kept.";
-        case "resultKept": {
-          const who = `${pair(n.kept.teamA)} against ${pair(n.kept.teamB)}`;
-          if (n.kept.status === "voided") return `Court ${n.courtNumber}: another phone voided ${who}. Your score for it was not kept.`;
-          if (n.dropped.status === "voided") return `Court ${n.courtNumber}: another phone scored ${who} ${n.kept.scoreA}-${n.kept.scoreB} first, so your void was not kept. Void it again from the result if that is right.`;
-          return `Court ${n.courtNumber}: another phone scored ${who} ${n.kept.scoreA}-${n.kept.scoreB} first. Your ${n.dropped.scoreA}-${n.dropped.scoreB} was not kept; tap the result to correct it.`;
-        }
-        case "gameDropped":
-          return `Court ${n.courtNumber}: another phone dealt the next game first. The game you dealt was set aside.`;
-        case "walkInFolded":
-          return `${n.name} was added on both phones and is now one player.`;
-        case "leaverDealtAround":
-          return `Court ${n.courtNumber}: ${nameOf(n.playerId)} left on another phone. The game they were in was dealt again without them.`;
-        case "fieldKept": {
-          const field = n.field === "courtNumber" ? "court" : n.field === "knockoutPairs" ? "draw"
-            : n.field === "teamsTarget" ? "games per pair" : n.field === "dayLabel" ? "name"
-              : n.field === "targetMatches" ? "target" : n.field;
-          if (n.entity === "player") return `Another phone set ${nameOf(n.id)}'s ${field} first.`;
-          if (n.entity === "court") return `Another phone set Court ${n.id}'s ${field} first.`;
-          return `Another phone changed the night's ${field} first.`;
-        }
-      }
-    };
-    setSyncNotes((prev) => [...prev, ...batch.map((n) => ({ id: ++noteId.current, text: word(n) }))]);
+    setSyncNotes((prev) => [...prev, ...batch.map((n) => ({ id: ++noteId.current, text: mergeNoteWords(n, nameOf) }))]);
   }, [session]);
 
   /** One tap clears one line, oldest first; the next waits behind it. */
