@@ -81,6 +81,17 @@ describe("a walkover is said as a walkover", () => {
     expect(words).toContain("7-5");
   });
 
+  it("the row's void over this phone's walkover: said as a walkover, not a score", () => {
+    // Found by the adversarial pass on this change. Reachable: this phone
+    // edits a recorded result to a walkover while the other phone voids it.
+    // The void sentence said "Your score for it was not kept" about a phone
+    // that recorded no score.
+    const words = mergeNoteWords(kept(game({ status: "voided", stage: "semi" }), walkover("A")), nameOf);
+    expect(words).not.toMatch(/null|undefined|score for it/);
+    expect(words).toMatch(/your walkover/i);
+    expect(words).toContain("A & B");
+  });
+
   it("walkover against walkover the other way round", () => {
     const words = mergeNoteWords(kept(walkover("B"), walkover("A")), nameOf);
     expect(words).not.toMatch(/null|undefined/);
