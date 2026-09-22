@@ -17,8 +17,8 @@ export const league = {
   // Day, time, venue — the operational rhythm.
   sessionDay: "Sundays",
   sessionTime: "3:00 – 5:00 PM",
-  venueName: "North Padel",
-  venueArea: "Toronto",
+  venueName: "The District Padel",
+  venueArea: "Mississauga",
 
   // Divisions + roster.
   mensRoster: 16,

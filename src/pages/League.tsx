@@ -267,7 +267,7 @@ const League = () => {
                   <span className="lg-pcard__logo">PTO</span>
                   <span className="lg-pcard__season">S01</span>
                 </div>
-                <div className="lg-pcard__name">ALBRIGHT</div>
+                <div className="lg-pcard__name">Michael</div>
                 <div className="lg-pcard__div">Men's Division</div>
                 <div className="lg-pcard__stats">
                   <div className="lg-pcard__stat">
@@ -437,7 +437,7 @@ const League = () => {
                     <span className="lg-pcard__logo">PTO</span>
                     <span className="lg-pcard__season">S01</span>
                   </div>
-                  <div className="lg-pcard__name">ALBRIGHT</div>
+                  <div className="lg-pcard__name">Michael</div>
                   <div className="lg-pcard__div">PTO League · Men's Division</div>
                   <div className="lg-pcard__stats">
                     <div className="lg-pcard__stat">
