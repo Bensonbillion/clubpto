@@ -219,29 +219,36 @@ StickyBar.displayName = "StickyBar";
  */
 const CountdownBar = () => {
   const countdown = useCountdown(league.registrationCloseAt);
-  // The strip is out of flow, so a sibling spacer has to hold its height
-  // open. Measuring beats hard-coding: the bar grows when the row wraps on
-  // a narrow phone and again when an urgency badge appears in the last 72
-  // hours, and a stale constant would let content slide underneath.
+  // The strip is fixed at top:0, so two things have to move out of its
+  // way: the site header (also fixed at top:0) and the page content.
+  // Both read --lg-banner-h, published here from the measured height.
+  // Measuring beats a constant — the row rewraps across breakpoints and
+  // grows again when the urgency badge appears in the last 72 hours.
   const barRef = useRef<HTMLDivElement | null>(null);
-  const [barHeight, setBarHeight] = useState<number | null>(null);
   useEffect(() => {
     const el = barRef.current;
     if (!el) return;
+    const root = document.documentElement;
+    const publish = (height: number) => {
+      root.style.setProperty("--lg-banner-h", `${Math.round(height)}px`);
+    };
     const observer = new ResizeObserver(([entry]) => {
-      // borderBoxSize, not contentRect: the strip carries 22px of vertical
-      // padding plus a hairline border, and contentRect excludes both —
-      // sizing the spacer from it leaves the hero 23px under the bar.
+      // borderBoxSize, not contentRect: the strip carries vertical padding
+      // plus a 2px border and contentRect excludes both, which would leave
+      // the header and hero tucked under the bar by exactly that much.
       const box = entry.borderBoxSize?.[0];
-      setBarHeight(
-        box ? box.blockSize : el.getBoundingClientRect().height,
-      );
+      publish(box ? box.blockSize : el.getBoundingClientRect().height);
     });
     observer.observe(el);
-    return () => observer.disconnect();
+    publish(el.getBoundingClientRect().height);
+    return () => {
+      observer.disconnect();
+      // Leaving this set would offset the header on every other route.
+      root.style.removeProperty("--lg-banner-h");
+    };
   }, []);
-  // Urgency tiers from the deck: brighter band in the final 72 hours,
-  // clay in the final 24. Outside those windows it stays the base volt.
+  // Urgency tiers from the deck: the badge appears in the final 72 hours
+  // and the accent warms in the final 24. The forest ground is fixed.
   const tone = countdown.closed
     ? "lg-countdown--closed"
     : countdown.msLeft < DAY
@@ -268,24 +275,23 @@ const CountdownBar = () => {
     <>
       <div ref={barRef} className={`lg-countdown ${tone}`}>
         <div className="lg-countdown__row">
-          {/* Left block: deadline over the supporting line, so the two
-              read as one column instead of the sub-line floating centred
-              in the gap between headline and timer. */}
-          <div className="lg-countdown__left">
-            <p className="lg-label lg-countdown__deadline">
-              {countdown.closed
-                ? "Season 1 registration is closed"
-                : `Season 1 registration closes ${shortDate(
-                    league.registrationCloseAt.slice(0, 10),
-                  )}`}
-            </p>
-            <p className="lg-countdown__sub">
-              {badge && <span className="lg-countdown__badge">{badge}</span>}
-              Season starts {shortDate(league.startDate)}
-              <span className="lg-countdown__dot">·</span>
-              {league.spotsClaimed} of {league.totalRoster} spots claimed
-            </p>
-          </div>
+          {/* Left: the deadline. */}
+          <p className="lg-label lg-countdown__deadline">
+            {badge && <span className="lg-countdown__badge">{badge}</span>}
+            {countdown.closed
+              ? "Season 1 registration is closed"
+              : `Season 1 registration closes ${shortDate(
+                  league.registrationCloseAt.slice(0, 10),
+                )}`}
+          </p>
+          {/* Centre: supporting detail. Hidden below 1024px — the
+              deadline and the timer carry the message on their own. */}
+          <p className="lg-countdown__center">
+            Season starts {shortDate(league.startDate)}
+            <span className="lg-countdown__dot">·</span>
+            {league.spotsClaimed} of {league.totalRoster} spots claimed
+          </p>
+          {/* Right: the timer. */}
           {!countdown.closed && (
             <p className="lg-countdown__timer">
               {/* The visible cells are decorative-duplicated for screen
@@ -311,14 +317,6 @@ const CountdownBar = () => {
           )}
         </div>
       </div>
-      {/* Spacer — reserves exactly the fixed strip's height so page
-          content never sits under it. Falls back to the CSS var until
-          the first measurement lands. */}
-      <div
-        className="lg-countdown-spacer"
-        aria-hidden="true"
-        style={barHeight != null ? { height: barHeight } : undefined}
-      />
     </>
   );
 };

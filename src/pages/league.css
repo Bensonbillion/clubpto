@@ -22,22 +22,31 @@
   --lg-bg: var(--ink);
   --lg-bg-2: var(--ink-2);
   --lg-dim-num: color-mix(in srgb, var(--chalk) 26%, var(--lg-bg));
-  /* countdown bar occupies this many pixels — mirrored by the spacer
-     div so page content never sits under it. Adjusted at the media
-     query below for wider layouts where the row wraps less. */
-  --lg-countdown-h: 96px;
 
   background: var(--lg-bg);
   color: var(--chalk);
   font-family: var(--f-body);
-  /* the fixed site header clears */
-  padding-top: 4rem;
+  /* Clears the fixed site header (4rem) plus the registration banner
+     above it. --lg-banner-h is measured from the banner and set on
+     :root by League.tsx; the fallback covers first paint. */
+  padding-top: calc(4rem + var(--lg-banner-h, 44px));
 }
 
-@media (min-width: 720px) {
-  .lg-page {
-    --lg-countdown-h: 84px;
-  }
+/* Banner palette — deliberately its own tokens, not the site's volt/ink.
+   The registration strip is a campaign surface that Benson specced as
+   forest + gold so it reads as club chrome rather than a lime callout. */
+:root {
+  --lg-banner-bg: #0a3a2a;
+  --lg-banner-fg: #ffffff;
+  --lg-banner-accent: #f4d03f;
+}
+
+/* The site header is fixed at top:0. While the League page is mounted the
+   banner owns that strip, so the header drops below it. Scoped with
+   :has() so no other route is affected, and specificity beats Tailwind's
+   .top-0 utility. */
+body:has(.lg-page) header.fixed {
+  top: var(--lg-banner-h, 44px);
 }
 
 .lg-page .rly-display {
@@ -95,87 +104,131 @@
    final 24 hours; --closed dims the whole strip. */
 
 .lg-countdown {
-  /* Pinned to the top of the viewport, immediately under the fixed site
-     header. `sticky` is unreliable inside the framer-motion PageWrapper
-     (its transform creates a containing block); `fixed` is not. A spacer
-     directly below preserves the layout so no content ever hides
-     under it. */
+  /* Fixed to the very top of the viewport, above the site header. The
+     header is itself fixed at top:0, so it gets pushed down by
+     --lg-banner-h (set from the measured bar height in League.tsx)
+     rather than disappearing behind this strip.
+
+     `fixed` not `sticky`: sticky is unreliable inside the framer-motion
+     PageWrapper, whose transform creates a containing block. */
   position: fixed;
-  top: 4rem;
+  top: 0;
   left: 0;
   right: 0;
-  z-index: 40;
-  background: var(--volt);
-  color: var(--lg-bg);
-  /* Compact: this strip is on screen for the whole page, so it earns as
-     little vertical space as it can while staying legible. */
-  padding: 9px var(--lg-pad-x);
-  border-bottom: 1px solid color-mix(in srgb, var(--lg-bg) 15%, transparent);
-  transition: background 0.3s var(--e-out), color 0.3s var(--e-out);
-}
-
-/* Reserves the exact vertical space the fixed countdown occupies. */
-.lg-countdown-spacer {
-  height: var(--lg-countdown-h);
+  z-index: 9999;
+  background: var(--lg-banner-bg);
+  color: var(--lg-banner-fg);
+  padding: 7px var(--lg-pad-x);
+  border-bottom: 2px solid var(--lg-banner-accent);
 }
 
 .lg-countdown__row {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px 24px;
-  flex-wrap: wrap;
-}
-
-/* Deadline + supporting line as one left-aligned column. Keeping them
-   together stops the second line reading as a stray caption floating in
-   the gap between the headline and the timer. */
-.lg-countdown__left {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
+  gap: 8px 20px;
+  min-height: 30px;
 }
 
 .lg-countdown__deadline {
   margin: 0;
-  color: var(--lg-bg);
-  letter-spacing: 0.14em;
-  font-size: 12px;
-  line-height: 1.25;
+  color: var(--lg-banner-fg);
+  letter-spacing: 0.1em;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* Centre zone — the supporting line. First thing to go on narrow
+   screens, since the deadline and the timer carry the message. */
+.lg-countdown__center {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  color: color-mix(in srgb, var(--lg-banner-fg) 78%, var(--lg-banner-bg));
+  white-space: nowrap;
+}
+
+.lg-countdown__dot {
+  opacity: 0.5;
 }
 
 .lg-countdown__timer {
   margin: 0;
   display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
+  align-items: center;
   font-family: var(--f-mono);
-  color: var(--lg-bg);
 }
 
 .lg-countdown__cells {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
 }
 
 .lg-countdown__unit {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
 }
 
 .lg-countdown__cell {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 0 6px;
+  gap: 1px;
+  padding: 0 5px;
 }
 
-/* Visually hidden but announced — the per-second cells above are
-   aria-hidden so assistive tech isn't flooded at 1 Hz. */
+.lg-countdown__cell b {
+  font-family: var(--f-mono);
+  font-weight: 700;
+  font-size: 17px;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  color: var(--lg-banner-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-countdown__cell em {
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-style: normal;
+  font-size: 7.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--lg-banner-fg) 72%, var(--lg-banner-bg));
+}
+
+.lg-countdown__colon {
+  font-family: var(--f-mono);
+  font-size: 15px;
+  line-height: 1;
+  color: color-mix(in srgb, var(--lg-banner-accent) 55%, var(--lg-banner-bg));
+  /* nudge up so the colon optically centres on the digits, not on the
+     digits-plus-label stack */
+  transform: translateY(-4px);
+}
+
+.lg-countdown__badge {
+  display: inline-block;
+  background: var(--lg-banner-accent);
+  color: var(--lg-banner-bg);
+  padding: 2px 7px;
+  margin-right: 8px;
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 8.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* Visually hidden but announced — the per-second cells are aria-hidden
+   so assistive tech isn't flooded at 1 Hz. */
 .lg-sr-only {
   position: absolute;
   width: 1px;
@@ -188,138 +241,66 @@
   border: 0;
 }
 
-.lg-countdown__cell b {
-  font-family: var(--f-mono);
-  font-weight: 400;
-  font-size: 22px;
-  line-height: 1;
-  letter-spacing: 0.06em;
-  font-variant-numeric: tabular-nums;
+/* Urgency tiers keep the forest ground (brand-fixed) and escalate the
+   accent instead: the badge appears in the last 72 hours and the accent
+   warms in the last 24. */
+.lg-countdown--final .lg-countdown__deadline {
+  color: var(--lg-banner-accent);
 }
 
-.lg-countdown__cell em {
-  font-family: var(--f-body);
-  font-weight: 700;
-  font-style: normal;
-  font-size: 8px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--lg-bg) 65%, var(--volt));
+.lg-countdown--last {
+  --lg-banner-accent: #f0a04b;
 }
 
-.lg-countdown__colon {
-  font-family: var(--f-mono);
-  font-size: 22px;
-  line-height: 1;
-  color: color-mix(in srgb, var(--lg-bg) 55%, var(--volt));
-  align-self: center;
-  transform: translateY(-6px);
+.lg-countdown--closed {
+  --lg-banner-accent: color-mix(in srgb, var(--lg-banner-fg) 30%, transparent);
 }
 
-.lg-countdown__sub {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0 6px;
-  font-size: 11.5px;
-  letter-spacing: 0.04em;
-  line-height: 1.25;
-  color: color-mix(in srgb, var(--lg-bg) 72%, var(--volt));
+.lg-countdown--closed .lg-countdown__deadline {
+  color: color-mix(in srgb, var(--lg-banner-fg) 70%, var(--lg-banner-bg));
 }
 
-.lg-countdown__dot {
-  opacity: 0.55;
+/* Tablet and down: the centre line is the least load-bearing, so it goes
+   first and the row stays a single line of deadline + timer. */
+@media (max-width: 1023px) {
+  .lg-countdown__center {
+    display: none;
+  }
 }
 
-.lg-countdown__badge {
-  display: inline-block;
-  background: var(--lg-bg);
-  color: var(--volt);
-  padding: 3px 8px;
-  font-family: var(--f-body);
-  font-weight: 700;
-  font-size: 9px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-/* Four cells (D:H:M:S) need tighter gutters before the row wraps on
-   small phones. Below 560px the timer drops onto its own line and
-   aligns left with the copy above it rather than hanging right. */
 @media (max-width: 560px) {
   .lg-countdown {
-    padding: 8px var(--lg-pad-x);
+    padding: 6px var(--lg-pad-x);
   }
   .lg-countdown__row {
-    gap: 8px;
+    gap: 6px 10px;
   }
-  .lg-countdown__left {
-    width: 100%;
-  }
-  .lg-countdown__timer {
-    margin-left: -3px;
+  .lg-countdown__deadline {
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    white-space: normal;
   }
   .lg-countdown__cell {
     padding: 0 3px;
   }
   .lg-countdown__cell b {
-    font-size: 19px;
+    font-size: 15px;
   }
   .lg-countdown__cell em {
-    font-size: 7px;
-    letter-spacing: 0.12em;
+    font-size: 6.5px;
+    letter-spacing: 0.08em;
   }
   .lg-countdown__colon {
-    font-size: 19px;
+    font-size: 13px;
+    transform: translateY(-3px);
   }
-  .lg-countdown__deadline {
-    font-size: 10.5px;
+  .lg-countdown__badge {
+    font-size: 7.5px;
+    padding: 2px 5px;
+    margin-right: 5px;
   }
-  .lg-countdown__sub {
-    font-size: 10.5px;
-  }
 }
 
-/* Final 72 hours: brighter lime, sharper. */
-.lg-countdown--final {
-  background: var(--volt-bright);
-}
-
-/* Final 24 hours: clay/brown for stark warning without introducing a
-   palette-foreign red. Text flips to cream. */
-.lg-countdown--last {
-  background: var(--clay);
-  color: var(--chalk);
-  border-bottom-color: color-mix(in srgb, var(--chalk) 15%, transparent);
-}
-
-.lg-countdown--last .lg-countdown__deadline,
-.lg-countdown--last .lg-countdown__timer,
-.lg-countdown--last .lg-countdown__cell b {
-  color: var(--chalk);
-}
-
-.lg-countdown--last .lg-countdown__cell em,
-.lg-countdown--last .lg-countdown__colon,
-.lg-countdown--last .lg-countdown__sub {
-  color: color-mix(in srgb, var(--chalk) 72%, var(--clay));
-}
-
-.lg-countdown--last .lg-countdown__badge {
-  background: var(--chalk);
-  color: var(--clay);
-}
-
-.lg-countdown--closed {
-  background: var(--lg-bg-2);
-  color: var(--chalk);
-  border-bottom-color: var(--line);
-}
-
-.lg-countdown--closed .lg-countdown__deadline {
-  color: var(--chalk);
-}
 
 /* Legacy ribbon styles remain for backwards compat with any snapshot;
    the ribbon element itself was replaced by the countdown bar. */
