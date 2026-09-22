@@ -1,0 +1,466 @@
+/*
+  PTO League — registration funnel (/league/join).
+
+  Same design tokens as the League landing (forest/cream/volt). Single
+  centered column, generous vertical rhythm, hairline separators. Form
+  inputs are dark cards on the forest ground with a volt focus ring.
+*/
+
+.lgj-page {
+  --lgj-pad-x: clamp(1.25rem, 4vw, 3rem);
+  --lgj-pad-y: clamp(2.5rem, 6vw, 4.5rem);
+  background: var(--ink);
+  color: var(--chalk);
+  font-family: var(--f-body);
+  min-height: 100vh;
+  padding: calc(4rem + var(--lgj-pad-y)) var(--lgj-pad-x) var(--lgj-pad-y);
+}
+
+.lgj-inner {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.lgj-label {
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  line-height: 1.3;
+}
+
+.lgj-eyebrow {
+  color: var(--volt);
+  margin: 0 0 clamp(1rem, 2.5vw, 1.4rem);
+}
+
+.lgj-title {
+  font-size: clamp(2rem, 1.6rem + 2vw, 3.2rem);
+  line-height: 1;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.lgj-sub {
+  margin: clamp(1rem, 2vw, 1.4rem) 0 0;
+  font-size: clamp(1rem, 0.95rem + 0.3vw, 1.15rem);
+  line-height: 1.55;
+  color: var(--chalk-dim);
+  max-width: 46ch;
+}
+
+.lgj-head {
+  margin-bottom: clamp(2rem, 4vw, 2.8rem);
+}
+
+.lgj-link {
+  color: var(--volt);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ── step indicator ────────────────────────────────────────────── */
+
+.lgj-steps {
+  list-style: none;
+  margin: 0 0 clamp(2rem, 4vw, 2.6rem);
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.lgj-steps__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  color: var(--chalk-dim);
+}
+
+.lgj-steps__item--active {
+  border-color: var(--volt);
+  color: var(--chalk);
+}
+
+.lgj-steps__item--done {
+  border-color: color-mix(in srgb, var(--volt) 55%, transparent);
+  color: color-mix(in srgb, var(--chalk) 75%, var(--ink));
+}
+
+.lgj-steps__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid currentColor;
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+.lgj-steps__item--active .lgj-steps__num {
+  background: var(--volt);
+  color: var(--ink);
+  border-color: var(--volt);
+}
+
+.lgj-steps__item--done .lgj-steps__num {
+  background: transparent;
+}
+
+.lgj-steps__label {
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* ── form ──────────────────────────────────────────────────────── */
+
+.lgj-form {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(16px, 2.5vw, 22px);
+}
+
+.lgj-form__row--pair {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(16px, 2.5vw, 22px);
+}
+
+@media (min-width: 560px) {
+  .lgj-form__row--pair {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.lgj-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lgj-field__label {
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+}
+
+.lgj-field--error .lgj-field__label {
+  color: color-mix(in srgb, var(--chalk-dim) 55%, #d97a5a);
+}
+
+.lgj-field__input {
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--ink-2);
+  color: var(--chalk);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  padding: 14px 16px;
+  font-family: var(--f-body);
+  font-size: 16px;
+  line-height: 1.3;
+  transition: border-color 0.18s var(--e-out), box-shadow 0.18s var(--e-out);
+}
+
+.lgj-field__input::placeholder {
+  color: color-mix(in srgb, var(--chalk-dim) 70%, var(--ink));
+}
+
+.lgj-field__input:focus-visible {
+  outline: none;
+  border-color: var(--volt);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--volt) 25%, transparent);
+}
+
+.lgj-field--error .lgj-field__input {
+  border-color: #d97a5a;
+}
+
+.lgj-field__select {
+  background-image: linear-gradient(
+    45deg,
+    transparent 50%,
+    var(--chalk-dim) 50%
+  ), linear-gradient(-45deg, transparent 50%, var(--chalk-dim) 50%);
+  background-position: calc(100% - 22px) 22px, calc(100% - 14px) 22px;
+  background-size: 8px 8px, 8px 8px;
+  background-repeat: no-repeat;
+  padding-right: 40px;
+}
+
+.lgj-field__err {
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: #d97a5a;
+}
+
+/* ── checkbox ──────────────────────────────────────────────────── */
+
+.lgj-check {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.lgj-check__box {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--line);
+  background: var(--ink-2);
+  margin: 0;
+  cursor: pointer;
+  position: relative;
+}
+
+.lgj-check__box:focus-visible {
+  outline: 2px solid var(--volt);
+  outline-offset: 2px;
+}
+
+.lgj-check__box:checked {
+  background: var(--volt);
+  border-color: var(--volt);
+}
+
+.lgj-check__box:checked::after {
+  content: "✓";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.lgj-check__label {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--chalk);
+}
+
+.lgj-check--error .lgj-check__box {
+  border-color: #d97a5a;
+}
+
+.lgj-check__err {
+  grid-column: 1 / -1;
+  margin-top: 6px;
+}
+
+/* ── CTA ───────────────────────────────────────────────────────── */
+
+.lgj-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 16px 26px;
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border: 0;
+  cursor: pointer;
+  margin-top: 8px;
+  width: 100%;
+  text-align: center;
+}
+
+.lgj-cta:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.lgj-cta--secondary {
+  background: transparent;
+  color: var(--chalk);
+  border: 1px solid var(--chalk);
+  margin-top: 12px;
+}
+
+.lgj-cta--secondary:hover {
+  border-color: var(--volt);
+  color: var(--volt);
+  background: transparent;
+  box-shadow: none;
+}
+
+.lgj-form__fine {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--chalk-dim) 88%, transparent);
+}
+
+.lgj-form__remote {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--volt) 40%, transparent);
+  background: color-mix(in srgb, var(--volt) 8%, transparent);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--chalk);
+}
+
+/* ── deposit step ──────────────────────────────────────────────── */
+
+.lgj-facts {
+  margin: 0 0 clamp(1.4rem, 3vw, 1.8rem);
+  border-top: 1px solid var(--line);
+}
+
+.lgj-fact {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.lgj-fact dt {
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+  margin: 0;
+}
+
+.lgj-fact dd {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--chalk);
+}
+
+@media (min-width: 560px) {
+  .lgj-fact {
+    grid-template-columns: 180px 1fr;
+    gap: 24px;
+    align-items: baseline;
+  }
+}
+
+.lgj-etransfer {
+  border: 1px solid var(--line);
+  padding: 18px 20px;
+  margin: 8px 0 0;
+  background: var(--ink-2);
+}
+
+.lgj-etransfer__label {
+  color: var(--volt);
+  margin: 0 0 8px;
+}
+
+.lgj-etransfer__body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--chalk);
+}
+
+.lgj-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 22px;
+  background: none;
+  border: 0;
+  color: var(--chalk-dim);
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.lgj-back:hover,
+.lgj-back:focus-visible {
+  color: var(--volt);
+  outline: none;
+}
+
+/* ── confirmation ──────────────────────────────────────────────── */
+
+.lgj-confirm {
+  margin: 0 0 clamp(1.4rem, 3vw, 1.8rem);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: clamp(18px, 3vw, 24px) 0;
+}
+
+.lgj-confirm__intro {
+  margin: 0 0 14px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--chalk);
+}
+
+.lgj-confirm__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lgj-confirm__list li {
+  position: relative;
+  padding-left: 22px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--chalk);
+}
+
+.lgj-confirm__list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 8px;
+  height: 8px;
+  background: var(--volt);
+}
+
+.lgj-confirm__note {
+  margin: 18px 0 0;
+  font-size: 13px;
+  color: var(--chalk-dim);
+}
+
+.lgj-confirm__foot {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 8px;
+}
