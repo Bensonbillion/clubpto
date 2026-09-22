@@ -17,8 +17,8 @@ export const league = {
   // Day, time, venue — the operational rhythm.
   sessionDay: "Sundays",
   sessionTime: "3:00 – 5:00 PM",
-  venueName: "North Padel",
-  venueArea: "Toronto",
+  venueName: "The District Padel",
+  venueArea: "Mississauga",
 
   // Divisions + roster.
   mensRoster: 16,
@@ -35,7 +35,21 @@ export const league = {
   // Registration URL. TODO_BENSON until the Acuity link (or equivalent) is
   // pinned. Until then, every CTA falls through to #pricing.
   registrationUrl: TODO,
+
+  // Registration closes at end of day Toronto time on this date; the
+  // countdown bar reads from here. ISO with an explicit -04:00 (EDT in
+  // September) keeps the timer consistent for every viewer regardless of
+  // their machine timezone.
+  registrationCloseAt: "2026-09-29T23:59:59-04:00",
+
+  // Roster fill. Update this one number as registrations come in; every
+  // surface that shows spots (hero, pricing badge, final CTA) picks it up.
+  spotsClaimed: 16,
 } as const;
+
+/** Remaining spots — derived so we never store two truths for the same fact. */
+export const leagueSpotsRemaining = (): number =>
+  Math.max(0, league.totalRoster - league.spotsClaimed);
 
 /** True when the operational fact has been filled in. */
 export const leagueIsSet = (value: string): boolean => value !== TODO;

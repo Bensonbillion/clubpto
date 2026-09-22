@@ -78,7 +78,150 @@
   margin: 0;
 }
 
-/* ── ribbon ────────────────────────────────────────────────────── */
+/* ── countdown bar ─────────────────────────────────────────────
+   Sticky under the fixed site header (4rem tall). Base state is
+   the volt band; --final swaps to the deeper volt tone and shows
+   a "Final days" badge; --last uses the clay contrast for the
+   final 24 hours; --closed dims the whole strip. */
+
+.lg-countdown {
+  position: sticky;
+  top: 4rem;
+  z-index: 25;
+  background: var(--volt);
+  color: var(--lg-bg);
+  padding: 12px var(--lg-pad-x) 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--lg-bg) 15%, transparent);
+  transition: background 0.3s var(--e-out), color 0.3s var(--e-out);
+}
+
+.lg-countdown__row {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.lg-countdown__deadline {
+  margin: 0;
+  color: var(--lg-bg);
+  letter-spacing: 0.14em;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.lg-countdown__timer {
+  margin: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-family: var(--f-mono);
+  color: var(--lg-bg);
+}
+
+.lg-countdown__cell {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px;
+}
+
+.lg-countdown__cell b {
+  font-family: var(--f-mono);
+  font-weight: 400;
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  font-variant-numeric: tabular-nums;
+}
+
+.lg-countdown__cell em {
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-style: normal;
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--lg-bg) 65%, var(--volt));
+}
+
+.lg-countdown__colon {
+  font-family: var(--f-mono);
+  font-size: 22px;
+  line-height: 1;
+  color: color-mix(in srgb, var(--lg-bg) 55%, var(--volt));
+  align-self: center;
+  transform: translateY(-6px);
+}
+
+.lg-countdown__sub {
+  max-width: 1200px;
+  margin: 8px auto 0;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--lg-bg) 72%, var(--volt));
+}
+
+.lg-countdown__badge {
+  display: inline-block;
+  margin-right: 10px;
+  background: var(--lg-bg);
+  color: var(--volt);
+  padding: 3px 8px;
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+/* Final 72 hours: brighter lime, sharper. */
+.lg-countdown--final {
+  background: var(--volt-bright);
+}
+
+/* Final 24 hours: clay/brown for stark warning without introducing a
+   palette-foreign red. Text flips to cream. */
+.lg-countdown--last {
+  background: var(--clay);
+  color: var(--chalk);
+  border-bottom-color: color-mix(in srgb, var(--chalk) 15%, transparent);
+}
+
+.lg-countdown--last .lg-countdown__deadline,
+.lg-countdown--last .lg-countdown__timer,
+.lg-countdown--last .lg-countdown__cell b {
+  color: var(--chalk);
+}
+
+.lg-countdown--last .lg-countdown__cell em,
+.lg-countdown--last .lg-countdown__colon,
+.lg-countdown--last .lg-countdown__sub {
+  color: color-mix(in srgb, var(--chalk) 72%, var(--clay));
+}
+
+.lg-countdown--last .lg-countdown__badge {
+  background: var(--chalk);
+  color: var(--clay);
+}
+
+.lg-countdown--closed {
+  background: var(--lg-bg-2);
+  color: var(--chalk);
+  border-bottom-color: var(--line);
+}
+
+.lg-countdown--closed .lg-countdown__deadline {
+  color: var(--chalk);
+}
+
+/* Legacy ribbon styles remain for backwards compat with any snapshot;
+   the ribbon element itself was replaced by the countdown bar. */
 
 .lg-ribbon {
   display: flex;
@@ -94,6 +237,49 @@
 
 .lg-ribbon__sep {
   opacity: 0.5;
+}
+
+/* ── spots-claimed tones ─────────────────────────────────────── */
+
+.lg-spots {
+  font-weight: 700;
+}
+.lg-spots--green {
+  color: var(--volt);
+}
+.lg-spots--gold {
+  color: #d9b850;
+}
+.lg-spots--red {
+  color: #d97a5a;
+}
+
+/* Countdown-bar spots colors get their contrast from the parent band, so
+   don't override there. */
+.lg-countdown .lg-spots {
+  color: inherit;
+}
+
+.lg-hero__urgency {
+  margin: 12px 0 0;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+}
+
+.lg-hero__urgency b {
+  font-weight: 700;
+}
+
+.lg-price__spots {
+  margin: 22px 0 0;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 /* ── hero — copy left, player card right ───────────────────────── */
