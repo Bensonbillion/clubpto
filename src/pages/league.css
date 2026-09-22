@@ -1,0 +1,1013 @@
+/*
+  PTO League — Season 1 landing page styles.
+
+  Same design system as Skill Lab (forest ink, cream chalk, volt lime,
+  DM Sans body, Bricolage Grotesque display, VT323 kickers), same
+  section rhythm, same sticky bar and gold inversion band.
+
+  Every clamp() mixes rem with vw so text zoom works.
+*/
+
+.lg-page {
+  --lg-display: clamp(2.9rem, 2.1rem + 3.6vw, 4.9rem);
+  --lg-h2: clamp(1.9rem, 1.5rem + 1.8vw, 2.9rem);
+  --lg-h2-lg: clamp(2.1rem, 1.6rem + 2.2vw, 3.5rem);
+  --lg-final: clamp(2.3rem, 1.8rem + 2.4vw, 4rem);
+  --lg-body: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+  --lg-label: 0.72rem;
+  --lg-num: clamp(2rem, 1.7rem + 1.3vw, 2.7rem);
+  --lg-price: clamp(3.2rem, 2.6rem + 2.6vw, 4.4rem);
+  --lg-pad-x: clamp(1.25rem, 4vw, 3rem);
+  --lg-pad-y: clamp(3.5rem, 7vw, 5.5rem);
+  --lg-bg: var(--ink);
+  --lg-bg-2: var(--ink-2);
+  --lg-dim-num: color-mix(in srgb, var(--chalk) 26%, var(--lg-bg));
+
+  background: var(--lg-bg);
+  color: var(--chalk);
+  font-family: var(--f-body);
+  /* the fixed site header clears */
+  padding-top: 4rem;
+}
+
+.lg-page .rly-display {
+  text-wrap: balance;
+}
+
+/* labels: DM Sans bold, tracked, uppercase */
+.lg-label {
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: var(--lg-label);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  line-height: 1.3;
+}
+
+.lg-cta {
+  min-height: 48px;
+  padding: 17px 26px;
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+}
+
+.lg-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.lg-section {
+  padding: var(--lg-pad-y) var(--lg-pad-x);
+}
+
+.lg-section--raised {
+  background: var(--lg-bg-2);
+  border-top: 1px solid var(--line);
+}
+
+.lg-eyebrow {
+  color: var(--chalk-dim);
+  margin: 0 0 clamp(1.4rem, 3vw, 2.2rem);
+}
+
+.lg-h2 {
+  font-size: var(--lg-h2);
+  line-height: 1.02;
+  margin: 0;
+}
+
+/* ── ribbon ────────────────────────────────────────────────────── */
+
+.lg-ribbon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  background: var(--volt);
+  color: var(--lg-bg);
+  padding: 9px var(--lg-pad-x);
+  text-align: center;
+}
+
+.lg-ribbon__sep {
+  opacity: 0.5;
+}
+
+/* ── hero — copy left, player card right ───────────────────────── */
+
+.lg-hero {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(2rem, 4vw, 3.5rem);
+  align-items: center;
+  padding: clamp(1.5rem, 3.5vw, 4rem) var(--lg-pad-x);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.lg-hero__eyebrow {
+  color: var(--volt);
+  margin: 0 0 clamp(1.2rem, 2.5vw, 1.5rem);
+}
+
+.lg-hero__title {
+  font-size: var(--lg-display);
+  line-height: 0.96;
+  margin: 0;
+}
+
+.lg-hero__sub {
+  margin: clamp(1.2rem, 2.5vw, 1.5rem) 0 0;
+  font-size: var(--lg-body);
+  line-height: 1.6;
+  color: var(--chalk-dim);
+  max-width: 44ch;
+}
+
+.lg-hero__sub--tight {
+  margin-top: 12px;
+  font-weight: 700;
+  color: var(--chalk);
+}
+
+.lg-hero__action {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+  margin-top: clamp(1.6rem, 3vw, 2.1rem);
+}
+
+.lg-hero__how {
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--chalk);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 4px;
+}
+
+.lg-hero__how:hover {
+  color: var(--volt);
+  border-color: var(--volt);
+}
+
+.lg-hero__meta {
+  margin: clamp(1.4rem, 2.6vw, 1.8rem) 0 0;
+  color: var(--chalk-dim);
+  letter-spacing: 0.14em;
+  font-weight: 500;
+}
+
+.lg-hero__note {
+  margin: 8px 0 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--chalk-dim);
+}
+
+/* the stat strip */
+.lg-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1px solid var(--line);
+  margin-top: clamp(1.6rem, 3vw, 2.4rem);
+}
+
+.lg-stat {
+  padding: 16px 0;
+  text-align: center;
+}
+
+.lg-stat + .lg-stat {
+  border-left: 1px solid var(--line);
+}
+
+.lg-stat__num {
+  display: block;
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: clamp(1.5rem, 1.3rem + 0.9vw, 1.9rem);
+  line-height: 1;
+  color: var(--chalk);
+}
+
+.lg-stat__label {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.6rem;
+  color: var(--chalk-dim);
+}
+
+.lg-hero__card {
+  order: -1; /* on mobile the card sits under the copy — we place it above */
+  max-width: 380px;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+@media (min-width: 1024px) {
+  .lg-hero {
+    grid-template-columns: 1.2fr 0.8fr;
+  }
+  .lg-hero__card {
+    order: 0;
+    max-width: 420px;
+  }
+  .lg-stats {
+    grid-template-columns: repeat(3, max-content);
+    width: max-content;
+  }
+  .lg-stat {
+    padding: 16px 26px;
+    text-align: left;
+  }
+}
+
+/* ── player card ─────────────────────────────────────────────────
+   A sports-graphic identity card. Monospace stats (VT323), volt
+   accents, sharp corners, subtle inner outline. The hero card is
+   compact; the identity-section variant (.lg-pcard--big) uses more
+   generous padding and typography. */
+
+.lg-pcard {
+  position: relative;
+  background: var(--lg-bg-2);
+  border: 1px solid var(--line);
+  padding: clamp(20px, 3vw, 28px);
+  color: var(--chalk);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(14px, 2vw, 20px);
+}
+
+.lg-pcard::before {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border: 1px solid color-mix(in srgb, var(--chalk) 8%, transparent);
+  pointer-events: none;
+}
+
+.lg-pcard__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  position: relative;
+}
+
+.lg-pcard__logo {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.2em;
+  color: var(--volt);
+}
+
+.lg-pcard__season {
+  font-family: var(--f-mono);
+  font-size: 16px;
+  letter-spacing: 0.1em;
+  color: var(--chalk-dim);
+}
+
+.lg-pcard__name {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: clamp(2rem, 1.5rem + 2vw, 2.9rem);
+  letter-spacing: -0.02em;
+  line-height: 0.95;
+  color: var(--chalk);
+  position: relative;
+}
+
+.lg-pcard__div {
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+  position: relative;
+}
+
+.lg-pcard__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  position: relative;
+}
+
+.lg-pcard__stat {
+  padding: 12px 0;
+  text-align: center;
+}
+
+.lg-pcard__stat + .lg-pcard__stat {
+  border-left: 1px solid var(--line);
+}
+
+.lg-pcard__k {
+  display: block;
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+}
+
+.lg-pcard__v {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--f-mono);
+  font-size: clamp(1.2rem, 1rem + 0.6vw, 1.5rem);
+  letter-spacing: 0.06em;
+  color: var(--chalk);
+}
+
+.lg-pcard__form {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  position: relative;
+}
+
+.lg-pcard__pips {
+  display: flex;
+  gap: 6px;
+}
+
+.lg-pip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 11px;
+  border: 1px solid color-mix(in srgb, var(--chalk) 22%, transparent);
+  color: var(--chalk-dim);
+  font-style: normal;
+}
+
+.lg-pip--w {
+  background: var(--volt);
+  border-color: var(--volt);
+  color: var(--lg-bg);
+}
+
+.lg-pip--d {
+  background: color-mix(in srgb, var(--volt) 22%, transparent);
+  color: var(--chalk);
+  border-color: color-mix(in srgb, var(--volt) 40%, transparent);
+}
+
+.lg-pip--l {
+  background: transparent;
+  color: var(--chalk-dim);
+}
+
+.lg-pcard__status {
+  font-family: var(--f-mono);
+  font-size: 15px;
+  letter-spacing: 0.1em;
+  color: var(--volt);
+  position: relative;
+}
+
+.lg-pcard--big {
+  padding: clamp(28px, 4vw, 40px);
+}
+
+.lg-pcard--big .lg-pcard__name {
+  font-size: clamp(2.4rem, 1.8rem + 2.4vw, 3.6rem);
+}
+
+/* ── the experience ────────────────────────────────────────────── */
+
+.lg-exp__lines {
+  margin: clamp(1.4rem, 3vw, 2rem) 0 0;
+  max-width: 52ch;
+  border-top: 1px solid var(--line);
+}
+
+.lg-exp__lines p {
+  margin: 0;
+  padding: 14px 0 14px 26px;
+  border-bottom: 1px solid var(--line);
+  position: relative;
+  font-size: clamp(1rem, 0.95rem + 0.3vw, 1.15rem);
+  line-height: 1.5;
+  color: var(--chalk);
+}
+
+.lg-exp__lines p::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 1.4em;
+  width: 10px;
+  height: 10px;
+  background: var(--volt);
+}
+
+.lg-exp__close {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: clamp(1.5rem, 1.3rem + 1vw, 2rem);
+  letter-spacing: -0.02em;
+  color: var(--volt);
+  margin: clamp(1.6rem, 3vw, 2.1rem) 0 0;
+  max-width: 32ch;
+}
+
+/* ── how it works — 4 numbered steps ───────────────────────────── */
+
+.lg-steps__head {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-bottom: clamp(1.8rem, 3.5vw, 2.4rem);
+}
+
+.lg-steps__intro {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.65;
+  color: var(--chalk-dim);
+  max-width: 36ch;
+}
+
+.lg-steps__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  border-top: 1px solid var(--line);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lg-step {
+  padding: 22px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.lg-step__num {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: var(--lg-num);
+  line-height: 1;
+  color: var(--lg-dim-num);
+}
+
+.lg-step--first .lg-step__num {
+  color: var(--volt);
+}
+
+.lg-step__title {
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1.3;
+  color: var(--chalk);
+  margin: 14px 0 10px;
+}
+
+.lg-step__text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--chalk-dim);
+}
+
+@media (min-width: 1024px) {
+  .lg-steps__head {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 40px;
+  }
+  .lg-steps__grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .lg-step {
+    padding: 24px 24px 24px 0;
+    border-bottom: 0;
+  }
+  .lg-step + .lg-step {
+    padding-left: 24px;
+    border-left: 1px solid var(--line);
+  }
+}
+
+/* ── what you get — 2x2 cards ─────────────────────────────────── */
+
+.lg-cards__grid {
+  list-style: none;
+  margin: clamp(1.6rem, 3vw, 2.2rem) 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.lg-card {
+  border: 1px solid var(--line);
+  background: var(--lg-bg);
+  padding: clamp(22px, 3vw, 32px);
+}
+
+.lg-card__title {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: clamp(1.05rem, 1rem + 0.4vw, 1.3rem);
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  color: var(--volt);
+  margin: 0 0 12px;
+}
+
+.lg-card__text {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--chalk);
+  opacity: 0.9;
+}
+
+@media (min-width: 720px) {
+  .lg-cards__grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ── player identity — grid: copy left, big card right ─────────── */
+
+.lg-identity__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: clamp(1.6rem, 4vw, 3rem);
+  align-items: center;
+}
+
+.lg-identity__copy {
+  margin: clamp(1.2rem, 2.5vw, 1.5rem) 0 0;
+  font-size: var(--lg-body);
+  line-height: 1.7;
+  color: var(--chalk);
+  opacity: 0.85;
+  max-width: 46ch;
+}
+
+.lg-identity__note {
+  margin: 24px 0 0;
+  color: var(--chalk-dim);
+  letter-spacing: 0.18em;
+}
+
+@media (min-width: 1024px) {
+  .lg-identity__grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ── details — dl table ────────────────────────────────────────── */
+
+.lg-facts {
+  margin: clamp(1.6rem, 3vw, 2.2rem) 0 0;
+  border-top: 1px solid var(--line);
+  max-width: 780px;
+}
+
+.lg-fact {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.lg-fact__k {
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--chalk-dim);
+  margin: 0;
+}
+
+.lg-fact__v {
+  margin: 0;
+  font-size: clamp(1rem, 0.95rem + 0.3vw, 1.15rem);
+  line-height: 1.4;
+  color: var(--chalk);
+}
+
+@media (min-width: 720px) {
+  .lg-fact {
+    grid-template-columns: 220px 1fr;
+    gap: 24px;
+    align-items: baseline;
+  }
+}
+
+/* ── pricing — single card ─────────────────────────────────────── */
+
+.lg-pricing {
+  scroll-margin-top: 5rem;
+}
+
+.lg-price {
+  border: 1px solid var(--volt);
+  background: var(--lg-bg);
+  padding: clamp(24px, 4vw, 40px);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  max-width: 640px;
+  margin: clamp(1.8rem, 3.5vw, 2.4rem) 0 0;
+}
+
+.lg-price__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.lg-price__label {
+  color: var(--volt);
+  letter-spacing: 0.16em;
+}
+
+.lg-price__badge {
+  background: var(--volt);
+  color: var(--lg-bg);
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 7px 10px;
+}
+
+.lg-price__amount {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: var(--lg-price);
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--chalk);
+  margin: 14px 0 4px;
+}
+
+.lg-price__per {
+  font-size: 14px;
+  color: var(--chalk-dim);
+}
+
+.lg-price__rows {
+  margin: 24px 0 0;
+}
+
+.lg-price__row {
+  border-top: 1px solid var(--line);
+  padding: 13px 0;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--chalk);
+}
+
+.lg-price .lg-cta {
+  display: block;
+  text-align: center;
+  margin-top: 24px;
+  padding-top: 17px;
+  padding-bottom: 17px;
+}
+
+.lg-price__meta {
+  margin: 20px 0 0;
+  color: var(--chalk-dim);
+  letter-spacing: 0.14em;
+  font-weight: 500;
+}
+
+.lg-price__fine {
+  margin: 14px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: color-mix(in srgb, var(--chalk-dim) 90%, transparent);
+}
+
+/* ── who should join ──────────────────────────────────────────── */
+
+.lg-who__lines {
+  list-style: none;
+  margin: clamp(1.6rem, 3vw, 2rem) 0 0;
+  padding: 0;
+  max-width: 48ch;
+  border-top: 1px solid var(--line);
+}
+
+.lg-who__lines li {
+  position: relative;
+  padding: 16px 0 16px 26px;
+  border-bottom: 1px solid var(--line);
+  font-size: clamp(1rem, 0.95rem + 0.3vw, 1.15rem);
+  line-height: 1.5;
+  color: var(--chalk);
+}
+
+.lg-who__lines li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 1.5em;
+  width: 10px;
+  height: 10px;
+  background: var(--volt);
+}
+
+.lg-who__close {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: clamp(1.5rem, 1.3rem + 1vw, 2rem);
+  letter-spacing: -0.02em;
+  color: var(--volt);
+  margin: clamp(1.6rem, 3vw, 2.1rem) 0 0;
+  max-width: 32ch;
+}
+
+.lg-who__note {
+  margin: 18px 0 0;
+  font-size: var(--lg-body);
+  line-height: 1.7;
+  color: var(--chalk-dim);
+  max-width: 62ch;
+}
+
+.lg-who__fine {
+  margin: 24px 0 0;
+  color: var(--chalk-dim);
+  letter-spacing: 0.16em;
+  font-weight: 500;
+}
+
+/* ── pathway ───────────────────────────────────────────────────── */
+
+.lg-path {
+  list-style: none;
+  margin: clamp(1.6rem, 3vw, 2rem) 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  border-top: 1px solid var(--line);
+}
+
+.lg-path__step {
+  border-bottom: 1px solid var(--line);
+}
+
+.lg-path__link {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 20px;
+  align-items: center;
+  padding: 22px 0;
+  color: var(--chalk);
+  text-decoration: none;
+}
+
+a.lg-path__link:hover {
+  color: var(--volt);
+}
+
+.lg-path__num {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 1.5rem;
+  color: var(--lg-dim-num);
+}
+
+.lg-path__label {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: clamp(1.1rem, 1rem + 0.4vw, 1.4rem);
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+}
+
+.lg-path__text {
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--chalk-dim);
+  justify-self: end;
+  text-align: right;
+}
+
+.lg-path__here {
+  display: inline-block;
+  margin-top: 4px;
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--lg-bg);
+  background: var(--volt);
+  padding: 5px 8px;
+}
+
+.lg-path__step--here .lg-path__num,
+.lg-path__step--here .lg-path__label {
+  color: var(--volt);
+}
+
+@media (max-width: 720px) {
+  .lg-path__link {
+    grid-template-columns: auto 1fr;
+    row-gap: 6px;
+  }
+  .lg-path__text {
+    grid-column: 1 / -1;
+    justify-self: start;
+    text-align: left;
+  }
+}
+
+/* ── faq ───────────────────────────────────────────────────────── */
+
+.lg-faq__list {
+  margin-top: clamp(1.8rem, 3.5vw, 2rem);
+  max-width: 76ch;
+  border-top: 1px solid var(--line);
+}
+
+.lg-faq__item {
+  border-bottom: 1px solid var(--line);
+}
+
+.lg-faq__q {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 0;
+  background: none;
+  border: 0;
+  color: var(--chalk);
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: clamp(1rem, 0.95rem + 0.3vw, 1.125rem);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lg-faq__q:focus-visible {
+  outline: 2px solid var(--volt);
+  outline-offset: 3px;
+}
+
+.lg-faq__mark {
+  color: var(--volt);
+  flex-shrink: 0;
+  font-weight: 400;
+  font-size: 20px;
+}
+
+.lg-faq__a {
+  margin: 0;
+  padding: 0 0 20px;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--chalk-dim);
+  max-width: 62ch;
+}
+
+/* ── final CTA — the gold inversion band ─────────────────────── */
+
+.lg-final {
+  background: var(--volt);
+  color: var(--lg-bg);
+  padding: clamp(3.5rem, 8vw, 6.25rem) var(--lg-pad-x);
+  text-align: center;
+}
+
+.lg-final__eyebrow {
+  margin: 0 auto clamp(1rem, 2vw, 1.6rem);
+  color: color-mix(in srgb, var(--lg-bg) 65%, var(--volt));
+}
+
+.lg-final__title {
+  font-size: var(--lg-final);
+  line-height: 0.98;
+  letter-spacing: -0.04em;
+  margin: 0 auto;
+  max-width: 22ch;
+  color: var(--lg-bg);
+}
+
+.lg-final__sub {
+  margin: 22px auto 0;
+  font-size: var(--lg-body);
+  line-height: 1.65;
+  color: color-mix(in srgb, var(--lg-bg) 78%, var(--volt));
+  max-width: 52ch;
+}
+
+.lg-final .lg-cta {
+  display: inline-block;
+  background: var(--lg-bg);
+  color: var(--volt);
+  margin-top: 30px;
+}
+
+@media (hover: hover) {
+  .lg-final .lg-cta:hover {
+    background: color-mix(in srgb, var(--chalk) 12%, var(--lg-bg));
+    box-shadow: none;
+  }
+}
+
+.lg-final__fact {
+  margin: 22px 0 0;
+  color: color-mix(in srgb, var(--lg-bg) 60%, var(--volt));
+}
+
+.lg-final__close {
+  margin: 24px 0 0;
+  font-family: var(--f-script);
+  font-size: clamp(1.6rem, 1.3rem + 1.2vw, 2.4rem);
+  color: var(--lg-bg);
+  line-height: 1;
+}
+
+/* ── sticky bar ────────────────────────────────────────────────── */
+
+.lg-sticky {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--lg-bg-2);
+  border-top: 1px solid var(--line);
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+}
+
+.lg-sticky__fact {
+  margin: 0;
+  color: var(--chalk);
+  letter-spacing: 0.16em;
+}
+
+.lg-sticky .lg-cta {
+  min-height: 44px;
+  padding: 11px 22px;
+}
+
+.lg-sticky__dismiss {
+  display: none;
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--chalk-dim);
+  font-family: var(--f-body);
+  font-size: 13px;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.lg-sticky__dismiss:focus-visible {
+  outline: 2px solid var(--volt);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1023px) {
+  .lg-sticky__dismiss {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}

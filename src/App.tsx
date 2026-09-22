@@ -15,6 +15,7 @@ const FAQPage = lazy(() => import("./pages/FAQPage"));
 const Community = lazy(() => import("./pages/Community"));
 const Partners = lazy(() => import("./pages/Partners"));
 const SkillsLab = lazy(() => import("./pages/SkillsLab"));
+const League = lazy(() => import("./pages/League"));
 const Install = lazy(() => import("./pages/Install"));
 // Court Manager. There is one now, mounted twice.
 //
@@ -67,6 +68,7 @@ const App = () => (
               <Route path="/skills-lab" element={<SkillsLab />} />
               {/* the old singular URL has been shared — keep it landing */}
               <Route path="/skill-lab" element={<Navigate to="/skills-lab" replace />} />
+              <Route path="/league" element={<League />} />
               <Route path="/install" element={<Install />} />
             </Route>
 
