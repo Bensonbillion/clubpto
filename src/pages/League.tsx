@@ -11,12 +11,49 @@ import { memo, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, MotionConfig } from "framer-motion";
 import PageWrapper from "@/components/layout/PageWrapper";
 import { fadeUp, staggerContainer } from "@/lib/animations";
-import { league, leagueCtaHref } from "@/content/league";
+import { league, leagueCtaHref, leagueSpotsRemaining } from "@/content/league";
 import "./league.css";
 
-const CTA_LABEL = "Join the league";
-const CTA_LABEL_FOUNDING = "Join the founding roster";
-const CTA_LABEL_SEASON = "Sign for Season 1";
+const CTA_LABEL = "Join the league →";
+const CTA_LABEL_FOUNDING = "Join the founding roster →";
+const CTA_LABEL_SEASON = "Sign for Season 1 →";
+
+/** ms in a day, hour, minute — used by the countdown timer. */
+const DAY = 86_400_000;
+const HOUR = 3_600_000;
+const MIN = 60_000;
+
+/**
+ * Countdown to a fixed ISO instant. Ticks once a minute (the display
+ * only shows minutes), pauses at zero. All viewers see the same figures
+ * regardless of their machine timezone because the target carries -04:00.
+ */
+const useCountdown = (targetISO: string) => {
+  const target = new Date(targetISO).getTime();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), MIN);
+    return () => window.clearInterval(id);
+  }, []);
+  const diff = Math.max(0, target - now);
+  return {
+    days: Math.floor(diff / DAY),
+    hours: Math.floor((diff % DAY) / HOUR),
+    minutes: Math.floor((diff % HOUR) / MIN),
+    msLeft: diff,
+    closed: diff === 0,
+  };
+};
+
+/** Two-digit zero-padded for the countdown display. */
+const pad2 = (n: number): string => (n < 10 ? `0${n}` : String(n));
+
+/** Bucket the spots-remaining count into a status class name. */
+const spotsToneClass = (remaining: number): string => {
+  if (remaining < 5) return "lg-spots--red";
+  if (remaining < 10) return "lg-spots--gold";
+  return "lg-spots--green";
+};
 
 /** "2026-10-04" → "Sunday, October 4, 2026" — the copy's long form. */
 const longDate = (iso: string): string => {
@@ -125,6 +162,10 @@ const FAQ = [
     a: "Each division winner receives the inaugural PTO League Championship trophy. Additional prizes may be announced before the tournament.",
   },
   {
+    q: "When does registration close?",
+    a: "September 29, or when all 32 roster spots are claimed — whichever comes first.",
+  },
+  {
     q: "Will there be a Season 2?",
     a: "Season 1 is our Founding Season. Future seasons will be announced afterward. Season 1 players may receive priority access.",
   },
@@ -187,16 +228,69 @@ const League = () => {
 
   const ctaHref = leagueCtaHref();
   const ctaTarget = ctaHref.startsWith("http") ? "_blank" : undefined;
+  const countdown = useCountdown(league.registrationCloseAt);
+  const remaining = leagueSpotsRemaining();
+  const spotsTone = spotsToneClass(remaining);
+  // Urgency tiers from the spec: gold in the final 72 hours, red in the
+  // final 24. Beyond either threshold the countdown reverts to the base
+  // volt band. `closed` clears both.
+  const countdownTone = countdown.closed
+    ? "lg-countdown--closed"
+    : countdown.msLeft < DAY
+      ? "lg-countdown--last"
+      : countdown.msLeft < 3 * DAY
+        ? "lg-countdown--final"
+        : "";
+  const badge = countdown.closed
+    ? "Registration closed"
+    : countdown.msLeft < DAY
+      ? "Last chance"
+      : countdown.msLeft < 3 * DAY
+        ? "Final days"
+        : null;
 
   return (
     <PageWrapper>
       <MotionConfig reducedMotion="user">
         <div className="lg-page">
-          {/* ── ribbon — the one fact banner ────────────────────────── */}
-          <div className="lg-ribbon lg-label">
-            <span>PTO League · Season 1</span>
-            <span className="lg-ribbon__sep">/</span>
-            <span>starts {shortDate(league.startDate)}</span>
+          {/* ── countdown bar — sticky top, always in view ──────────── */}
+          <div className={`lg-countdown ${countdownTone}`}>
+            <div className="lg-countdown__row">
+              <p className="lg-label lg-countdown__deadline">
+                {countdown.closed
+                  ? "Season 1 registration is closed"
+                  : `Season 1 registration closes ${shortDate(
+                      league.registrationCloseAt.slice(0, 10),
+                    )}`}
+              </p>
+              {!countdown.closed && (
+                <p
+                  className="lg-countdown__timer"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  <span className="lg-countdown__cell">
+                    <b>{pad2(countdown.days)}</b>
+                    <em>Days</em>
+                  </span>
+                  <span className="lg-countdown__colon">:</span>
+                  <span className="lg-countdown__cell">
+                    <b>{pad2(countdown.hours)}</b>
+                    <em>Hours</em>
+                  </span>
+                  <span className="lg-countdown__colon">:</span>
+                  <span className="lg-countdown__cell">
+                    <b>{pad2(countdown.minutes)}</b>
+                    <em>Minutes</em>
+                  </span>
+                </p>
+              )}
+            </div>
+            <p className="lg-countdown__sub">
+              {badge && <span className="lg-countdown__badge">{badge}</span>}
+              Season starts {shortDate(league.startDate)}. {league.spotsClaimed}{" "}
+              of {league.totalRoster} spots claimed.
+            </p>
           </div>
 
           {/* ── hero — headline left, stat/card feel right ─────────── */}
@@ -241,6 +335,13 @@ const League = () => {
               <p className="lg-hero__note">
                 Season 1 starts {shortDate(league.startDate)} at{" "}
                 {league.venueName}.
+              </p>
+              <p className={`lg-hero__urgency lg-spots ${spotsTone}`}>
+                Registration closes{" "}
+                {shortDate(league.registrationCloseAt.slice(0, 10))}.{" "}
+                <b>
+                  {league.spotsClaimed} of {league.totalRoster} spots claimed.
+                </b>
               </p>
               <div className="lg-stats">
                 <div className="lg-stat">
@@ -541,6 +642,15 @@ const League = () => {
                   <dt className="lg-fact__k">Total spots</dt>
                   <dd className="lg-fact__v">{league.totalRoster}</dd>
                 </div>
+                <div className="lg-fact">
+                  <dt className="lg-fact__k">Registration closes</dt>
+                  <dd className="lg-fact__v">
+                    {shortDate(league.registrationCloseAt.slice(0, 10))} ·{" "}
+                    <span className={`lg-spots ${spotsTone}`}>
+                      {league.spotsClaimed} of {league.totalRoster} claimed
+                    </span>
+                  </dd>
+                </div>
               </motion.dl>
             </div>
           </motion.section>
@@ -584,6 +694,9 @@ const League = () => {
                     Eligibility for the PTO Tournament (if Top 8)
                   </div>
                 </div>
+                <p className={`lg-price__spots lg-spots ${spotsTone}`}>
+                  {league.spotsClaimed} of {league.totalRoster} spots claimed
+                </p>
                 <a
                   className="rly-pill lg-cta"
                   href={ctaHref}
@@ -597,6 +710,9 @@ const League = () => {
                   before {shortDate(league.depositDeadline)}
                 </p>
                 <p className="lg-price__fine">
+                  Registration closes{" "}
+                  {shortDate(league.registrationCloseAt.slice(0, 10))} or when
+                  all roster spots are claimed — whichever comes first.
                   Deposits are non-refundable once your roster position is
                   confirmed. League fees are non-refundable once the season
                   begins.
@@ -755,7 +871,9 @@ const League = () => {
               </a>
             </motion.div>
             <motion.p variants={fadeUp} className="lg-label lg-final__fact">
-              ${league.depositPrice} deposit · ${league.fullPrice} total
+              ${league.depositPrice} deposit · ${league.fullPrice} total ·
+              Registration closes{" "}
+              {shortDate(league.registrationCloseAt.slice(0, 10))}
             </motion.p>
             <motion.p variants={fadeUp} className="lg-final__close">
               See you on game day.
