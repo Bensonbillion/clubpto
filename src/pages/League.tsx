@@ -268,13 +268,24 @@ const CountdownBar = () => {
     <>
       <div ref={barRef} className={`lg-countdown ${tone}`}>
         <div className="lg-countdown__row">
-          <p className="lg-label lg-countdown__deadline">
-            {countdown.closed
-              ? "Season 1 registration is closed"
-              : `Season 1 registration closes ${shortDate(
-                  league.registrationCloseAt.slice(0, 10),
-                )}`}
-          </p>
+          {/* Left block: deadline over the supporting line, so the two
+              read as one column instead of the sub-line floating centred
+              in the gap between headline and timer. */}
+          <div className="lg-countdown__left">
+            <p className="lg-label lg-countdown__deadline">
+              {countdown.closed
+                ? "Season 1 registration is closed"
+                : `Season 1 registration closes ${shortDate(
+                    league.registrationCloseAt.slice(0, 10),
+                  )}`}
+            </p>
+            <p className="lg-countdown__sub">
+              {badge && <span className="lg-countdown__badge">{badge}</span>}
+              Season starts {shortDate(league.startDate)}
+              <span className="lg-countdown__dot">·</span>
+              {league.spotsClaimed} of {league.totalRoster} spots claimed
+            </p>
+          </div>
           {!countdown.closed && (
             <p className="lg-countdown__timer">
               {/* The visible cells are decorative-duplicated for screen
@@ -299,11 +310,6 @@ const CountdownBar = () => {
             </p>
           )}
         </div>
-        <p className="lg-countdown__sub">
-          {badge && <span className="lg-countdown__badge">{badge}</span>}
-          Season starts {shortDate(league.startDate)}. {league.spotsClaimed} of{" "}
-          {league.totalRoster} spots claimed.
-        </p>
       </div>
       {/* Spacer — reserves exactly the fixed strip's height so page
           content never sits under it. Falls back to the CSS var until

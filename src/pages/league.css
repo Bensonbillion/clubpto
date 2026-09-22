@@ -107,7 +107,9 @@
   z-index: 40;
   background: var(--volt);
   color: var(--lg-bg);
-  padding: 12px var(--lg-pad-x) 10px;
+  /* Compact: this strip is on screen for the whole page, so it earns as
+     little vertical space as it can while staying legible. */
+  padding: 9px var(--lg-pad-x);
   border-bottom: 1px solid color-mix(in srgb, var(--lg-bg) 15%, transparent);
   transition: background 0.3s var(--e-out), color 0.3s var(--e-out);
 }
@@ -123,8 +125,18 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 16px 24px;
   flex-wrap: wrap;
+}
+
+/* Deadline + supporting line as one left-aligned column. Keeping them
+   together stops the second line reading as a stray caption floating in
+   the gap between the headline and the timer. */
+.lg-countdown__left {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
 }
 
 .lg-countdown__deadline {
@@ -132,7 +144,7 @@
   color: var(--lg-bg);
   letter-spacing: 0.14em;
   font-size: 12px;
-  line-height: 1.3;
+  line-height: 1.25;
 }
 
 .lg-countdown__timer {
@@ -205,17 +217,23 @@
 }
 
 .lg-countdown__sub {
-  max-width: 1200px;
-  margin: 8px auto 0;
-  text-align: center;
-  font-size: 11px;
-  letter-spacing: 0.06em;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
   color: color-mix(in srgb, var(--lg-bg) 72%, var(--volt));
+}
+
+.lg-countdown__dot {
+  opacity: 0.55;
 }
 
 .lg-countdown__badge {
   display: inline-block;
-  margin-right: 10px;
   background: var(--lg-bg);
   color: var(--volt);
   padding: 3px 8px;
@@ -227,8 +245,21 @@
 }
 
 /* Four cells (D:H:M:S) need tighter gutters before the row wraps on
-   small phones. */
+   small phones. Below 560px the timer drops onto its own line and
+   aligns left with the copy above it rather than hanging right. */
 @media (max-width: 560px) {
+  .lg-countdown {
+    padding: 8px var(--lg-pad-x);
+  }
+  .lg-countdown__row {
+    gap: 8px;
+  }
+  .lg-countdown__left {
+    width: 100%;
+  }
+  .lg-countdown__timer {
+    margin-left: -3px;
+  }
   .lg-countdown__cell {
     padding: 0 3px;
   }
@@ -243,7 +274,10 @@
     font-size: 19px;
   }
   .lg-countdown__deadline {
-    font-size: 11px;
+    font-size: 10.5px;
+  }
+  .lg-countdown__sub {
+    font-size: 10.5px;
   }
 }
 
