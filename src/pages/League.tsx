@@ -18,21 +18,26 @@ const CTA_LABEL = "Join the league →";
 const CTA_LABEL_FOUNDING = "Join the founding roster →";
 const CTA_LABEL_SEASON = "Sign for Season 1 →";
 
-/** ms in a day, hour, minute — used by the countdown timer. */
+/** ms in a day, hour, minute, second — used by the countdown timer. */
 const DAY = 86_400_000;
 const HOUR = 3_600_000;
 const MIN = 60_000;
+const SEC = 1_000;
 
 /**
- * Countdown to a fixed ISO instant. Ticks once a minute (the display
- * only shows minutes), pauses at zero. All viewers see the same figures
- * regardless of their machine timezone because the target carries -04:00.
+ * Countdown to a fixed ISO instant. Ticks every second, stops at zero.
+ * All viewers see the same figures regardless of their machine timezone
+ * because the target carries an explicit -04:00 offset.
+ *
+ * Only CountdownBar calls this — deliberately. At 1 Hz this re-renders
+ * its caller every second, and the League page is full of whileInView
+ * motion sections that must not be asked to re-evaluate that often.
  */
 const useCountdown = (targetISO: string) => {
   const target = new Date(targetISO).getTime();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), MIN);
+    const id = window.setInterval(() => setNow(Date.now()), SEC);
     return () => window.clearInterval(id);
   }, []);
   const diff = Math.max(0, target - now);
@@ -40,6 +45,7 @@ const useCountdown = (targetISO: string) => {
     days: Math.floor(diff / DAY),
     hours: Math.floor((diff % DAY) / HOUR),
     minutes: Math.floor((diff % HOUR) / MIN),
+    seconds: Math.floor((diff % MIN) / SEC),
     msLeft: diff,
     closed: diff === 0,
   };
@@ -204,6 +210,113 @@ const StickyBar = memo(({ onDismiss }: { onDismiss: () => void }) => (
 ));
 StickyBar.displayName = "StickyBar";
 
+/**
+ * The pinned countdown strip. Owns the 1 Hz timer so the rest of the
+ * page — every whileInView motion section below — renders once and is
+ * left alone. `position: fixed` rather than `sticky`: the framer-motion
+ * PageWrapper's transform creates a containing block that breaks sticky,
+ * and a spacer sibling reserves the strip's height in the flow.
+ */
+const CountdownBar = () => {
+  const countdown = useCountdown(league.registrationCloseAt);
+  // The strip is out of flow, so a sibling spacer has to hold its height
+  // open. Measuring beats hard-coding: the bar grows when the row wraps on
+  // a narrow phone and again when an urgency badge appears in the last 72
+  // hours, and a stale constant would let content slide underneath.
+  const barRef = useRef<HTMLDivElement | null>(null);
+  const [barHeight, setBarHeight] = useState<number | null>(null);
+  useEffect(() => {
+    const el = barRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      // borderBoxSize, not contentRect: the strip carries 22px of vertical
+      // padding plus a hairline border, and contentRect excludes both —
+      // sizing the spacer from it leaves the hero 23px under the bar.
+      const box = entry.borderBoxSize?.[0];
+      setBarHeight(
+        box ? box.blockSize : el.getBoundingClientRect().height,
+      );
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  // Urgency tiers from the deck: brighter band in the final 72 hours,
+  // clay in the final 24. Outside those windows it stays the base volt.
+  const tone = countdown.closed
+    ? "lg-countdown--closed"
+    : countdown.msLeft < DAY
+      ? "lg-countdown--last"
+      : countdown.msLeft < 3 * DAY
+        ? "lg-countdown--final"
+        : "";
+  const badge = countdown.closed
+    ? "Registration closed"
+    : countdown.msLeft < DAY
+      ? "Last chance"
+      : countdown.msLeft < 3 * DAY
+        ? "Final days"
+        : null;
+
+  const units: { value: number; label: string }[] = [
+    { value: countdown.days, label: "Days" },
+    { value: countdown.hours, label: "Hours" },
+    { value: countdown.minutes, label: "Minutes" },
+    { value: countdown.seconds, label: "Seconds" },
+  ];
+
+  return (
+    <>
+      <div ref={barRef} className={`lg-countdown ${tone}`}>
+        <div className="lg-countdown__row">
+          <p className="lg-label lg-countdown__deadline">
+            {countdown.closed
+              ? "Season 1 registration is closed"
+              : `Season 1 registration closes ${shortDate(
+                  league.registrationCloseAt.slice(0, 10),
+                )}`}
+          </p>
+          {!countdown.closed && (
+            <p className="lg-countdown__timer">
+              {/* The visible cells are decorative-duplicated for screen
+                  readers by the sr-only line below, which only announces
+                  at minute granularity — a per-second aria-live region
+                  would flood assistive tech. */}
+              <span aria-hidden="true" className="lg-countdown__cells">
+                {units.map((u, i) => (
+                  <span key={u.label} className="lg-countdown__unit">
+                    {i > 0 && <span className="lg-countdown__colon">:</span>}
+                    <span className="lg-countdown__cell">
+                      <b>{pad2(u.value)}</b>
+                      <em>{u.label}</em>
+                    </span>
+                  </span>
+                ))}
+              </span>
+              <span className="lg-sr-only">
+                {countdown.days} days, {countdown.hours} hours and{" "}
+                {countdown.minutes} minutes left to register.
+              </span>
+            </p>
+          )}
+        </div>
+        <p className="lg-countdown__sub">
+          {badge && <span className="lg-countdown__badge">{badge}</span>}
+          Season starts {shortDate(league.startDate)}. {league.spotsClaimed} of{" "}
+          {league.totalRoster} spots claimed.
+        </p>
+      </div>
+      {/* Spacer — reserves exactly the fixed strip's height so page
+          content never sits under it. Falls back to the CSS var until
+          the first measurement lands. */}
+      <div
+        className="lg-countdown-spacer"
+        aria-hidden="true"
+        style={barHeight != null ? { height: barHeight } : undefined}
+      />
+    </>
+  );
+};
+
 const League = () => {
   useEffect(() => {
     const previous = document.title;
@@ -228,74 +341,15 @@ const League = () => {
 
   const ctaHref = leagueCtaHref();
   const ctaTarget = ctaHref.startsWith("http") ? "_blank" : undefined;
-  const countdown = useCountdown(league.registrationCloseAt);
   const remaining = leagueSpotsRemaining();
   const spotsTone = spotsToneClass(remaining);
-  // Urgency tiers from the spec: gold in the final 72 hours, red in the
-  // final 24. Beyond either threshold the countdown reverts to the base
-  // volt band. `closed` clears both.
-  const countdownTone = countdown.closed
-    ? "lg-countdown--closed"
-    : countdown.msLeft < DAY
-      ? "lg-countdown--last"
-      : countdown.msLeft < 3 * DAY
-        ? "lg-countdown--final"
-        : "";
-  const badge = countdown.closed
-    ? "Registration closed"
-    : countdown.msLeft < DAY
-      ? "Last chance"
-      : countdown.msLeft < 3 * DAY
-        ? "Final days"
-        : null;
 
   return (
     <PageWrapper>
       <MotionConfig reducedMotion="user">
         <div className="lg-page">
-          {/* ── countdown bar — sticky top, always in view ──────────── */}
-          <div className={`lg-countdown ${countdownTone}`}>
-            <div className="lg-countdown__row">
-              <p className="lg-label lg-countdown__deadline">
-                {countdown.closed
-                  ? "Season 1 registration is closed"
-                  : `Season 1 registration closes ${shortDate(
-                      league.registrationCloseAt.slice(0, 10),
-                    )}`}
-              </p>
-              {!countdown.closed && (
-                <p
-                  className="lg-countdown__timer"
-                  aria-live="polite"
-                  aria-atomic="true"
-                >
-                  <span className="lg-countdown__cell">
-                    <b>{pad2(countdown.days)}</b>
-                    <em>Days</em>
-                  </span>
-                  <span className="lg-countdown__colon">:</span>
-                  <span className="lg-countdown__cell">
-                    <b>{pad2(countdown.hours)}</b>
-                    <em>Hours</em>
-                  </span>
-                  <span className="lg-countdown__colon">:</span>
-                  <span className="lg-countdown__cell">
-                    <b>{pad2(countdown.minutes)}</b>
-                    <em>Minutes</em>
-                  </span>
-                </p>
-              )}
-            </div>
-            <p className="lg-countdown__sub">
-              {badge && <span className="lg-countdown__badge">{badge}</span>}
-              Season starts {shortDate(league.startDate)}. {league.spotsClaimed}{" "}
-              of {league.totalRoster} spots claimed.
-            </p>
-          </div>
-          {/* Spacer — reserves exactly the countdown bar's height so page
-              content never sits under the fixed strip. */}
-          <div className="lg-countdown-spacer" aria-hidden="true" />
-
+          {/* ── countdown bar — pinned top, always in view ──────────── */}
+          <CountdownBar />
 
           {/* ── hero — headline left, stat/card feel right ─────────── */}
           <section ref={heroRef} className="lg-hero">

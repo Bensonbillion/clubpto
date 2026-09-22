@@ -144,12 +144,36 @@
   color: var(--lg-bg);
 }
 
+.lg-countdown__cells {
+  display: inline-flex;
+  align-items: baseline;
+}
+
+.lg-countdown__unit {
+  display: inline-flex;
+  align-items: baseline;
+}
+
 .lg-countdown__cell {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
   gap: 2px;
   padding: 0 6px;
+}
+
+/* Visually hidden but announced — the per-second cells above are
+   aria-hidden so assistive tech isn't flooded at 1 Hz. */
+.lg-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .lg-countdown__cell b {
@@ -200,6 +224,27 @@
   font-size: 9px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
+}
+
+/* Four cells (D:H:M:S) need tighter gutters before the row wraps on
+   small phones. */
+@media (max-width: 560px) {
+  .lg-countdown__cell {
+    padding: 0 3px;
+  }
+  .lg-countdown__cell b {
+    font-size: 19px;
+  }
+  .lg-countdown__cell em {
+    font-size: 7px;
+    letter-spacing: 0.12em;
+  }
+  .lg-countdown__colon {
+    font-size: 19px;
+  }
+  .lg-countdown__deadline {
+    font-size: 11px;
+  }
 }
 
 /* Final 72 hours: brighter lime, sharper. */
