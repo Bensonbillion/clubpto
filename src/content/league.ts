@@ -33,8 +33,19 @@ export const league = {
   depositPrice: 100,
 
   // Registration URL. TODO_BENSON until the Acuity link (or equivalent) is
-  // pinned. Until then, every CTA falls through to #pricing.
+  // pinned. Until then, every CTA falls through to the /league/join funnel.
   registrationUrl: TODO,
+
+  // Lead capture endpoint. Any HTTPS URL that accepts a JSON body
+  // (Formspree, a Supabase edge function, a Zapier webhook) works. TODO
+  // until picked. When TODO, the form advances into the deposit step
+  // anyway and stores the payload in sessionStorage so nothing is lost
+  // while the pipe is being built.
+  leadCaptureUrl: TODO,
+
+  // Deposit checkout. Stripe payment link, Square, whatever. TODO until
+  // picked; when TODO the deposit step shows a "pay by e-transfer" fallback.
+  depositUrl: TODO,
 
   // Registration closes at end of day Toronto time on this date; the
   // countdown bar reads from here. ISO with an explicit -04:00 (EDT in
@@ -45,6 +56,10 @@ export const league = {
   // Roster fill. Update this one number as registrations come in; every
   // surface that shows spots (hero, pricing badge, final CTA) picks it up.
   spotsClaimed: 16,
+
+  // Where the CTAs route. Kept on the content file so a hosted funnel
+  // (external landing, e-commerce) can drop in without a code change.
+  joinPath: "/league/join",
 } as const;
 
 /** Remaining spots — derived so we never store two truths for the same fact. */
@@ -55,8 +70,9 @@ export const leagueSpotsRemaining = (): number =>
 export const leagueIsSet = (value: string): boolean => value !== TODO;
 
 /**
- * The general CTA target. Falls back to #pricing until the real link lands
- * so no visible button is ever a dead end.
+ * The general CTA target. Prefers a pinned external registrationUrl
+ * (e.g., Acuity) when set; otherwise routes visitors into the local
+ * /league/join funnel so nothing is a dead end.
  */
 export const leagueCtaHref = (): string =>
-  leagueIsSet(league.registrationUrl) ? league.registrationUrl : "#pricing";
+  leagueIsSet(league.registrationUrl) ? league.registrationUrl : league.joinPath;

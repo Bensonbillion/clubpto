@@ -292,6 +292,10 @@ const League = () => {
               of {league.totalRoster} spots claimed.
             </p>
           </div>
+          {/* Spacer — reserves exactly the countdown bar's height so page
+              content never sits under the fixed strip. */}
+          <div className="lg-countdown-spacer" aria-hidden="true" />
+
 
           {/* ── hero — headline left, stat/card feel right ─────────── */}
           <section ref={heroRef} className="lg-hero">

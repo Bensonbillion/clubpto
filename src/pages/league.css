@@ -22,12 +22,22 @@
   --lg-bg: var(--ink);
   --lg-bg-2: var(--ink-2);
   --lg-dim-num: color-mix(in srgb, var(--chalk) 26%, var(--lg-bg));
+  /* countdown bar occupies this many pixels — mirrored by the spacer
+     div so page content never sits under it. Adjusted at the media
+     query below for wider layouts where the row wraps less. */
+  --lg-countdown-h: 96px;
 
   background: var(--lg-bg);
   color: var(--chalk);
   font-family: var(--f-body);
   /* the fixed site header clears */
   padding-top: 4rem;
+}
+
+@media (min-width: 720px) {
+  .lg-page {
+    --lg-countdown-h: 84px;
+  }
 }
 
 .lg-page .rly-display {
@@ -85,14 +95,26 @@
    final 24 hours; --closed dims the whole strip. */
 
 .lg-countdown {
-  position: sticky;
+  /* Pinned to the top of the viewport, immediately under the fixed site
+     header. `sticky` is unreliable inside the framer-motion PageWrapper
+     (its transform creates a containing block); `fixed` is not. A spacer
+     directly below preserves the layout so no content ever hides
+     under it. */
+  position: fixed;
   top: 4rem;
-  z-index: 25;
+  left: 0;
+  right: 0;
+  z-index: 40;
   background: var(--volt);
   color: var(--lg-bg);
   padding: 12px var(--lg-pad-x) 10px;
   border-bottom: 1px solid color-mix(in srgb, var(--lg-bg) 15%, transparent);
   transition: background 0.3s var(--e-out), color 0.3s var(--e-out);
+}
+
+/* Reserves the exact vertical space the fixed countdown occupies. */
+.lg-countdown-spacer {
+  height: var(--lg-countdown-h);
 }
 
 .lg-countdown__row {
