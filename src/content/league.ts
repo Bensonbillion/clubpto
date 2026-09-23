@@ -36,12 +36,8 @@ export const league = {
   // pinned. Until then, every CTA falls through to the /league/join funnel.
   registrationUrl: TODO,
 
-  // Lead capture endpoint. Any HTTPS URL that accepts a JSON body
-  // (Formspree, a Supabase edge function, a Zapier webhook) works. TODO
-  // until picked. When TODO, the form advances into the deposit step
-  // anyway and stores the payload in sessionStorage so nothing is lost
-  // while the pipe is being built.
-  leadCaptureUrl: TODO,
+  // Lead capture has no URL here: /league/join writes straight to the
+  // clubhouse league_registrations table (src/league/submitRegistration.ts).
 
   // Deposit checkout. Stripe payment link, Square, whatever. TODO until
   // picked; when TODO the deposit step shows a "pay by e-transfer" fallback.

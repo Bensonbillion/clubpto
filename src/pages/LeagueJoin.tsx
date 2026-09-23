@@ -5,30 +5,25 @@
 // afterwards out of band, so no figure appears anywhere on these screens.
 //
 // Step and form data persist to sessionStorage under a versioned key so a
-// refresh or a back tap doesn't lose the visitor's progress. When
-// leadCaptureUrl is still TODO the submission is kept locally and the flow
-// still completes, so the funnel never dead ends while the pipe is chosen.
+// refresh or a back tap doesn't lose the visitor's progress. Submitting
+// writes the registration to the clubhouse league_registrations table
+// (src/league/submitRegistration.ts). If that write fails the visitor stays
+// on the form with a retry message; we only confirm what actually landed.
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PageWrapper from "@/components/layout/PageWrapper";
-import { league, leagueIsSet } from "@/content/league";
+import { league } from "@/content/league";
+import {
+  submitLeagueRegistration,
+  type Division,
+  type Experience,
+  type LeadData,
+  type LeagueRegistration,
+} from "@/league/submitRegistration";
 import "./leagueJoin.css";
 
 type Step = "form" | "confirmed";
-type Division = "mens" | "womens";
-type Experience = "few" | "developing" | "intermediate";
-
-interface LeadData {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-  division: Division | "";
-  experience: Experience | "";
-  instagram: string;
-  consent: boolean;
-}
 
 const EMPTY_LEAD: LeadData = {
   firstName: "",
@@ -235,40 +230,15 @@ const RegistrationForm = ({ value, onChange, onSubmit }: FormProps) => {
     setSubmitting(true);
     setRemoteError(null);
 
-    // POST to the lead capture endpoint when it's pinned. A failure is not
-    // fatal: the payload is already in sessionStorage and we still advance,
-    // because losing a keen registrant to a network blip is the worse bug.
-    if (leagueIsSet(league.leadCaptureUrl)) {
-      try {
-        const res = await fetch(league.leadCaptureUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            source: "clubpto.com/league/join",
-            submittedAt: new Date().toISOString(),
-            firstName: value.firstName.trim(),
-            lastName: value.lastName.trim(),
-            email: value.email.trim(),
-            phone: value.phone.trim(),
-            division: value.division,
-            experience: value.experience,
-            instagram: value.instagram.trim() || null,
-            consent: value.consent,
-          }),
-        });
-        if (!res.ok) {
-          setRemoteError(
-            "We saved your details on this device. We'll follow up if anything didn't reach us.",
-          );
-        }
-      } catch {
-        setRemoteError(
-          "We saved your details on this device. We'll follow up if anything didn't reach us.",
-        );
-      }
-    }
-
+    // validate() guarantees division and experience are picked.
+    const result = await submitLeagueRegistration(value as LeagueRegistration);
     setSubmitting(false);
+    if (!result.ok) {
+      setRemoteError(
+        "That didn't go through. Check your connection and try again.",
+      );
+      return;
+    }
     onSubmit();
   };
 
@@ -373,7 +343,11 @@ const RegistrationForm = ({ value, onChange, onSubmit }: FormProps) => {
           onChange={(v) => set("consent", v)}
         />
 
-        {remoteError && <p className="lgj-form__remote">{remoteError}</p>}
+        {remoteError && (
+          <p className="lgj-form__remote" role="alert">
+            {remoteError}
+          </p>
+        )}
 
         <button type="submit" className="rly-pill lgj-cta" disabled={submitting}>
           {submitting ? "Sending…" : "Join the founding roster →"}
