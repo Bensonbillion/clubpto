@@ -211,42 +211,15 @@ const StickyBar = memo(({ onDismiss }: { onDismiss: () => void }) => (
 StickyBar.displayName = "StickyBar";
 
 /**
- * The pinned countdown strip. Owns the 1 Hz timer so the rest of the
- * page — every whileInView motion section below — renders once and is
- * left alone. `position: fixed` rather than `sticky`: the framer-motion
- * PageWrapper's transform creates a containing block that breaks sticky,
- * and a spacer sibling reserves the strip's height in the flow.
+ * The registration strip at the top of the page. In normal flow, so it
+ * scrolls away rather than following the reader down.
+ *
+ * It owns the 1 Hz timer itself so the rest of the page, every
+ * whileInView motion section below, renders once and is left alone
+ * instead of being re-evaluated every second.
  */
 const CountdownBar = () => {
   const countdown = useCountdown(league.registrationCloseAt);
-  // The strip is fixed at top:0, so two things have to move out of its
-  // way: the site header (also fixed at top:0) and the page content.
-  // Both read --lg-banner-h, published here from the measured height.
-  // Measuring beats a constant — the row rewraps across breakpoints and
-  // grows again when the urgency badge appears in the last 72 hours.
-  const barRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const el = barRef.current;
-    if (!el) return;
-    const root = document.documentElement;
-    const publish = (height: number) => {
-      root.style.setProperty("--lg-banner-h", `${Math.round(height)}px`);
-    };
-    const observer = new ResizeObserver(([entry]) => {
-      // borderBoxSize, not contentRect: the strip carries vertical padding
-      // plus a 2px border and contentRect excludes both, which would leave
-      // the header and hero tucked under the bar by exactly that much.
-      const box = entry.borderBoxSize?.[0];
-      publish(box ? box.blockSize : el.getBoundingClientRect().height);
-    });
-    observer.observe(el);
-    publish(el.getBoundingClientRect().height);
-    return () => {
-      observer.disconnect();
-      // Leaving this set would offset the header on every other route.
-      root.style.removeProperty("--lg-banner-h");
-    };
-  }, []);
   // Urgency tiers from the deck: the badge appears in the final 72 hours
   // and the accent warms in the final 24. The forest ground is fixed.
   const tone = countdown.closed
@@ -273,7 +246,7 @@ const CountdownBar = () => {
 
   return (
     <>
-      <div ref={barRef} className={`lg-countdown ${tone}`}>
+      <div className={`lg-countdown ${tone}`}>
         <div className="lg-countdown__row">
           {/* Left: the deadline. */}
           <p className="lg-label lg-countdown__deadline">

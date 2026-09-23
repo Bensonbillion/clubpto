@@ -26,27 +26,17 @@
   background: var(--lg-bg);
   color: var(--chalk);
   font-family: var(--f-body);
-  /* Clears the fixed site header (4rem) plus the registration banner
-     above it. --lg-banner-h is measured from the banner and set on
-     :root by League.tsx; the fallback covers first paint. */
-  padding-top: calc(4rem + var(--lg-banner-h, 44px));
+  /* clears the fixed site header */
+  padding-top: 4rem;
 }
 
-/* Banner palette — deliberately its own tokens, not the site's volt/ink.
-   The registration strip is a campaign surface that Benson specced as
-   forest + gold so it reads as club chrome rather than a lime callout. */
+/* Banner palette — its own tokens, not the site's volt/ink. The
+   registration strip is a campaign surface, forest + gold so it reads as
+   club chrome rather than a lime callout. */
 :root {
   --lg-banner-bg: #0a3a2a;
   --lg-banner-fg: #ffffff;
   --lg-banner-accent: #f4d03f;
-}
-
-/* The site header is fixed at top:0. While the League page is mounted the
-   banner owns that strip, so the header drops below it. Scoped with
-   :has() so no other route is affected, and specificity beats Tailwind's
-   .top-0 utility. */
-body:has(.lg-page) header.fixed {
-  top: var(--lg-banner-h, 44px);
 }
 
 .lg-page .rly-display {
@@ -104,18 +94,9 @@ body:has(.lg-page) header.fixed {
    final 24 hours; --closed dims the whole strip. */
 
 .lg-countdown {
-  /* Fixed to the very top of the viewport, above the site header. The
-     header is itself fixed at top:0, so it gets pushed down by
-     --lg-banner-h (set from the measured bar height in League.tsx)
-     rather than disappearing behind this strip.
-
-     `fixed` not `sticky`: sticky is unreliable inside the framer-motion
-     PageWrapper, whose transform creates a containing block. */
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 9999;
+  /* Deliberately in normal flow, NOT pinned. It sits at the top of the
+     page, does its job on arrival, and scrolls away with everything
+     else — a strip that follows you down the page reads as clutter. */
   background: var(--lg-banner-bg);
   color: var(--lg-banner-fg);
   padding: 7px var(--lg-pad-x);
