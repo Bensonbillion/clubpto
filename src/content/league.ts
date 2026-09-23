@@ -29,7 +29,7 @@ export const league = {
   regularSeasonWeeks: 7,
 
   // Pricing (CAD).
-  fullPrice: 200,
+  fullPrice: 225,
   depositPrice: 100,
 
   // Registration URL. TODO_BENSON until the Acuity link (or equivalent) is

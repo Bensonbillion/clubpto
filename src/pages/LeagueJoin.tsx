@@ -1,19 +1,21 @@
-// PTO League — Season 1 registration funnel.
+// PTO League, Season 1 registration funnel.
 //
-// Three-step flow the copy deck spells out: form → deposit → confirmed.
-// State lives in sessionStorage keyed by "league.join.v1" so refreshes
-// don't nuke the visitor's progress. When leadCaptureUrl and depositUrl
-// are still TODO, submissions still progress (payload stored locally,
-// deposit step shows an e-transfer fallback) so the funnel never dead-ends
-// while payments are being wired up.
+// Two steps: details, then confirmation. Payment is deliberately NOT part
+// of this flow. The job here is to capture the lead; deposits are arranged
+// afterwards out of band, so no figure appears anywhere on these screens.
+//
+// Step and form data persist to sessionStorage under a versioned key so a
+// refresh or a back tap doesn't lose the visitor's progress. When
+// leadCaptureUrl is still TODO the submission is kept locally and the flow
+// still completes, so the funnel never dead ends while the pipe is chosen.
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { FormEvent, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import PageWrapper from "@/components/layout/PageWrapper";
 import { league, leagueIsSet } from "@/content/league";
 import "./leagueJoin.css";
 
-type Step = "form" | "deposit" | "confirmed";
+type Step = "form" | "confirmed";
 type Division = "mens" | "womens";
 type Experience = "few" | "developing" | "intermediate";
 
@@ -39,7 +41,7 @@ const EMPTY_LEAD: LeadData = {
   consent: false,
 };
 
-const STORAGE_KEY = "league.join.v1";
+const STORAGE_KEY = "league.join.v2";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const DIVISION_LABEL: Record<Division, string> = {
@@ -53,7 +55,7 @@ const EXPERIENCE_LABEL: Record<Experience, string> = {
   intermediate: "Intermediate+",
 };
 
-/** "2026-10-04" → "October 4" — for tight display copy. */
+/** "2026-10-04" to "October 4", for tight display copy. */
 const shortDate = (iso: string): string => {
   const [y, m, d] = iso.split("-").map(Number);
   const date = new Date(Date.UTC(y, m - 1, d));
@@ -85,7 +87,7 @@ const writeStored = (stored: Stored): void => {
   try {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
   } catch {
-    /* private mode / disabled storage — silently ignore */
+    /* private mode or disabled storage, nothing to do */
   }
 };
 
@@ -102,7 +104,7 @@ const LeagueJoin = () => {
 
   useEffect(() => {
     const previous = document.title;
-    document.title = "Join PTO League — Season 1 · Club PTO";
+    document.title = "Join PTO League Season 1 · Club PTO";
     return () => {
       document.title = previous;
     };
@@ -112,7 +114,6 @@ const LeagueJoin = () => {
   const [lead, setLead] = useState<LeadData>(EMPTY_LEAD);
   const [hydrated, setHydrated] = useState(false);
 
-  // Restore any in-progress state on mount.
   useEffect(() => {
     const stored = readStored();
     if (stored) {
@@ -122,15 +123,13 @@ const LeagueJoin = () => {
     setHydrated(true);
   }, []);
 
-  // Persist on every change once hydrated (so we don't overwrite session on load).
+  // Persist once hydrated, so the empty initial state never overwrites a
+  // restored session.
   useEffect(() => {
     if (!hydrated) return;
     writeStored({ step, lead });
   }, [hydrated, step, lead]);
 
-  const goToForm = () => setStep("form");
-  const advanceToDeposit = () => setStep("deposit");
-  const advanceToConfirmed = () => setStep("confirmed");
   const startOver = () => {
     clearStored();
     setStep("form");
@@ -146,18 +145,15 @@ const LeagueJoin = () => {
             <RegistrationForm
               value={lead}
               onChange={setLead}
-              onSubmit={advanceToDeposit}
-            />
-          )}
-          {step === "deposit" && (
-            <DepositStep
-              lead={lead}
-              onBack={goToForm}
-              onPaid={advanceToConfirmed}
+              onSubmit={() => setStep("confirmed")}
             />
           )}
           {step === "confirmed" && (
-            <ConfirmedStep lead={lead} onReset={startOver} onGoHome={() => navigate("/")} />
+            <ConfirmedStep
+              lead={lead}
+              onReset={startOver}
+              onGoHome={() => navigate("/")}
+            />
           )}
         </div>
       </div>
@@ -169,8 +165,7 @@ const LeagueJoin = () => {
 
 const STEPS: { id: Step; label: string }[] = [
   { id: "form", label: "Your details" },
-  { id: "deposit", label: "Secure your spot" },
-  { id: "confirmed", label: "Confirmed" },
+  { id: "confirmed", label: "You're in" },
 ];
 
 const StepBar = ({ step }: { step: Step }) => {
@@ -213,7 +208,9 @@ const validate = (v: LeadData): Partial<Record<keyof LeadData, string>> => {
 };
 
 const RegistrationForm = ({ value, onChange, onSubmit }: FormProps) => {
-  const [errors, setErrors] = useState<Partial<Record<keyof LeadData, string>>>({});
+  const [errors, setErrors] = useState<Partial<Record<keyof LeadData, string>>>(
+    {},
+  );
   const [submitting, setSubmitting] = useState(false);
   const [remoteError, setRemoteError] = useState<string | null>(null);
   const firstInputRef = useRef<HTMLInputElement | null>(null);
@@ -238,9 +235,9 @@ const RegistrationForm = ({ value, onChange, onSubmit }: FormProps) => {
     setSubmitting(true);
     setRemoteError(null);
 
-    // POST to the lead capture endpoint if pinned. Failure is not fatal —
-    // the payload is already in sessionStorage and we still advance so
-    // the user can complete the deposit.
+    // POST to the lead capture endpoint when it's pinned. A failure is not
+    // fatal: the payload is already in sessionStorage and we still advance,
+    // because losing a keen registrant to a network blip is the worse bug.
     if (leagueIsSet(league.leadCaptureUrl)) {
       try {
         const res = await fetch(league.leadCaptureUrl, {
@@ -261,12 +258,12 @@ const RegistrationForm = ({ value, onChange, onSubmit }: FormProps) => {
         });
         if (!res.ok) {
           setRemoteError(
-            "We captured your details locally — we'll follow up if this doesn't sync.",
+            "We saved your details on this device. We'll follow up if anything didn't reach us.",
           );
         }
       } catch {
         setRemoteError(
-          "We captured your details locally — we'll follow up if this doesn't sync.",
+          "We saved your details on this device. We'll follow up if anything didn't reach us.",
         );
       }
     }
@@ -279,10 +276,11 @@ const RegistrationForm = ({ value, onChange, onSubmit }: FormProps) => {
     <>
       <header className="lgj-head">
         <p className="lgj-label lgj-eyebrow">Step 1 · your details</p>
-        <h1 className="rly-display lgj-title">Join PTO League — Season 1</h1>
+        <h1 className="rly-display lgj-title">Join PTO League Season 1</h1>
         <p className="lgj-sub">
-          Fill in your details to start your registration. You'll complete
-          your ${league.depositPrice} deposit on the next step.
+          Tell us who you are and we'll hold you a place on the founding
+          roster. We'll be in touch with everything you need before the
+          season starts.
         </p>
       </header>
 
@@ -340,8 +338,8 @@ const RegistrationForm = ({ value, onChange, onSubmit }: FormProps) => {
             onChange={(v) => set("division", v as Division | "")}
             required
             options={[
-              { value: "mens", label: "Men's Division" },
-              { value: "womens", label: "Women's Division" },
+              { value: "mens", label: DIVISION_LABEL.mens },
+              { value: "womens", label: DIVISION_LABEL.womens },
             ]}
           />
           <SelectField
@@ -352,9 +350,9 @@ const RegistrationForm = ({ value, onChange, onSubmit }: FormProps) => {
             onChange={(v) => set("experience", v as Experience | "")}
             required
             options={[
-              { value: "few", label: "Played a few times" },
-              { value: "developing", label: "Developing" },
-              { value: "intermediate", label: "Intermediate+" },
+              { value: "few", label: EXPERIENCE_LABEL.few },
+              { value: "developing", label: EXPERIENCE_LABEL.developing },
+              { value: "intermediate", label: EXPERIENCE_LABEL.intermediate },
             ]}
           />
         </div>
@@ -377,124 +375,22 @@ const RegistrationForm = ({ value, onChange, onSubmit }: FormProps) => {
 
         {remoteError && <p className="lgj-form__remote">{remoteError}</p>}
 
-        <button
-          type="submit"
-          className="rly-pill lgj-cta"
-          disabled={submitting}
-        >
-          {submitting ? "Submitting…" : "Continue to secure your spot →"}
+        <button type="submit" className="rly-pill lgj-cta" disabled={submitting}>
+          {submitting ? "Sending…" : "Join the founding roster →"}
         </button>
 
         <p className="lgj-form__fine">
           Registration closes{" "}
-          {shortDate(league.registrationCloseAt.slice(0, 10))}. Roster spots
-          are held on a first-come, first-served basis and are only confirmed
-          after your deposit is paid.
+          {shortDate(league.registrationCloseAt.slice(0, 10))}. The founding
+          roster is {league.totalRoster} players and places are held in the
+          order they come in.
         </p>
       </form>
     </>
   );
 };
 
-/* ── step 2: deposit ─────────────────────────────────────────── */
-
-interface DepositProps {
-  lead: LeadData;
-  onBack: () => void;
-  onPaid: () => void;
-}
-
-const DepositStep = ({ lead, onBack, onPaid }: DepositProps) => {
-  const divisionLabel =
-    lead.division && DIVISION_LABEL[lead.division as Division];
-  const depositReady = leagueIsSet(league.depositUrl);
-
-  return (
-    <>
-      <header className="lgj-head">
-        <p className="lgj-label lgj-eyebrow">Step 2 · secure your spot</p>
-        <h1 className="rly-display lgj-title">You're almost in.</h1>
-        <p className="lgj-sub">
-          Secure your Season 1 roster spot with a ${league.depositPrice}{" "}
-          deposit.
-        </p>
-      </header>
-
-      <dl className="lgj-facts">
-        <div className="lgj-fact">
-          <dt>Player</dt>
-          <dd>
-            {lead.firstName} {lead.lastName}
-          </dd>
-        </div>
-        <div className="lgj-fact">
-          <dt>Division</dt>
-          <dd>{divisionLabel || "—"}</dd>
-        </div>
-        <div className="lgj-fact">
-          <dt>Deposit today</dt>
-          <dd>${league.depositPrice}</dd>
-        </div>
-        <div className="lgj-fact">
-          <dt>Remaining balance</dt>
-          <dd>
-            ${league.fullPrice - league.depositPrice} · due before{" "}
-            {shortDate(league.depositDeadline)}
-          </dd>
-        </div>
-        <div className="lgj-fact">
-          <dt>Registration closes</dt>
-          <dd>{shortDate(league.registrationCloseAt.slice(0, 10))}</dd>
-        </div>
-      </dl>
-
-      {depositReady ? (
-        <a
-          href={league.depositUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rly-pill lgj-cta"
-        >
-          Pay ${league.depositPrice} deposit →
-        </a>
-      ) : (
-        <div className="lgj-etransfer">
-          <p className="lgj-label lgj-etransfer__label">Payment window</p>
-          <p className="lgj-etransfer__body">
-            The online deposit link is being wired up. In the meantime, send
-            your ${league.depositPrice} deposit by e-transfer to{" "}
-            <a href="mailto:clubptobookings@gmail.com" className="lgj-link">
-              clubptobookings@gmail.com
-            </a>{" "}
-            and use the message{" "}
-            <b>
-              "League Season 1 — {lead.firstName} {lead.lastName}"
-            </b>{" "}
-            so we can match it to your roster spot.
-          </p>
-          <button
-            type="button"
-            className="rly-pill rly-pill--ghost lgj-cta lgj-cta--secondary"
-            onClick={onPaid}
-          >
-            I've sent the e-transfer →
-          </button>
-        </div>
-      )}
-
-      <p className="lgj-form__fine">
-        Deposits are non-refundable once your roster position is confirmed.
-        Your spot is not secured until payment is received.
-      </p>
-
-      <button type="button" className="lgj-back" onClick={onBack}>
-        ← Edit my details
-      </button>
-    </>
-  );
-};
-
-/* ── step 3: confirmation ────────────────────────────────────── */
+/* ── step 2: confirmation ────────────────────────────────────── */
 
 interface ConfirmedProps {
   lead: LeadData;
@@ -504,11 +400,14 @@ interface ConfirmedProps {
 
 const ConfirmedStep = ({ lead, onReset, onGoHome }: ConfirmedProps) => {
   const firstName = lead.firstName || "player";
+  const divisionLabel =
+    lead.division && DIVISION_LABEL[lead.division as Division];
+
   return (
     <>
       <header className="lgj-head">
-        <p className="lgj-label lgj-eyebrow">Step 3 · confirmed</p>
-        <h1 className="rly-display lgj-title">You're on the roster.</h1>
+        <p className="lgj-label lgj-eyebrow">Step 2 · you're in</p>
+        <h1 className="rly-display lgj-title">You're on the list.</h1>
         <p className="lgj-sub">
           Welcome to PTO League Season 1, {firstName}.
         </p>
@@ -516,22 +415,23 @@ const ConfirmedStep = ({ lead, onReset, onGoHome }: ConfirmedProps) => {
 
       <div className="lgj-confirm">
         <p className="lgj-confirm__intro">
-          Your registration is being processed. Here's what happens next:
+          We've got your details{divisionLabel ? ` for the ${divisionLabel}` : ""}.
+          Here's what happens next:
         </p>
         <ul className="lgj-confirm__list">
           <li>
-            Remaining balance of ${league.fullPrice - league.depositPrice} is
-            due before {shortDate(league.depositDeadline)}
+            We'll email you at {lead.email || "your inbox"} to confirm your
+            place and walk you through the last step
           </li>
           <li>
-            Your division assignment and player number will be shared before
-            Week 1
+            Your division and player number land before Week 1
           </li>
           <li>Match schedule drops the week of {shortDate("2026-09-29")}</li>
           <li>Season 1 begins Sunday, {shortDate(league.startDate)}</li>
         </ul>
         <p className="lgj-confirm__note">
-          Check your email for your confirmation receipt.
+          Keep an eye on your inbox. If nothing arrives in a day or two,
+          check your spam folder or reply to any Club PTO email.
         </p>
       </div>
 
@@ -667,7 +567,13 @@ interface CheckboxProps {
   error?: string;
 }
 
-const CheckboxField = ({ id, label, checked, onChange, error }: CheckboxProps) => (
+const CheckboxField = ({
+  id,
+  label,
+  checked,
+  onChange,
+  error,
+}: CheckboxProps) => (
   <label className={`lgj-check ${error ? "lgj-check--error" : ""}`} htmlFor={id}>
     <input
       id={id}
@@ -689,6 +595,4 @@ const CheckboxField = ({ id, label, checked, onChange, error }: CheckboxProps) =
 
 export default LeagueJoin;
 
-/* Small helpers exposed for the test file if we ever add one — not
-   currently imported by any component but useful when we do. */
 export { EMAIL_RE, validate, DIVISION_LABEL, EXPERIENCE_LABEL };

@@ -211,37 +211,17 @@ const StickyBar = memo(({ onDismiss }: { onDismiss: () => void }) => (
 StickyBar.displayName = "StickyBar";
 
 /**
- * The pinned countdown strip. Owns the 1 Hz timer so the rest of the
- * page — every whileInView motion section below — renders once and is
- * left alone. `position: fixed` rather than `sticky`: the framer-motion
- * PageWrapper's transform creates a containing block that breaks sticky,
- * and a spacer sibling reserves the strip's height in the flow.
+ * The registration strip at the top of the page. In normal flow, so it
+ * scrolls away rather than following the reader down.
+ *
+ * It owns the 1 Hz timer itself so the rest of the page, every
+ * whileInView motion section below, renders once and is left alone
+ * instead of being re-evaluated every second.
  */
 const CountdownBar = () => {
   const countdown = useCountdown(league.registrationCloseAt);
-  // The strip is out of flow, so a sibling spacer has to hold its height
-  // open. Measuring beats hard-coding: the bar grows when the row wraps on
-  // a narrow phone and again when an urgency badge appears in the last 72
-  // hours, and a stale constant would let content slide underneath.
-  const barRef = useRef<HTMLDivElement | null>(null);
-  const [barHeight, setBarHeight] = useState<number | null>(null);
-  useEffect(() => {
-    const el = barRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver(([entry]) => {
-      // borderBoxSize, not contentRect: the strip carries 22px of vertical
-      // padding plus a hairline border, and contentRect excludes both —
-      // sizing the spacer from it leaves the hero 23px under the bar.
-      const box = entry.borderBoxSize?.[0];
-      setBarHeight(
-        box ? box.blockSize : el.getBoundingClientRect().height,
-      );
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-  // Urgency tiers from the deck: brighter band in the final 72 hours,
-  // clay in the final 24. Outside those windows it stays the base volt.
+  // Urgency tiers from the deck: the badge appears in the final 72 hours
+  // and the accent warms in the final 24. The forest ground is fixed.
   const tone = countdown.closed
     ? "lg-countdown--closed"
     : countdown.msLeft < DAY
@@ -266,15 +246,25 @@ const CountdownBar = () => {
 
   return (
     <>
-      <div ref={barRef} className={`lg-countdown ${tone}`}>
+      <div className={`lg-countdown ${tone}`}>
         <div className="lg-countdown__row">
+          {/* Left: the deadline. */}
           <p className="lg-label lg-countdown__deadline">
+            {badge && <span className="lg-countdown__badge">{badge}</span>}
             {countdown.closed
               ? "Season 1 registration is closed"
               : `Season 1 registration closes ${shortDate(
                   league.registrationCloseAt.slice(0, 10),
                 )}`}
           </p>
+          {/* Centre: supporting detail. Hidden below 1024px — the
+              deadline and the timer carry the message on their own. */}
+          <p className="lg-countdown__center">
+            Season starts {shortDate(league.startDate)}
+            <span className="lg-countdown__dot">·</span>
+            {league.spotsClaimed} of {league.totalRoster} spots claimed
+          </p>
+          {/* Right: the timer. */}
           {!countdown.closed && (
             <p className="lg-countdown__timer">
               {/* The visible cells are decorative-duplicated for screen
@@ -299,20 +289,7 @@ const CountdownBar = () => {
             </p>
           )}
         </div>
-        <p className="lg-countdown__sub">
-          {badge && <span className="lg-countdown__badge">{badge}</span>}
-          Season starts {shortDate(league.startDate)}. {league.spotsClaimed} of{" "}
-          {league.totalRoster} spots claimed.
-        </p>
       </div>
-      {/* Spacer — reserves exactly the fixed strip's height so page
-          content never sits under it. Falls back to the CSS var until
-          the first measurement lands. */}
-      <div
-        className="lg-countdown-spacer"
-        aria-hidden="true"
-        style={barHeight != null ? { height: barHeight } : undefined}
-      />
     </>
   );
 };
