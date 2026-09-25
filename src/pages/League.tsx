@@ -165,7 +165,7 @@ const FAQ = [
   },
   {
     q: "What do the champions receive?",
-    a: "Each division winner receives the inaugural PTO League Championship trophy. Additional prizes may be announced before the tournament.",
+    a: "Over $2,000 in prizes are on the line. Each division winner also takes home the inaugural PTO League Championship trophy.",
   },
   {
     q: "When does registration close?",
