@@ -7,3 +7,6 @@ verify_jwt = false
 verify_jwt = false
 [functions.manage-session]
 verify_jwt = false
+
+[functions.league-welcome]
+verify_jwt = false
