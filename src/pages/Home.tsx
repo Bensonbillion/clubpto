@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import { photos } from "@/site/photos";
 import {
-  bookPto,
   club,
   finalsUpcoming,
   isSet,
@@ -354,9 +353,8 @@ const BookBand = () => (
           Bring your people. <span className="it">We'll run the night.</span>
         </h2>
         <p className="body">
-          Two hours of padel with a host, a warm-up for first-timers and a live scoreboard.
-          {isSet(bookPto.companyFrom) ? ` Company nights from ${bookPto.companyFrom}.` : ""}
-          {isSet(bookPto.privateFrom) ? ` Private parties from ${bookPto.privateFrom}.` : ""}
+          Two hours of padel with a host, a warm-up for first-timers and a live scoreboard. Tell us your date and
+          group size and we'll send a quote.
         </p>
         <div className="cta-row">
           <Link className="btn btn-dark" to="/book-pto#inquire">
@@ -376,7 +374,7 @@ const Drops = () => (
     <div className="wrap split" style={{ alignItems: "center", gap: 32 }}>
       <div className="stack" style={{ gap: 10 }}>
         <h2 className="disp t-m">
-          {isSet(thursday.passDropDay) ? `Passes drop every ${thursday.passDropDay}.` : "Never miss a night."}
+          Never miss a night.
         </h2>
         <p className="body" style={{ color: "var(--ink)" }}>
           New passes, league news and the next COURTSIDE, first.

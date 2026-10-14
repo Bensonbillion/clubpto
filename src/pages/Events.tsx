@@ -160,7 +160,7 @@ const Events = () => {
                 <Photo photo={photos.gamesNight} sizes="(max-width: 900px) 100vw, 400px" />
               </div>
               <p className="eyebrow eyebrow-leaf">
-                {isSet(communityNights.gamesNightMonth) ? communityNights.gamesNightMonth : "Community night"}
+                Community night
               </p>
               <h3 className="disp" style={{ fontSize: 30 }}>
                 Indoor Games Night

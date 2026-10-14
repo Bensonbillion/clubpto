@@ -2,29 +2,24 @@
 
 import { useEffect, type CSSProperties, type ReactNode } from "react";
 import Picture from "@/components/ui/Picture";
+import logoWordmarkCream from "@/assets/logo-wordmark-cream.png";
 import type { SitePhoto } from "@/site/photos";
 
-/** The crossed-rackets mark. */
-export const Mark = ({ size = 36 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
-    <g fill="none" stroke="#0E2418" strokeWidth="4.5" strokeLinecap="round">
-      <g transform="rotate(-38 32 34)">
-        <ellipse cx="32" cy="20" rx="11" ry="13" />
-        <line x1="32" y1="33" x2="32" y2="56" />
-      </g>
-      <g transform="rotate(38 32 34)">
-        <ellipse cx="32" cy="20" rx="11" ry="13" />
-        <line x1="32" y1="33" x2="32" y2="56" />
-      </g>
-    </g>
-    <circle cx="32" cy="8" r="5" fill="#D9E270" stroke="#0E2418" strokeWidth="2" />
-  </svg>
-);
-
-export const Wordmark = ({ size }: { size?: number }) => (
-  <span className="wordmark" style={size ? { fontSize: size } : undefined}>
-    <i>Club</i> <b>PTO</b>
-  </span>
+/**
+ * The Club PTO wordmark: script "Club", the lime pixel ball, digital "PTO".
+ * The file is cream and lime, drawn for dark grounds, so it only sits on the
+ * forest green header and footer. Never recolor it.
+ */
+export const Logo = ({ height = 30 }: { height?: number }) => (
+  <img
+    src={logoWordmarkCream}
+    alt="Club PTO"
+    width={557}
+    height={101}
+    className="logo"
+    style={{ height, width: "auto" }}
+    decoding="async"
+  />
 );
 
 interface PhotoProps {
