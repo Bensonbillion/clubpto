@@ -140,11 +140,6 @@
   cursor: not-allowed;
 }
 
-.la-sub {
-  opacity: 0.55;
-  font-style: italic;
-}
-
 .la-pick {
   position: absolute;
   left: 10px;

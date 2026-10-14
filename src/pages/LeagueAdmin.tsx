@@ -12,7 +12,7 @@ import {
   type MatchRow,
   type Player,
 } from "@/league/adminApi";
-import { MAX_GAMES, gamesPlayed } from "@/league/gamesPlayed";
+import { MAX_GAMES, gamesPlayed, shownMatches } from "@/league/gamesPlayed";
 import "./leagueAdmin.css";
 
 const PASSCODE_KEY = "pto.league.passcode";
@@ -142,7 +142,9 @@ const LeagueAdmin = () => {
     );
   }
 
-  const recorded = (data?.matches || []).filter((m) => m.scoreA !== null);
+  // Games with a blank spot stay in the Sheet (they keep everyone on five)
+  // but are not listed here.
+  const recorded = shownMatches(data?.matches || []);
 
   return (
     <div className="la">
@@ -300,17 +302,7 @@ const Row = ({ match }: { match: MatchRow }) => {
   );
 };
 
-/** A pair of names. A blank spot (a game that does not count for that player) shows greyed. */
-const Team = ({ names }: { names: [string, string] }) => (
-  <>
-    {names.map((n, i) => (
-      <span key={`${n}-${i}`}>
-        {i > 0 && " + "}
-        {n.trim() ? n : <span className="la-sub">blank</span>}
-      </span>
-    ))}
-  </>
-);
+const Team = ({ names }: { names: [string, string] }) => <>{names.join(" + ")}</>;
 
 const PasscodeGate = ({ onUnlock }: { onUnlock: (code: string) => void }) => {
   const [code, setCode] = useState("");
