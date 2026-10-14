@@ -15,6 +15,7 @@ const FAQPage = lazy(() => import("./pages/FAQPage"));
 const Community = lazy(() => import("./pages/Community"));
 const Partners = lazy(() => import("./pages/Partners"));
 const SkillsLab = lazy(() => import("./pages/SkillsLab"));
+const LeagueAdmin = lazy(() => import("./pages/LeagueAdmin"));
 const League = lazy(() => import("./pages/League"));
 const LeagueJoin = lazy(() => import("./pages/LeagueJoin"));
 const Install = lazy(() => import("./pages/Install"));
@@ -73,6 +74,11 @@ const App = () => (
               <Route path="/league/join" element={<LeagueJoin />} />
               <Route path="/install" element={<Install />} />
             </Route>
+
+            {/* League admin: courtside tool, own shell, no site chrome, and
+                behind the same shared passcode as the rest of the back of
+                house. Robots-blocked by prefix like /manage. */}
+            <Route path="/league/admin" element={<LeagueAdmin />} />
 
             {/* Clubhouse door (Wave 2): own shell, soft-launch (unlinked) */}
           <Route path="/club" element={<Club />} />

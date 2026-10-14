@@ -2,6 +2,7 @@ User-agent: Googlebot
 Allow: /
 Disallow: /manage
 Disallow: /admin
+Disallow: /league/admin
 Disallow: /leaderboard
 Disallow: /profile
 Disallow: /login
@@ -11,6 +12,7 @@ User-agent: Bingbot
 Allow: /
 Disallow: /manage
 Disallow: /admin
+Disallow: /league/admin
 Disallow: /leaderboard
 Disallow: /profile
 Disallow: /login
@@ -26,6 +28,7 @@ User-agent: *
 Allow: /
 Disallow: /manage
 Disallow: /admin
+Disallow: /league/admin
 Disallow: /leaderboard
 Disallow: /profile
 Disallow: /login
