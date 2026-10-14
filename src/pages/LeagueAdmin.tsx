@@ -21,10 +21,29 @@ import "./leagueAdmin.css";
 const COURTS = ["Court 4", "Court 5", "Court 6"];
 const PASSCODE_KEY = "pto.league.passcode";
 const SEATS = 4;
+const MIN_ROUNDS = 3;
+const MAX_ROUNDS = 12;
+/** What we aim to give the biggest division when suggesting a round count. */
+const TARGET_GAMES = 3;
 
-/** Rounds needed on one court for everyone to get roughly this many games. */
-const roundsFor = (players: number, gamesEach: number) =>
-  Math.max(1, Math.ceil((gamesEach * players) / SEATS));
+/**
+ * One round count for the whole session. The three courts run side by side,
+ * so round 1 happens on all of them at once and everyone goes home together.
+ * Staggering the counts would leave a court standing empty.
+ *
+ * Suggested from the largest division, since that is the one that struggles
+ * for court time. Games per player then differ by division and cannot be
+ * made equal: on one court each, a player's games are 4R/N, so the small
+ * division always plays more. The screen shows that rather than hiding it.
+ */
+const suggestRounds = (largestDivision: number) => {
+  if (largestDivision < SEATS) return MIN_ROUNDS;
+  const wanted = Math.ceil((TARGET_GAMES * largestDivision) / SEATS);
+  return Math.min(MAX_ROUNDS, Math.max(MIN_ROUNDS, wanted));
+};
+
+const gamesEachFor = (players: number, rounds: number) =>
+  players < SEATS ? 0 : Math.floor((rounds * SEATS) / players);
 
 const shortDate = (iso: string) => {
   if (!iso) return "";
@@ -52,7 +71,7 @@ const LeagueAdmin = () => {
   const [data, setData] = useState<Bootstrap | null>(null);
   const [sessionId, setSessionId] = useState("");
   const [present, setPresent] = useState<Record<string, boolean>>({});
-  const [gamesEach, setGamesEach] = useState(4);
+  const [rounds, setRounds] = useState(0); // 0 until suggested from turnout
   const [card, setCard] = useState<Fixture[] | null>(null);
   const [seed, setSeed] = useState(1);
   const [scoring, setScoring] = useState(false);
@@ -78,6 +97,14 @@ const LeagueAdmin = () => {
       setPresent(next);
       setCard(null);
       setScoring(b.matches.length > 0);
+      // Suggest a round count from the biggest division; the admin can move it.
+      const sizes = divisionsOf(b.players.filter((p) => p.status === "Active")).map(
+        (d) =>
+          b.players.filter(
+            (p) => p.status === "Active" && p.division === d && next[p.id],
+          ).length,
+      );
+      setRounds(suggestRounds(Math.max(0, ...sizes)));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -109,7 +136,7 @@ const LeagueAdmin = () => {
         division: div,
         players,
         courts: [COURTS[i] || `Court ${i + 1}`],
-        rounds: roundsFor(players.length, gamesEach),
+        rounds,
         seed,
       });
       if (result.error) problems.push(result.error);
@@ -190,19 +217,19 @@ const LeagueAdmin = () => {
               <b>{totalIn}</b> here
             </div>
             <div className="la-stepper">
-              <span>Games each</span>
+              <span>Rounds</span>
               <button
                 type="button"
-                aria-label="Fewer games"
-                onClick={() => setGamesEach((g) => Math.max(2, g - 1))}
+                aria-label="Fewer rounds"
+                onClick={() => setRounds((r) => Math.max(MIN_ROUNDS, r - 1))}
               >
                 −
               </button>
-              <b>{gamesEach}</b>
+              <b>{rounds}</b>
               <button
                 type="button"
-                aria-label="More games"
-                onClick={() => setGamesEach((g) => Math.min(8, g + 1))}
+                aria-label="More rounds"
+                onClick={() => setRounds((r) => Math.min(MAX_ROUNDS, r + 1))}
               >
                 +
               </button>
@@ -213,7 +240,7 @@ const LeagueAdmin = () => {
             const roster = active.filter((p) => p.division === div);
             const here = presentIn(div).length;
             const viable = here >= SEATS;
-            const rounds = roundsFor(here, gamesEach);
+            const games = gamesEachFor(here, rounds);
             return (
               <section key={div} className="la-div">
                 <div className="la-div__head">
@@ -225,7 +252,7 @@ const LeagueAdmin = () => {
                 </div>
                 <p className={`la-div__calc ${viable ? "" : "is-short"}`}>
                   {viable
-                    ? `${rounds} rounds · ${here - SEATS} sitting out each round`
+                    ? `${games} games each · ${here - SEATS} sitting out each round`
                     : `Needs ${SEATS - here} more to play doubles`}
                 </p>
                 <div className="la-players">
