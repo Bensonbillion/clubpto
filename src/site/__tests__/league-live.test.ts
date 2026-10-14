@@ -58,3 +58,36 @@ describe("league live", () => {
     expect(nextMatchday(days, "2026-11-01")).toBeUndefined();
   });
 });
+
+describe("division names and the manual Week 1 table", async () => {
+  const { DIVISIONS, MANUAL_STANDINGS, mergeManual, manualAsOf, byDivision, divisionHasResults } = await import(
+    "@/site/leagueLive"
+  );
+
+  it("names the three divisions Atlas, Riviera and Venus", () => {
+    expect(DIVISIONS.map((d) => d.label)).toEqual(["Atlas Division", "Riviera Division", "Venus Division"]);
+  });
+
+  it("stands Benson's Atlas table in while the Sheet has no Atlas scores, in his order", () => {
+    const sheet = [row({ playerId: "M01", player: "David G" }), row({ playerId: "M07", player: "Omar", division: "M2" })];
+    const merged = mergeManual(sheet);
+    expect(byDivision(merged, "M1").map((r) => r.player)).toEqual([
+      "David G",
+      "Folarin A.",
+      "Tami O.",
+      "Lewis",
+      "Benson E.",
+      "Edgar A.",
+    ]);
+    expect(divisionHasResults(merged, "M1")).toBe(true);
+    expect(divisionHasResults(merged, "M2")).toBe(false);
+    expect(manualAsOf(sheet, "M1")).toBe("After Week 1");
+  });
+
+  it("lets the Sheet win as soon as Atlas has scores there", () => {
+    const sheet = [row({ playerId: "M01", player: "David G", matches: 7, wins: 7, leaguePoints: 21 })];
+    expect(byDivision(mergeManual(sheet), "M1")).toHaveLength(1);
+    expect(manualAsOf(sheet, "M1")).toBeNull();
+    expect(MANUAL_STANDINGS.M1.rows).toHaveLength(6);
+  });
+});

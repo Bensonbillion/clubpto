@@ -1,6 +1,6 @@
 // PTO League. Season 1 copy follows the approved Founding Season page
 // (scoring, coverage), corrected to the season as it actually runs: three
-// divisions (Men's 1, Men's 2, Women's), seven Sundays. The live table
+// divisions (Atlas, Riviera, Venus), seven Sundays. The live table
 // comes from the league Sheet (src/site/ui/LeagueLive.tsx), showing first
 // names and last initials exactly as the Sheet has them.
 
@@ -168,7 +168,7 @@ const League = () => {
               </div>
               <div className="fact">
                 <span>Format</span>
-                <span>Americano. Three divisions: Men's 1, Men's 2 and Women's</span>
+                <span>Americano. Three divisions: Atlas, Riviera and Venus</span>
               </div>
             </div>
             <div className="cta-row">
