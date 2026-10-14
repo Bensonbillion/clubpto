@@ -109,22 +109,46 @@ scoped under `.pto`.
 - **Display:** Playfair Display 800, italic 700 for the emphasised words
 - **Body:** DM Sans 400/500/700
 - **Shapes:** sharp corners, 2px ink borders, taped photo collages in heroes
+- **Logo:** the real wordmark, `src/assets/logo-wordmark-cream.png` (script
+  "Club", lime pixel ball, digital "PTO"). It is cream and lime for dark
+  grounds, so the header and footer are forest green and the announcement
+  bar is lime. Never recolor it or swap in a typed stand-in.
 - **Photos:** real PTO photos only, full color, action shots lead
   (`src/site/photos.ts`); Benson picks every face
 - **Facts:** only from `src/site/content.ts` / `src/content/league.ts`.
   Unconfirmed values are `TODO_BENSON` and their element hides;
   `src/site/__tests__/site-pages-integrity.test.tsx` fails the build if a
   sentinel or a `[bracketed placeholder]` renders.
+- **Live league:** `src/site/leagueLive.ts` reads standings and matchdays
+  from the league Sheet's Apps Script (GET only, the same URL as
+  `/league/admin`), cached 5 minutes per visit. Names show as the Sheet has
+  them (first name, last initial). The home page and /league fall back to
+  static facts if the Sheet is unreachable.
 - The older pages (/about, /faq, /community, /skills-lab, /install, /book,
   /league/join) still use the dark RALLY layout (`PublicLayout`,
   `rally.css`) until they are restyled.
 
-## Brand Voice
-- Confident, warm, minimal. Like a host at a great dinner party.
-- Never use: "exclusive," "elite," "luxury," "VIP," "premier"
-- Use: "Join us," "Your game starts here," "Where the game meets the city"
-- Short declarative sentences. Fragment-heavy when impactful. Active voice.
-- CTAs are invitational: "Reserve your court" not "Book now," "Join us" not "Sign up"
+## Brand Voice (rewritten October 2026, from how @club_pto actually posts)
+- **Who's reading:** 23 to 30, Toronto, young professionals, majority women
+  and BIPOC. A lot of them come solo, looking for a game and their people.
+- **Sound like the captions, not a venue:** short, warm, a little cheeky.
+  Sports-hype for the league ("Time to see where you actually rank"), warm
+  for the social side ("new faces becoming familiar ones"), one joke per
+  section at most.
+- **Padel stays the hero.** People say PTO reads as more vibes than padel, so
+  the game, the rankings and the stakes lead; the people are why you stay.
+- **Specific beats adjectives.** "Strangers at 8, group chat by 10" over "a
+  welcoming community". Second person. Short declaratives and fragments.
+- **House lines (reuse them):** "Not your average padel club" (the poster),
+  "Same club, different day", "Thursday plans? Sorted.", "Come solo, leave
+  with a group chat", "Time to see where you actually rank", "The race to the
+  top is on", "Don't find out from someone's story", "Skip the escape room".
+- **CTAs are invitational and casual:** "Grab a Thursday pass", "Bring your
+  team", "Get on the list", "Check a date". Not "Book now" or "Sign up".
+- **Never:** "exclusive," "elite," "luxury," "VIP," "premier"; corporate venue
+  words ("offerings," "experience," "amenities"); slang that dates fast;
+  emoji on the web; em dashes; "members" (there is no membership); guest
+  counts; anything not in the facts files.
 
 ## File Structure for New Pages
 ```

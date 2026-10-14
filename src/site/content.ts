@@ -47,16 +47,19 @@ export const thursday = {
   price: "$22.60",
   priceNote: "$20 plus HST",
   bookingUrl: weeklyMeets.bookingUrl,
-  /** The weekday passes go on sale, e.g. "Monday". Unconfirmed. */
-  passDropDay: TODO,
-  /** Court level names for the level guide, low to high. Unconfirmed. */
-  levels: [TODO, TODO, TODO] as const,
 } as const;
 
 export const leagueFacts = {
   ...league,
   /** league.sessionTime in house style. */
   timeShort: "3 to 5 PM",
+  /**
+   * The season as actually scheduled in the league Sheet (Sessions tab):
+   * seven Sundays, Oct 11 to Nov 22. league.ts still carries the original
+   * Oct 4 plan, which /league/join reads, so the site keeps its own copy.
+   */
+  seasonStart: "2026-10-11",
+  seasonEnd: "2026-11-22",
   /** Where Finals Night is held. Unconfirmed. */
   finalsVenue: TODO,
   /**
@@ -68,12 +71,14 @@ export const leagueFacts = {
 } as const;
 
 /** If Finals Night has no confirmed date, stop promoting it after this. */
-const FINALS_FALLBACK_UNTIL = "2026-11-30";
+const FINALS_FALLBACK_UNTIL = "2026-12-06";
 
+// Season 2 has no dates or price yet (Benson, Oct 14). These two lines are
+// deliberately general so the section reads complete without promising.
 export const season2 = {
   name: TODO,
-  start: TODO,
-  entry: TODO,
+  start: "After Season 1's Finals Night",
+  entry: "Shared with the waitlist first",
   depositNote: TODO,
 } as const;
 
@@ -90,27 +95,21 @@ export const courtside = {
   },
 } as const;
 
-/** Company nights and private parties. Every price waits for Benson. */
+/**
+ * Book PTO. Benson, Oct 14: show the two starting prices, quote the big
+ * group. All prices are "from", before HST.
+ */
 export const bookPto = {
-  companyFrom: TODO,
-  bigGroupFrom: TODO,
-  privateFrom: TODO,
-  replyTime: TODO,
-  depositPolicy: TODO,
-  invoicing: TODO,
+  companyFrom: "$1,800",
+  companyGuests: "up to 12 guests",
+  privateFrom: "$700",
 } as const;
 
-/** Lines on the Partners page that need Benson's numbers. */
-export const partnerFacts = {
-  audience: "Majority women and BIPOC, 20 to 35",
-  where: TODO,
-  reelViews: TODO,
-  exclusivity: TODO,
-} as const;
+/** The approved audience line for the Partners page. */
+export const partnerAudience = "Majority women and BIPOC, 20 to 35";
 
-/** Community nights on the Events page. Month labels need confirming. */
+/** Community nights on the Events page. */
 export const communityNights = {
-  gamesNightMonth: TODO,
   anniversaryMonth: "October 2026",
 } as const;
 
@@ -189,7 +188,7 @@ export const todayInToronto = (now: Date = new Date()): string => torontoParts(n
 /** True while Season 1 is still being played. */
 export const leagueInPlay = (now: Date = new Date()): boolean => {
   const today = todayInToronto(now);
-  return today >= league.startDate && today <= league.endDate;
+  return today >= leagueFacts.seasonStart && today <= leagueFacts.seasonEnd;
 };
 
 /** True until Finals Night has passed. */

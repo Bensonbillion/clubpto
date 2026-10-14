@@ -1,11 +1,9 @@
-// Book PTO: company nights and private parties.
-//
-// Prices, the reply time, the deposit and the invoicing answer all wait for
-// Benson (src/site/content.ts, bookPto). Until a price is set its package
-// shows "Quote on request" instead of a number.
+// Book PTO: company nights and private parties. Every package is
+// Company night and private party show their starting prices; the big
+// group is quoted (Benson, Oct 14 2026). Prices live in src/site/content.ts.
 
 import { photos } from "@/site/photos";
-import { bookPto, club, isSet, venue } from "@/site/content";
+import { bookPto, club, venue } from "@/site/content";
 import { Check, Head, Plus, Qa, Shot, usePageMeta } from "@/site/ui/bits";
 import { MailtoForm, type MailtoField } from "@/site/ui/forms";
 
@@ -35,20 +33,20 @@ const packages = [
   {
     eyebrow: "For teams",
     title: "Company night",
-    price: bookPto.companyFrom,
+    price: bookPto.companyFrom as string | null,
     bullets: ["Up to 12 guests", "2 courts · 2 hours", "Team socials, holiday parties, client nights"],
     dark: true,
   },
   {
     eyebrow: "Bigger teams",
     title: "Big group",
-    price: bookPto.bigGroupFrom,
+    price: null,
     bullets: ["17 to 24 guests", "3 courts · 2 hours", "Offsites, department nights, bigger teams"],
   },
   {
     eyebrow: "Friends and family",
     title: "Private party",
-    price: bookPto.privateFrom,
+    price: bookPto.privateFrom as string | null,
     bullets: ["12 to 16 guests", "2 courts · 2 hours", "Birthdays, friend groups, bachelor and bachelorette nights"],
   },
 ];
@@ -70,10 +68,9 @@ const addOns = [
 const BookPTO = () => {
   usePageMeta(
     "Book PTO · Company nights and private parties · Club PTO",
-    "Two hours of padel, run start to finish by Club PTO. Company nights, team socials and private parties in Mississauga. First-timers welcome.",
+    "Skip the escape room. Two hours of padel, run start to finish by Club PTO. Company nights, team socials and private parties in Mississauga. First-timers welcome.",
     "/book-pto",
   );
-  const anyPrice = packages.some((p) => isSet(p.price));
 
   return (
     <>
@@ -82,10 +79,11 @@ const BookPTO = () => {
           <div className="stack" style={{ gap: 26 }}>
             <p className="eyebrow">Company nights · Private parties</p>
             <h1 className="disp t-xl">
-              Book PTO <span className="it">for your team.</span>
+              Skip the <span className="it">escape room.</span>
             </h1>
             <p className="lede measure">
-              Two hours of padel, run start to finish by us. Your people just show up, first-timers included.
+              Book PTO and give your people two hours of padel, run start to finish by us. First-timers included.
+              They leave with a winner, a team photo and something to talk about on Monday.
             </p>
             <div className="cta-row">
               <a className="btn btn-dark" href="#inquire">
@@ -95,11 +93,10 @@ const BookPTO = () => {
                 See packages
               </a>
             </div>
-            {anyPrice ? (
-              <p className="small" style={{ margin: 0, color: "var(--text)" }}>
-                Prices are on this page. No sales call needed to get a number.
-              </p>
-            ) : null}
+            <p className="small" style={{ margin: 0, color: "var(--text)" }}>
+              Company nights from {bookPto.companyFrom} for {bookPto.companyGuests}. Private parties from{" "}
+              {bookPto.privateFrom}.
+            </p>
           </div>
           <div className="collage">
             <Shot
@@ -128,7 +125,7 @@ const BookPTO = () => {
                 <h3 className="disp" style={{ fontSize: 38 }}>
                   {p.title}
                 </h3>
-                {isSet(p.price) ? (
+                {p.price ? (
                   <p style={{ margin: 0 }}>
                     <span className="disp" style={{ fontSize: 56 }}>
                       {p.price}
@@ -136,7 +133,7 @@ const BookPTO = () => {
                     <span style={{ fontSize: 15 }}> from, plus HST</span>
                   </p>
                 ) : (
-                  <p className="disp" style={{ fontSize: 30, margin: 0 }}>
+                  <p className="disp" style={{ fontSize: 30, margin: 0, minHeight: 56, display: "flex", alignItems: "center" }}>
                     Quote on request
                   </p>
                 )}
@@ -180,7 +177,7 @@ const BookPTO = () => {
               <span className="eyebrow">1:40 · 20 min</span>
               <h3 style={{ fontSize: 20 }}>The final and team photo</h3>
               <p className="body" style={{ fontSize: 15 }}>
-                Top scorers play it out.
+                Top scorers play it out. Everyone else picks a side.
               </p>
             </div>
           </div>
@@ -255,8 +252,7 @@ const BookPTO = () => {
               Tell us about <span className="it">your night.</span>
             </h2>
             <p className="body" style={{ maxWidth: 440 }}>
-              We'll reply with open dates and a quote
-              {isSet(bookPto.replyTime) ? ` within ${bookPto.replyTime}` : ""}. Holiday dates go first, so ask early.
+              We'll come back with open dates and a quote. Holiday dates go first, so don't wait on it.
             </p>
             <p className="body">
               Or email <a href={`mailto:${club.email}`}>{club.email}</a>
@@ -276,7 +272,8 @@ const BookPTO = () => {
           <Head eyebrow="Questions">Before you book</Head>
           <div>
             <Qa q="Most of us have never played. Is that okay?" open>
-              Yes. Most groups haven't. The warm-up covers the basics and the rotation mixes everyone up.
+              Yes. Most groups haven't. The warm-up covers the basics, and the rotation mixes everyone up so nobody
+              gets left out.
             </Qa>
             <Qa q="Where is it?">
               {venue.name}, {venue.address}.
@@ -284,8 +281,13 @@ const BookPTO = () => {
             <Qa q="Can we sort food and drinks?">
               Yes. Tell us what you have in mind and we'll arrange it with the venue.
             </Qa>
-            {isSet(bookPto.depositPolicy) ? <Qa q="Is there a deposit?">{bookPto.depositPolicy}</Qa> : null}
-            {isSet(bookPto.invoicing) ? <Qa q="Can you invoice our company?">{bookPto.invoicing}</Qa> : null}
+            <Qa q="Is there a deposit?">
+              Yes. A deposit holds your date, and the balance is due before the night. We'll send the details with your
+              quote.
+            </Qa>
+            <Qa q="Can you invoice our company?">
+              Yes. Tell us who to bill and we'll send an invoice with your booking.
+            </Qa>
           </div>
         </div>
       </section>

@@ -3,15 +3,16 @@
 // /install, /book, /league/join) keep PublicLayout until they are restyled.
 
 import { useEffect, useState } from "react";
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation } from "react-router-dom";
 import { useSmoothScroll } from "@/hooks/useSmoothScroll";
 import { club, thursday, todayInToronto, venue } from "@/site/content";
-import { Mark, Wordmark } from "@/site/ui/bits";
+import { Logo } from "@/site/ui/bits";
 import "@/site/pto.css";
 
 export const NAV = [
   { label: "Play", to: "/play" },
   { label: "League", to: "/league" },
+  { label: "Standings", to: "/league#standings" },
   { label: "Events", to: "/events" },
   { label: "Book PTO", to: "/book-pto" },
   { label: "Partners", to: "/partners" },
@@ -23,12 +24,16 @@ const ANNOUNCE_UNTIL = "2026-11-30";
 const Announcement = () => {
   const today = todayInToronto();
   if (today > ANNOUNCE_UNTIL) return null;
-  const starting = today <= thursday.firstDate ? ", starting Oct 15" : "";
+  const line =
+    today < thursday.firstDate
+      ? "Same club, different day. PTO meets move to Thursdays from Oct 15."
+      : "Same club, different day. PTO meets are on Thursdays now.";
   return (
     <div className="announce">
       <div className="wrap">
-        <span>New night: PTO meets are now on Thursdays{starting}.</span>
-        <Link to="/play">Book your pass</Link>
+        <span className="ann-long">{line}</span>
+        <span className="ann-short">Same club, new night: Thursdays.</span>
+        <Link to="/play">Grab a pass</Link>
       </div>
     </div>
   );
@@ -36,7 +41,11 @@ const Announcement = () => {
 
 const Header = () => {
   const [open, setOpen] = useState(false);
-  const { pathname } = useLocation();
+  const { pathname, hash } = useLocation();
+  const here = `${pathname}${hash}`;
+  // /league and /league#standings are both links, so match the anchor too.
+  const isOn = (to: string) =>
+    to.includes("#") ? here === to : pathname === to && !NAV.some((n) => n.to !== to && n.to === here);
 
   useEffect(() => setOpen(false), [pathname]);
 
@@ -44,18 +53,17 @@ const Header = () => {
     <header className="site-header">
       <div className="wrap">
         <Link to="/" aria-label="Club PTO home" className="brand">
-          <Mark />
-          <Wordmark />
+          <Logo />
         </Link>
         <nav className="nav" aria-label="Main">
           {NAV.map((n) => (
-            <NavLink key={n.to} to={n.to} className={({ isActive }) => `navlink${isActive ? " on" : ""}`}>
+            <Link key={n.to} to={n.to} className={`navlink${isOn(n.to) ? " on" : ""}`}>
               {n.label}
-            </NavLink>
+            </Link>
           ))}
         </nav>
         <div className="header-actions">
-          <a className="btn btn-dark btn-sm" href={thursday.bookingUrl}>
+          <a className="btn btn-lime btn-sm" href={thursday.bookingUrl}>
             <span className="lbl-long">Book Thursday</span>
             <span className="lbl-short">Book</span>
           </a>
@@ -88,7 +96,7 @@ const Footer = () => (
     <div className="wrap stack" style={{ gap: 48 }}>
       <div className="g4">
         <div className="stack" style={{ gap: 12 }}>
-          <Wordmark size={30} />
+          <Logo height={34} />
           <p className="body small">Toronto's padel social club.</p>
         </div>
         <nav aria-label="Play">
@@ -164,9 +172,22 @@ const SiteLayout = () => {
     };
   }, []);
 
-  // New page, top of the page. In-page anchors are left to the browser.
+  // New page, top of the page. With an anchor (/league#standings), wait for
+  // the lazy page to mount, then scroll to it: the router does not.
   useEffect(() => {
-    if (!hash) window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    if (!hash) {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      return;
+    }
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      const el = document.getElementById(decodeURIComponent(hash.slice(1)));
+      if (el || ++tries > 30) {
+        window.clearInterval(timer);
+        el?.scrollIntoView({ block: "start" });
+      }
+    }, 100);
+    return () => window.clearInterval(timer);
   }, [pathname, hash]);
 
   return (

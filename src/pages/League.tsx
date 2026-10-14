@@ -1,12 +1,14 @@
 // PTO League. Season 1 copy follows the approved Founding Season page
-// (scoring, Top 8, prizes, coverage). Public standings stay down until the
-// clubhouse puts them behind a login, so this page shows an example card,
-// never real names.
+// (scoring, coverage), corrected to the season as it actually runs: three
+// divisions (Atlas, Riviera, Venus), seven Sundays. The live table
+// comes from the league Sheet (src/site/ui/LeagueLive.tsx), showing first
+// names and last initials exactly as the Sheet has them.
 
 import { photos } from "@/site/photos";
 import { isSet, leagueFacts, leagueInPlay, season2, venue } from "@/site/content";
 import { Head, Photo, Qa, usePageMeta } from "@/site/ui/bits";
 import { MailtoForm, type MailtoField } from "@/site/ui/forms";
+import { MatchdayBand, Standings } from "@/site/ui/LeagueLive";
 
 const waitlistFields: readonly MailtoField[] = [
   { name: "first", label: "First name", required: true, autoComplete: "given-name", half: true },
@@ -108,7 +110,7 @@ const PlayerCard = () => (
 const perks = [
   {
     title: "Your name on the table",
-    text: "An individual position in the PTO League standings, updated every week.",
+    text: "A real spot in the standings, updated after every Sunday. Screenshot it for the group chat.",
   },
   {
     title: "Your weekly matchups",
@@ -116,42 +118,50 @@ const perks = [
   },
   {
     title: "Your moments",
-    text: "Highlights, reactions, player features and league content throughout the season.",
+    text: "Highlights, reactions and player features all season. Play well and you end up on the feed.",
   },
   {
     title: "Your shot at Finals Night",
-    text: "Finish Top 8 and your season continues at the PTO Tournament. Everyone else watches.",
+    text: "Finish at the top of your division and your season continues at the PTO Tournament. Everyone else watches.",
   },
   {
     title: "Something to play for",
-    text: "Over $2,000 in prizes, and the inaugural PTO League Championship trophy for each division winner.",
+    text: "Prizes, bragging rights and the very first PTO League trophy in each division.",
     lime: true,
   },
   {
     title: "A league you join solo",
-    text: "Everyone registers on their own. Bring a friend if you like; you'll both compete independently.",
+    text: "Everyone registers on their own. Bring a friend if you like. Just know you might end up across the net.",
   },
 ];
 
 const League = () => {
   usePageMeta(
     "PTO League · Club PTO",
-    "PTO League: Americano padel on Sundays at District Padel, Mississauga. Individual rankings, Top 8 per division to Finals Night. Join the Season 2 waitlist.",
+    "Time to see where you actually rank. PTO League: Americano padel on Sundays at District Padel, Mississauga, live standings in three divisions and a Finals Night to crown each champion.",
     "/league",
   );
 
+  const inPlay = leagueInPlay();
+
   return (
     <>
-      <section className="sec-dark sec-hero" style={{ padding: "88px 0 100px" }}>
+      <section className="sec-dark sec-hero league-hero">
         <div className="wrap g2" style={{ alignItems: "center" }}>
           <div className="stack" style={{ gap: 26 }}>
             <p className="eyebrow">PTO League · Season 1 · The Founding Season</p>
-            <h1 className="disp t-big">
-              A rec league with <span className="it">pro‑sports energy.</span>
-            </h1>
+            {inPlay ? (
+              <h1 className="disp t-big">
+                The race to the top <span className="it">is on.</span>
+              </h1>
+            ) : (
+              <h1 className="disp t-big">
+                A rec league with <span className="it">pro‑sports energy.</span>
+              </h1>
+            )}
             <p className="lede measure">
-              Sign up solo. Your own ranking. Every Sunday counts toward Finals Night.
-              {leagueInPlay() ? " Season 1 is in play now." : ""}
+              Seven Sundays. Rotating partners. Your own ranking, and a Finals Night at the end of it.
+              {inPlay ? " Season 1 is in play now." : ""}
             </p>
             <div className="facts">
               <div className="fact">
@@ -166,56 +176,60 @@ const League = () => {
               </div>
               <div className="fact">
                 <span>Format</span>
-                <span>Americano. Two matches every Sunday, Men's and Women's divisions</span>
+                <span>Americano. Three divisions: Atlas, Riviera and Venus</span>
               </div>
             </div>
             <div className="cta-row">
               <a className="btn btn-lime" href="#season-2">
-                Join the Season 2 waitlist
+                Get on the Season 2 list
               </a>
               <a className="btn btn-cream" href="#how">
                 How it works
               </a>
             </div>
           </div>
-          <div style={{ display: "flex", justifyContent: "center" }}>
+          <div className="league-hero-card">
             <PlayerCard />
           </div>
         </div>
       </section>
+
+      <MatchdayBand />
+      <Standings />
 
       <section id="how" className="sec" style={{ padding: "100px 0" }}>
         <div className="wrap stack reveal" style={{ gap: 44 }}>
           <Head eyebrow="How it works">
             Sign up solo. <span className="it">Climb the table.</span>
           </Head>
-          <div className="g4">
+          <div className="g4 steps-2">
             <div className="step">
               <span className="disp num">01</span>
-              <h3 className="t-step">Sign up on your own</h3>
+              <h3 className="t-step">Come in solo</h3>
               <p className="body" style={{ fontSize: 16 }}>
-                Register individually. No partner needed. You enter the league as you.
+                No partner, no team. You enter the league as you, and your record is yours alone.
               </p>
             </div>
             <div className="step">
               <span className="disp num">02</span>
               <h3 className="t-step">Play your Sundays</h3>
               <p className="body" style={{ fontSize: 16 }}>
-                Two Americano matches every Sunday. The schedule rotates for variety across the season.
+                Americano every Sunday. New partners, new opponents, nowhere to hide.
               </p>
             </div>
             <div className="step">
               <span className="disp num">03</span>
-              <h3 className="t-step">Earn your points</h3>
+              <h3 className="t-step">Stack your points</h3>
               <p className="body" style={{ fontSize: 16 }}>
-                Win = 3 points. Draw = 1. Loss = 0. Your results follow you, not a team.
+                3 points a win. Your results follow you, not a partner.
               </p>
             </div>
             <div className="step">
               <span className="disp num">04</span>
-              <h3 className="t-step">Make the Top 8</h3>
+              <h3 className="t-step">Make Finals Night</h3>
               <p className="body" style={{ fontSize: 16 }}>
-                The Top 8 in each division qualify for the PTO Tournament on Finals Night. One champion per division.
+                Finish near the top of your division and you're playing for the title on Finals Night. One champion
+                per division.
               </p>
             </div>
           </div>
@@ -225,9 +239,9 @@ const League = () => {
       <section className="sec sec-alt" style={{ padding: "100px 0" }}>
         <div className="wrap stack reveal" style={{ gap: 40 }}>
           <Head eyebrow="What every player gets">
-            More than a <span className="it">match slot.</span>
+            Not just <span className="it">a court booking.</span>
           </Head>
-          <div className="g3">
+          <div className="g3 rail-m">
             {perks.map((p) => (
               <div key={p.title} className="perk" style={p.lime ? { background: "#D9E270" } : undefined}>
                 <h3>{p.title}</h3>
@@ -245,11 +259,11 @@ const League = () => {
           <div className="stack" style={{ gap: 24 }}>
             <p className="eyebrow">Season 2{isSet(season2.name) ? ` · ${season2.name}` : ""}</p>
             <h2 className="disp t-xl">
-              Hold your spot <span className="it">for Season 2.</span>
+              Missed Season 1? <span className="it">Don't miss Season 2.</span>
             </h2>
             <p className="body" style={{ maxWidth: 480 }}>
-              Join the waitlist and you'll hear the Season 2 dates and entry before anyone else. Season 1 players get
-              first call.
+              Get on the list and you hear the Season 2 dates and entry before anyone else. Season 1 players get first
+              call.
             </p>
             {isSet(season2.start) || isSet(season2.entry) ? (
               <div className="facts">
@@ -271,10 +285,10 @@ const League = () => {
           </div>
           <MailtoForm
             idPrefix="s2"
-            title="Join the waitlist"
+            title="Get on the list"
             fields={waitlistFields}
             subject={(v) => `Season 2 waitlist · ${v.first} ${v.last}`.trim()}
-            submitLabel="Join the Season 2 waitlist"
+            submitLabel="Put me on the list"
           />
         </div>
       </section>
@@ -287,7 +301,7 @@ const League = () => {
               No. Everyone registers individually. Partners rotate throughout the season.
             </Qa>
             <Qa q="Do I have to be advanced?">
-              No. You need enough experience to comfortably play a match and understand basic rules and scoring.
+              No. If you can play a full match and you know how scoring works, you're ready.
             </Qa>
             <Qa q="What if I'm brand new to padel?">
               Start with a Thursday meet first. The league will be here when you're ready.
@@ -297,7 +311,7 @@ const League = () => {
               matches you miss.
             </Qa>
             <Qa q="Can I sign up with a friend?">
-              Yes, but not as a doubles team. You both compete independently.
+              Yes, just not as a team. You'll each have your own ranking, which keeps things interesting.
             </Qa>
           </div>
         </div>

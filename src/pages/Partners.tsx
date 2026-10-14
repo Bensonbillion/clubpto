@@ -1,9 +1,9 @@
 // Partners: for brands. No logo wall and no partner names: PTO lists a
-// brand only once a deal is signed and Benson says so. Audience numbers
-// beyond the approved lines wait in src/site/content.ts (partnerFacts).
+// brand only once a deal is signed and Benson says so. Audience lines are
+// the approved ones only; no reach numbers on the public page.
 
 import { photos } from "@/site/photos";
-import { club, isSet, partnerFacts } from "@/site/content";
+import { club, partnerAudience } from "@/site/content";
 import { Head, Photo, Shot, usePageMeta } from "@/site/ui/bits";
 import { MailtoForm, type MailtoField } from "@/site/ui/forms";
 
@@ -51,12 +51,7 @@ const Partners = () => {
     "/partners",
   );
 
-  const stats = [
-    partnerFacts.audience,
-    partnerFacts.where,
-    "Every Thursday, every league Sunday, every COURTSIDE",
-    partnerFacts.reelViews,
-  ].filter(isSet);
+  const stats = [partnerAudience, "Every Thursday, every league Sunday, every COURTSIDE"];
 
   return (
     <>
@@ -130,9 +125,6 @@ const Partners = () => {
               </article>
             ))}
           </div>
-          {isSet(partnerFacts.exclusivity) ? (
-            <p className="body small">{partnerFacts.exclusivity}</p>
-          ) : null}
         </div>
       </section>
 
@@ -163,7 +155,9 @@ const Partners = () => {
 
       <section className="sec" style={{ padding: "96px 0" }}>
         <div className="wrap stack reveal" style={{ gap: 40 }}>
-          <Head eyebrow="How it works">Three steps</Head>
+          <Head eyebrow="How it works">
+            Three steps. <span className="it">That's it.</span>
+          </Head>
           <div className="g3">
             <div className="step">
               <span className="disp num">01</span>
