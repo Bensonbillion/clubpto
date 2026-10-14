@@ -37,6 +37,10 @@ scoped under `.pto`.
 - **Display:** Playfair Display 800, italic 700 for the emphasised words
 - **Body:** DM Sans 400/500/700
 - **Shapes:** sharp corners, 2px ink borders, taped photo collages in heroes
+- **Logo:** the real wordmark, `src/assets/logo-wordmark-cream.png` (script
+  "Club", lime pixel ball, digital "PTO"). It is cream and lime for dark
+  grounds, so the header and footer are forest green and the announcement
+  bar is lime. Never recolor it or swap in a typed stand-in.
 - **Photos:** real PTO photos only, full color, action shots lead
   (`src/site/photos.ts`); Benson picks every face
 - **Facts:** only from `src/site/content.ts` / `src/content/league.ts`.

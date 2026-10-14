@@ -47,10 +47,6 @@ export const thursday = {
   price: "$22.60",
   priceNote: "$20 plus HST",
   bookingUrl: weeklyMeets.bookingUrl,
-  /** The weekday passes go on sale, e.g. "Monday". Unconfirmed. */
-  passDropDay: TODO,
-  /** Court level names for the level guide, low to high. Unconfirmed. */
-  levels: [TODO, TODO, TODO] as const,
 } as const;
 
 export const leagueFacts = {
@@ -90,27 +86,11 @@ export const courtside = {
   },
 } as const;
 
-/** Company nights and private parties. Every price waits for Benson. */
-export const bookPto = {
-  companyFrom: TODO,
-  bigGroupFrom: TODO,
-  privateFrom: TODO,
-  replyTime: TODO,
-  depositPolicy: TODO,
-  invoicing: TODO,
-} as const;
+/** The approved audience line for the Partners page. */
+export const partnerAudience = "Majority women and BIPOC, 20 to 35";
 
-/** Lines on the Partners page that need Benson's numbers. */
-export const partnerFacts = {
-  audience: "Majority women and BIPOC, 20 to 35",
-  where: TODO,
-  reelViews: TODO,
-  exclusivity: TODO,
-} as const;
-
-/** Community nights on the Events page. Month labels need confirming. */
+/** Community nights on the Events page. */
 export const communityNights = {
-  gamesNightMonth: TODO,
   anniversaryMonth: "October 2026",
 } as const;
 

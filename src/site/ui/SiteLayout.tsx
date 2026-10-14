@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
 import { useSmoothScroll } from "@/hooks/useSmoothScroll";
 import { club, thursday, todayInToronto, venue } from "@/site/content";
-import { Mark, Wordmark } from "@/site/ui/bits";
+import { Logo } from "@/site/ui/bits";
 import "@/site/pto.css";
 
 export const NAV = [
@@ -44,8 +44,7 @@ const Header = () => {
     <header className="site-header">
       <div className="wrap">
         <Link to="/" aria-label="Club PTO home" className="brand">
-          <Mark />
-          <Wordmark />
+          <Logo />
         </Link>
         <nav className="nav" aria-label="Main">
           {NAV.map((n) => (
@@ -55,7 +54,7 @@ const Header = () => {
           ))}
         </nav>
         <div className="header-actions">
-          <a className="btn btn-dark btn-sm" href={thursday.bookingUrl}>
+          <a className="btn btn-lime btn-sm" href={thursday.bookingUrl}>
             <span className="lbl-long">Book Thursday</span>
             <span className="lbl-short">Book</span>
           </a>
@@ -88,7 +87,7 @@ const Footer = () => (
     <div className="wrap stack" style={{ gap: 48 }}>
       <div className="g4">
         <div className="stack" style={{ gap: 12 }}>
-          <Wordmark size={30} />
+          <Logo height={34} />
           <p className="body small">Toronto's padel social club.</p>
         </div>
         <nav aria-label="Play">

@@ -942,10 +942,6 @@ body.pto-body {
   .pto .lbl-short {
     display: inline;
   }
-  .pto .brand svg {
-    width: 30px;
-    height: 30px;
-  }
 }
 
 .pto .t-big {
@@ -956,4 +952,89 @@ body.pto-body {
   .pto .t-big {
     font-size: 50px;
   }
+}
+
+/* Header, announcement bar and footer carry the real logo, which is cream
+ * and lime for dark grounds. So: lime announcement bar, forest header and
+ * forest footer. (Oct 14, 2026: the logo came back at Benson's request.) */
+.pto .announce {
+  background: var(--lime);
+  color: var(--ink);
+}
+.pto .announce a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.pto .site-header {
+  background: var(--ink);
+  border-bottom: 1px solid var(--line-dark);
+}
+.pto .site-header .brand {
+  color: var(--cream);
+}
+.pto .site-header .logo {
+  display: block;
+}
+.pto .site-header .navlink {
+  color: var(--cream);
+}
+.pto .site-header .navlink:hover {
+  color: var(--lime);
+}
+.pto .site-header .navlink.on {
+  color: var(--cream);
+  text-decoration-color: var(--lime);
+}
+.pto .site-header .menu-btn {
+  border-color: var(--cream);
+  color: var(--cream);
+}
+.pto .mobile-nav {
+  background: var(--ink);
+  border-top: 1px solid var(--line-dark);
+}
+.pto .mobile-nav a {
+  color: var(--cream);
+  border-bottom-color: var(--line-dark);
+}
+.pto .mobile-nav a:hover {
+  color: var(--lime);
+}
+.pto .site-footer {
+  background: var(--ink);
+  color: var(--cream);
+  border-top: 1px solid var(--line-dark);
+}
+.pto .site-footer .body {
+  color: var(--on-dark);
+}
+.pto .site-footer .eyebrow {
+  color: var(--lime);
+}
+.pto .site-footer a {
+  color: var(--cream);
+}
+.pto .site-footer a:hover {
+  color: var(--lime);
+}
+.pto .site-footer .footer-base {
+  color: var(--on-dark);
+  border-top-color: var(--line-dark);
+}
+@media (max-width: 900px) {
+  .pto .site-header .logo {
+    height: 24px !important;
+  }
+}
+.pto .logo {
+  align-self: flex-start;
+  flex: none;
+  max-width: none;
+}
+
+/* The mobile menu sits inside the header, so undo the header row layout. */
+.pto .site-header .mobile-nav .wrap {
+  display: block;
+  min-height: 0;
 }

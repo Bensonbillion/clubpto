@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { photos } from "@/site/photos";
-import { isSet, longDay, thursday, todayInToronto, venue } from "@/site/content";
+import { longDay, thursday, todayInToronto, venue } from "@/site/content";
 import { Head, Photo, Qa, Seal, Shot, usePageMeta } from "@/site/ui/bits";
 
 const Play = () => {
@@ -10,7 +10,6 @@ const Play = () => {
     "/play",
   );
   const starting = todayInToronto() < thursday.firstDate ? ` from ${longDay(thursday.firstDate).replace(/^\w+, /, "")}` : "";
-  const levels = thursday.levels.every(isSet);
 
   return (
     <>
@@ -43,12 +42,6 @@ const Play = () => {
                   {thursday.price} ({thursday.priceNote}) · no membership
                 </span>
               </div>
-              {isSet(thursday.passDropDay) ? (
-                <div className="fact">
-                  <span>Passes</span>
-                  <span>Drop every {thursday.passDropDay} on the booking page</span>
-                </div>
-              ) : null}
             </div>
             <div className="cta-row">
               <a className="btn btn-dark" href={thursday.bookingUrl}>
@@ -120,30 +113,7 @@ const Play = () => {
         </div>
       </section>
 
-      {levels ? (
-        <section className="sec">
-          <div className="wrap stack reveal" style={{ gap: 40 }}>
-            <div className="split">
-              <Head eyebrow="Level guide">
-                Which court <span className="it">is yours?</span>
-              </Head>
-              <p className="body" style={{ maxWidth: 380, fontSize: 16 }}>
-                Not sure? Pick the lower one. We'll move you up on the night if the games are too easy.
-              </p>
-            </div>
-            <div className="g3">
-              {thursday.levels.map((name, i) => (
-                <article key={name} className={`card card-pad${i === 2 ? " card-dark" : ""}`}>
-                  <p className="eyebrow eyebrow-leaf">Court {i + 1}</p>
-                  <h3 className="disp t-card">{name}</h3>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      <section style={{ padding: levels ? "0 0 104px" : "104px 0" }}>
+      <section style={{ padding: "0 0 104px" }}>
         <div className="wrap strip reveal">
           <div>
             <Photo photo={photos.districtOverhead} sizes="(max-width: 900px) 33vw, 400px" />

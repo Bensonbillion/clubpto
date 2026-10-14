@@ -1,11 +1,8 @@
-// Book PTO: company nights and private parties.
-//
-// Prices, the reply time, the deposit and the invoicing answer all wait for
-// Benson (src/site/content.ts, bookPto). Until a price is set its package
-// shows "Quote on request" instead of a number.
+// Book PTO: company nights and private parties. Every package is
+// "Quote on request" by choice (Benson, Oct 2026): no prices on the page.
 
 import { photos } from "@/site/photos";
-import { bookPto, club, isSet, venue } from "@/site/content";
+import { club, venue } from "@/site/content";
 import { Check, Head, Plus, Qa, Shot, usePageMeta } from "@/site/ui/bits";
 import { MailtoForm, type MailtoField } from "@/site/ui/forms";
 
@@ -35,20 +32,17 @@ const packages = [
   {
     eyebrow: "For teams",
     title: "Company night",
-    price: bookPto.companyFrom,
     bullets: ["Up to 12 guests", "2 courts · 2 hours", "Team socials, holiday parties, client nights"],
     dark: true,
   },
   {
     eyebrow: "Bigger teams",
     title: "Big group",
-    price: bookPto.bigGroupFrom,
     bullets: ["17 to 24 guests", "3 courts · 2 hours", "Offsites, department nights, bigger teams"],
   },
   {
     eyebrow: "Friends and family",
     title: "Private party",
-    price: bookPto.privateFrom,
     bullets: ["12 to 16 guests", "2 courts · 2 hours", "Birthdays, friend groups, bachelor and bachelorette nights"],
   },
 ];
@@ -73,7 +67,6 @@ const BookPTO = () => {
     "Two hours of padel, run start to finish by Club PTO. Company nights, team socials and private parties in Mississauga. First-timers welcome.",
     "/book-pto",
   );
-  const anyPrice = packages.some((p) => isSet(p.price));
 
   return (
     <>
@@ -95,11 +88,6 @@ const BookPTO = () => {
                 See packages
               </a>
             </div>
-            {anyPrice ? (
-              <p className="small" style={{ margin: 0, color: "var(--text)" }}>
-                Prices are on this page. No sales call needed to get a number.
-              </p>
-            ) : null}
           </div>
           <div className="collage">
             <Shot
@@ -128,18 +116,9 @@ const BookPTO = () => {
                 <h3 className="disp" style={{ fontSize: 38 }}>
                   {p.title}
                 </h3>
-                {isSet(p.price) ? (
-                  <p style={{ margin: 0 }}>
-                    <span className="disp" style={{ fontSize: 56 }}>
-                      {p.price}
-                    </span>
-                    <span style={{ fontSize: 15 }}> from, plus HST</span>
-                  </p>
-                ) : (
-                  <p className="disp" style={{ fontSize: 30, margin: 0 }}>
-                    Quote on request
-                  </p>
-                )}
+                <p className="disp" style={{ fontSize: 30, margin: 0 }}>
+                  Quote on request
+                </p>
                 <ul className="bullets">
                   {p.bullets.map((b) => (
                     <li key={b}>{b}</li>
@@ -255,8 +234,7 @@ const BookPTO = () => {
               Tell us about <span className="it">your night.</span>
             </h2>
             <p className="body" style={{ maxWidth: 440 }}>
-              We'll reply with open dates and a quote
-              {isSet(bookPto.replyTime) ? ` within ${bookPto.replyTime}` : ""}. Holiday dates go first, so ask early.
+              We'll reply with open dates and a quote. Holiday dates go first, so ask early.
             </p>
             <p className="body">
               Or email <a href={`mailto:${club.email}`}>{club.email}</a>
@@ -284,8 +262,6 @@ const BookPTO = () => {
             <Qa q="Can we sort food and drinks?">
               Yes. Tell us what you have in mind and we'll arrange it with the venue.
             </Qa>
-            {isSet(bookPto.depositPolicy) ? <Qa q="Is there a deposit?">{bookPto.depositPolicy}</Qa> : null}
-            {isSet(bookPto.invoicing) ? <Qa q="Can you invoice our company?">{bookPto.invoicing}</Qa> : null}
           </div>
         </div>
       </section>
