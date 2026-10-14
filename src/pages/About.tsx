@@ -26,14 +26,12 @@ const About = () => (
         </motion.h1>
         <motion.div variants={fadeUp} className="rly-prose" style={{ marginTop: "2rem" }}>
           <p>
-            A padel social club in Toronto. We meet twice a week, every week:
-            Wednesdays and Sundays.
+            A padel social club in Toronto. We meet every week, and the PTO
+            League has its own day.
           </p>
           <p>
-            Same night either way. {weeklyMeets.nights[0].day} at{" "}
-            {weeklyMeets.nights[0].venue} in {weeklyMeets.nights[0].area},{" "}
-            {weeklyMeets.nights[1].day} at {weeklyMeets.nights[1].venue} in{" "}
-            {weeklyMeets.nights[1].area}. Take whichever one your week allows.
+            {weeklyMeets.nights.map((n) => `${n.day} at ${n.venue} in ${n.area}`).join(". ")}.
+            Three courts, split by level. Every level welcome.
           </p>
           <p>
             Courtside is the flagship. Tournament padel at The Pad, DJ sets,

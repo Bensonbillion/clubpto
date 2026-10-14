@@ -34,8 +34,9 @@ const spaFallback = (): Plugin => ({
  * emitted assets. Keep the srcset and sizes identical to the <Picture> that
  * renders it, or the browser preloads a candidate it then declines to use.
  */
-const HERO_BASENAME = "hero-grid-style";
-const HERO_SIZES = "(max-width: 900px) 55vw, 32vw";
+const HERO_BASENAME = "doubles-point";
+// Keep in step with HERO_SIZES in src/pages/Home.tsx.
+const HERO_SIZES = "(max-width: 900px) 56vw, 310px";
 
 const preloadHero = (): Plugin => {
   // Read the real base rather than assuming /clubpto/: this repo builds for

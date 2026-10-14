@@ -5,10 +5,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import PublicLayout from "./components/layout/PublicLayout";
-import Index from "./pages/Index";
+import SiteLayout from "./site/ui/SiteLayout";
+import Home from "./pages/Home";
 
 // Everything except the homepage is code-split so public visitors never
 // download the court-manager engine, admin tooling, or inner pages up front.
+const Play = lazy(() => import("./pages/Play"));
+const Events = lazy(() => import("./pages/Events"));
+const BookPTO = lazy(() => import("./pages/BookPTO"));
 const Book = lazy(() => import("./pages/Book"));
 const About = lazy(() => import("./pages/About"));
 const FAQPage = lazy(() => import("./pages/FAQPage"));
@@ -41,9 +45,10 @@ const ClubRoomPreview = lazy(() => import("./pages/ClubRoomPreview"));
 
 const queryClient = new QueryClient();
 
-// Quiet forest screen while a lazy chunk arrives
+// Quiet paper screen while a lazy chunk arrives (the redesigned pages are
+// cream; the manager and clubhouse paint over it immediately).
 const Loading = () => (
-  <div style={{ minHeight: "100vh", background: "#0a1810" }} aria-busy="true" />
+  <div style={{ minHeight: "100vh", background: "#F5EFE3" }} aria-busy="true" />
 );
 
 const App = () => (
@@ -55,25 +60,35 @@ const App = () => (
       <BrowserRouter basename={import.meta.env.BASE_URL}>
         <Suspense fallback={<Loading />}>
           <Routes>
-            {/* Public routes — wrapped with Header + Footer + Lenis */}
+            {/* The redesigned public site (October 2026): light layout. */}
+            <Route element={<SiteLayout />}>
+              <Route path="/" element={<Home />} />
+              <Route path="/play" element={<Play />} />
+              <Route path="/league" element={<League />} />
+              <Route path="/events" element={<Events />} />
+              <Route path="/book-pto" element={<BookPTO />} />
+              <Route path="/partners" element={<Partners />} />
+            </Route>
+
+            {/* Older public pages, still on the RALLY layout until restyled. */}
             <Route element={<PublicLayout />}>
-              <Route path="/" element={<Index />} />
+              {/* /book has been shared for months: it hands off to Acuity. */}
               <Route path="/book" element={<Book />} />
               <Route path="/about" element={<About />} />
               <Route path="/faq" element={<FAQPage />} />
               {/* Membership is parked for now; keep the URL alive as a redirect */}
               <Route path="/membership" element={<Navigate to="/" replace />} />
-              {/* Old events page retired; Courtside info lives on the homepage */}
-              <Route path="/events" element={<Navigate to="/" replace />} />
               <Route path="/community" element={<Community />} />
-              <Route path="/partners" element={<Partners />} />
               <Route path="/skills-lab" element={<SkillsLab />} />
               {/* the old singular URL has been shared — keep it landing */}
               <Route path="/skill-lab" element={<Navigate to="/skills-lab" replace />} />
-              <Route path="/league" element={<League />} />
               <Route path="/league/join" element={<LeagueJoin />} />
               <Route path="/install" element={<Install />} />
             </Route>
+            {/* Friendly aliases for the new pages. */}
+            <Route path="/thursday" element={<Navigate to="/play" replace />} />
+            <Route path="/corporate" element={<Navigate to="/book-pto" replace />} />
+            <Route path="/private-events" element={<Navigate to="/book-pto" replace />} />
 
             {/* League admin: courtside tool, own shell, no site chrome, and
                 behind the same shared passcode as the rest of the back of
