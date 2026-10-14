@@ -54,11 +54,15 @@ export const useLeagueLive = (): State => {
   return state;
 };
 
-/** Merged rows (Sheet plus any manual table) once the Sheet answers. */
+/**
+ * Merged rows: the Sheet plus any manual table. While the Sheet is still
+ * waking up (a cold Apps Script takes a few seconds), the manual tables
+ * show straight away so the first paint already has a real table.
+ */
 const useRows = () => {
   const state = useLeagueLive();
   const ready = state.status === "ready" ? state.data : null;
-  const rows: StandingRow[] = ready ? mergeManual(ready.standings) : [];
+  const rows: StandingRow[] = mergeManual(ready ? ready.standings : []);
   return { state, ready, rows };
 };
 
@@ -324,21 +328,21 @@ const ShortTable = ({ rows, code, limit }: { rows: StandingRow[]; code: string; 
 const StandingsCard = ({ limit, footLink }: { limit?: number; footLink?: boolean }) => {
   const { state, ready, rows } = useRows();
   const [picked, setPicked] = useState<string | null>(null);
-  const code = picked ?? (ready ? firstWithResults(rows) : DIVISIONS[0].code);
+  const code = picked ?? firstWithResults(rows);
   const results = divisionHasResults(rows, code);
-  const asOf = ready ? manualAsOf(ready.standings, code) : null;
+  const asOf = manualAsOf(ready ? ready.standings : [], code);
   const short = DIVISIONS.find((d) => d.code === code)?.short;
 
   return (
     <div className="scard">
       <DivisionTabs value={code} onChange={setPicked} />
-      {state.status === "loading" ? (
+      {state.status === "loading" && !results ? (
         <div className="dempty" aria-busy="true">
           <span className="skeleton" style={{ width: "60%" }} />
           <span className="skeleton" style={{ width: "80%" }} />
           <span className="skeleton" style={{ width: "50%" }} />
         </div>
-      ) : state.status === "error" ? (
+      ) : state.status === "error" && !results ? (
         <div className="dempty">
           <p className="disp dempty-t">The live table is taking a break.</p>
           <p className="body small">Check back after league Sunday.</p>
