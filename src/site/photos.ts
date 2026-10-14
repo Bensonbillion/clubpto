@@ -15,7 +15,6 @@ import goldenHourPoint from "@/assets/site/golden-hour-point.jpg?picture";
 import betweenGames from "@/assets/site/between-games.jpg?picture";
 import courtsideTradingShots from "@/assets/site/courtside-trading-shots.jpg?picture";
 import courtsideFunSign from "@/assets/site/courtside-fun-sign.jpg?picture";
-import regularsLaugh from "@/assets/site/regulars-laugh.jpg?picture";
 import courtsideLunge from "@/assets/site/courtside-lunge.jpg?picture";
 import courtsideCrowd from "@/assets/site/courtside-crowd.jpg?picture";
 import groupDinner from "@/assets/site/group-dinner.jpg?picture";
@@ -56,7 +55,6 @@ export const photos = {
   betweenGames: p(betweenGames, "Players crowding around between games"),
   courtsideTradingShots: p(courtsideTradingShots, "Two players trading shots at COURTSIDE"),
   courtsideFunSign: p(courtsideFunSign, "A player returning a ball under the Club PTO sign at COURTSIDE"),
-  regularsLaugh: p(regularsLaugh, "Two regulars sharing a laugh on court"),
   courtsideLunge: p(courtsideLunge, "A player lunging for a low ball at COURTSIDE"),
   courtsideCrowd: p(courtsideCrowd, "A crowd watching a match at COURTSIDE at The Pad"),
   groupDinner: p(groupDinner, "A PTO group laughing around a long table"),
