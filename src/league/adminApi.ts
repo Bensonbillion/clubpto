@@ -89,6 +89,19 @@ export const saveFixtures = (
   passcode: string,
 ) => post({ action: "createFixtures", sessionId, fixtures }, passcode);
 
+export const addMatch = (
+  match: {
+    sessionId: string;
+    division: string;
+    teamA: [string, string];
+    teamB: [string, string];
+    court?: string;
+  },
+  scoreA: number,
+  scoreB: number,
+  passcode: string,
+) => post({ action: "addMatch", ...match, scoreA, scoreB }, passcode);
+
 export const saveScore = (
   match: {
     sessionId: string;
