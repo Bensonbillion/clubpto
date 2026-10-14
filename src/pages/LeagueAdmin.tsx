@@ -12,6 +12,7 @@ import {
   type MatchRow,
   type Player,
 } from "@/league/adminApi";
+import { MAX_GAMES, SUB, gamesPlayed, isSub } from "@/league/gamesPlayed";
 import "./leagueAdmin.css";
 
 const PASSCODE_KEY = "pto.league.passcode";
@@ -78,6 +79,9 @@ const LeagueAdmin = () => {
   );
   const divisions = useMemo(() => divisionsOf(active), [active]);
   const roster = active.filter((p) => p.division === division);
+  // Everyone plays five; anyone at five is greyed out so a sixth game is
+  // not recorded by mistake. An extra game goes in with Sub in their place.
+  const played = useMemo(() => gamesPlayed(data?.matches || [], division), [data, division]);
 
   const toggle = (name: string) => {
     setError("");
@@ -182,7 +186,8 @@ const LeagueAdmin = () => {
           </div>
 
           <p className="la-note">
-            {picked.length === 0 && "Tap four players. First two are one team."}
+            {picked.length === 0 &&
+              `Tap four players. First two are one team. Five games each: anyone on ${MAX_GAMES} is greyed out, so use Sub for an extra game.`}
             {picked.length > 0 && picked.length < 4 &&
               `${4 - picked.length} more to pick`}
             {picked.length === 4 && "Now the scores."}
@@ -191,18 +196,40 @@ const LeagueAdmin = () => {
           <div className="la-players">
             {roster.map((p) => {
               const at = picked.indexOf(p.name);
+              const games = played[p.name] || 0;
+              const done = games >= MAX_GAMES && at < 0;
               return (
                 <button
                   key={p.id}
                   type="button"
-                  className={`la-player ${at >= 0 ? "is-on" : ""}`}
+                  className={`la-player ${at >= 0 ? "is-on" : ""} ${done ? "is-done" : ""}`}
                   onClick={() => toggle(p.name)}
+                  disabled={done}
+                  aria-label={`${p.name}, ${games} of ${MAX_GAMES} games played`}
                 >
                   {at >= 0 && <span className="la-pick">{at < 2 ? "A" : "B"}</span>}
                   {p.name}
+                  <span className="la-count">
+                    {games}/{MAX_GAMES}
+                  </span>
                 </button>
               );
             })}
+            {(() => {
+              const at = picked.indexOf(SUB);
+              return (
+                <button
+                  type="button"
+                  className={`la-player la-player--sub ${at >= 0 ? "is-on" : ""}`}
+                  onClick={() => toggle(SUB)}
+                  aria-label="Sub, the game does not count for this spot"
+                >
+                  {at >= 0 && <span className="la-pick">{at < 2 ? "A" : "B"}</span>}
+                  Sub
+                  <span className="la-count">not counted</span>
+                </button>
+              );
+            })()}
           </div>
 
           {picked.length === 4 && (
@@ -275,17 +302,29 @@ const Row = ({ match }: { match: MatchRow }) => {
     <div className="la-row">
       <span className="la-row__div">{match.division}</span>
       <span className={`la-row__team ${aWon ? "is-win" : ""}`}>
-        {match.teamA.join(" + ")}
+        <Team names={match.teamA} />
       </span>
       <span className="la-row__score">
         {match.scoreA}–{match.scoreB}
       </span>
       <span className={`la-row__team ${aWon ? "" : "is-win"}`}>
-        {match.teamB.join(" + ")}
+        <Team names={match.teamB} />
       </span>
     </div>
   );
 };
+
+/** A pair of names, with a Sub shown greyed because the game does not count for that spot. */
+const Team = ({ names }: { names: [string, string] }) => (
+  <>
+    {names.map((n, i) => (
+      <span key={`${n}-${i}`}>
+        {i > 0 && " + "}
+        <span className={isSub(n) ? "la-sub" : undefined}>{n}</span>
+      </span>
+    ))}
+  </>
+);
 
 const PasscodeGate = ({ onUnlock }: { onUnlock: (code: string) => void }) => {
   const [code, setCode] = useState("");
