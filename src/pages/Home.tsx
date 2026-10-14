@@ -33,7 +33,7 @@ const Hero = () => (
         </div>
         <p className="lede measure">
           Thursday nights on court, a Sunday league with a real table, and summer parties your feed already
-          saw. Every level welcome. Come solo, leave with a group chat.
+          saw.
         </p>
         <div className="cta-row">
           <a className="btn btn-dark" href={thursday.bookingUrl}>
@@ -293,7 +293,7 @@ const Drops = () => (
 const Home = () => {
   usePageMeta(
     "Club PTO · Toronto's padel social club",
-    "Not your average padel club. Thursday nights at District Padel, the PTO League on Sundays and COURTSIDE in the summer. Every level welcome. Come solo.",
+    "Not your average padel club. Thursday nights at District Padel, the PTO League on Sundays and COURTSIDE in the summer.",
     "/",
   );
   return (

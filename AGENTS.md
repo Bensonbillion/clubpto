@@ -68,9 +68,8 @@ scoped under `.pto`.
 - **Specific beats adjectives.** "Strangers at 8, group chat by 10" over "a
   welcoming community". Second person. Short declaratives and fragments.
 - **House lines (reuse them):** "Not your average padel club" (the poster),
-  "Same club, different day", "Thursday plans? Sorted.", "Come solo, leave
-  with a group chat", "Time to see where you actually rank", "The race to the
-  top is on", "Don't find out from someone's story", "Skip the escape room".
+  "Same club, different day", "Thursday plans? Sorted.", "Time to see where
+  you actually rank", "The race to the top is on", "Don't find out from someone's story", "Skip the escape room".
 - **CTAs are invitational and casual:** "Grab a Thursday pass", "Bring your
   team", "Get on the list", "Check a date". Not "Book now" or "Sign up".
 - **Never:** "exclusive," "elite," "luxury," "VIP," "premier"; corporate venue
