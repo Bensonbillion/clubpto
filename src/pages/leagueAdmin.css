@@ -127,6 +127,28 @@
   padding-left: 34px;
 }
 
+.la-count {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+.la-player.is-done {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.la-player--sub {
+  border-style: dashed;
+}
+
+.la-sub {
+  opacity: 0.55;
+  font-style: italic;
+}
+
 .la-pick {
   position: absolute;
   left: 10px;
