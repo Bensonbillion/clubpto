@@ -1038,3 +1038,237 @@ body.pto-body {
   display: block;
   min-height: 0;
 }
+
+/* League, live (Brodie-style standings, in PTO colours) */
+.pto .tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--line-dark);
+}
+.pto .tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 24px 22px;
+  border-right: 1px solid var(--line-dark);
+}
+.pto .tile:last-child {
+  border-right: 0;
+}
+.pto .tile-n {
+  font-size: 56px;
+  color: var(--lime);
+  line-height: 1;
+}
+.pto .sec-dark .tile-n {
+  color: var(--lime);
+}
+.pto .tile-l {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.pto .tile-s {
+  font-size: 14px;
+  color: var(--on-dark);
+}
+.pto .mini {
+  background: var(--paper);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+}
+.pto .mini-head {
+  display: flex;
+  justify-content: space-between;
+  background: var(--lime);
+  color: var(--ink);
+  padding: 12px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.pto .mini-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto 40px;
+  gap: 10px;
+  align-items: center;
+  padding: 11px 16px;
+  border-top: 1px solid var(--line);
+  font-size: 15px;
+}
+.pto .mini-row.lead {
+  background: #f0f2c8;
+}
+.pto .mini-pos {
+  font-size: 20px;
+  color: var(--ink);
+}
+.pto .sec-dark .mini .disp {
+  color: var(--ink);
+}
+.pto .mini-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pto .mini-rec {
+  color: var(--muted);
+  font-size: 14px;
+}
+.pto .mini-pts {
+  font-weight: 700;
+  text-align: right;
+}
+.pto .tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pto .tab {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 2px solid var(--ink);
+  border-radius: 0;
+  background: transparent;
+  font: 700 14px "DM Sans", system-ui, sans-serif;
+  color: var(--ink);
+  cursor: pointer;
+}
+.pto .tab-on {
+  background: var(--ink);
+  color: var(--cream);
+}
+.pto .tbl-wrap {
+  overflow-x: auto;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+}
+.pto .tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 16px;
+}
+.pto .tbl th {
+  text-align: left;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 14px 12px;
+  background: var(--ink);
+  color: var(--lime);
+}
+.pto .tbl td {
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.pto .tbl tr:last-child td {
+  border-bottom: 0;
+}
+.pto .tbl .pos {
+  font-size: 22px;
+  width: 48px;
+}
+.pto .tbl .who {
+  font-weight: 700;
+}
+.pto .tbl .pts {
+  font-weight: 700;
+}
+.pto .tbl tr.lead td {
+  background: #f0f2c8;
+}
+.pto .skeleton {
+  display: inline-block;
+  width: 140px;
+  height: 14px;
+  background: var(--alt);
+}
+.pto .leader {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 24px;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+}
+.pto .leader-name {
+  font-size: 34px;
+}
+.pto .leader-v {
+  font-weight: 700;
+}
+.pto .days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+.pto .day {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px;
+  border: 2px solid var(--ink);
+  background: var(--paper);
+}
+.pto .day.done {
+  background: var(--ink);
+  color: var(--cream);
+}
+.pto .day.done .disp {
+  color: var(--cream);
+}
+.pto .day.next {
+  background: var(--lime);
+}
+.pto .day-w,
+.pto .day-s {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.pto .day-d {
+  font-size: 24px;
+}
+@media (max-width: 900px) {
+  .pto .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pto .tile:nth-child(2n) {
+    border-right: 0;
+  }
+  .pto .tile:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--line-dark);
+  }
+  .pto .tile-n {
+    font-size: 40px;
+  }
+  .pto .days {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .pto .tbl {
+    font-size: 15px;
+  }
+  .pto .tbl th,
+  .pto .tbl td {
+    padding: 12px 8px;
+  }
+}
+.pto .mini-more {
+  display: block;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--leaf);
+  text-decoration: none;
+}
+.pto .sec-dark .mini a.mini-more {
+  color: var(--leaf);
+}
+.pto .mini-more:hover {
+  text-decoration: underline;
+}

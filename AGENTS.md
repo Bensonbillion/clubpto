@@ -47,6 +47,11 @@ scoped under `.pto`.
   Unconfirmed values are `TODO_BENSON` and their element hides;
   `src/site/__tests__/site-pages-integrity.test.tsx` fails the build if a
   sentinel or a `[bracketed placeholder]` renders.
+- **Live league:** `src/site/leagueLive.ts` reads standings and matchdays
+  from the league Sheet's Apps Script (GET only, the same URL as
+  `/league/admin`), cached 5 minutes per visit. Names show as the Sheet has
+  them (first name, last initial). The home page and /league fall back to
+  static facts if the Sheet is unreachable.
 - The older pages (/about, /faq, /community, /skills-lab, /install, /book,
   /league/join) still use the dark RALLY layout (`PublicLayout`,
   `rally.css`) until they are restyled.
