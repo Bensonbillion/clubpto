@@ -1276,3 +1276,695 @@ body.pto-body {
   font-weight: 500;
   letter-spacing: 0.06em;
 }
+
+/* ======================================================================
+ * Matchday redesign (Oct 14, 2026): photo-led phone hero, sticky header,
+ * live ticker, fixture tickets, division badges, standings card.
+ * ====================================================================== */
+
+/* Header stays with you; the announcement bar scrolls away. */
+.pto .site-header {
+  position: sticky;
+  top: 0;
+}
+.pto .ann-short {
+  display: none;
+}
+
+/* Phone hero: eyebrow and headline on a full-bleed action photo. */
+.pto .hero-head {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.pto .hero-head-media {
+  display: none;
+}
+
+/* Ticker */
+.pto .ticker {
+  background: var(--ink);
+  color: var(--lime);
+  overflow: hidden;
+  border-top: 1px solid var(--line-dark);
+  border-bottom: 1px solid var(--line-dark);
+}
+.pto .ticker-track {
+  display: flex;
+  width: max-content;
+  animation: pto-ticker 48s linear infinite;
+}
+.pto .ticker:hover .ticker-track {
+  animation-play-state: paused;
+}
+.pto .ticker-run {
+  display: flex;
+  flex: none;
+}
+.pto .ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 18px;
+  padding: 15px 0 15px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.pto .ticker-item::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lime);
+  margin-left: 0;
+}
+@keyframes pto-ticker {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pto .ticker {
+    overflow-x: auto;
+  }
+  .pto .ticker-track {
+    animation: none;
+  }
+  .pto .ticker-run[aria-hidden="true"] {
+    display: none;
+  }
+}
+
+/* Up next: fixture tickets */
+.pto .upnext {
+  padding: 64px 0 88px;
+}
+.pto .rail {
+  display: grid;
+  gap: 18px;
+}
+.pto .rail-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.pto .ticket {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  min-height: 210px;
+}
+.pto .stub {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: var(--lime);
+  color: var(--ink);
+  border-right: 2px dashed var(--ink);
+  text-align: center;
+  padding: 12px 6px;
+}
+.pto .stub-wd,
+.pto .stub-mo {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.pto .stub-day {
+  font-size: 46px;
+  line-height: 1;
+  color: var(--ink);
+}
+.pto .tk-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 20px 18px;
+}
+.pto .tk-body .eyebrow {
+  color: var(--leaf);
+  font-size: 12px;
+}
+.pto .tk-title {
+  font-size: 30px;
+}
+.pto .tk-meta {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--text);
+}
+.pto .tk-foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 10px;
+}
+.pto .tk-price {
+  font-weight: 700;
+  font-size: 17px;
+}
+.pto .tk-price small {
+  font-weight: 400;
+  font-size: 12px;
+}
+.pto .ticket-dark {
+  background: var(--ink);
+  color: var(--cream);
+}
+.pto .ticket-dark .stub {
+  background: var(--ink-2);
+  color: var(--lime);
+  border-right-color: var(--lime);
+}
+.pto .ticket-dark .stub-day,
+.pto .ticket-dark .tk-title {
+  color: var(--cream);
+}
+.pto .ticket-dark .tk-body .eyebrow {
+  color: var(--lime);
+}
+.pto .ticket-dark .tk-meta {
+  color: var(--on-dark);
+}
+.pto .ticket-lime {
+  background: var(--lime);
+}
+.pto .ticket-lime .stub {
+  background: var(--ink);
+  color: var(--lime);
+  border-right-color: var(--ink);
+}
+.pto .ticket-lime .tk-body .eyebrow {
+  color: var(--ink);
+}
+.pto .ticket-lime .tk-meta {
+  color: var(--ink);
+}
+
+/* Division badges */
+.pto .crest {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--lime);
+  border: 2px solid var(--lime);
+  font-family: "Playfair Display", Georgia, serif;
+  font-style: italic;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* Homepage league block */
+.pto .league-home {
+  padding: 96px 0;
+}
+.pto .league-home-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 56px;
+  align-items: start;
+}
+.pto .leaders-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pto .lm {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid var(--line-dark);
+}
+.pto .lm-k {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--lime);
+}
+.pto .lm-v {
+  font-size: 26px;
+  color: var(--cream);
+}
+.pto .lm-p {
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--cream);
+  white-space: nowrap;
+}
+.pto .lm-p small {
+  font-size: 13px;
+  font-weight: 500;
+}
+.pto .lm-light {
+  border-color: var(--line);
+  background: var(--paper);
+}
+.pto .lm-light .lm-k {
+  color: var(--leaf);
+}
+.pto .lm-light .lm-v,
+.pto .lm-light .lm-p {
+  color: var(--ink);
+}
+
+/* Standings card */
+.pto .scard {
+  background: var(--paper);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+}
+.pto .sec-dark .scard {
+  border-color: var(--paper);
+}
+.pto .dtabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-bottom: 2px solid var(--ink);
+}
+.pto .dtab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 58px;
+  padding: 0 10px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  font: 700 15px "DM Sans", system-ui, sans-serif;
+  cursor: pointer;
+}
+.pto .dtab:last-child {
+  border-right: 0;
+}
+.pto .dtab.on {
+  background: var(--ink);
+  color: var(--cream);
+}
+.pto .dtab:not(.on) .crest {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--ink);
+}
+.pto .stbl-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px 60px 56px 52px;
+  gap: 8px;
+  align-items: center;
+  padding: 13px 18px;
+  border-bottom: 1px solid var(--line);
+  font-size: 16px;
+}
+.pto .stbl-row > span:nth-child(n + 3) {
+  text-align: right;
+}
+.pto .stbl-head {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--leaf);
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+.pto .stbl-row.lead {
+  background: #f0f2c8;
+}
+.pto .s-pos {
+  font-size: 22px;
+  color: var(--ink);
+}
+.pto .sec-dark .scard .disp {
+  color: var(--ink);
+}
+.pto .s-name {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pto .s-pts {
+  font-weight: 800;
+  font-size: 18px;
+}
+.pto .scard-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.pto .sec-dark .scard a.link-strong {
+  color: var(--leaf);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.pto .dempty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 36px 24px 40px;
+  min-height: 240px;
+  justify-content: center;
+}
+.pto .dempty-t {
+  font-size: 28px;
+  color: var(--ink);
+}
+
+/* League page matchday band */
+.pto .mband {
+  background: var(--cream);
+  padding: 0;
+  margin-top: -1px;
+}
+.pto .mband-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+  transform: translateY(-48px);
+  margin-bottom: -48px;
+}
+.pto .mcard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 26px 26px 24px;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+}
+.pto .mcard .eyebrow {
+  color: var(--leaf);
+}
+.pto .mcard-next {
+  background: var(--lime);
+}
+.pto .mcard-next .eyebrow {
+  color: var(--ink);
+}
+.pto .mcard-big {
+  font-size: 44px;
+  line-height: 1;
+}
+.pto .mcard-meta {
+  margin: 0;
+  font-weight: 500;
+}
+
+/* Phones */
+@media (max-width: 900px) {
+  .pto .ann-long {
+    display: none;
+  }
+  .pto .ann-short {
+    display: inline;
+  }
+  .pto .announce .wrap {
+    min-height: 38px;
+    font-size: 13px;
+  }
+
+  .pto .home-hero.sec-hero {
+    padding-top: 0;
+  }
+  .pto .home-hero .hero-copy {
+    gap: 22px;
+  }
+  .pto .hero-head {
+    position: relative;
+    margin: 0 -20px;
+    padding: 0 20px 26px;
+    min-height: 74svh;
+    justify-content: flex-end;
+    gap: 14px;
+    color: var(--cream);
+    overflow: hidden;
+  }
+  .pto .hero-head-media {
+    display: block;
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+  .pto .hero-head-media::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(14, 36, 24, 0) 30%, rgba(14, 36, 24, 0.55) 62%, rgba(14, 36, 24, 0.92) 100%);
+  }
+  .pto .hero-head > .eyebrow,
+  .pto .hero-head > h1 {
+    position: relative;
+    z-index: 1;
+    color: var(--cream);
+  }
+  .pto .hero-head > .eyebrow {
+    color: var(--lime);
+  }
+  .pto .hero-head .it {
+    color: var(--lime);
+  }
+  .pto .home-hero .t-hero {
+    font-size: 58px;
+  }
+  .pto .home-hero .lede {
+    font-size: 18px;
+  }
+  .pto .home-hero .cta-row .btn {
+    flex: 1 1 100%;
+  }
+
+  .pto .upnext {
+    padding: 40px 0 56px;
+  }
+  .pto .rail {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 12px;
+    margin: 0 -20px;
+    padding: 2px 20px 6px;
+    scrollbar-width: none;
+  }
+  .pto .rail::-webkit-scrollbar {
+    display: none;
+  }
+  .pto .rail > * {
+    flex: 0 0 86%;
+    scroll-snap-align: start;
+  }
+  .pto .ticket {
+    grid-template-columns: 76px minmax(0, 1fr);
+    min-height: 196px;
+  }
+  .pto .stub-day {
+    font-size: 38px;
+  }
+  .pto .tk-title {
+    font-size: 26px;
+  }
+
+  .pto .league-home {
+    padding: 56px 0;
+  }
+  .pto .league-home-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+  .pto .league-home .cta-row .btn {
+    flex: 1 1 auto;
+  }
+  .pto .dtab {
+    min-height: 52px;
+    font-size: 14px;
+    gap: 8px;
+  }
+  .pto .stbl-row {
+    grid-template-columns: 30px minmax(0, 1fr) 46px 40px 40px;
+    padding: 12px 14px;
+    font-size: 15px;
+  }
+  .pto .stbl-row .c-p {
+    display: none;
+  }
+  .pto .s-pos {
+    font-size: 19px;
+  }
+  .pto .lm-v {
+    font-size: 22px;
+  }
+
+  .pto .mband-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    transform: translateY(-28px);
+    margin-bottom: -28px;
+  }
+  .pto .mcard-big {
+    font-size: 36px;
+  }
+  .pto .days {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    margin: 0 -20px;
+    padding: 0 20px 4px;
+    scrollbar-width: none;
+  }
+  .pto .days::-webkit-scrollbar {
+    display: none;
+  }
+  .pto .day {
+    flex: 0 0 31%;
+    scroll-snap-align: start;
+  }
+
+  /* Calmer phone rhythm everywhere */
+  .pto .t-l,
+  .pto .t-m {
+    font-size: 40px;
+  }
+  .pto .lede {
+    font-size: 18px;
+  }
+  .pto .body {
+    font-size: 16px;
+  }
+  .pto .sec,
+  .pto .sec-hero {
+    padding: 56px 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .pto .home-hero.sec-hero {
+    padding-top: 0;
+  }
+  /* League page: the example card is decoration; on phones the table matters more. */
+  .pto .league-hero-card {
+    display: none;
+  }
+  .pto .league-hero.sec-hero {
+    padding: 48px 0 80px;
+  }
+  .pto .g4.steps-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 22px 16px;
+  }
+  .pto .g4.steps-2 .num {
+    font-size: 30px;
+  }
+  .pto .g4.steps-2 .t-step {
+    font-size: 18px;
+  }
+  .pto .g4.steps-2 .body {
+    font-size: 14px;
+  }
+}
+@media (max-width: 900px) {
+  .pto .rail-m {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 12px;
+    margin: 0 -20px;
+    padding: 0 20px 6px;
+    scrollbar-width: none;
+  }
+  .pto .rail-m::-webkit-scrollbar {
+    display: none;
+  }
+  .pto .rail-m > * {
+    flex: 0 0 78%;
+    scroll-snap-align: start;
+  }
+}
+.pto .league-hero {
+  padding: 88px 0 140px;
+}
+.pto .mband {
+  background: var(--alt);
+}
+.pto .standings-sec {
+  padding: 88px 0;
+}
+.pto .mband + .standings-sec {
+  padding-top: 44px;
+}
+@media (max-width: 900px) {
+  .pto .standings-sec {
+    padding: 48px 0;
+  }
+  .pto .mband + .standings-sec {
+    padding-top: 28px;
+  }
+}
+.pto .league-hero-card {
+  display: flex;
+  justify-content: center;
+}
+.pto .scard-foot a,
+.pto .tk-price small {
+  white-space: nowrap;
+}
+@media (max-width: 900px) {
+  .pto .league-hero-card {
+    display: none;
+  }
+  .pto .scard-foot {
+    font-size: 11px;
+    padding: 12px 14px;
+    align-items: center;
+  }
+  .pto .door .body {
+    font-size: 14px;
+  }
+  .pto .door .t-door {
+    font-size: 22px;
+  }
+  .pto .door .eyebrow {
+    font-size: 11px;
+  }
+}
+/* Every other hero on phones: photos first, then the words. */
+@media (max-width: 900px) {
+  .pto .sec-hero:not(.home-hero):not(.league-hero) {
+    padding-top: 28px;
+  }
+  .pto .sec-hero .g2 > .collage {
+    order: -1;
+    height: 400px;
+    margin-bottom: 4px;
+  }
+}
+/* Anchors land below the sticky header. */
+.pto [id] {
+  scroll-margin-top: 92px;
+}
+@media (max-width: 900px) {
+  .pto [id] {
+    scroll-margin-top: 78px;
+  }
+}

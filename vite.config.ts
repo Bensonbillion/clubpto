@@ -36,7 +36,7 @@ const spaFallback = (): Plugin => ({
  */
 const HERO_BASENAME = "doubles-point";
 // Keep in step with HERO_SIZES in src/pages/Home.tsx.
-const HERO_SIZES = "(max-width: 900px) 56vw, 310px";
+const HERO_SIZES = "(max-width: 900px) 100vw, 310px";
 
 const preloadHero = (): Plugin => {
   // Read the real base rather than assuming /clubpto/: this repo builds for

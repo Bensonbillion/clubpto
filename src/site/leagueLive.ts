@@ -222,3 +222,26 @@ export const leaders = (rows: StandingRow[]): Leader[] =>
     const top = table[0];
     return [{ title: `${short} leader`, division: code, player: displayName(top.player), value: `${top.leaguePoints} pts` }];
   });
+
+/** Whole days from today to a YYYY-MM-DD date (both Toronto calendar days). */
+export const daysUntil = (ymd: string, today: string): number =>
+  Math.round((Date.parse(`${ymd}T12:00:00Z`) - Date.parse(`${today}T12:00:00Z`)) / 86_400_000);
+
+/** "Today", "Tomorrow", "In 4 days". */
+export const countdownLabel = (ymd: string, today: string): string => {
+  const d = daysUntil(ymd, today);
+  if (d <= 0) return "Today";
+  if (d === 1) return "Tomorrow";
+  return `In ${d} days`;
+};
+
+/** The most recent matchday marked Played, if any. */
+export const lastMatchday = (days: Matchday[]): Matchday | undefined =>
+  [...days].filter((d) => d.status === "Played").sort((a, b) => (a.date < b.date ? 1 : -1))[0];
+
+/** Every division leader, in the site's division order, for divisions with results. */
+export const divisionLeaders = (rows: StandingRow[]) =>
+  DIVISIONS.flatMap((d) => {
+    const top = byDivision(rows, d.code).find((r) => r.matches > 0);
+    return top ? [{ division: d, row: top }] : [];
+  });

@@ -28,7 +28,8 @@ const Announcement = () => {
   return (
     <div className="announce">
       <div className="wrap">
-        <span>New night: PTO meets are now on Thursdays{starting}.</span>
+        <span className="ann-long">New night: PTO meets are now on Thursdays{starting}.</span>
+        <span className="ann-short">PTO meets are now on Thursdays.</span>
         <Link to="/play">Book your pass</Link>
       </div>
     </div>

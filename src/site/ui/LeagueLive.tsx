@@ -1,28 +1,42 @@
-// The league, live: standings and matchdays read from the league Sheet.
+// The league, live: the ticker, the fixture tickets, the homepage table and
+// the League page's matchday hub, all read from the league Sheet.
 //
-// Server render (and the first paint) shows the static shape: divisions,
-// seven Sundays, the time. The live numbers arrive a moment later. If the
-// Sheet cannot be reached, the static shape is all anyone sees, and nothing
-// on the page breaks.
+// Server render (and the first paint) shows the static shape: Sundays,
+// 3 to 5 PM, District. The live numbers arrive a moment later. If the Sheet
+// cannot be reached the static shape is all anyone sees, and nothing breaks.
+//
+// The divisions are names, not ranks (Atlas, Riviera, Venus). They always
+// carry the same badge and the same weight, and nothing here numbers them.
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
   DIVISIONS,
   byDivision,
+  countdownLabel,
   displayName,
   divisionHasResults,
+  divisionLeaders,
   divisionNames,
-  hasResults,
+  lastMatchday,
+  loadLeague,
   manualAsOf,
   mergeManual,
-  leaders,
-  loadLeague,
-  matchdaysPlayed,
   nextMatchday,
   type LeagueSnapshot,
+  type StandingRow,
 } from "@/site/leagueLive";
-import { leagueFacts, longDay, todayInToronto } from "@/site/content";
+import {
+  bookPto,
+  finalsUpcoming,
+  isSet,
+  leagueFacts,
+  longDay,
+  nextThursday,
+  thursday,
+  todayInToronto,
+  venue,
+} from "@/site/content";
 
 type State = { status: "loading" } | { status: "ready"; data: LeagueSnapshot } | { status: "error" };
 
@@ -40,137 +54,426 @@ export const useLeagueLive = (): State => {
   return state;
 };
 
-const SEASON_SUNDAYS = 7;
-
-const Tile = ({ n, label, sub }: { n: string; label: string; sub?: string }) => (
-  <div className="tile">
-    <span className="disp tile-n">{n}</span>
-    <span className="tile-l">{label}</span>
-    {sub ? <span className="tile-s">{sub}</span> : null}
-  </div>
-);
-
-/** The four headline numbers. Static until the Sheet answers. */
-const Tiles = ({ state }: { state: State }) => {
-  const today = todayInToronto();
-  if (state.status !== "ready") {
-    return (
-      <div className="tiles">
-        <Tile n={String(DIVISIONS.length)} label="Divisions" sub={divisionNames()} />
-        <Tile n={String(SEASON_SUNDAYS)} label="Matchdays" sub="Sundays, 3 to 5 PM" />
-        <Tile n="1" label="Champion per division" sub="Crowned on Finals Night" />
-        <Tile n="Live" label="Standings" sub="Updated as scores go in" />
-      </div>
-    );
-  }
-  const { standings, matchdays } = state.data;
-  const played = matchdaysPlayed(matchdays);
-  const next = nextMatchday(matchdays, today);
-  return (
-    <div className="tiles">
-      <Tile n={String(standings.length)} label="Players" sub="Founding Season roster" />
-      <Tile n={String(DIVISIONS.length)} label="Divisions" sub={divisionNames()} />
-      <Tile n={`${played}/${matchdays.length || SEASON_SUNDAYS}`} label="Matchdays played" sub="Sundays, 3 to 5 PM" />
-      <Tile
-        n={next ? longDay(next.date).split(", ")[1] : "Finals"}
-        label={next ? `Next: Week ${next.week}` : "Up next"}
-        sub={next ? longDay(next.date).split(",")[0] + ` at ${leagueFacts.venueName}` : "Finals Night"}
-      />
-    </div>
-  );
-};
-
-const MiniTable = ({ code, rows, asOf, limit }: { code: string; rows: LeagueSnapshot["standings"]; asOf: string | null; limit: number }) => {
-  const results = divisionHasResults(rows, code);
-  const all = byDivision(rows, code);
-  const table = all.slice(0, limit);
-  const more = all.length - table.length;
-  const label = DIVISIONS.find((d) => d.code === code)?.label ?? code;
-  return (
-    <div className="mini">
-      <div className="mini-head">
-        <span>
-          {label}
-          {asOf ? <span className="mini-asof"> · {asOf}</span> : null}
-        </span>
-        <span>Pts</span>
-      </div>
-      {table.map((r, i) => (
-        <div key={r.playerId} className={`mini-row${results && i === 0 ? " lead" : ""}`}>
-          <span className="mini-pos disp">{results ? i + 1 : "–"}</span>
-          <span className="mini-name">{displayName(r.player)}</span>
-          <span className="mini-rec">{results ? `${r.wins}-${r.losses}` : ""}</span>
-          <span className="mini-pts">{results ? r.leaguePoints : "0"}</span>
-        </div>
-      ))}
-      {more > 0 ? (
-        <Link className="mini-more" to="/league#standings">
-          + {more} more in the table
-        </Link>
-      ) : null}
-    </div>
-  );
-};
-
-/** The homepage block: the league is on, here is the table. */
-export const LeagueOnHome = () => {
+/** Merged rows (Sheet plus any manual table) once the Sheet answers. */
+const useRows = () => {
   const state = useLeagueLive();
   const ready = state.status === "ready" ? state.data : null;
-  const rows = ready ? mergeManual(ready.standings) : [];
-  const results = hasResults(rows);
-  const allIn = ready ? DIVISIONS.every((d) => divisionHasResults(rows, d.code)) : false;
+  const rows: StandingRow[] = ready ? mergeManual(ready.standings) : [];
+  return { state, ready, rows };
+};
+
+/** A division's badge: its initial in a lime ring. Same for all three. */
+export const Crest = ({ code, size = 28 }: { code: string; size?: number }) => {
+  const d = DIVISIONS.find((x) => x.code === code);
+  return (
+    <span className="crest" style={{ width: size, height: size, fontSize: size * 0.5 }} aria-hidden="true">
+      {d ? d.short.charAt(0) : "?"}
+    </span>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Ticker
+// ---------------------------------------------------------------------------
+
+/** The scrolling news line under the homepage hero. Facts only. */
+export const Ticker = () => {
+  const { ready, rows } = useRows();
+  const today = todayInToronto();
+  const thu = nextThursday();
+  const next = ready ? nextMatchday(ready.matchdays, today) : undefined;
+  const leaders = divisionLeaders(rows);
+
+  const items: string[] = [
+    `Thursday ${longDay(thu).split(", ")[1]} · ${thursday.startTime} · ${venue.short}`,
+    next ? `PTO League Week ${next.week} · ${longDay(next.date)}` : `PTO League · Sundays · ${leagueFacts.timeShort}`,
+    ...leaders.map((l) => `${l.division.short} leader · ${displayName(l.row.player)} · ${l.row.leaguePoints} pts`),
+    `Company nights from ${bookPto.companyFrom}`,
+    "Every level welcome",
+    "COURTSIDE · the summer series",
+  ];
+
+  const run = (key: string) => (
+    <div className="ticker-run" key={key} aria-hidden={key !== "a"}>
+      {items.map((t) => (
+        <span key={t} className="ticker-item">
+          {t}
+        </span>
+      ))}
+    </div>
+  );
 
   return (
-    <section className="sec-dark" style={{ padding: "96px 0" }}>
-      <div className="wrap stack" style={{ gap: 36 }}>
+    <div className="ticker" role="marquee" aria-label="What's on at Club PTO">
+      <div className="ticker-track">
+        {run("a")}
+        {run("b")}
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Fixture tickets (homepage "Up next")
+// ---------------------------------------------------------------------------
+
+const Ticket = ({
+  stub,
+  tone = "",
+  eyebrow,
+  title,
+  meta,
+  foot,
+}: {
+  stub: ReactNode;
+  tone?: "" | "dark" | "lime";
+  eyebrow: string;
+  title: string;
+  meta: string;
+  foot: ReactNode;
+}) => (
+  <article className={`ticket${tone ? ` ticket-${tone}` : ""}`}>
+    <div className="stub">{stub}</div>
+    <div className="tk-body">
+      <p className="eyebrow">{eyebrow}</p>
+      <h3 className="disp tk-title">{title}</h3>
+      <p className="tk-meta">{meta}</p>
+      <div className="tk-foot">{foot}</div>
+    </div>
+  </article>
+);
+
+const DateStub = ({ ymd }: { ymd: string }) => {
+  const d = new Date(`${ymd}T12:00:00Z`);
+  const wd = d.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
+  const mo = d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+  return (
+    <>
+      <span className="stub-wd">{wd}</span>
+      <span className="disp stub-day">{d.getUTCDate()}</span>
+      <span className="stub-mo">{mo}</span>
+    </>
+  );
+};
+
+export const UpNext = () => {
+  const { ready } = useRows();
+  const today = todayInToronto();
+  const thu = nextThursday();
+  const next = ready ? nextMatchday(ready.matchdays, today) : undefined;
+
+  return (
+    <section className="upnext">
+      <div className="wrap stack" style={{ gap: 22 }}>
         <div className="split">
-          <div className="head">
-            <p className="eyebrow">PTO League · Season 1 · The Founding Season</p>
-            <h2 className="disp t-l">
-              The league <span className="it">is live.</span>
-            </h2>
-          </div>
-          <Link className="btn btn-lime" to="/league#standings">
-            Full standings
+          <h2 className="disp t-m">Up next</h2>
+          <Link className="link-strong" to="/events">
+            Full calendar
           </Link>
         </div>
-        <Tiles state={state} />
-        {ready ? (
-          <>
-            <div className="g3" style={{ gap: 16 }}>
-              {DIVISIONS.map((d) => (
-                <MiniTable key={d.code} code={d.code} rows={rows} asOf={manualAsOf(ready.standings, d.code)} limit={5} />
-              ))}
-            </div>
-            <p className="body small">
-              {!results
-                ? "The Founding Season roster, top five per division. The tables fill in as Week 1 scores go in."
-                : allIn
-                  ? "Top five in each division. A win is worth 3 points; point difference breaks ties."
-                  : "Top five in each division. A win is worth 3 points; the other tables fill in as scores go in."}
-            </p>
-          </>
-        ) : null}
+        <div className="rail rail-3">
+          <Ticket
+            stub={<DateStub ymd={thu} />}
+            eyebrow={`Weekly meet · ${countdownLabel(thu, today)}`}
+            title="Thursday at District"
+            meta={`${thursday.startTime} to ${thursday.endTime} · Three courts, split by level`}
+            foot={
+              <>
+                <span className="tk-price">
+                  {thursday.price} <small>incl. HST</small>
+                </span>
+                <a className="btn btn-dark btn-sm" href={thursday.bookingUrl}>
+                  Book
+                </a>
+              </>
+            }
+          />
+          <Ticket
+            tone="dark"
+            stub={next ? <DateStub ymd={next.date} /> : <span className="stub-wd">Sundays</span>}
+            eyebrow={next ? `PTO League · Week ${next.week} · ${countdownLabel(next.date, today)}` : "PTO League"}
+            title="Matchday"
+            meta={`${leagueFacts.timeShort} · ${venue.short} · ${divisionNames()}`}
+            foot={
+              <>
+                <span className="tk-price">Live table</span>
+                <Link className="btn btn-lime btn-sm" to="/league#standings">
+                  Standings
+                </Link>
+              </>
+            }
+          />
+          {finalsUpcoming() ? (
+            <Ticket
+              tone="lime"
+              stub={
+                isSet(leagueFacts.finalsDate) ? (
+                  <DateStub ymd={leagueFacts.finalsDate} />
+                ) : (
+                  <span className="stub-wd">Season 1</span>
+                )
+              }
+              eyebrow="Coming up"
+              title="Finals Night"
+              meta="The top of each division plays for the title. Trophies, awards, the whole league."
+              foot={
+                <>
+                  <span className="tk-price">{isSet(leagueFacts.finalsDate) ? "Be there" : "Date coming soon"}</span>
+                  <Link className="btn btn-dark btn-sm" to="/league">
+                    The league
+                  </Link>
+                </>
+              }
+            />
+          ) : (
+            <Ticket
+              tone="lime"
+              stub={<span className="stub-wd">Season 2</span>}
+              eyebrow="Next up"
+              title="Season 2"
+              meta="Waitlist players hear the dates first."
+              foot={
+                <Link className="btn btn-dark btn-sm" to="/league#season-2">
+                  Join the waitlist
+                </Link>
+              }
+            />
+          )}
+        </div>
       </div>
     </section>
   );
 };
 
-/** The League page's standings: division tabs, the full table, matchdays. */
+// ---------------------------------------------------------------------------
+// Standings card (shared by the homepage and the League page)
+// ---------------------------------------------------------------------------
+
+const DivisionTabs = ({ value, onChange }: { value: string; onChange: (code: string) => void }) => (
+  <div className="dtabs" role="tablist" aria-label="Division">
+    {DIVISIONS.map((d) => (
+      <button
+        key={d.code}
+        type="button"
+        role="tab"
+        aria-selected={value === d.code}
+        className={`dtab${value === d.code ? " on" : ""}`}
+        onClick={() => onChange(d.code)}
+      >
+        <Crest code={d.code} size={22} />
+        {d.short}
+      </button>
+    ))}
+  </div>
+);
+
+const EmptyDivision = ({ code }: { code: string }) => {
+  const d = DIVISIONS.find((x) => x.code === code);
+  return (
+    <div className="dempty">
+      <Crest code={code} size={56} />
+      <p className="disp dempty-t">{d?.label} standings are on the way.</p>
+      <p className="body small">They go up here as soon as this division's scores are in.</p>
+    </div>
+  );
+};
+
+/** First division with results, so the card opens on a table, not an empty state. */
+const firstWithResults = (rows: StandingRow[]) =>
+  DIVISIONS.find((d) => divisionHasResults(rows, d.code))?.code ?? DIVISIONS[0].code;
+
+const ShortTable = ({ rows, code, limit }: { rows: StandingRow[]; code: string; limit?: number }) => {
+  const all = byDivision(rows, code);
+  const table = limit ? all.slice(0, limit) : all;
+  return (
+    <div className="stbl" role="table" aria-label={`${DIVISIONS.find((d) => d.code === code)?.label} standings`}>
+      <div className="stbl-row stbl-head" role="row">
+        <span role="columnheader">#</span>
+        <span role="columnheader">Player</span>
+        <span role="columnheader" className="c-p">
+          P
+        </span>
+        <span role="columnheader">W-L</span>
+        <span role="columnheader">+/-</span>
+        <span role="columnheader">Pts</span>
+      </div>
+      {table.map((r, i) => (
+        <div key={r.playerId} role="row" className={`stbl-row${i === 0 ? " lead" : ""}`}>
+          <span role="cell" className="disp s-pos">
+            {i + 1}
+          </span>
+          <span role="cell" className="s-name">
+            {displayName(r.player)}
+          </span>
+          <span role="cell" className="c-p">
+            {r.matches}
+          </span>
+          <span role="cell">
+            {r.wins}-{r.losses}
+          </span>
+          <span role="cell">{r.diff > 0 ? `+${r.diff}` : r.diff}</span>
+          <span role="cell" className="s-pts">
+            {r.leaguePoints}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const StandingsCard = ({ limit, footLink }: { limit?: number; footLink?: boolean }) => {
+  const { state, ready, rows } = useRows();
+  const [picked, setPicked] = useState<string | null>(null);
+  const code = picked ?? (ready ? firstWithResults(rows) : DIVISIONS[0].code);
+  const results = divisionHasResults(rows, code);
+  const asOf = ready ? manualAsOf(ready.standings, code) : null;
+  const short = DIVISIONS.find((d) => d.code === code)?.short;
+
+  return (
+    <div className="scard">
+      <DivisionTabs value={code} onChange={setPicked} />
+      {state.status === "loading" ? (
+        <div className="dempty" aria-busy="true">
+          <span className="skeleton" style={{ width: "60%" }} />
+          <span className="skeleton" style={{ width: "80%" }} />
+          <span className="skeleton" style={{ width: "50%" }} />
+        </div>
+      ) : state.status === "error" ? (
+        <div className="dempty">
+          <p className="disp dempty-t">The live table is taking a break.</p>
+          <p className="body small">Check back after league Sunday.</p>
+        </div>
+      ) : results ? (
+        <>
+          <ShortTable rows={rows} code={code} limit={limit} />
+          <div className="scard-foot">
+            <span>
+              {short}
+              {asOf ? ` · ${asOf}` : ""}
+            </span>
+            {footLink ? (
+              <Link to="/league#standings" className="link-strong">
+                Full table →
+              </Link>
+            ) : (
+              <span>3 points a win</span>
+            )}
+          </div>
+        </>
+      ) : (
+        <EmptyDivision code={code} />
+      )}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Homepage league block
+// ---------------------------------------------------------------------------
+
+export const LeagueOnHome = () => {
+  const { rows } = useRows();
+  const leaders = divisionLeaders(rows);
+
+  return (
+    <section className="sec-dark league-home">
+      <div className="wrap league-home-grid">
+        <div className="stack" style={{ gap: 20 }}>
+          <p className="eyebrow">PTO League · Season 1 · The Founding Season</p>
+          <h2 className="disp t-l">
+            The league <span className="it">is live.</span>
+          </h2>
+          <p className="body" style={{ maxWidth: 420 }}>
+            Three divisions. Your own ranking. Every Sunday counts toward Finals Night.
+          </p>
+          {leaders.length ? (
+            <div className="leaders-mini">
+              {leaders.map((l) => (
+                <div key={l.division.code} className="lm">
+                  <Crest code={l.division.code} size={34} />
+                  <div className="stack" style={{ gap: 2 }}>
+                    <span className="lm-k">{l.division.short} leader</span>
+                    <span className="disp lm-v">{displayName(l.row.player)}</span>
+                  </div>
+                  <span className="lm-p">
+                    {l.row.leaguePoints}
+                    <small> pts</small>
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+          <div className="cta-row">
+            <Link className="btn btn-lime" to="/league#standings">
+              Full standings
+            </Link>
+            <Link className="btn btn-cream" to="/league">
+              How it works
+            </Link>
+          </div>
+        </div>
+        <StandingsCard limit={5} footLink />
+      </div>
+    </section>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// League page: matchday hub and full standings
+// ---------------------------------------------------------------------------
+
+export const MatchdayBand = () => {
+  const { ready, rows } = useRows();
+  const today = todayInToronto();
+  const next = ready ? nextMatchday(ready.matchdays, today) : undefined;
+  const last = ready ? lastMatchday(ready.matchdays) : undefined;
+  const leaders = divisionLeaders(rows);
+
+  return (
+    <section className="mband">
+      <div className="wrap mband-grid">
+        <div className="mcard mcard-next">
+          <p className="eyebrow">Next matchday{next ? ` · ${countdownLabel(next.date, today)}` : ""}</p>
+          <p className="disp mcard-big">{next ? longDay(next.date) : "Sundays"}</p>
+          <p className="mcard-meta">
+            {next ? `Week ${next.week} · ` : ""}
+            {leagueFacts.timeShort} · {venue.name}
+          </p>
+        </div>
+        <div className="mcard">
+          <p className="eyebrow">{last ? `Last time · Week ${last.week} · ${longDay(last.date)}` : "Season 1"}</p>
+          {leaders.length ? (
+            <div className="stack" style={{ gap: 10 }}>
+              {leaders.map((l) => (
+                <div key={l.division.code} className="lm lm-light">
+                  <Crest code={l.division.code} size={34} />
+                  <div className="stack" style={{ gap: 2 }}>
+                    <span className="lm-k">{l.division.short} leader</span>
+                    <span className="disp lm-v">{displayName(l.row.player)}</span>
+                  </div>
+                  <span className="lm-p">
+                    {l.row.wins}-{l.row.losses} · {l.row.leaguePoints}
+                    <small> pts</small>
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="disp mcard-big">Scores going in</p>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+};
+
 export const Standings = () => {
-  const state = useLeagueLive();
-  const [division, setDivision] = useState(DIVISIONS[0].code);
-  const ready = state.status === "ready" ? state.data : null;
-  const rows = ready ? mergeManual(ready.standings) : [];
-  const results = divisionHasResults(rows, division);
-  const table = byDivision(rows, division);
-  const asOf = ready ? manualAsOf(ready.standings, division) : null;
-  const label = DIVISIONS.find((d) => d.code === division)?.label ?? division;
+  const { ready } = useRows();
   const today = todayInToronto();
   const next = ready ? nextMatchday(ready.matchdays, today) : undefined;
 
   return (
-    <section id="standings" className="sec sec-alt" style={{ padding: "96px 0" }}>
+    <section id="standings" className="sec-alt standings-sec">
       <div className="wrap stack" style={{ gap: 28 }}>
         <div className="split">
           <div className="head">
@@ -178,100 +481,25 @@ export const Standings = () => {
             <h2 className="disp t-l">The table</h2>
           </div>
           <p className="body" style={{ fontSize: 16, maxWidth: 380 }}>
-            Updated as scores go in on league Sundays. A win is worth 3 points; point difference breaks ties.
+            Updated as scores go in after league Sundays. A win is worth 3 points; point difference breaks ties.
           </p>
         </div>
 
-        <div className="tabs" role="tablist" aria-label="Division">
-          {DIVISIONS.map((d) => (
-            <button
-              key={d.code}
-              type="button"
-              role="tab"
-              aria-selected={division === d.code}
-              className={`tab${division === d.code ? " tab-on" : ""}`}
-              onClick={() => setDivision(d.code)}
-            >
-              {d.short}
-            </button>
-          ))}
-        </div>
-
-        <div className="tbl-wrap">
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Player</th>
-                <th>P</th>
-                <th>W</th>
-                <th>L</th>
-                <th>+/-</th>
-                <th>Pts</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ready
-                ? table.map((r, i) => (
-                    <tr key={r.playerId} className={results && i === 0 ? "lead" : undefined}>
-                      <td className="disp pos">{results ? i + 1 : "–"}</td>
-                      <td className="who">{displayName(r.player)}</td>
-                      <td>{r.matches}</td>
-                      <td>{r.wins}</td>
-                      <td>{r.losses}</td>
-                      <td>{r.diff > 0 ? `+${r.diff}` : r.diff}</td>
-                      <td className="pts">{r.leaguePoints}</td>
-                    </tr>
-                  ))
-                : [0, 1, 2, 3, 4].map((i) => (
-                    <tr key={i} aria-hidden="true">
-                      <td className="disp pos">{i + 1}</td>
-                      <td>
-                        <span className="skeleton" />
-                      </td>
-                      <td>0</td>
-                      <td>0</td>
-                      <td>0</td>
-                      <td>0</td>
-                      <td className="pts">0</td>
-                    </tr>
-                  ))}
-            </tbody>
-          </table>
-        </div>
-        {state.status === "error" ? (
-          <p className="body small">The live table is taking a break. Check back after league night.</p>
-        ) : ready && !results ? (
-          <p className="body small">{label}: Week 1 scores are going in. Positions appear once results land.</p>
-        ) : asOf ? (
-          <p className="body small">
-            {label} standings {asOf.replace(/^After/, "after")}.
-          </p>
-        ) : null}
-
-        {ready && hasResults(rows) ? (
-          <div className="g3" style={{ gap: 16 }}>
-            {leaders(rows).map((l) => (
-              <div key={l.division} className="leader">
-                <span className="eyebrow eyebrow-leaf">{l.title}</span>
-                <span className="disp leader-name">{l.player}</span>
-                <span className="leader-v">{l.value}</span>
-              </div>
-            ))}
-          </div>
-        ) : null}
+        <StandingsCard />
 
         {ready && ready.matchdays.length ? (
           <div className="stack" style={{ gap: 12 }}>
             <p className="eyebrow">Matchdays</p>
             <div className="days">
               {ready.matchdays.map((m) => {
-                const state = m.status === "Played" ? "done" : next && m.id === next.id ? "next" : "";
+                const tone = m.status === "Played" ? "done" : next && m.id === next.id ? "next" : "";
                 return (
-                  <div key={m.id} className={`day ${state}`}>
+                  <div key={m.id} className={`day ${tone}`}>
                     <span className="day-w">Week {m.week}</span>
                     <span className="disp day-d">{longDay(m.date).split(", ")[1]}</span>
-                    <span className="day-s">{m.status === "Played" ? "Played" : state === "next" ? "Next up" : "Sunday"}</span>
+                    <span className="day-s">
+                      {m.status === "Played" ? "Played" : tone === "next" ? countdownLabel(m.date, today) : "Sunday"}
+                    </span>
                   </div>
                 );
               })}
