@@ -140,10 +140,6 @@
   cursor: not-allowed;
 }
 
-.la-player--sub {
-  border-style: dashed;
-}
-
 .la-sub {
   opacity: 0.55;
   font-style: italic;

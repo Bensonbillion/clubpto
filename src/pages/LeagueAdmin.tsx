@@ -12,7 +12,7 @@ import {
   type MatchRow,
   type Player,
 } from "@/league/adminApi";
-import { MAX_GAMES, SUB, gamesPlayed, isSub } from "@/league/gamesPlayed";
+import { MAX_GAMES, gamesPlayed } from "@/league/gamesPlayed";
 import "./leagueAdmin.css";
 
 const PASSCODE_KEY = "pto.league.passcode";
@@ -80,7 +80,8 @@ const LeagueAdmin = () => {
   const divisions = useMemo(() => divisionsOf(active), [active]);
   const roster = active.filter((p) => p.division === division);
   // Everyone plays five; anyone at five is greyed out so a sixth game is
-  // not recorded by mistake. An extra game goes in with Sub in their place.
+  // not recorded by mistake. A sixth game goes in the Sheet by hand, with
+  // that player's spot left blank (see gamesPlayed.ts).
   const played = useMemo(() => gamesPlayed(data?.matches || [], division), [data, division]);
 
   const toggle = (name: string) => {
@@ -187,7 +188,7 @@ const LeagueAdmin = () => {
 
           <p className="la-note">
             {picked.length === 0 &&
-              `Tap four players. First two are one team. Five games each: anyone on ${MAX_GAMES} is greyed out, so use Sub for an extra game.`}
+              `Tap four players. First two are one team. Five games each, so anyone on ${MAX_GAMES} is greyed out.`}
             {picked.length > 0 && picked.length < 4 &&
               `${4 - picked.length} more to pick`}
             {picked.length === 4 && "Now the scores."}
@@ -215,21 +216,6 @@ const LeagueAdmin = () => {
                 </button>
               );
             })}
-            {(() => {
-              const at = picked.indexOf(SUB);
-              return (
-                <button
-                  type="button"
-                  className={`la-player la-player--sub ${at >= 0 ? "is-on" : ""}`}
-                  onClick={() => toggle(SUB)}
-                  aria-label="Sub, the game does not count for this spot"
-                >
-                  {at >= 0 && <span className="la-pick">{at < 2 ? "A" : "B"}</span>}
-                  Sub
-                  <span className="la-count">not counted</span>
-                </button>
-              );
-            })()}
           </div>
 
           {picked.length === 4 && (
@@ -314,13 +300,13 @@ const Row = ({ match }: { match: MatchRow }) => {
   );
 };
 
-/** A pair of names, with a Sub shown greyed because the game does not count for that spot. */
+/** A pair of names. A blank spot (a game that does not count for that player) shows greyed. */
 const Team = ({ names }: { names: [string, string] }) => (
   <>
     {names.map((n, i) => (
       <span key={`${n}-${i}`}>
         {i > 0 && " + "}
-        <span className={isSub(n) ? "la-sub" : undefined}>{n}</span>
+        {n.trim() ? n : <span className="la-sub">blank</span>}
       </span>
     ))}
   </>
