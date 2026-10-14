@@ -1272,3 +1272,7 @@ body.pto-body {
 .pto .mini-more:hover {
   text-decoration: underline;
 }
+.pto .mini-asof {
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}

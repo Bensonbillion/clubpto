@@ -11,7 +11,11 @@ import {
   DIVISIONS,
   byDivision,
   displayName,
+  divisionHasResults,
+  divisionNames,
   hasResults,
+  manualAsOf,
+  mergeManual,
   leaders,
   loadLeague,
   matchdaysPlayed,
@@ -52,7 +56,7 @@ const Tiles = ({ state }: { state: State }) => {
   if (state.status !== "ready") {
     return (
       <div className="tiles">
-        <Tile n={String(DIVISIONS.length)} label="Divisions" sub="Men's 1, Men's 2, Women's" />
+        <Tile n={String(DIVISIONS.length)} label="Divisions" sub={divisionNames()} />
         <Tile n={String(SEASON_SUNDAYS)} label="Matchdays" sub="Sundays, 3 to 5 PM" />
         <Tile n="1" label="Champion per division" sub="Crowned on Finals Night" />
         <Tile n="Live" label="Standings" sub="Updated as scores go in" />
@@ -65,7 +69,7 @@ const Tiles = ({ state }: { state: State }) => {
   return (
     <div className="tiles">
       <Tile n={String(standings.length)} label="Players" sub="Founding Season roster" />
-      <Tile n={String(DIVISIONS.length)} label="Divisions" sub="Men's 1, Men's 2, Women's" />
+      <Tile n={String(DIVISIONS.length)} label="Divisions" sub={divisionNames()} />
       <Tile n={`${played}/${matchdays.length || SEASON_SUNDAYS}`} label="Matchdays played" sub="Sundays, 3 to 5 PM" />
       <Tile
         n={next ? longDay(next.date).split(", ")[1] : "Finals"}
@@ -76,7 +80,8 @@ const Tiles = ({ state }: { state: State }) => {
   );
 };
 
-const MiniTable = ({ code, rows, results, limit }: { code: string; rows: LeagueSnapshot["standings"]; results: boolean; limit: number }) => {
+const MiniTable = ({ code, rows, asOf, limit }: { code: string; rows: LeagueSnapshot["standings"]; asOf: string | null; limit: number }) => {
+  const results = divisionHasResults(rows, code);
   const all = byDivision(rows, code);
   const table = all.slice(0, limit);
   const more = all.length - table.length;
@@ -84,7 +89,10 @@ const MiniTable = ({ code, rows, results, limit }: { code: string; rows: LeagueS
   return (
     <div className="mini">
       <div className="mini-head">
-        <span>{label}</span>
+        <span>
+          {label}
+          {asOf ? <span className="mini-asof"> · {asOf}</span> : null}
+        </span>
         <span>Pts</span>
       </div>
       {table.map((r, i) => (
@@ -108,7 +116,9 @@ const MiniTable = ({ code, rows, results, limit }: { code: string; rows: LeagueS
 export const LeagueOnHome = () => {
   const state = useLeagueLive();
   const ready = state.status === "ready" ? state.data : null;
-  const results = ready ? hasResults(ready.standings) : false;
+  const rows = ready ? mergeManual(ready.standings) : [];
+  const results = hasResults(rows);
+  const allIn = ready ? DIVISIONS.every((d) => divisionHasResults(rows, d.code)) : false;
 
   return (
     <section className="sec-dark" style={{ padding: "96px 0" }}>
@@ -129,13 +139,15 @@ export const LeagueOnHome = () => {
           <>
             <div className="g3" style={{ gap: 16 }}>
               {DIVISIONS.map((d) => (
-                <MiniTable key={d.code} code={d.code} rows={ready.standings} results={results} limit={5} />
+                <MiniTable key={d.code} code={d.code} rows={rows} asOf={manualAsOf(ready.standings, d.code)} limit={5} />
               ))}
             </div>
             <p className="body small">
-              {results
-                ? "Top five in each division. A win is worth 3 points; point difference breaks ties."
-                : "The Founding Season roster, top five per division. The table fills in as Week 1 scores go in."}
+              {!results
+                ? "The Founding Season roster, top five per division. The tables fill in as Week 1 scores go in."
+                : allIn
+                  ? "Top five in each division. A win is worth 3 points; point difference breaks ties."
+                  : "Top five in each division. A win is worth 3 points; the other tables fill in as scores go in."}
             </p>
           </>
         ) : null}
@@ -149,8 +161,11 @@ export const Standings = () => {
   const state = useLeagueLive();
   const [division, setDivision] = useState(DIVISIONS[0].code);
   const ready = state.status === "ready" ? state.data : null;
-  const results = ready ? hasResults(ready.standings) : false;
-  const table = ready ? byDivision(ready.standings, division) : [];
+  const rows = ready ? mergeManual(ready.standings) : [];
+  const results = divisionHasResults(rows, division);
+  const table = byDivision(rows, division);
+  const asOf = ready ? manualAsOf(ready.standings, division) : null;
+  const label = DIVISIONS.find((d) => d.code === division)?.label ?? division;
   const today = todayInToronto();
   const next = ready ? nextMatchday(ready.matchdays, today) : undefined;
 
@@ -227,12 +242,16 @@ export const Standings = () => {
         {state.status === "error" ? (
           <p className="body small">The live table is taking a break. Check back after league night.</p>
         ) : ready && !results ? (
-          <p className="body small">Week 1 scores are going in. Positions appear once results land.</p>
+          <p className="body small">{label}: Week 1 scores are going in. Positions appear once results land.</p>
+        ) : asOf ? (
+          <p className="body small">
+            {label} standings {asOf.replace(/^After/, "after")}.
+          </p>
         ) : null}
 
-        {ready && results ? (
+        {ready && hasResults(rows) ? (
           <div className="g3" style={{ gap: 16 }}>
-            {leaders(ready.standings).map((l) => (
+            {leaders(rows).map((l) => (
               <div key={l.division} className="leader">
                 <span className="eyebrow eyebrow-leaf">{l.title}</span>
                 <span className="disp leader-name">{l.player}</span>

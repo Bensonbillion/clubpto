@@ -39,12 +39,81 @@ export interface LeagueSnapshot {
   matchdays: Matchday[];
 }
 
-/** Display order and labels for the Sheet's division codes. */
+/**
+ * Display order and names for the Sheet's division codes (named by Benson,
+ * Oct 14 2026). The Sheet keeps its codes; only the site shows the names.
+ */
 export const DIVISIONS: { code: string; label: string; short: string }[] = [
-  { code: "M1", label: "Men's Division 1", short: "Men's 1" },
-  { code: "M2", label: "Men's Division 2", short: "Men's 2" },
-  { code: "W", label: "Women's Division", short: "Women's" },
+  { code: "M1", label: "Atlas Division", short: "Atlas" },
+  { code: "M2", label: "Riviera Division", short: "Riviera" },
+  { code: "W", label: "Venus Division", short: "Venus" },
 ];
+
+/** "Atlas, Riviera, Venus" for the tiles and copy. */
+export const divisionNames = (): string => DIVISIONS.map((d) => d.short).join(", ");
+
+const row = (
+  rank: number,
+  playerId: string,
+  player: string,
+  wins: number,
+  losses: number,
+  leaguePoints: number,
+  diff: number,
+): StandingRow => ({
+  rank,
+  playerId,
+  player,
+  division: "M1",
+  matches: wins + losses,
+  wins,
+  losses,
+  winPct: wins + losses ? wins / (wins + losses) : null,
+  pointsFor: 0,
+  pointsAgainst: 0,
+  diff,
+  leaguePoints,
+});
+
+/**
+ * Tables Benson sent before the Sheet had the scores. A division's manual
+ * table is used only while the Sheet has no results for that division; the
+ * moment scores land in /league/admin, the Sheet wins and this goes quiet.
+ * Delete an entry once its division is live in the Sheet.
+ */
+export const MANUAL_STANDINGS: Record<string, { asOf: string; rows: StandingRow[] }> = {
+  M1: {
+    asOf: "After Week 1",
+    rows: [
+      row(1, "M01", "David G", 5, 0, 15, 9),
+      row(2, "M05", "Folarin A.", 3, 2, 9, 2),
+      row(3, "M06", "Tami O.", 2, 3, 6, 0),
+      row(4, "M08", "Lewis", 2, 3, 6, -4),
+      row(5, "M02", "Benson E.", 2, 3, 6, -4),
+      row(6, "M03", "Edgar A.", 1, 4, 3, -4),
+    ],
+  },
+};
+
+/** The Sheet's rows, with a manual table standing in for any division not yet scored there. */
+export const mergeManual = (rows: StandingRow[]): StandingRow[] => {
+  let out = rows;
+  for (const [code, manual] of Object.entries(MANUAL_STANDINGS)) {
+    const sheetHasResults = rows.some((r) => r.division === code && r.matches > 0);
+    if (!sheetHasResults) out = [...out.filter((r) => r.division !== code), ...manual.rows];
+  }
+  return out;
+};
+
+/**
+ * "After Week 1" while a division is showing its manual table, else null.
+ * Pass the Sheet's own rows (before mergeManual).
+ */
+export const manualAsOf = (sheetRows: StandingRow[], code: string): string | null => {
+  const manual = MANUAL_STANDINGS[code];
+  if (!manual) return null;
+  return sheetRows.some((r) => r.division === code && r.matches > 0) ? null : manual.asOf;
+};
 
 export const divisionLabel = (code: string): string =>
   DIVISIONS.find((d) => d.code === code)?.label ?? code;
@@ -55,7 +124,7 @@ export const displayName = (raw: string): string => {
   return /\s[A-Za-z]$/.test(name) ? `${name}.` : name;
 };
 
-const CACHE_KEY = "pto-league-live-v1";
+const CACHE_KEY = "pto-league-live-v2";
 const CACHE_MS = 5 * 60 * 1000;
 
 const readCache = (): LeagueSnapshot | null => {
@@ -107,15 +176,23 @@ export const loadLeague = (): Promise<LeagueSnapshot> => {
   return inflight;
 };
 
-/** Table order: league points, then point difference, then wins, then name. */
+/**
+ * Table order: league points, then point difference, then wins, then the
+ * Sheet's (or Benson's) own rank, then name.
+ */
 export const sortTable = (rows: StandingRow[]): StandingRow[] =>
   [...rows].sort(
     (a, b) =>
       b.leaguePoints - a.leaguePoints ||
       b.diff - a.diff ||
       b.wins - a.wins ||
+      a.rank - b.rank ||
       displayName(a.player).localeCompare(displayName(b.player)),
   );
+
+/** True once any score is in for one division. */
+export const divisionHasResults = (rows: StandingRow[], code: string): boolean =>
+  rows.some((r) => r.division === code && r.matches > 0);
 
 export const byDivision = (rows: StandingRow[], code: string): StandingRow[] =>
   sortTable(rows.filter((r) => r.division === code));
