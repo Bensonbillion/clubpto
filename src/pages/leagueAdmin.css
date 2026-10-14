@@ -1,0 +1,358 @@
+/*
+  League admin. Phone first, one hand, outdoors in daylight: big targets,
+  hard contrast, no low-contrast greys.
+*/
+
+.la {
+  --la-bg: #0a3a2a;
+  --la-surface: #0d4a35;
+  --la-line: rgba(250, 248, 243, 0.22);
+  --la-fg: #faf8f3;
+  --la-dim: #c9d8cf;
+  --la-accent: #f4d03f;
+
+  min-height: 100vh;
+  background: var(--la-bg);
+  color: var(--la-fg);
+  font-family: system-ui, -apple-system, "DM Sans", sans-serif;
+  padding: 16px 16px calc(32px + env(safe-area-inset-bottom));
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.la h1 {
+  font-size: 20px;
+  margin: 0;
+  letter-spacing: 0.02em;
+}
+
+.la-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.la-week {
+  appearance: none;
+  background: var(--la-surface);
+  color: var(--la-fg);
+  border: 1px solid var(--la-line);
+  border-radius: 0;
+  padding: 10px 12px;
+  font-size: 15px;
+  min-height: 44px;
+}
+
+.la-error {
+  background: #7a2f1d;
+  color: #fff;
+  padding: 12px 14px;
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.la-busy {
+  color: var(--la-dim);
+  font-size: 14px;
+  margin: 0 0 12px;
+}
+
+.la-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-block: 1px solid var(--la-line);
+  padding: 10px 0;
+  margin-bottom: 14px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.la-rounds {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 400;
+  color: var(--la-dim);
+  font-size: 13px;
+}
+
+.la-rounds button {
+  width: 44px;
+  height: 44px;
+  background: var(--la-surface);
+  border: 1px solid var(--la-line);
+  color: var(--la-fg);
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.la-rounds b {
+  color: var(--la-fg);
+  font-size: 17px;
+  min-width: 1.2em;
+  text-align: center;
+}
+
+/* ── check-in ─────────────────────────────────────────────────── */
+
+.la-div {
+  margin-bottom: 18px;
+}
+
+.la-div h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin: 0 0 10px;
+}
+
+.la-div h2 span {
+  color: var(--la-accent);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+}
+
+.la-div h2 em {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--la-dim);
+}
+
+.la-div h2 em.la-short {
+  color: #ffb4a2;
+  font-weight: 700;
+}
+
+.la-players {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 8px;
+}
+
+.la-player {
+  min-height: 52px;
+  padding: 12px 14px;
+  text-align: left;
+  background: transparent;
+  border: 1px solid var(--la-line);
+  color: var(--la-dim);
+  font-size: 16px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.la-player.is-in {
+  background: var(--la-accent);
+  border-color: var(--la-accent);
+  color: #0a2a1e;
+  font-weight: 700;
+}
+
+/* ── buttons ──────────────────────────────────────────────────── */
+
+.la-cta {
+  display: block;
+  width: 100%;
+  min-height: 56px;
+  margin-top: 16px;
+  background: var(--la-accent);
+  color: #0a2a1e;
+  border: 0;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.la-cta:disabled {
+  opacity: 0.5;
+}
+
+.la-cta--ghost {
+  background: transparent;
+  color: var(--la-fg);
+  border: 1px solid var(--la-line);
+}
+
+.la-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* ── generated card ───────────────────────────────────────────── */
+
+.la-card {
+  margin-top: 18px;
+  border-top: 1px solid var(--la-line);
+}
+
+.la-round {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--la-line);
+}
+
+.la-round h3 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--la-dim);
+}
+
+.la-match {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 5px 0;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.la-court {
+  color: var(--la-accent);
+  font-weight: 700;
+  font-size: 12px;
+  min-width: 2.2em;
+}
+
+.la-match i {
+  font-style: normal;
+  color: var(--la-dim);
+  padding: 0 2px;
+}
+
+/* ── scoring ──────────────────────────────────────────────────── */
+
+.la-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0 4px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.la-nav button {
+  width: 52px;
+  height: 52px;
+  background: var(--la-surface);
+  border: 1px solid var(--la-line);
+  color: var(--la-fg);
+  font-size: 22px;
+  cursor: pointer;
+}
+
+.la-nav button:disabled {
+  opacity: 0.35;
+}
+
+.la-progress {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--la-dim);
+}
+
+.la-score {
+  border: 1px solid var(--la-line);
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.la-score--saved {
+  border-color: var(--la-accent);
+}
+
+.la-score--error {
+  border-color: #ffb4a2;
+}
+
+.la-score__head {
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--la-accent);
+  margin-bottom: 8px;
+}
+
+.la-score__side {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+}
+
+.la-score__side span {
+  flex: 1;
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.la-score__side input {
+  width: 84px;
+  min-height: 56px;
+  text-align: center;
+  font-size: 26px;
+  font-weight: 700;
+  font-family: inherit;
+  background: var(--la-surface);
+  color: var(--la-fg);
+  border: 1px solid var(--la-line);
+  border-radius: 0;
+}
+
+.la-score__side input:focus-visible {
+  outline: 2px solid var(--la-accent);
+  outline-offset: 1px;
+}
+
+.la-score__state {
+  font-size: 12px;
+  color: var(--la-dim);
+  min-height: 1em;
+  margin-top: 4px;
+}
+
+.la-score--error .la-score__state {
+  color: #ffb4a2;
+}
+
+.la-foot {
+  margin-top: 22px;
+  font-size: 12px;
+  color: var(--la-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ── passcode ─────────────────────────────────────────────────── */
+
+.la-gate p {
+  color: var(--la-dim);
+  font-size: 15px;
+}
+
+.la-input {
+  display: block;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 14px;
+  font-size: 20px;
+  font-family: inherit;
+  background: var(--la-surface);
+  color: var(--la-fg);
+  border: 1px solid var(--la-line);
+  border-radius: 0;
+}
