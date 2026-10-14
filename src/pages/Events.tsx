@@ -85,7 +85,7 @@ const Events = () => {
                 <p className="eyebrow eyebrow-leaf">PTO League</p>
                 <h3 className="disp t-card">Season 1 Finals Night</h3>
                 <p className="body" style={{ fontSize: 16 }}>
-                  {isSet(leagueFacts.finalsVenue) ? `${leagueFacts.finalsVenue} · ` : ""}The Top 8 in each division play
+                  {isSet(leagueFacts.finalsVenue) ? `${leagueFacts.finalsVenue} · ` : ""}The top of each division plays
                   for the title. Trophies, awards and the whole league in one room.
                 </p>
               </div>

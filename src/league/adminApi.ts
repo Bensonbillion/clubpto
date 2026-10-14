@@ -39,7 +39,7 @@ export interface Bootstrap {
 // The /exec URL is not a secret: it does nothing without the passcode, which
 // lives in the script's own properties. Kept here so there is no extra
 // config step, overridable if the script is ever redeployed fresh.
-const API_URL =
+export const API_URL: string =
   import.meta.env.VITE_LEAGUE_API_URL ||
   "https://script.google.com/macros/s/AKfycbwrnmlqcOdzfw5YNTX-xQyK5P3aS08j6-ZHmrhMGB4OEoynAvZ8BBBCspESIz4SBCsriQ/exec";
 

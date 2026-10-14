@@ -1,8 +1,9 @@
 // Book PTO: company nights and private parties. Every package is
-// "Quote on request" by choice (Benson, Oct 2026): no prices on the page.
+// Company night and private party show their starting prices; the big
+// group is quoted (Benson, Oct 14 2026). Prices live in src/site/content.ts.
 
 import { photos } from "@/site/photos";
-import { club, venue } from "@/site/content";
+import { bookPto, club, venue } from "@/site/content";
 import { Check, Head, Plus, Qa, Shot, usePageMeta } from "@/site/ui/bits";
 import { MailtoForm, type MailtoField } from "@/site/ui/forms";
 
@@ -32,17 +33,20 @@ const packages = [
   {
     eyebrow: "For teams",
     title: "Company night",
+    price: bookPto.companyFrom as string | null,
     bullets: ["Up to 12 guests", "2 courts · 2 hours", "Team socials, holiday parties, client nights"],
     dark: true,
   },
   {
     eyebrow: "Bigger teams",
     title: "Big group",
+    price: null,
     bullets: ["17 to 24 guests", "3 courts · 2 hours", "Offsites, department nights, bigger teams"],
   },
   {
     eyebrow: "Friends and family",
     title: "Private party",
+    price: bookPto.privateFrom as string | null,
     bullets: ["12 to 16 guests", "2 courts · 2 hours", "Birthdays, friend groups, bachelor and bachelorette nights"],
   },
 ];
@@ -88,6 +92,10 @@ const BookPTO = () => {
                 See packages
               </a>
             </div>
+            <p className="small" style={{ margin: 0, color: "var(--text)" }}>
+              Company nights from {bookPto.companyFrom} for {bookPto.companyGuests}. Private parties from{" "}
+              {bookPto.privateFrom}.
+            </p>
           </div>
           <div className="collage">
             <Shot
@@ -116,9 +124,18 @@ const BookPTO = () => {
                 <h3 className="disp" style={{ fontSize: 38 }}>
                   {p.title}
                 </h3>
-                <p className="disp" style={{ fontSize: 30, margin: 0 }}>
-                  Quote on request
-                </p>
+                {p.price ? (
+                  <p style={{ margin: 0 }}>
+                    <span className="disp" style={{ fontSize: 56 }}>
+                      {p.price}
+                    </span>
+                    <span style={{ fontSize: 15 }}> from, plus HST</span>
+                  </p>
+                ) : (
+                  <p className="disp" style={{ fontSize: 30, margin: 0, minHeight: 56, display: "flex", alignItems: "center" }}>
+                    Quote on request
+                  </p>
+                )}
                 <ul className="bullets">
                   {p.bullets.map((b) => (
                     <li key={b}>{b}</li>
@@ -261,6 +278,13 @@ const BookPTO = () => {
             </Qa>
             <Qa q="Can we sort food and drinks?">
               Yes. Tell us what you have in mind and we'll arrange it with the venue.
+            </Qa>
+            <Qa q="Is there a deposit?">
+              Yes. A deposit holds your date, and the balance is due before the night. We'll send the details with your
+              quote.
+            </Qa>
+            <Qa q="Can you invoice our company?">
+              Yes. Tell us who to bill and we'll send an invoice with your booking.
             </Qa>
           </div>
         </div>

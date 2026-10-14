@@ -1,12 +1,14 @@
 // PTO League. Season 1 copy follows the approved Founding Season page
-// (scoring, Top 8, prizes, coverage). Public standings stay down until the
-// clubhouse puts them behind a login, so this page shows an example card,
-// never real names.
+// (scoring, coverage), corrected to the season as it actually runs: three
+// divisions (Men's 1, Men's 2, Women's), seven Sundays. The live table
+// comes from the league Sheet (src/site/ui/LeagueLive.tsx), showing first
+// names and last initials exactly as the Sheet has them.
 
 import { photos } from "@/site/photos";
 import { isSet, leagueFacts, leagueInPlay, season2, venue } from "@/site/content";
 import { Head, Photo, Qa, usePageMeta } from "@/site/ui/bits";
 import { MailtoForm, type MailtoField } from "@/site/ui/forms";
+import { Standings } from "@/site/ui/LeagueLive";
 
 const waitlistFields: readonly MailtoField[] = [
   { name: "first", label: "First name", required: true, autoComplete: "given-name", half: true },
@@ -120,11 +122,11 @@ const perks = [
   },
   {
     title: "Your shot at Finals Night",
-    text: "Finish Top 8 and your season continues at the PTO Tournament. Everyone else watches.",
+    text: "Finish at the top of your division and your season continues at the PTO Tournament. Everyone else watches.",
   },
   {
     title: "Something to play for",
-    text: "Over $2,000 in prizes, and the inaugural PTO League Championship trophy for each division winner.",
+    text: "Prizes, and the inaugural PTO League Championship trophy for each division winner.",
     lime: true,
   },
   {
@@ -136,7 +138,7 @@ const perks = [
 const League = () => {
   usePageMeta(
     "PTO League · Club PTO",
-    "PTO League: Americano padel on Sundays at District Padel, Mississauga. Individual rankings, Top 8 per division to Finals Night. Join the Season 2 waitlist.",
+    "PTO League: Americano padel on Sundays at District Padel, Mississauga. Live standings in three divisions, Finals Night to crown each champion. Join the Season 2 waitlist.",
     "/league",
   );
 
@@ -166,7 +168,7 @@ const League = () => {
               </div>
               <div className="fact">
                 <span>Format</span>
-                <span>Americano. Two matches every Sunday, Men's and Women's divisions</span>
+                <span>Americano. Three divisions: Men's 1, Men's 2 and Women's</span>
               </div>
             </div>
             <div className="cta-row">
@@ -183,6 +185,8 @@ const League = () => {
           </div>
         </div>
       </section>
+
+      <Standings />
 
       <section id="how" className="sec" style={{ padding: "100px 0" }}>
         <div className="wrap stack reveal" style={{ gap: 44 }}>
@@ -201,21 +205,21 @@ const League = () => {
               <span className="disp num">02</span>
               <h3 className="t-step">Play your Sundays</h3>
               <p className="body" style={{ fontSize: 16 }}>
-                Two Americano matches every Sunday. The schedule rotates for variety across the season.
+                Americano rounds every Sunday. Partners and opponents rotate for variety across the season.
               </p>
             </div>
             <div className="step">
               <span className="disp num">03</span>
               <h3 className="t-step">Earn your points</h3>
               <p className="body" style={{ fontSize: 16 }}>
-                Win = 3 points. Draw = 1. Loss = 0. Your results follow you, not a team.
+                A win is worth 3 points. Your results follow you, not a team.
               </p>
             </div>
             <div className="step">
               <span className="disp num">04</span>
-              <h3 className="t-step">Make the Top 8</h3>
+              <h3 className="t-step">Make Finals Night</h3>
               <p className="body" style={{ fontSize: 16 }}>
-                The Top 8 in each division qualify for the PTO Tournament on Finals Night. One champion per division.
+                The top of each division plays for the title at the PTO Tournament on Finals Night. One champion per division.
               </p>
             </div>
           </div>

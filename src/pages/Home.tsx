@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { photos } from "@/site/photos";
 import {
+  bookPto,
   club,
   finalsUpcoming,
   isSet,
@@ -14,6 +15,7 @@ import {
 } from "@/site/content";
 import { Head, Photo, Seal, Shot, usePageMeta } from "@/site/ui/bits";
 import { EmailCapture } from "@/site/ui/forms";
+import { LeagueOnHome } from "@/site/ui/LeagueLive";
 
 /** Keep in step with HERO_SIZES in vite.config.ts (the build preloads it). */
 const HERO_SIZES = "(max-width: 900px) 56vw, 310px";
@@ -133,7 +135,7 @@ const ThisWeek = () => {
                 </p>
                 <h3 className="disp t-card">Season 1 Finals Night</h3>
                 <p className="body" style={{ fontSize: 16 }}>
-                  The Top 8 in each division play for the title. Trophies, awards, the whole league in one room.
+                  The top of each division plays for the title. Trophies, awards, the whole league in one room.
                 </p>
                 {isSet(leagueFacts.finalsVenue) ? (
                   <p className="small" style={{ margin: 0 }}>
@@ -353,8 +355,8 @@ const BookBand = () => (
           Bring your people. <span className="it">We'll run the night.</span>
         </h2>
         <p className="body">
-          Two hours of padel with a host, a warm-up for first-timers and a live scoreboard. Tell us your date and
-          group size and we'll send a quote.
+          Two hours of padel with a host, a warm-up for first-timers and a live scoreboard. Company nights from{" "}
+          {bookPto.companyFrom} for {bookPto.companyGuests}. Private parties from {bookPto.privateFrom}.
         </p>
         <div className="cta-row">
           <Link className="btn btn-dark" to="/book-pto#inquire">
@@ -395,6 +397,7 @@ const Home = () => {
     <>
       <Hero />
       <ThisWeek />
+      <LeagueOnHome />
       <Doors />
       <FirstNight />
       <Wall />

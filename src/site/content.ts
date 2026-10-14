@@ -53,6 +53,13 @@ export const leagueFacts = {
   ...league,
   /** league.sessionTime in house style. */
   timeShort: "3 to 5 PM",
+  /**
+   * The season as actually scheduled in the league Sheet (Sessions tab):
+   * seven Sundays, Oct 11 to Nov 22. league.ts still carries the original
+   * Oct 4 plan, which /league/join reads, so the site keeps its own copy.
+   */
+  seasonStart: "2026-10-11",
+  seasonEnd: "2026-11-22",
   /** Where Finals Night is held. Unconfirmed. */
   finalsVenue: TODO,
   /**
@@ -64,12 +71,14 @@ export const leagueFacts = {
 } as const;
 
 /** If Finals Night has no confirmed date, stop promoting it after this. */
-const FINALS_FALLBACK_UNTIL = "2026-11-30";
+const FINALS_FALLBACK_UNTIL = "2026-12-06";
 
+// Season 2 has no dates or price yet (Benson, Oct 14). These two lines are
+// deliberately general so the section reads complete without promising.
 export const season2 = {
   name: TODO,
-  start: TODO,
-  entry: TODO,
+  start: "After Season 1's Finals Night",
+  entry: "Shared with the waitlist first",
   depositNote: TODO,
 } as const;
 
@@ -84,6 +93,16 @@ export const courtside = {
     title: "The Clubhouse Experience",
     text: "A padel tournament with prizes, open courts, Afro House DJ sets and the Courtside Clubhouse lounge.",
   },
+} as const;
+
+/**
+ * Book PTO. Benson, Oct 14: show the two starting prices, quote the big
+ * group. All prices are "from", before HST.
+ */
+export const bookPto = {
+  companyFrom: "$1,800",
+  companyGuests: "up to 12 guests",
+  privateFrom: "$700",
 } as const;
 
 /** The approved audience line for the Partners page. */
@@ -169,7 +188,7 @@ export const todayInToronto = (now: Date = new Date()): string => torontoParts(n
 /** True while Season 1 is still being played. */
 export const leagueInPlay = (now: Date = new Date()): boolean => {
   const today = todayInToronto(now);
-  return today >= league.startDate && today <= league.endDate;
+  return today >= leagueFacts.seasonStart && today <= leagueFacts.seasonEnd;
 };
 
 /** True until Finals Night has passed. */
