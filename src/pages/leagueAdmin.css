@@ -1,29 +1,36 @@
 /*
-  League admin. Phone first, one hand, outdoors in daylight: big targets,
-  hard contrast, no low-contrast greys.
+  League admin. Phone first, one hand, outdoors in daylight.
+
+  Gold is reserved for the two things that need finding fast: the primary
+  action, and a score that has saved. Everything else is cream on forest, so
+  a screen of 22 players does not read as one solid block of highlight.
 */
 
 .la {
-  --la-bg: #0a3a2a;
-  --la-surface: #0d4a35;
-  --la-line: rgba(250, 248, 243, 0.22);
+  --la-bg: #0a2a1e;
+  --la-card: #0e3828;
+  --la-line: rgba(250, 248, 243, 0.16);
+  --la-line-strong: rgba(250, 248, 243, 0.34);
   --la-fg: #faf8f3;
-  --la-dim: #c9d8cf;
-  --la-accent: #f4d03f;
+  --la-dim: #a9c0b4;
+  --la-gold: #f4d03f;
+  --la-warn: #ffb4a2;
 
   min-height: 100vh;
   background: var(--la-bg);
   color: var(--la-fg);
   font-family: system-ui, -apple-system, "DM Sans", sans-serif;
-  padding: 16px 16px calc(32px + env(safe-area-inset-bottom));
-  max-width: 560px;
+  -webkit-font-smoothing: antialiased;
+  padding: 14px 14px calc(40px + env(safe-area-inset-bottom));
+  max-width: 600px;
   margin: 0 auto;
 }
 
 .la h1 {
-  font-size: 20px;
+  font-size: 19px;
+  font-weight: 700;
   margin: 0;
-  letter-spacing: 0.02em;
+  letter-spacing: -0.01em;
 }
 
 .la-top {
@@ -31,328 +38,336 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 14px;
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--la-line);
 }
 
 .la-week {
   appearance: none;
-  background: var(--la-surface);
+  background: var(--la-card);
   color: var(--la-fg);
-  border: 1px solid var(--la-line);
-  border-radius: 0;
-  padding: 10px 12px;
+  border: 1px solid var(--la-line-strong);
+  border-radius: 8px;
+  padding: 0 12px;
+  height: 44px;
   font-size: 15px;
-  min-height: 44px;
+  font-family: inherit;
+}
+
+.la-note {
+  color: var(--la-dim);
+  font-size: 14px;
+  margin: 12px 0;
 }
 
 .la-error {
-  background: #7a2f1d;
+  background: #6e2a1a;
   color: #fff;
-  padding: 12px 14px;
-  margin: 0 0 12px;
+  border-radius: 8px;
+  padding: 11px 13px;
+  margin: 12px 0;
   font-size: 14px;
   line-height: 1.45;
 }
 
-.la-busy {
-  color: var(--la-dim);
-  font-size: 14px;
-  margin: 0 0 12px;
-}
+/* ── summary strip ────────────────────────────────────────────── */
 
-.la-bar {
+.la-summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-block: 1px solid var(--la-line);
-  padding: 10px 0;
-  margin-bottom: 14px;
-  font-size: 15px;
-  font-weight: 700;
+  gap: 12px;
+  padding: 14px 0 16px;
 }
 
-.la-rounds {
+.la-summary__count {
+  font-size: 14px;
+  color: var(--la-dim);
+}
+
+.la-summary__count b {
+  font-size: 22px;
+  color: var(--la-fg);
+  margin-right: 3px;
+}
+
+.la-stepper {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  font-weight: 400;
-  color: var(--la-dim);
+  gap: 8px;
   font-size: 13px;
+  color: var(--la-dim);
 }
 
-.la-rounds button {
-  width: 44px;
-  height: 44px;
-  background: var(--la-surface);
-  border: 1px solid var(--la-line);
+.la-stepper button {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: var(--la-card);
+  border: 1px solid var(--la-line-strong);
   color: var(--la-fg);
-  font-size: 20px;
+  font-size: 19px;
+  line-height: 1;
+  font-family: inherit;
   cursor: pointer;
 }
 
-.la-rounds b {
-  color: var(--la-fg);
-  font-size: 17px;
-  min-width: 1.2em;
+.la-stepper b {
+  min-width: 1.1em;
   text-align: center;
+  font-size: 17px;
+  color: var(--la-fg);
 }
 
-/* ── check-in ─────────────────────────────────────────────────── */
+.la-link {
+  background: none;
+  border: 0;
+  color: var(--la-gold);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 2px;
+  cursor: pointer;
+}
+
+/* ── division block ───────────────────────────────────────────── */
 
 .la-div {
-  margin-bottom: 18px;
+  margin-bottom: 22px;
 }
 
-.la-div h2 {
+.la-div__head {
   display: flex;
   align-items: baseline;
   gap: 8px;
+  margin-bottom: 2px;
+}
+
+.la-div__head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.la-div__court {
   font-size: 13px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  margin: 0 0 10px;
-}
-
-.la-div h2 span {
-  color: var(--la-accent);
-  font-weight: 400;
-  letter-spacing: 0.08em;
-}
-
-.la-div h2 em {
-  margin-left: auto;
-  font-style: normal;
-  font-size: 12px;
-  letter-spacing: 0.06em;
   color: var(--la-dim);
 }
 
-.la-div h2 em.la-short {
-  color: #ffb4a2;
+.la-div__count {
+  margin-left: auto;
+  font-size: 14px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.la-div__calc {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--la-dim);
+  line-height: 1.4;
+}
+
+.la-div__calc.is-short {
+  color: var(--la-warn);
+  font-weight: 600;
 }
 
 .la-players {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 7px;
 }
 
 .la-player {
-  min-height: 52px;
-  padding: 12px 14px;
+  min-height: 50px;
+  padding: 10px 12px;
+  border-radius: 8px;
   text-align: left;
-  background: transparent;
-  border: 1px solid var(--la-line);
-  color: var(--la-dim);
-  font-size: 16px;
+  font-size: 15px;
   font-family: inherit;
   cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 
+/* Present is the quiet default: most people turn up, and a screen where
+   everyone is highlighted highlights nothing. */
 .la-player.is-in {
-  background: var(--la-accent);
-  border-color: var(--la-accent);
-  color: #0a2a1e;
-  font-weight: 700;
+  background: var(--la-card);
+  border: 1px solid var(--la-line-strong);
+  color: var(--la-fg);
+  font-weight: 600;
+}
+
+.la-player.is-out {
+  background: transparent;
+  border: 1px dashed var(--la-line);
+  color: var(--la-dim);
+  text-decoration: line-through;
+  text-decoration-color: var(--la-line-strong);
 }
 
 /* ── buttons ──────────────────────────────────────────────────── */
 
-.la-cta {
-  display: block;
-  width: 100%;
-  min-height: 56px;
-  margin-top: 16px;
-  background: var(--la-accent);
-  color: #0a2a1e;
+.la-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.la-btn {
+  flex: 1 1 160px;
+  min-height: 54px;
+  border-radius: 10px;
+  background: var(--la-gold);
+  color: #08271b;
   border: 0;
   font-family: inherit;
   font-size: 15px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   cursor: pointer;
 }
 
-.la-cta:disabled {
+.la-btn:disabled {
   opacity: 0.5;
 }
 
-.la-cta--ghost {
+.la-btn--ghost {
   background: transparent;
   color: var(--la-fg);
-  border: 1px solid var(--la-line);
+  border: 1px solid var(--la-line-strong);
 }
 
-.la-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+/* ── rounds, shared by preview and scoring ───────────────────── */
+
+.la-preview__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--la-dim);
+  margin: 18px 0 2px;
 }
 
-/* ── generated card ───────────────────────────────────────────── */
-
-.la-card {
-  margin-top: 18px;
+.la-rnd {
+  padding: 14px 0 4px;
   border-top: 1px solid var(--la-line);
 }
 
-.la-round {
-  padding: 12px 0;
-  border-bottom: 1px solid var(--la-line);
-}
-
-.la-round h3 {
-  margin: 0 0 8px;
+.la-rnd h3 {
+  margin: 0 0 10px;
   font-size: 12px;
-  letter-spacing: 0.16em;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--la-dim);
 }
 
-.la-match {
+.la-fx {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: baseline;
-  padding: 5px 0;
-  font-size: 15px;
+  margin: 0 0 7px;
+  font-size: 14px;
   line-height: 1.4;
 }
 
-.la-court {
-  color: var(--la-accent);
+.la-fx__div {
+  font-size: 11px;
   font-weight: 700;
-  font-size: 12px;
-  min-width: 2.2em;
+  color: var(--la-dim);
+  min-width: 2.1em;
 }
 
-.la-match i {
+.la-fx i {
   font-style: normal;
   color: var(--la-dim);
-  padding: 0 2px;
 }
 
-/* ── scoring ──────────────────────────────────────────────────── */
+/* ── score card ───────────────────────────────────────────────── */
 
-.la-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 8px 0 4px;
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.la-nav button {
-  width: 52px;
-  height: 52px;
-  background: var(--la-surface);
+.la-sc {
+  background: var(--la-card);
   border: 1px solid var(--la-line);
-  color: var(--la-fg);
-  font-size: 22px;
-  cursor: pointer;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
 }
 
-.la-nav button:disabled {
-  opacity: 0.35;
+.la-sc--saved {
+  border-color: var(--la-gold);
 }
 
-.la-progress {
-  margin: 0 0 14px;
-  font-size: 13px;
-  color: var(--la-dim);
+.la-sc--error {
+  border-color: var(--la-warn);
 }
 
-.la-score {
-  border: 1px solid var(--la-line);
-  padding: 12px 14px;
-  margin-bottom: 12px;
-}
-
-.la-score--saved {
-  border-color: var(--la-accent);
-}
-
-.la-score--error {
-  border-color: #ffb4a2;
-}
-
-.la-score__head {
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--la-accent);
-  margin-bottom: 8px;
-}
-
-.la-score__side {
+.la-sc__row {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 6px 0;
+  padding: 5px 0;
 }
 
-.la-score__side span {
+.la-sc__team {
   flex: 1;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.3;
 }
 
-.la-score__side input {
-  width: 84px;
-  min-height: 56px;
+.la-sc__box {
+  width: 74px;
+  height: 54px;
+  flex-shrink: 0;
   text-align: center;
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
   font-family: inherit;
-  background: var(--la-surface);
+  background: var(--la-bg);
   color: var(--la-fg);
-  border: 1px solid var(--la-line);
-  border-radius: 0;
+  border: 1px solid var(--la-line-strong);
+  border-radius: 8px;
 }
 
-.la-score__side input:focus-visible {
-  outline: 2px solid var(--la-accent);
+.la-sc__box:focus-visible {
+  outline: 2px solid var(--la-gold);
   outline-offset: 1px;
 }
 
-.la-score__state {
+.la-sc__foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 6px;
+  padding-top: 7px;
+  border-top: 1px solid var(--la-line);
   font-size: 12px;
   color: var(--la-dim);
-  min-height: 1em;
-  margin-top: 4px;
 }
 
-.la-score--error .la-score__state {
-  color: #ffb4a2;
+.la-sc--saved .la-sc__state {
+  color: var(--la-gold);
 }
 
-.la-foot {
-  margin-top: 22px;
-  font-size: 12px;
-  color: var(--la-dim);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.la-sc--error .la-sc__state {
+  color: var(--la-warn);
 }
 
 /* ── passcode ─────────────────────────────────────────────────── */
 
-.la-gate p {
-  color: var(--la-dim);
-  font-size: 15px;
-}
-
-.la-input {
+.la-gate .la-input {
   display: block;
   width: 100%;
-  min-height: 56px;
-  padding: 12px 14px;
-  font-size: 20px;
+  height: 56px;
+  margin: 14px 0;
+  padding: 0 14px;
+  font-size: 19px;
   font-family: inherit;
-  background: var(--la-surface);
+  background: var(--la-card);
   color: var(--la-fg);
-  border: 1px solid var(--la-line);
-  border-radius: 0;
+  border: 1px solid var(--la-line-strong);
+  border-radius: 10px;
 }
