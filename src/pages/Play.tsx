@@ -6,7 +6,7 @@ import { Head, Photo, Qa, Seal, Shot, usePageMeta } from "@/site/ui/bits";
 const Play = () => {
   usePageMeta(
     "Thursday meets · Club PTO",
-    `Padel every Thursday at ${venue.name}, Mississauga. ${thursday.startTime} to ${thursday.endTime}, three courts split by level, ${thursday.price} including HST. Come solo.`,
+    `Thursday plans, sorted. Padel every Thursday at ${venue.name}, Mississauga. ${thursday.startTime} to ${thursday.endTime}, three courts split by level, ${thursday.price} including HST. Come solo.`,
     "/play",
   );
   const starting = todayInToronto() < thursday.firstDate ? ` from ${longDay(thursday.firstDate).replace(/^\w+, /, "")}` : "";
@@ -16,12 +16,13 @@ const Play = () => {
       <section className="sec-hero">
         <div className="wrap g2" style={{ alignItems: "center" }}>
           <div className="stack" style={{ gap: 26 }}>
-            <p className="eyebrow">Weekly meets</p>
+            <p className="eyebrow">Thursday meets</p>
             <h1 className="disp t-xl">
-              Thursdays <span className="it">at PTO.</span>
+              Thursday plans? <span className="it">Sorted.</span>
             </h1>
             <p className="lede measure">
-              Same crew. Same energy. New night. Three courts, split by level, every Thursday at {venue.name}.
+              Same club, different day. Three courts split by level, a new partner every round, and two hours you'll
+              look forward to all week.
             </p>
             <div className="facts">
               <div className="fact">
@@ -45,7 +46,7 @@ const Play = () => {
             </div>
             <div className="cta-row">
               <a className="btn btn-dark" href={thursday.bookingUrl}>
-                Book this Thursday
+                Grab a Thursday pass
               </a>
               <a className="btn btn-line" href="#how">
                 How a night works
@@ -85,28 +86,28 @@ const Play = () => {
               <span className="disp num">01</span>
               <h3 className="t-step">Check in</h3>
               <p className="body" style={{ fontSize: 16 }}>
-                Say hi at the desk. First time? Tell us and we'll place you on the right court.
+                Say hi at the desk. First time? Tell us and we'll put you on the right court. Zero pressure.
               </p>
             </div>
             <div className="step">
               <span className="disp num">02</span>
               <h3 className="t-step">Americano rotation</h3>
               <p className="body" style={{ fontSize: 16 }}>
-                Partners rotate every round, so you play with everyone on your court.
+                New partner every round. By the end of the night you've played with your whole court.
               </p>
             </div>
             <div className="step">
               <span className="disp num">03</span>
               <h3 className="t-step">Courts by level</h3>
               <p className="body" style={{ fontSize: 16 }}>
-                Three courts split by level, so every game is a close one.
+                Three courts split by level, so every game is close and nobody's carrying anyone.
               </p>
             </div>
             <div className="step">
               <span className="disp num">04</span>
               <h3 className="t-step">The hang</h3>
               <p className="body" style={{ fontSize: 16 }}>
-                Stay after. Half of PTO happens off the court.
+                Stay after. Half of PTO happens off the court, and that's where the group chats start.
               </p>
             </div>
           </div>
@@ -132,20 +133,22 @@ const Play = () => {
           <Head eyebrow="Questions">Good to know</Head>
           <div>
             <Qa q="Do I need a partner?" open>
-              No. Come solo. Partners rotate every round, so you'll play with everyone on your court.
+              No. Come solo, that's kind of the point. Partners rotate every round, so you'll play with everyone on
+              your court.
             </Qa>
             <Qa q="I've never played. Can I come?">
-              Yes. All levels are welcome. Tell us at check-in and we'll put you on the right court.
+              Yes. Every level is welcome, true beginners included. Tell us at check-in and we'll put you on the right
+              court.
             </Qa>
             <Qa q="What should I bring?">
-              Comfortable athletic wear. Rackets and balls are provided. Court shoes are ideal; clean sneakers work
-              fine.
+              Something you can move in. Rackets and balls are provided. Court shoes are ideal, but clean sneakers
+              work fine.
             </Qa>
             <Qa q="What if I can't make it?">
               Plans change. Give us 24 hours so your spot can go to someone else.
             </Qa>
             <Qa q="Is there something more competitive?">
-              Yes. The PTO League runs on Sundays with your own ranking.{" "}
+              Oh, there is. The PTO League runs on Sundays, with your own ranking on a real table.{" "}
               <Link to="/league" style={{ fontWeight: 700 }}>
                 See the league
               </Link>
@@ -166,7 +169,7 @@ const Play = () => {
           </div>
           <div className="cta-row">
             <a className="btn btn-lime" href={thursday.bookingUrl}>
-              Book this Thursday
+              Grab a Thursday pass
             </a>
             <Link className="btn btn-cream" to="/">
               Back to home

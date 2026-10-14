@@ -24,13 +24,16 @@ const ANNOUNCE_UNTIL = "2026-11-30";
 const Announcement = () => {
   const today = todayInToronto();
   if (today > ANNOUNCE_UNTIL) return null;
-  const starting = today <= thursday.firstDate ? ", starting Oct 15" : "";
+  const line =
+    today < thursday.firstDate
+      ? "Same club, different day. PTO meets move to Thursdays from Oct 15."
+      : "Same club, different day. PTO meets are on Thursdays now.";
   return (
     <div className="announce">
       <div className="wrap">
-        <span className="ann-long">New night: PTO meets are now on Thursdays{starting}.</span>
-        <span className="ann-short">PTO meets are now on Thursdays.</span>
-        <Link to="/play">Book your pass</Link>
+        <span className="ann-long">{line}</span>
+        <span className="ann-short">Same club, new night: Thursdays.</span>
+        <Link to="/play">Grab a pass</Link>
       </div>
     </div>
   );
