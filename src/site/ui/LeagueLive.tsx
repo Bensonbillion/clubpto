@@ -328,7 +328,8 @@ const StandingsCard = ({ limit, footLink }: { limit?: number; footLink?: boolean
   const [picked, setPicked] = useState<string | null>(null);
   const code = picked ?? firstWithResults(rows);
   const results = divisionHasResults(rows, code);
-  const asOf = manualAsOf(ready ? ready.standings : [], code);
+  const last = ready ? lastMatchday(ready.matchdays) : undefined;
+  const asOf = manualAsOf(ready ? ready.standings : [], code) ?? (results && last ? `After Week ${last.week}` : null);
   const short = DIVISIONS.find((d) => d.code === code)?.short;
 
   return (

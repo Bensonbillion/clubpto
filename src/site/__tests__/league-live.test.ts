@@ -26,15 +26,16 @@ describe("league live", () => {
     expect(displayName("  Evelyn   A ")).toBe("Evelyn A.");
   });
 
-  it("orders by points, then point difference, then wins, then name", () => {
+  it("orders like the Sheet: points, then point difference, then points for, then name", () => {
     const t = sortTable([
-      row({ playerId: "a", player: "Zed", leaguePoints: 6, diff: 2, wins: 2 }),
-      row({ playerId: "b", player: "Amy", leaguePoints: 6, diff: 5, wins: 2 }),
-      row({ playerId: "c", player: "Bo", leaguePoints: 9, diff: -1, wins: 3 }),
+      row({ playerId: "a", player: "Zed", leaguePoints: 6, diff: 2, pointsFor: 4 }),
+      row({ playerId: "b", player: "Amy", leaguePoints: 6, diff: 5, pointsFor: 6 }),
+      row({ playerId: "c", player: "Bo", leaguePoints: 9, diff: -1, pointsFor: 5 }),
       row({ playerId: "d", player: "Cy", leaguePoints: 0 }),
       row({ playerId: "e", player: "Ann", leaguePoints: 0 }),
+      row({ playerId: "f", player: "Al", leaguePoints: 6, diff: 2, pointsFor: 7 }),
     ]);
-    expect(t.map((r) => r.playerId)).toEqual(["c", "b", "a", "e", "d"]);
+    expect(t.map((r) => r.playerId)).toEqual(["c", "b", "f", "a", "e", "d"]);
   });
 
   it("knows when no scores are in, and names no leaders then", () => {
@@ -60,9 +61,23 @@ describe("league live", () => {
 });
 
 describe("division names and the manual Week 1 table", async () => {
-  const { DIVISIONS, MANUAL_STANDINGS, mergeManual, manualAsOf, byDivision, divisionHasResults } = await import(
-    "@/site/leagueLive"
-  );
+  const { DIVISIONS, MANUAL_STANDINGS, mergeManual, manualAsOf, manualRow, byDivision, divisionHasResults } =
+    await import("@/site/leagueLive");
+
+  // The table Benson sent for Atlas before the Sheet had its scores.
+  const tables = {
+    M1: {
+      asOf: "After Week 1",
+      rows: [
+        manualRow(1, "M01", "David G", 5, 0, 15, 9),
+        manualRow(2, "M05", "Folarin A.", 3, 2, 9, 2),
+        manualRow(3, "M06", "Tami O.", 2, 3, 6, 0),
+        manualRow(4, "M08", "Lewis", 2, 3, 6, -4),
+        manualRow(5, "M02", "Benson E.", 2, 3, 6, -4),
+        manualRow(6, "M03", "Edgar A.", 1, 4, 3, -4),
+      ],
+    },
+  };
 
   it("names the three divisions Atlas, Riviera and Venus", () => {
     expect(DIVISIONS.map((d) => d.label)).toEqual(["Atlas Division", "Riviera Division", "Venus Division"]);
@@ -70,7 +85,7 @@ describe("division names and the manual Week 1 table", async () => {
 
   it("stands Benson's Atlas table in while the Sheet has no Atlas scores, in his order", () => {
     const sheet = [row({ playerId: "M01", player: "David G" }), row({ playerId: "M07", player: "Omar", division: "M2" })];
-    const merged = mergeManual(sheet);
+    const merged = mergeManual(sheet, tables);
     expect(byDivision(merged, "M1").map((r) => r.player)).toEqual([
       "David G",
       "Folarin A.",
@@ -81,14 +96,18 @@ describe("division names and the manual Week 1 table", async () => {
     ]);
     expect(divisionHasResults(merged, "M1")).toBe(true);
     expect(divisionHasResults(merged, "M2")).toBe(false);
-    expect(manualAsOf(sheet, "M1")).toBe("After Week 1");
+    expect(manualAsOf(sheet, "M1", tables)).toBe("After Week 1");
   });
 
   it("lets the Sheet win as soon as Atlas has scores there", () => {
     const sheet = [row({ playerId: "M01", player: "David G", matches: 7, wins: 7, leaguePoints: 21 })];
-    expect(byDivision(mergeManual(sheet), "M1")).toHaveLength(1);
-    expect(manualAsOf(sheet, "M1")).toBeNull();
-    expect(MANUAL_STANDINGS.M1.rows).toHaveLength(6);
+    expect(byDivision(mergeManual(sheet, tables), "M1")).toHaveLength(1);
+    expect(manualAsOf(sheet, "M1", tables)).toBeNull();
+  });
+
+  it("stands nothing in now that every division is live in the Sheet", () => {
+    expect(MANUAL_STANDINGS).toEqual({});
+    expect(manualAsOf([], "M1")).toBeNull();
   });
 });
 

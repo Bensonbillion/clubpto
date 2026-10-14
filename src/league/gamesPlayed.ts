@@ -2,25 +2,24 @@
 // the admin screen. Everyone plays five on a league Sunday; anyone who has
 // reached five is greyed out so a sixth game is not recorded by mistake.
 //
-// "Sub" stands in for a player whose extra game should not count. It is
-// not on the roster, so the Sheet's standings never count it for anyone,
-// while the other three players in that match keep the game.
+// A game that should not count for one player (a sixth game) is entered in
+// the Sheet with that player's spot left blank. A blank name counts for
+// nobody, here or in the Sheet's standings, while the other three players
+// keep the game. The Sheet only takes roster names, so there is no stand-in
+// name for it.
 
 import type { MatchRow } from "@/league/adminApi";
 
 export const MAX_GAMES = 5;
-export const SUB = "Sub";
 
-export const isSub = (name: string): boolean => name.trim().toLowerCase() === SUB.toLowerCase();
-
-/** Games per player name for the division's recorded matches. Subs are not counted. */
+/** Games per player name for the division's recorded matches. Blank spots are not counted. */
 export const gamesPlayed = (matches: readonly MatchRow[], division: string): Record<string, number> => {
   const out: Record<string, number> = {};
   for (const m of matches) {
     if (m.division !== division || m.scoreA === null || m.scoreB === null) continue;
     for (const name of [...m.teamA, ...m.teamB]) {
       const n = name.trim();
-      if (!n || isSub(n)) continue;
+      if (!n) continue;
       out[n] = (out[n] || 0) + 1;
     }
   }
