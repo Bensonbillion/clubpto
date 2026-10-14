@@ -438,6 +438,88 @@ const createFixtures = (sessionId, fixtures) => {
   return { written: fixtures.length, sessionId: sessionId };
 };
 
+/**
+ * Append one finished match, scores and all.
+ *
+ * This is what the admin screen uses: matches are recorded as they are
+ * played rather than scheduled in advance, so there is no fixture to find.
+ * The round number is assigned here, as the next one for that session and
+ * division, so the operator never has to think about it.
+ */
+const addMatch = (payload) => {
+  const { sessionId, division, court, teamA, teamB, scoreA, scoreB } = payload;
+  if (!sessionId || !division) {
+    throw new Error('addMatch needs a sessionId and a division.');
+  }
+  const names = (teamA || []).concat(teamB || []).map(function (n) {
+    return String(n || '').trim();
+  });
+  if (names.length !== 4 || names.some(function (n) { return !n; })) {
+    throw new Error('A match needs four players.');
+  }
+  const unique = {};
+  for (let i = 0; i < names.length; i++) {
+    const key = names[i].toLowerCase();
+    if (unique[key]) throw new Error('The same player is in twice: ' + names[i]);
+    unique[key] = true;
+  }
+
+  const a = Number(scoreA);
+  const b = Number(scoreB);
+  if (!isFinite(a) || !isFinite(b)) throw new Error('Scores must be numbers.');
+  if (a === b) throw new Error('No draws in this league.');
+
+  const sh = sheetOf(SHEETS.MATCHES);
+  const capacity = matchesCapacityLastRow(sh);
+  const last = lastRowOf(sh, MATCH_COL.SESSION);
+  const target = Math.max(last + 1, FIRST_DATA_ROW);
+  if (target > capacity) {
+    throw new Error(
+      'Matches has formulas down to row ' +
+        capacity +
+        ' and is full. Fill A, L and M further down.',
+    );
+  }
+
+  // Next round number for this session and division.
+  let round = 1;
+  if (last >= FIRST_DATA_ROW) {
+    const rows = sh
+      .getRange(
+        FIRST_DATA_ROW,
+        MATCH_WRITE_FIRST_COL,
+        last - FIRST_DATA_ROW + 1,
+        MATCH_WRITE_WIDTH,
+      )
+      .getValues();
+    for (let i = 0; i < rows.length; i++) {
+      if (
+        String(rows[i][0]).trim() === sessionId &&
+        String(rows[i][1]).trim() === division
+      ) {
+        round = Math.max(round, (Number(rows[i][2]) || 0) + 1);
+      }
+    }
+  }
+
+  sh.getRange(target, MATCH_WRITE_FIRST_COL, 1, MATCH_WRITE_WIDTH).setValues([
+    [
+      sessionId,
+      division,
+      round,
+      String(court || '').trim(),
+      names[0],
+      names[1],
+      a,
+      b,
+      names[2],
+      names[3],
+    ],
+  ]);
+
+  return { row: target, round: round };
+};
+
 /** Two names as an order-independent key, for matching a team to a row. */
 const teamKey = (pair) =>
   (pair || [])
@@ -590,6 +672,8 @@ function doPost(e) {
         return json(okResult(setAttendance(body.sessionId, body.entries)));
       case 'createFixtures':
         return json(okResult(createFixtures(body.sessionId, body.fixtures)));
+      case 'addMatch':
+        return json(okResult(addMatch(body)));
       case 'recordScore':
         return json(okResult(recordScore(body)));
       default:

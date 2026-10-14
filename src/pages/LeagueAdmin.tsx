@@ -1,30 +1,20 @@
-// PTO League admin, one screen.
+// PTO League admin.
 //
-// Pick the week, tick who turned up, generate, type scores. One court per
-// division. Rounds are not a number you set: they come from how many people
-// signed in, because what you actually decide is how many games everyone
-// gets, and the rounds needed for that depend on the headcount.
+// Record matches as they are played. Pick a division, tap four players, type
+// two scores, save. Nothing is scheduled in advance and nothing is generated;
+// the Sheet does the standings.
 
 import { useEffect, useMemo, useState } from "react";
-import { generateFixtures, type Fixture } from "@/league/fixtures";
 import {
+  addMatch,
   fetchBootstrap,
-  saveAttendance,
-  saveFixtures,
-  saveScore,
   type Bootstrap,
   type MatchRow,
   type Player,
 } from "@/league/adminApi";
 import "./leagueAdmin.css";
 
-const COURTS = ["Court 4", "Court 5", "Court 6"];
 const PASSCODE_KEY = "pto.league.passcode";
-const SEATS = 4;
-
-/** Rounds needed on one court for everyone to get roughly this many games. */
-const roundsFor = (players: number, gamesEach: number) =>
-  Math.max(1, Math.ceil((gamesEach * players) / SEATS));
 
 const shortDate = (iso: string) => {
   if (!iso) return "";
@@ -51,11 +41,10 @@ const LeagueAdmin = () => {
   );
   const [data, setData] = useState<Bootstrap | null>(null);
   const [sessionId, setSessionId] = useState("");
-  const [present, setPresent] = useState<Record<string, boolean>>({});
-  const [gamesEach, setGamesEach] = useState(4);
-  const [card, setCard] = useState<Fixture[] | null>(null);
-  const [seed, setSeed] = useState(1);
-  const [scoring, setScoring] = useState(false);
+  const [division, setDivision] = useState("");
+  const [picked, setPicked] = useState<string[]>([]);
+  const [scoreA, setScoreA] = useState("");
+  const [scoreB, setScoreB] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -70,14 +59,7 @@ const LeagueAdmin = () => {
       const b = await fetchBootstrap(id);
       setData(b);
       setSessionId(b.sessionId);
-      const next: Record<string, boolean> = {};
-      for (const p of b.players) {
-        if (p.status !== "Active") continue;
-        next[p.id] = b.attendance[p.id] !== "Out";
-      }
-      setPresent(next);
-      setCard(null);
-      setScoring(b.matches.length > 0);
+      setDivision((d) => d || divisionsOf(b.players)[0] || "");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -95,44 +77,47 @@ const LeagueAdmin = () => {
     [data],
   );
   const divisions = useMemo(() => divisionsOf(active), [active]);
-  const presentIn = (div: string) =>
-    active.filter((p) => p.division === div && present[p.id]);
-  const totalIn = active.filter((p) => present[p.id]).length;
+  const roster = active.filter((p) => p.division === division);
 
-  const build = () => {
+  const toggle = (name: string) => {
     setError("");
-    const out: Fixture[] = [];
-    const problems: string[] = [];
-    divisions.forEach((div, i) => {
-      const players = presentIn(div).map((p) => p.name);
-      const result = generateFixtures({
-        division: div,
-        players,
-        courts: [COURTS[i] || `Court ${i + 1}`],
-        rounds: roundsFor(players.length, gamesEach),
-        seed,
-      });
-      if (result.error) problems.push(result.error);
-      else out.push(...result.fixtures);
-    });
-    setError(problems.join("   "));
-    setCard(out.length ? out : null);
+    setPicked((prev) =>
+      prev.includes(name)
+        ? prev.filter((n) => n !== name)
+        : prev.length >= 4
+          ? prev
+          : [...prev, name],
+    );
   };
 
-  const commit = async () => {
-    if (!card) return;
+  const clear = () => {
+    setPicked([]);
+    setScoreA("");
+    setScoreB("");
+  };
+
+  const ready =
+    picked.length === 4 &&
+    scoreA !== "" &&
+    scoreB !== "" &&
+    Number(scoreA) !== Number(scoreB);
+
+  const save = async () => {
     setBusy(true);
     setError("");
     try {
-      await saveAttendance(
-        sessionId,
-        active.map((p) => ({
-          playerId: p.id,
-          status: present[p.id] ? ("In" as const) : ("Out" as const),
-        })),
+      await addMatch(
+        {
+          sessionId,
+          division,
+          teamA: [picked[0], picked[1]],
+          teamB: [picked[2], picked[3]],
+        },
+        Number(scoreA),
+        Number(scoreB),
         passcode,
       );
-      await saveFixtures(sessionId, card, passcode);
+      clear();
       await load(sessionId);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -152,6 +137,8 @@ const LeagueAdmin = () => {
     );
   }
 
+  const recorded = (data?.matches || []).filter((m) => m.scoreA !== null);
+
   return (
     <div className="la">
       <header className="la-top">
@@ -159,7 +146,10 @@ const LeagueAdmin = () => {
         <select
           className="la-week"
           value={sessionId}
-          onChange={(e) => void load(e.target.value)}
+          onChange={(e) => {
+            clear();
+            void load(e.target.value);
+          }}
           disabled={busy}
         >
           {(data?.sessions || []).map((s) => (
@@ -171,129 +161,131 @@ const LeagueAdmin = () => {
       </header>
 
       {error && <p className="la-error">{error}</p>}
-      {busy && <p className="la-note">Working…</p>}
       {!data && !error && <p className="la-note">Loading…</p>}
 
-      {data && scoring && (
-        <Scoring
-          matches={data.matches}
-          sessionId={sessionId}
-          passcode={passcode}
-          onBack={() => setScoring(false)}
-        />
-      )}
-
-      {data && !scoring && (
+      {data && (
         <>
-          <div className="la-summary">
-            <div className="la-summary__count">
-              <b>{totalIn}</b> here
-            </div>
-            <div className="la-stepper">
-              <span>Games each</span>
+          <div className="la-divs">
+            {divisions.map((d) => (
               <button
+                key={d}
                 type="button"
-                aria-label="Fewer games"
-                onClick={() => setGamesEach((g) => Math.max(2, g - 1))}
+                className={`la-tab ${d === division ? "is-on" : ""}`}
+                onClick={() => {
+                  setDivision(d);
+                  clear();
+                }}
               >
-                −
+                {d}
               </button>
-              <b>{gamesEach}</b>
-              <button
-                type="button"
-                aria-label="More games"
-                onClick={() => setGamesEach((g) => Math.min(8, g + 1))}
-              >
-                +
-              </button>
-            </div>
+            ))}
           </div>
 
-          {divisions.map((div, i) => {
-            const roster = active.filter((p) => p.division === div);
-            const here = presentIn(div).length;
-            const viable = here >= SEATS;
-            const rounds = roundsFor(here, gamesEach);
-            return (
-              <section key={div} className="la-div">
-                <div className="la-div__head">
-                  <h2>{div}</h2>
-                  <span className="la-div__court">{COURTS[i]}</span>
-                  <span className="la-div__count">
-                    {here}/{roster.length}
-                  </span>
-                </div>
-                <p className={`la-div__calc ${viable ? "" : "is-short"}`}>
-                  {viable
-                    ? `${rounds} rounds · ${here - SEATS} sitting out each round`
-                    : `Needs ${SEATS - here} more to play doubles`}
-                </p>
-                <div className="la-players">
-                  {roster.map((p) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      className={`la-player ${present[p.id] ? "is-in" : "is-out"}`}
-                      aria-pressed={!!present[p.id]}
-                      onClick={() =>
-                        setPresent((prev) => ({ ...prev, [p.id]: !prev[p.id] }))
-                      }
-                    >
-                      {p.name}
-                    </button>
-                  ))}
-                </div>
-              </section>
-            );
-          })}
+          <p className="la-note">
+            {picked.length === 0 && "Tap four players. First two are one team."}
+            {picked.length > 0 && picked.length < 4 &&
+              `${4 - picked.length} more to pick`}
+            {picked.length === 4 && "Now the scores."}
+          </p>
 
-          {card && <CardPreview fixtures={card} />}
+          <div className="la-players">
+            {roster.map((p) => {
+              const at = picked.indexOf(p.name);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  className={`la-player ${at >= 0 ? "is-on" : ""}`}
+                  onClick={() => toggle(p.name)}
+                >
+                  {at >= 0 && <span className="la-pick">{at < 2 ? "A" : "B"}</span>}
+                  {p.name}
+                </button>
+              );
+            })}
+          </div>
+
+          {picked.length === 4 && (
+            <div className="la-entry">
+              <div className="la-entry__row">
+                <span>{picked[0]} + {picked[1]}</span>
+                <input
+                  className="la-box"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  aria-label="Score for team A"
+                  value={scoreA}
+                  onChange={(e) => setScoreA(e.target.value.replace(/\D/g, ""))}
+                />
+              </div>
+              <div className="la-entry__row">
+                <span>{picked[2]} + {picked[3]}</span>
+                <input
+                  className="la-box"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  aria-label="Score for team B"
+                  value={scoreB}
+                  onChange={(e) => setScoreB(e.target.value.replace(/\D/g, ""))}
+                />
+              </div>
+              {scoreA !== "" && scoreA === scoreB && (
+                <p className="la-warn">No draws in this league.</p>
+              )}
+            </div>
+          )}
 
           <div className="la-actions">
-            {!card && (
-              <button type="button" className="la-btn" onClick={build} disabled={busy}>
-                Generate fixtures
-              </button>
-            )}
-            {card && (
-              <>
-                <button
-                  type="button"
-                  className="la-btn la-btn--ghost"
-                  onClick={() => {
-                    setSeed((s) => s + 1);
-                    setTimeout(build, 0);
-                  }}
-                >
-                  Regenerate
-                </button>
-                <button
-                  type="button"
-                  className="la-btn"
-                  onClick={() => void commit()}
-                  disabled={busy}
-                >
-                  Save to Sheet
-                </button>
-              </>
-            )}
-            {!card && data.matches.length > 0 && (
-              <button
-                type="button"
-                className="la-btn la-btn--ghost"
-                onClick={() => setScoring(true)}
-              >
-                Back to scores
+            <button
+              type="button"
+              className="la-btn"
+              onClick={() => void save()}
+              disabled={!ready || busy}
+            >
+              {busy ? "Saving…" : "Save match"}
+            </button>
+            {picked.length > 0 && (
+              <button type="button" className="la-btn la-btn--ghost" onClick={clear}>
+                Clear
               </button>
             )}
           </div>
+
+          <h2 className="la-recent">
+            {recorded.length} recorded this week
+          </h2>
+          {recorded
+            .slice()
+            .reverse()
+            .map((m, i) => (
+              <Row key={`${m.division}-${m.round}-${i}`} match={m} />
+            ))}
+          {recorded.length === 0 && (
+            <p className="la-note">Nothing yet. Matches land in the Sheet as you save them.</p>
+          )}
         </>
       )}
     </div>
   );
 };
 
-/* ── passcode ─────────────────────────────────────────────────── */
+const Row = ({ match }: { match: MatchRow }) => {
+  const aWon = (match.scoreA ?? 0) > (match.scoreB ?? 0);
+  return (
+    <div className="la-row">
+      <span className="la-row__div">{match.division}</span>
+      <span className={`la-row__team ${aWon ? "is-win" : ""}`}>
+        {match.teamA.join(" + ")}
+      </span>
+      <span className="la-row__score">
+        {match.scoreA}–{match.scoreB}
+      </span>
+      <span className={`la-row__team ${aWon ? "" : "is-win"}`}>
+        {match.teamB.join(" + ")}
+      </span>
+    </div>
+  );
+};
 
 const PasscodeGate = ({ onUnlock }: { onUnlock: (code: string) => void }) => {
   const [code, setCode] = useState("");
@@ -316,174 +308,6 @@ const PasscodeGate = ({ onUnlock }: { onUnlock: (code: string) => void }) => {
       >
         Unlock
       </button>
-    </div>
-  );
-};
-
-/* ── the card, before saving ──────────────────────────────────── */
-
-const byRound = <T extends { round: number }>(items: T[]) => {
-  const rounds = [...new Set(items.map((i) => i.round))].sort((a, b) => a - b);
-  return rounds.map((r) => ({ round: r, items: items.filter((i) => i.round === r) }));
-};
-
-const CardPreview = ({ fixtures }: { fixtures: Fixture[] }) => (
-  <div className="la-preview">
-    <h2 className="la-preview__title">{fixtures.length} matches</h2>
-    {byRound(fixtures).map(({ round, items }) => (
-      <section key={round} className="la-rnd">
-        <h3>Round {round}</h3>
-        {items.map((f) => (
-          <p key={`${f.division}-${f.court}`} className="la-fx">
-            <span className="la-fx__div">{f.division}</span>
-            {f.teamA.join(" + ")} <i>v</i> {f.teamB.join(" + ")}
-          </p>
-        ))}
-      </section>
-    ))}
-  </div>
-);
-
-/* ── scoring ──────────────────────────────────────────────────── */
-
-const Scoring = ({
-  matches,
-  sessionId,
-  passcode,
-  onBack,
-}: {
-  matches: MatchRow[];
-  sessionId: string;
-  passcode: string;
-  onBack: () => void;
-}) => {
-  const [done, setDone] = useState(
-    () => matches.filter((m) => m.scoreA !== null).length,
-  );
-  return (
-    <div className="la-scoring">
-      <div className="la-summary">
-        <div className="la-summary__count">
-          <b>
-            {done}/{matches.length}
-          </b>{" "}
-          scored
-        </div>
-        <button type="button" className="la-link" onClick={onBack}>
-          Check-in
-        </button>
-      </div>
-
-      {byRound(matches).map(({ round, items }) => (
-        <section key={round} className="la-rnd">
-          <h3>Round {round}</h3>
-          {items.map((m) => (
-            <ScoreCard
-              key={`${m.division}-${m.court}-${m.round}`}
-              match={m}
-              sessionId={sessionId}
-              passcode={passcode}
-              onFirstSave={() => setDone((d) => d + 1)}
-            />
-          ))}
-        </section>
-      ))}
-    </div>
-  );
-};
-
-const ScoreCard = ({
-  match,
-  sessionId,
-  passcode,
-  onFirstSave,
-}: {
-  match: MatchRow;
-  sessionId: string;
-  passcode: string;
-  onFirstSave: () => void;
-}) => {
-  const [a, setA] = useState(match.scoreA === null ? "" : String(match.scoreA));
-  const [b, setB] = useState(match.scoreB === null ? "" : String(match.scoreB));
-  const [state, setState] = useState<"idle" | "saving" | "saved" | "error">(
-    match.scoreA === null ? "idle" : "saved",
-  );
-  const [message, setMessage] = useState("");
-  const [counted, setCounted] = useState(match.scoreA !== null);
-
-  const submit = async (nextA: string, nextB: string) => {
-    if (nextA === "" || nextB === "") return;
-    const na = Number(nextA);
-    const nb = Number(nextB);
-    if (!Number.isFinite(na) || !Number.isFinite(nb)) return;
-    if (na === nb) {
-      setState("error");
-      setMessage("No draws in this league");
-      return;
-    }
-    setState("saving");
-    setMessage("");
-    try {
-      await saveScore(
-        {
-          sessionId,
-          division: match.division,
-          round: match.round,
-          court: match.court,
-          teamA: match.teamA,
-          teamB: match.teamB,
-        },
-        na,
-        nb,
-        passcode,
-      );
-      setState("saved");
-      if (!counted) {
-        setCounted(true);
-        onFirstSave();
-      }
-    } catch (e) {
-      setState("error");
-      setMessage(e instanceof Error ? e.message : String(e));
-    }
-  };
-
-  return (
-    <div className={`la-sc la-sc--${state}`}>
-      <div className="la-sc__row">
-        <span className="la-sc__team">{match.teamA.join(" + ")}</span>
-        <input
-          className="la-sc__box"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          aria-label={`Score for ${match.teamA.join(" and ")}`}
-          value={a}
-          onChange={(e) => setA(e.target.value.replace(/\D/g, ""))}
-          onBlur={() => void submit(a, b)}
-        />
-      </div>
-      <div className="la-sc__row">
-        <span className="la-sc__team">{match.teamB.join(" + ")}</span>
-        <input
-          className="la-sc__box"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          aria-label={`Score for ${match.teamB.join(" and ")}`}
-          value={b}
-          onChange={(e) => setB(e.target.value.replace(/\D/g, ""))}
-          onBlur={() => void submit(a, b)}
-        />
-      </div>
-      <div className="la-sc__foot">
-        <span className="la-sc__div">
-          {match.division} · {match.court}
-        </span>
-        <span className="la-sc__state">
-          {state === "saving" && "saving…"}
-          {state === "saved" && "saved"}
-          {state === "error" && (message || "not saved")}
-        </span>
-      </div>
     </div>
   );
 };
