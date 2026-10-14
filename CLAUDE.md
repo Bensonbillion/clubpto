@@ -128,12 +128,27 @@ scoped under `.pto`.
   /league/join) still use the dark RALLY layout (`PublicLayout`,
   `rally.css`) until they are restyled.
 
-## Brand Voice
-- Confident, warm, minimal. Like a host at a great dinner party.
-- Never use: "exclusive," "elite," "luxury," "VIP," "premier"
-- Use: "Join us," "Your game starts here," "Where the game meets the city"
-- Short declarative sentences. Fragment-heavy when impactful. Active voice.
-- CTAs are invitational: "Reserve your court" not "Book now," "Join us" not "Sign up"
+## Brand Voice (rewritten October 2026, from how @club_pto actually posts)
+- **Who's reading:** 23 to 30, Toronto, young professionals, majority women
+  and BIPOC. A lot of them come solo, looking for a game and their people.
+- **Sound like the captions, not a venue:** short, warm, a little cheeky.
+  Sports-hype for the league ("Time to see where you actually rank"), warm
+  for the social side ("new faces becoming familiar ones"), one joke per
+  section at most.
+- **Padel stays the hero.** People say PTO reads as more vibes than padel, so
+  the game, the rankings and the stakes lead; the people are why you stay.
+- **Specific beats adjectives.** "Strangers at 8, group chat by 10" over "a
+  welcoming community". Second person. Short declaratives and fragments.
+- **House lines (reuse them):** "Not your average padel club" (the poster),
+  "Same club, different day", "Thursday plans? Sorted.", "Come solo, leave
+  with a group chat", "Time to see where you actually rank", "The race to the
+  top is on", "Don't find out from someone's story", "Skip the escape room".
+- **CTAs are invitational and casual:** "Grab a Thursday pass", "Bring your
+  team", "Get on the list", "Check a date". Not "Book now" or "Sign up".
+- **Never:** "exclusive," "elite," "luxury," "VIP," "premier"; corporate venue
+  words ("offerings," "experience," "amenities"); slang that dates fast;
+  emoji on the web; em dashes; "members" (there is no membership); guest
+  counts; anything not in the facts files.
 
 ## File Structure for New Pages
 ```

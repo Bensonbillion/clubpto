@@ -92,9 +92,10 @@ export const Ticker = () => {
     `Thursday ${longDay(thu).split(", ")[1]} · ${thursday.startTime} · ${venue.short}`,
     next ? `PTO League Week ${next.week} · ${longDay(next.date)}` : `PTO League · Sundays · ${leagueFacts.timeShort}`,
     ...leaders.map((l) => `${l.division.short} leader · ${displayName(l.row.player)} · ${l.row.leaguePoints} pts`),
+    "Come solo, leave with a group chat",
     `Company nights from ${bookPto.companyFrom}`,
     "Every level welcome",
-    "COURTSIDE · the summer series",
+    "COURTSIDE · our summer day party",
   ];
 
   const run = (key: string) => (
@@ -172,14 +173,14 @@ export const UpNext = () => {
         <div className="split">
           <h2 className="disp t-m">Up next</h2>
           <Link className="link-strong" to="/events">
-            Full calendar
+            Everything on
           </Link>
         </div>
         <div className="rail rail-3">
           <Ticket
             stub={<DateStub ymd={thu} />}
             eyebrow={`Weekly meet · ${countdownLabel(thu, today)}`}
-            title="Thursday at District"
+            title="Thursday night padel"
             meta={`${thursday.startTime} to ${thursday.endTime} · Three courts, split by level`}
             foot={
               <>
@@ -219,7 +220,7 @@ export const UpNext = () => {
               }
               eyebrow="Coming up"
               title="Finals Night"
-              meta="The top of each division plays for the title. Trophies, awards, the whole league."
+              meta="Three titles on the line. Trophies, awards and the whole league in one room."
               foot={
                 <>
                   <span className="tk-price">{isSet(leagueFacts.finalsDate) ? "Be there" : "Date coming soon"}</span>
@@ -235,10 +236,10 @@ export const UpNext = () => {
               stub={<span className="stub-wd">Season 2</span>}
               eyebrow="Next up"
               title="Season 2"
-              meta="Waitlist players hear the dates first."
+              meta="Get on the list. You hear the dates before anyone else."
               foot={
                 <Link className="btn btn-dark btn-sm" to="/league#season-2">
-                  Join the waitlist
+                  Get on the list
                 </Link>
               }
             />
@@ -385,10 +386,10 @@ export const LeagueOnHome = () => {
         <div className="stack" style={{ gap: 20 }}>
           <p className="eyebrow">PTO League · Season 1 · The Founding Season</p>
           <h2 className="disp t-l">
-            The league <span className="it">is live.</span>
+            Time to see where <span className="it">you actually rank.</span>
           </h2>
           <p className="body" style={{ maxWidth: 420 }}>
-            Three divisions. Your own ranking. Every Sunday counts toward Finals Night.
+            Seven Sundays. Rotating partners. Your name on the table, and every match counts toward Finals Night.
           </p>
           {leaders.length ? (
             <div className="leaders-mini">
@@ -409,10 +410,10 @@ export const LeagueOnHome = () => {
           ) : null}
           <div className="cta-row">
             <Link className="btn btn-lime" to="/league#standings">
-              Full standings
+              See the full table
             </Link>
             <Link className="btn btn-cream" to="/league">
-              How it works
+              How the league works
             </Link>
           </div>
         </div>
@@ -485,7 +486,7 @@ export const Standings = () => {
             <h2 className="disp t-l">The table</h2>
           </div>
           <p className="body" style={{ fontSize: 16, maxWidth: 380 }}>
-            Updated as scores go in after league Sundays. A win is worth 3 points; point difference breaks ties.
+            Updates after every league Sunday. 3 points a win, and point difference breaks ties. No hiding.
           </p>
         </div>
 

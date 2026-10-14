@@ -16,7 +16,7 @@ import { EmailCapture } from "@/site/ui/forms";
 const Events = () => {
   usePageMeta(
     "Events · Club PTO",
-    "COURTSIDE, the PTO summer series at The Pad, plus Finals Night and community nights. Padel first, then music, food and the hang.",
+    "The nights everyone posts about. COURTSIDE, our summer day party at The Pad, plus Finals Night and community nights. Padel at the centre, music and the hang all around it.",
     "/events",
   );
 
@@ -29,17 +29,18 @@ const Events = () => {
           <div className="stack" style={{ gap: 26 }}>
             <p className="eyebrow">Events</p>
             <h1 className="disp t-xl">
-              The nights people <span className="it">talk about.</span>
+              The nights everyone <span className="it">posts about.</span>
             </h1>
             <p className="lede measure">
-              Tournaments, socials and COURTSIDE, our summer series. Padel first, then music, food and the hang.
+              COURTSIDE, Finals Night and the socials in between. Padel at the centre, with music, food and the hang
+              all around it.
             </p>
             <div className="cta-row">
               <a className="btn btn-dark" href="#drops">
-                Get event drops first
+                Hear about the next one first
               </a>
               <Link className="btn btn-line" to="/book-pto">
-                Host a private event
+                Throw your own
               </Link>
             </div>
           </div>
@@ -101,7 +102,7 @@ const Events = () => {
         <div className="wrap stack" style={{ gap: 48 }}>
           <div className="split reveal" style={{ gap: 32 }}>
             <div className="stack" style={{ gap: 12 }}>
-              <p className="eyebrow">The summer series</p>
+              <p className="eyebrow">Our summer day party</p>
               <h2 className="disp t-giant">COURTSIDE</h2>
               <p
                 className="lime-it"
@@ -111,8 +112,8 @@ const Events = () => {
               </p>
             </div>
             <p className="body" style={{ maxWidth: 420 }}>
-              A summer series where the experience goes beyond sports. Tournament padel, open courts, DJ sets and
-              golden hour at The Pad.
+              Think day party, with padel at the centre. Open courts all afternoon, a tournament running through it,
+              DJ sets and golden hour at The Pad.
             </p>
           </div>
           <div className="g2 reveal" style={{ gap: 24 }}>
@@ -178,7 +179,7 @@ const Events = () => {
                 One year of PTO
               </h3>
               <p className="body" style={{ fontSize: 16 }}>
-                A night to celebrate the people who built the room.
+                One year of new faces becoming familiar ones. We threw a party for the people who built this.
               </p>
             </article>
             <Link to="/book-pto" className="stack" style={{ gap: 14, textDecoration: "none", color: "#0E2418" }}>
@@ -190,7 +191,7 @@ const Events = () => {
                 Your event, run by PTO
               </h3>
               <p className="body" style={{ fontSize: 16 }}>
-                Birthdays, team nights, client nights. We run it start to finish.{" "}
+                Birthdays, team nights, client nights. You bring the people, we run the rest.{" "}
                 <span style={{ fontWeight: 700, textDecoration: "underline" }}>Check a date</span>
               </p>
             </Link>
@@ -201,7 +202,9 @@ const Events = () => {
       <section id="drops" className="sec-lime" style={{ padding: "72px 0" }}>
         <div className="wrap split" style={{ alignItems: "center", gap: 32 }}>
           <div className="stack" style={{ gap: 10 }}>
-            <h2 className="disp t-m">Be first to the next one.</h2>
+            <h2 className="disp t-m">
+              Don't find out <span className="it">from someone's story.</span>
+            </h2>
             <p className="body" style={{ color: "#0E2418" }}>
               {emailCaptureReady()
                 ? "Event drops land in your inbox before they hit Instagram."

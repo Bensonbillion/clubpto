@@ -155,7 +155,9 @@ const Partners = () => {
 
       <section className="sec" style={{ padding: "96px 0" }}>
         <div className="wrap stack reveal" style={{ gap: 40 }}>
-          <Head eyebrow="How it works">Three steps</Head>
+          <Head eyebrow="How it works">
+            Three steps. <span className="it">That's it.</span>
+          </Head>
           <div className="g3">
             <div className="step">
               <span className="disp num">01</span>

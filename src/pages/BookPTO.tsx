@@ -68,7 +68,7 @@ const addOns = [
 const BookPTO = () => {
   usePageMeta(
     "Book PTO · Company nights and private parties · Club PTO",
-    "Two hours of padel, run start to finish by Club PTO. Company nights, team socials and private parties in Mississauga. First-timers welcome.",
+    "Skip the escape room. Two hours of padel, run start to finish by Club PTO. Company nights, team socials and private parties in Mississauga. First-timers welcome.",
     "/book-pto",
   );
 
@@ -79,10 +79,11 @@ const BookPTO = () => {
           <div className="stack" style={{ gap: 26 }}>
             <p className="eyebrow">Company nights · Private parties</p>
             <h1 className="disp t-xl">
-              Book PTO <span className="it">for your team.</span>
+              Skip the <span className="it">escape room.</span>
             </h1>
             <p className="lede measure">
-              Two hours of padel, run start to finish by us. Your people just show up, first-timers included.
+              Book PTO and give your people two hours of padel, run start to finish by us. First-timers included.
+              They leave with a winner, a team photo and something to talk about on Monday.
             </p>
             <div className="cta-row">
               <a className="btn btn-dark" href="#inquire">
@@ -176,7 +177,7 @@ const BookPTO = () => {
               <span className="eyebrow">1:40 · 20 min</span>
               <h3 style={{ fontSize: 20 }}>The final and team photo</h3>
               <p className="body" style={{ fontSize: 15 }}>
-                Top scorers play it out.
+                Top scorers play it out. Everyone else picks a side.
               </p>
             </div>
           </div>
@@ -251,7 +252,7 @@ const BookPTO = () => {
               Tell us about <span className="it">your night.</span>
             </h2>
             <p className="body" style={{ maxWidth: 440 }}>
-              We'll reply with open dates and a quote. Holiday dates go first, so ask early.
+              We'll come back with open dates and a quote. Holiday dates go first, so don't wait on it.
             </p>
             <p className="body">
               Or email <a href={`mailto:${club.email}`}>{club.email}</a>
@@ -271,7 +272,8 @@ const BookPTO = () => {
           <Head eyebrow="Questions">Before you book</Head>
           <div>
             <Qa q="Most of us have never played. Is that okay?" open>
-              Yes. Most groups haven't. The warm-up covers the basics and the rotation mixes everyone up.
+              Yes. Most groups haven't. The warm-up covers the basics, and the rotation mixes everyone up so nobody
+              gets left out.
             </Qa>
             <Qa q="Where is it?">
               {venue.name}, {venue.address}.
