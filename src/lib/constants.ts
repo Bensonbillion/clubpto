@@ -11,12 +11,13 @@ export const colors = {
 } as const;
 
 // Navigation items (membership parked for now)
+// The older pages' header and footer. The redesigned pages use NAV in
+// src/site/ui/SiteLayout.tsx; keep the two pointing at the same places.
 export const navItems = [
-  { label: "About", href: "/about" },
-  { label: "Play", href: "/book" },
-  { label: "Skill Lab", href: "/skills-lab" },
+  { label: "Play", href: "/play" },
   { label: "League", href: "/league" },
-  { label: "Community", href: "/community" },
+  { label: "Events", href: "/events" },
+  { label: "Book PTO", href: "/book-pto" },
   { label: "Partners", href: "/partners" },
   { label: "FAQ", href: "/faq" },
   { label: "Members", href: "/club" },
@@ -56,14 +57,15 @@ export const courtsideII = {
 // they got the same night.
 // (Guarded by src/site/__tests__/nights-are-equal.test.ts.)
 export const weeklyMeets = {
+//
+// October 2026: the weekly meet moved to Thursdays at District (Sunday meets
+// are paused; Sundays are the PTO League). One night for now. If a second
+// night comes back, it gets exactly the same fields as this one.
   bookingUrl: "https://clubptobookings.as.me/",
-  price: "CA$20",
-  nights: [
-    { day: "Wednesdays", venue: "The District Padel", area: "Mississauga" },
-    { day: "Sundays", venue: "North Padel", area: "North York" },
-  ],
+  price: "CA$20 plus HST",
+  nights: [{ day: "Thursdays", venue: "District Padel & Pickleball", area: "Mississauga" }],
   /** Short form for tickers and footers. */
-  days: "Wednesday + Sunday",
+  days: "Thursdays",
 } as const;
 
 // Skills Lab facts live in src/content/skillsLab.ts, not here — that file

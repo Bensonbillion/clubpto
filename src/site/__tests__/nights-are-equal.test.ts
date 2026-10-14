@@ -11,6 +11,13 @@
 // Anyone should be able to take whichever day their week allows and know
 // they got the same night.
 //
+// October 2026: the weekly meet moved to Thursdays and Sunday became the
+// PTO League's day, so there is one weekly night for now. The rule stands
+// for whenever a second night returns: the symmetry checks below derive the
+// night names from weeklyMeets instead of hard-coding Wednesday and Sunday,
+// and they run as soon as there are two nights again. The banned phrases
+// apply whatever the schedule.
+//
 // This file greps the public surfaces for the framing so it cannot creep
 // back in through a revert, a merge, or a well-meaning rewrite. It lives
 // beside no-ghost-design.test.ts for the same reason: src/__tests__/ is
@@ -41,7 +48,13 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
  * behind a login but is still the club talking about its own nights).
  */
 const publicCopy = () => [
-  ...sourceFiles(join(ROOT, "src", "components", "home")),
+  // The redesigned public site: its pages and shared copy.
+  ...sourceFiles(join(ROOT, "src", "site")).filter((f) => !f.includes("__tests__")),
+  join(ROOT, "src", "pages", "Home.tsx"),
+  join(ROOT, "src", "pages", "Play.tsx"),
+  join(ROOT, "src", "pages", "League.tsx"),
+  join(ROOT, "src", "pages", "Events.tsx"),
+  join(ROOT, "src", "pages", "BookPTO.tsx"),
   ...sourceFiles(join(ROOT, "src", "clubhouse", "ui")),
   join(ROOT, "src", "pages", "About.tsx"),
   join(ROOT, "src", "pages", "FAQPage.tsx"),
@@ -83,10 +96,15 @@ describe("Wednesday and Sunday read as the same night", () => {
   });
 
   // The phrase list above only catches the wording we already know about.
-  // The failure mode is broader: any sentence that names one night and not
-  // the other quietly makes it the real one. ("Wednesday's format pairs you
-  // up", "Play Wednesday." — both shipped, both invisible to a word list.)
-  it("no line of copy names one night without the other", () => {
+  // The failure mode is broader than any word list: a sentence that names
+  // one weekly night and not the other quietly makes it the real one.
+  // ("Wednesday's format pairs you up", "Play Wednesday." both shipped.)
+  // Only meaningful while there are two weekly nights, so it waits until
+  // weeklyMeets has two again. The night names come from the facts table.
+  it("no line of copy names one weekly night without the other", async () => {
+    const { weeklyMeets } = await import("../../lib/constants");
+    const names = weeklyMeets.nights.map((n) => n.day.replace(/s$/i, "").toLowerCase());
+    if (names.length < 2) return;
     const offenders: string[] = [];
     // constants.ts is exempt: it is the facts table, where each night gets
     // its own line by design. Its symmetry is covered by the next test.
@@ -96,20 +114,9 @@ describe("Wednesday and Sunday read as the same night", () => {
         .forEach((line, i) => {
           const code = line.trim();
           if (code.startsWith("//") || code.startsWith("*")) return;
-          // Only judge lines that carry copy, not identifiers or facts
-          // rendered from weeklyMeets.
-          // KNOWN GAP, left alone deliberately (out of scope where it was
-          // found, and worth fixing on its own): this exemption assumes
-          // anything rendering from constants.ts is symmetric by
-          // construction. It is not. `weeklyMeets.nights[0].venue` renders
-          // ONE night and is skipped here, so the exact failure this file
-          // exists to catch can pass through the exemption meant to allow
-          // the facts table. Narrow it to lines that map over the array
-          // rather than index into it.
           if (/weeklyMeets|nights\[|night\./.test(code)) return;
-          const wed = /wednesday/i.test(code);
-          const sun = /sunday/i.test(code);
-          if (wed !== sun) {
+          const named = names.map((n) => new RegExp(n, "i").test(code));
+          if (named.some(Boolean) && !named.every(Boolean)) {
             offenders.push(`${file.replace(ROOT + "/", "")}:${i + 1}  ${code.slice(0, 80)}`);
           }
         });
@@ -117,13 +124,13 @@ describe("Wednesday and Sunday read as the same night", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("both nights carry exactly the same fields", async () => {
+  it("every weekly night carries exactly the same fields", async () => {
     const { weeklyMeets } = await import("../../lib/constants");
     const shapes = weeklyMeets.nights.map((n) => Object.keys(n).sort().join(","));
     expect(new Set(shapes).size).toBe(1);
     // A descriptor on one night and not the other is the failure this
     // whole file exists to prevent.
-    expect(weeklyMeets.nights.length).toBe(2);
+    expect(weeklyMeets.nights.length).toBeGreaterThan(0);
     for (const night of weeklyMeets.nights) {
       expect(night.day.length).toBeGreaterThan(0);
       expect(night.venue.length).toBeGreaterThan(0);
@@ -131,9 +138,11 @@ describe("Wednesday and Sunday read as the same night", () => {
     }
   });
 
-  it("both venues reach the homepage", async () => {
+  it("every weekly venue reaches the homepage", async () => {
     const { weeklyMeets } = await import("../../lib/constants");
-    const home = sourceFiles(join(ROOT, "src", "components", "home"))
+    // The homepage renders the venue from src/site/content.ts, which reads
+    // it from weeklyMeets, so both files count as "the homepage" here.
+    const home = [join(ROOT, "src", "pages", "Home.tsx"), join(ROOT, "src", "site", "content.ts")]
       .map((f) => readFileSync(f, "utf8"))
       .join("\n");
     // Either literally, or by mapping over weeklyMeets.nights.

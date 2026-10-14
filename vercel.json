@@ -23,8 +23,7 @@
     }
   ],
   "redirects": [
-    { "source": "/membership", "destination": "/", "permanent": false },
-    { "source": "/events", "destination": "/", "permanent": false }
+    { "source": "/membership", "destination": "/", "permanent": false }
   ],
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }

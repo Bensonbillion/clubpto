@@ -29,16 +29,16 @@ const faqs = [
   {
     question: "When do sessions run?",
     answer:
-      "Wednesdays and Sundays, every week. Same night either way, so take whichever one suits you. Exact start times are on the booking page.",
+      `${weeklyMeets.days}, every week. Exact start times are on the booking page. The PTO League runs on its own schedule.`,
   },
   {
     question: "Where do you play?",
-    answer: `${weeklyMeets.nights[0].day} at ${weeklyMeets.nights[0].venue} in ${weeklyMeets.nights[0].area}. ${weeklyMeets.nights[1].day} at ${weeklyMeets.nights[1].venue} in ${weeklyMeets.nights[1].area}. Courtside events land at The Pad. Full details come with your booking.`,
+    answer: `${weeklyMeets.nights.map((n) => `${n.day} at ${n.venue} in ${n.area}`).join(". ")}. Courtside events land at The Pad. Full details come with your booking.`,
   },
   {
     question: "How do I book?",
     answer:
-      "Through our booking page: CA$20 a session. Spots are limited, so grab yours early.",
+      `Through our booking page: ${weeklyMeets.price} a session. Spots are limited, so grab yours early.`,
   },
   {
     question: "Can I come alone?",

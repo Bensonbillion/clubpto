@@ -1,113 +1,114 @@
-// PTO League — Season 1 landing page.
-//
-// Built off the approved copy for the Founding Season. Follows the Skill
-// Lab structural pattern (ribbon → hero → numbered sections → gold
-// inversion band → sticky bar) so the two program pages read as siblings.
-// Operational facts live in src/content/league.ts; the registration URL
-// stays TODO_BENSON until the Acuity link is pinned, and every CTA falls
-// through to #pricing so nothing is ever a dead end.
+// PTO League. Season 1 copy follows the approved Founding Season page
+// (scoring, Top 8, prizes, coverage). Public standings stay down until the
+// clubhouse puts them behind a login, so this page shows an example card,
+// never real names.
 
-import { memo, useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion, MotionConfig } from "framer-motion";
-import PageWrapper from "@/components/layout/PageWrapper";
-import { fadeUp, staggerContainer } from "@/lib/animations";
-import { league, leagueCtaHref, leagueSpotsRemaining } from "@/content/league";
-import "./league.css";
+import { photos } from "@/site/photos";
+import { isSet, leagueFacts, leagueInPlay, season2, venue } from "@/site/content";
+import { Head, Photo, Qa, usePageMeta } from "@/site/ui/bits";
+import { MailtoForm, type MailtoField } from "@/site/ui/forms";
 
-const CTA_LABEL = "Join the league →";
-const CTA_LABEL_FOUNDING = "Join the founding roster →";
-const CTA_LABEL_SEASON = "Sign for Season 1 →";
-
-/** ms in a day, hour, minute, second — used by the countdown timer. */
-const DAY = 86_400_000;
-const HOUR = 3_600_000;
-const MIN = 60_000;
-const SEC = 1_000;
-
-/**
- * Countdown to a fixed ISO instant. Ticks every second, stops at zero.
- * All viewers see the same figures regardless of their machine timezone
- * because the target carries an explicit -04:00 offset.
- *
- * Only CountdownBar calls this — deliberately. At 1 Hz this re-renders
- * its caller every second, and the League page is full of whileInView
- * motion sections that must not be asked to re-evaluate that often.
- */
-const useCountdown = (targetISO: string) => {
-  const target = new Date(targetISO).getTime();
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(Date.now()), SEC);
-    return () => window.clearInterval(id);
-  }, []);
-  const diff = Math.max(0, target - now);
-  return {
-    days: Math.floor(diff / DAY),
-    hours: Math.floor((diff % DAY) / HOUR),
-    minutes: Math.floor((diff % HOUR) / MIN),
-    seconds: Math.floor((diff % MIN) / SEC),
-    msLeft: diff,
-    closed: diff === 0,
-  };
-};
-
-/** Two-digit zero-padded for the countdown display. */
-const pad2 = (n: number): string => (n < 10 ? `0${n}` : String(n));
-
-/** Bucket the spots-remaining count into a status class name. */
-const spotsToneClass = (remaining: number): string => {
-  if (remaining < 5) return "lg-spots--red";
-  if (remaining < 10) return "lg-spots--gold";
-  return "lg-spots--green";
-};
-
-/** "2026-10-04" → "Sunday, October 4, 2026" — the copy's long form. */
-const longDate = (iso: string): string => {
-  const [y, m, d] = iso.split("-").map(Number);
-  const date = new Date(Date.UTC(y, m - 1, d));
-  return date.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-};
-
-/** "2026-10-04" → "October 4" — for tight copy. */
-const shortDate = (iso: string): string => {
-  const [y, m, d] = iso.split("-").map(Number);
-  const date = new Date(Date.UTC(y, m - 1, d));
-  return date.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    timeZone: "UTC",
-  });
-};
-
-const HOW_IT_WORKS = [
+const waitlistFields: readonly MailtoField[] = [
+  { name: "first", label: "First name", required: true, autoComplete: "given-name", half: true },
+  { name: "last", label: "Last name", required: true, autoComplete: "family-name", half: true },
+  { name: "email", label: "Email", type: "email", required: true, autoComplete: "email", placeholder: "you@email.com" },
+  { name: "instagram", label: "Instagram handle", placeholder: "@yourhandle" },
   {
-    title: "Sign for Season 1",
-    text: "Register individually. No partner needed. You enter the league on your own.",
+    name: "division",
+    label: "Division",
+    type: "select",
+    options: ["Men's Division", "Women's Division"],
+    half: true,
   },
   {
-    title: "Play your weekly matchups",
-    text: "Two matches every Sunday. New partner each time. The schedule rotates to maximize variety across the season.",
+    name: "experience",
+    label: "Experience",
+    type: "select",
+    options: ["Played a few times", "Developing", "Intermediate+"],
+    half: true,
   },
-  {
-    title: "Climb the table",
-    text: "Win = 3 points. Draw = 1. Loss = 0. Your results follow you — not your team.",
-  },
-  {
-    title: "Make the Top 8",
-    text: "After 7 weeks, the Top 8 in each division qualify for the PTO Tournament. One champion crowned per division.",
-  },
+  { name: "season1", label: "Played Season 1?", type: "select", options: ["Not yet", "Yes"] },
 ];
 
-const WHAT_YOU_GET = [
+const PlayerCard = () => (
+  <article
+    aria-label="Example player card"
+    style={{
+      width: 380,
+      maxWidth: "100%",
+      background: "#F5EFE3",
+      color: "#0E2418",
+      transform: "rotate(3deg)",
+      boxShadow: "0 24px 60px rgba(0,0,0,0.35)",
+      border: "2px solid #D9E270",
+    }}
+  >
+    <div style={{ height: 340, overflow: "hidden", position: "relative" }}>
+      <Photo photo={photos.leagueReady} priority sizes="(max-width: 900px) 90vw, 380px" />
+      <span
+        style={{
+          position: "absolute",
+          top: 16,
+          left: 16,
+          background: "#D9E270",
+          padding: "8px 12px",
+          fontSize: 12,
+          fontWeight: 700,
+          letterSpacing: "0.12em",
+        }}
+      >
+        PTO · S01
+      </span>
+    </div>
+    <div style={{ padding: "22px 24px 26px", display: "flex", flexDirection: "column", gap: 16 }}>
+      <div>
+        <p className="eyebrow" style={{ color: "#2F5A3A" }}>
+          Your division
+        </p>
+        <p className="disp" style={{ fontSize: 44, color: "#0E2418" }}>
+          Your name
+        </p>
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+          gap: 10,
+          borderTop: "2px solid #0E2418",
+          paddingTop: 14,
+        }}
+      >
+        {[
+          ["Rank", "#?"],
+          ["Points", "0"],
+          ["Record", "0-0"],
+        ].map(([k, v]) => (
+          <div key={k}>
+            <p className="eyebrow" style={{ fontSize: 11, color: "#0E2418" }}>
+              {k}
+            </p>
+            <p className="disp" style={{ fontSize: 30, color: "#0E2418" }}>
+              {v}
+            </p>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span className="eyebrow" style={{ fontSize: 11, marginRight: 6, color: "#0E2418" }}>
+          Form
+        </span>
+        {[0, 1, 2, 3, 4].map((i) => (
+          <span key={i} style={{ width: 22, height: 22, border: "2px solid #0E2418", borderRadius: "50%" }} />
+        ))}
+      </div>
+    </div>
+  </article>
+);
+
+const perks = [
   {
     title: "Your name on the table",
-    text: "Every player gets an individual position in the official PTO League standings. Updated weekly. Posted publicly.",
+    text: "An individual position in the PTO League standings, updated every week.",
   },
   {
     title: "Your weekly matchups",
@@ -115,836 +116,207 @@ const WHAT_YOU_GET = [
   },
   {
     title: "Your moments",
-    text: "Highlights, reactions, player features, and league content throughout the season. You're not just playing — you're getting covered.",
+    text: "Highlights, reactions, player features and league content throughout the season.",
   },
   {
-    title: "Your shot at finals",
+    title: "Your shot at Finals Night",
     text: "Finish Top 8 and your season continues at the PTO Tournament. Everyone else watches.",
   },
-];
-
-const PATHWAY = [
-  { label: "Skill Lab", text: "Learn the fundamentals", href: "/skills-lab" },
-  { label: "Weekly Meets", text: "Play and meet the community", href: "/book" },
-  { label: "PTO League", text: "Compete, get ranked, make the Top 8", here: true },
-  { label: "Tournaments", text: "Test yourself against the best" },
-];
-
-const FAQ = [
   {
-    q: "Do I need a partner?",
-    a: "No. Everyone registers individually. Partners rotate throughout the season.",
+    title: "Something to play for",
+    text: "Over $2,000 in prizes, and the inaugural PTO League Championship trophy for each division winner.",
+    lime: true,
   },
   {
-    q: "Will I play with every player in my division?",
-    a: "The schedule is designed to maximize the number of different partners and opponents you play. Because the divisions have different roster sizes, exact rotations will vary.",
-  },
-  {
-    q: "How many matches do I play?",
-    a: "Two matches every Sunday — 14 scheduled matches across the 7-week regular season.",
-  },
-  {
-    q: "Do I have to be advanced?",
-    a: "No. You need enough experience to comfortably play a match and understand basic rules and scoring.",
-  },
-  {
-    q: "What if I'm brand new to padel?",
-    a: "Start with Club PTO Skill Lab or a regular Meet first. The league will be here when you're ready.",
-  },
-  {
-    q: "What if I miss a Sunday?",
-    a: "Notify us at least 48 hours in advance. An approved reserve player may fill your spot. You receive no points for matches you miss.",
-  },
-  {
-    q: "Can I sign up with a friend?",
-    a: "Yes — but you're not registering as a doubles team. You both compete independently.",
-  },
-  {
-    q: "How do I qualify for the PTO Tournament?",
-    a: "Finish inside the Top 8 of your division after Week 7.",
-  },
-  {
-    q: "What do the champions receive?",
-    a: "Over $2,000 in prizes are on the line. Each division winner also takes home the inaugural PTO League Championship trophy.",
-  },
-  {
-    q: "When does registration close?",
-    a: "September 29, or when all 32 roster spots are claimed — whichever comes first.",
-  },
-  {
-    q: "Will there be a Season 2?",
-    a: "Season 1 is our Founding Season. Future seasons will be announced afterward. Season 1 players may receive priority access.",
+    title: "A league you join solo",
+    text: "Everyone registers on their own. Bring a friend if you like; you'll both compete independently.",
   },
 ];
 
-/**
- * The sticky bar — appears when the hero scrolls off, so the primary CTA
- * is never more than a thumb-tap away on mobile.
- */
-const StickyBar = memo(({ onDismiss }: { onDismiss: () => void }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 16 }}
-    animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, y: 16 }}
-    transition={{ duration: 0.2, ease: "easeOut" }}
-    className="lg-sticky"
-  >
-    <p className="lg-label lg-sticky__fact">PTO League · Season 1</p>
-    <a
-      className="rly-pill lg-cta"
-      href={leagueCtaHref()}
-      target={leagueCtaHref().startsWith("http") ? "_blank" : undefined}
-      rel="noopener noreferrer"
-    >
-      Join
-    </a>
-    <button
-      type="button"
-      className="lg-sticky__dismiss"
-      aria-label="Dismiss"
-      onClick={onDismiss}
-    >
-      ✕
-    </button>
-  </motion.div>
-));
-StickyBar.displayName = "StickyBar";
-
-/**
- * The registration strip at the top of the page. In normal flow, so it
- * scrolls away rather than following the reader down.
- *
- * It owns the 1 Hz timer itself so the rest of the page, every
- * whileInView motion section below, renders once and is left alone
- * instead of being re-evaluated every second.
- */
-const CountdownBar = () => {
-  const countdown = useCountdown(league.registrationCloseAt);
-  // Urgency tiers from the deck: the badge appears in the final 72 hours
-  // and the accent warms in the final 24. The forest ground is fixed.
-  const tone = countdown.closed
-    ? "lg-countdown--closed"
-    : countdown.msLeft < DAY
-      ? "lg-countdown--last"
-      : countdown.msLeft < 3 * DAY
-        ? "lg-countdown--final"
-        : "";
-  const badge = countdown.closed
-    ? "Registration closed"
-    : countdown.msLeft < DAY
-      ? "Last chance"
-      : countdown.msLeft < 3 * DAY
-        ? "Final days"
-        : null;
-
-  const units: { value: number; label: string }[] = [
-    { value: countdown.days, label: "Days" },
-    { value: countdown.hours, label: "Hours" },
-    { value: countdown.minutes, label: "Minutes" },
-    { value: countdown.seconds, label: "Seconds" },
-  ];
+const League = () => {
+  usePageMeta(
+    "PTO League · Club PTO",
+    "PTO League: Americano padel on Sundays at District Padel, Mississauga. Individual rankings, Top 8 per division to Finals Night. Join the Season 2 waitlist.",
+    "/league",
+  );
 
   return (
     <>
-      <div className={`lg-countdown ${tone}`}>
-        <div className="lg-countdown__row">
-          {/* Left: the deadline. */}
-          <p className="lg-label lg-countdown__deadline">
-            {badge && <span className="lg-countdown__badge">{badge}</span>}
-            {countdown.closed
-              ? "Season 1 registration is closed"
-              : `Season 1 registration closes ${shortDate(
-                  league.registrationCloseAt.slice(0, 10),
-                )}`}
-          </p>
-          {/* Centre: supporting detail. Hidden below 1024px — the
-              deadline and the timer carry the message on their own. */}
-          <p className="lg-countdown__center">
-            Season starts {shortDate(league.startDate)}
-            <span className="lg-countdown__dot">·</span>
-            {league.spotsClaimed} of {league.totalRoster} spots claimed
-          </p>
-          {/* Right: the timer. */}
-          {!countdown.closed && (
-            <p className="lg-countdown__timer">
-              {/* The visible cells are decorative-duplicated for screen
-                  readers by the sr-only line below, which only announces
-                  at minute granularity — a per-second aria-live region
-                  would flood assistive tech. */}
-              <span aria-hidden="true" className="lg-countdown__cells">
-                {units.map((u, i) => (
-                  <span key={u.label} className="lg-countdown__unit">
-                    {i > 0 && <span className="lg-countdown__colon">:</span>}
-                    <span className="lg-countdown__cell">
-                      <b>{pad2(u.value)}</b>
-                      <em>{u.label}</em>
-                    </span>
-                  </span>
-                ))}
-              </span>
-              <span className="lg-sr-only">
-                {countdown.days} days, {countdown.hours} hours and{" "}
-                {countdown.minutes} minutes left to register.
-              </span>
+      <section className="sec-dark sec-hero" style={{ padding: "88px 0 100px" }}>
+        <div className="wrap g2" style={{ alignItems: "center" }}>
+          <div className="stack" style={{ gap: 26 }}>
+            <p className="eyebrow">PTO League · Season 1 · The Founding Season</p>
+            <h1 className="disp t-big">
+              A rec league with <span className="it">pro‑sports energy.</span>
+            </h1>
+            <p className="lede measure">
+              Sign up solo. Your own ranking. Every Sunday counts toward Finals Night.
+              {leagueInPlay() ? " Season 1 is in play now." : ""}
             </p>
-          )}
-        </div>
-      </div>
-    </>
-  );
-};
-
-const League = () => {
-  useEffect(() => {
-    const previous = document.title;
-    document.title = "PTO League · Club PTO";
-    return () => {
-      document.title = previous;
-    };
-  }, []);
-
-  const heroRef = useRef<HTMLElement | null>(null);
-  const [heroGone, setHeroGone] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
-  useEffect(() => {
-    const el = heroRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(([entry]) => {
-      setHeroGone(!entry.isIntersecting);
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  const ctaHref = leagueCtaHref();
-  const ctaTarget = ctaHref.startsWith("http") ? "_blank" : undefined;
-  const remaining = leagueSpotsRemaining();
-  const spotsTone = spotsToneClass(remaining);
-
-  return (
-    <PageWrapper>
-      <MotionConfig reducedMotion="user">
-        <div className="lg-page">
-          {/* ── countdown bar — pinned top, always in view ──────────── */}
-          <CountdownBar />
-
-          {/* ── hero — headline left, stat/card feel right ─────────── */}
-          <section ref={heroRef} className="lg-hero">
-            <div>
-              <p className="lg-label lg-hero__eyebrow">
-                PTO Padel League — Season 1
-              </p>
-              <h1 className="rly-display lg-hero__title">
-                Your Sunday games
-                <br />
-                just got more
-                <br />
-                <i>interesting.</i>
-              </h1>
-              <p className="lg-hero__sub">
-                Seven Sundays. Rotating partners. Your own ranking. Play your
-                matches. Earn your points. Climb the table. Get featured. Make
-                the Top 8. Then step onto the court for the season-ending PTO
-                Tournament.
-              </p>
-              <p className="lg-hero__sub lg-hero__sub--tight">
-                {league.totalRoster} players. One Founding Season.
-              </p>
-              <div className="lg-hero__action">
-                <a
-                  className="rly-pill lg-cta"
-                  href={ctaHref}
-                  target={ctaTarget}
-                  rel="noopener noreferrer"
-                >
-                  {CTA_LABEL}
-                </a>
-                <a className="lg-hero__how" href="#how-it-works">
-                  See how it works ↓
-                </a>
+            <div className="facts">
+              <div className="fact">
+                <span>When</span>
+                <span>Sundays · {leagueFacts.timeShort}</span>
               </div>
-              <p className="lg-label lg-hero__meta">
-                {league.mensRoster} Men · {league.womensRoster} Women · $
-                {league.fullPrice} Founding Season Entry
-              </p>
-              <p className="lg-hero__note">
-                Season 1 starts {shortDate(league.startDate)} at{" "}
-                {league.venueName}.
-              </p>
-              <p className={`lg-hero__urgency lg-spots ${spotsTone}`}>
-                Registration closes{" "}
-                {shortDate(league.registrationCloseAt.slice(0, 10))}.{" "}
-                <b>
-                  {league.spotsClaimed} of {league.totalRoster} spots claimed.
-                </b>
-              </p>
-              <div className="lg-stats">
-                <div className="lg-stat">
-                  <span className="lg-stat__num">
-                    {league.regularSeasonWeeks}
-                  </span>
-                  <span className="lg-label lg-stat__label">Weeks</span>
-                </div>
-                <div className="lg-stat">
-                  <span className="lg-stat__num">{league.totalMatches}</span>
-                  <span className="lg-label lg-stat__label">Matches</span>
-                </div>
-                <div className="lg-stat">
-                  <span className="lg-stat__num">{league.totalRoster}</span>
-                  <span className="lg-label lg-stat__label">Players</span>
-                </div>
+              <div className="fact">
+                <span>Where</span>
+                <span>
+                  {venue.short}, {venue.address}
+                </span>
+              </div>
+              <div className="fact">
+                <span>Format</span>
+                <span>Americano. Two matches every Sunday, Men's and Women's divisions</span>
               </div>
             </div>
-            {/* Player card floats on the right on desktop; sits under the
-                hero copy on mobile. Sports-graphic energy without a photo. */}
-            <div className="lg-hero__card" aria-hidden="true">
-              <div className="lg-pcard">
-                <div className="lg-pcard__row">
-                  <span className="lg-pcard__logo">PTO</span>
-                  <span className="lg-pcard__season">S01</span>
-                </div>
-                <div className="lg-pcard__name">Michael</div>
-                <div className="lg-pcard__div">Men's Division</div>
-                <div className="lg-pcard__stats">
-                  <div className="lg-pcard__stat">
-                    <span className="lg-pcard__k">Rank</span>
-                    <span className="lg-pcard__v">#7</span>
-                  </div>
-                  <div className="lg-pcard__stat">
-                    <span className="lg-pcard__k">Points</span>
-                    <span className="lg-pcard__v">12</span>
-                  </div>
-                  <div className="lg-pcard__stat">
-                    <span className="lg-pcard__k">Record</span>
-                    <span className="lg-pcard__v">4W 2D 2L</span>
-                  </div>
-                </div>
-                <div className="lg-pcard__form">
-                  <span className="lg-pcard__k">Form</span>
-                  <span className="lg-pcard__pips">
-                    <b className="lg-pip lg-pip--w">W</b>
-                    <b className="lg-pip lg-pip--w">W</b>
-                    <b className="lg-pip lg-pip--d">D</b>
-                    <b className="lg-pip lg-pip--w">W</b>
-                  </span>
-                </div>
-                <div className="lg-pcard__status">↑ 3 · Top 8</div>
-              </div>
-            </div>
-          </section>
-
-          {/* ── the experience ─────────────────────────────────────── */}
-          <motion.section
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            className="lg-section lg-section--raised"
-          >
-            <div className="lg-inner">
-              <motion.p variants={fadeUp} className="lg-label lg-eyebrow">
-                the experience
-              </motion.p>
-              <motion.h2 variants={fadeUp} className="rly-display lg-h2">
-                You're not just playing matches.
-                <br />
-                You're competing for a <i>league trophy.</i>
-              </motion.h2>
-              <motion.div variants={fadeUp} className="lg-exp__lines">
-                <p>For seven weeks, you're officially a PTO League player.</p>
-                <p>You'll have your own ranking.</p>
-                <p>Your results will be tracked.</p>
-                <p>Your highlights might end up on the feed.</p>
-                <p>Your name moves up and down the standings.</p>
-                <p>There'll be players chasing you.</p>
-                <p>You'll be chasing someone else.</p>
-                <p>And every Sunday gives the league another storyline.</p>
-              </motion.div>
-              <motion.p variants={fadeUp} className="lg-exp__close">
-                Think rec league with pro-sports energy.
-              </motion.p>
-            </div>
-          </motion.section>
-
-          {/* ── how it works ───────────────────────────────────────── */}
-          <motion.section
-            id="how-it-works"
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            className="lg-section"
-          >
-            <div className="lg-inner">
-              <div className="lg-steps__head">
-                <div>
-                  <motion.p variants={fadeUp} className="lg-label lg-eyebrow">
-                    how it works
-                  </motion.p>
-                  <motion.h2 variants={fadeUp} className="rly-display lg-h2">
-                    Your padel career starts here.
-                  </motion.h2>
-                </div>
-                <motion.p variants={fadeUp} className="lg-steps__intro">
-                  Four steps. Seven Sundays. One inaugural roster of{" "}
-                  {league.totalRoster}.
-                </motion.p>
-              </div>
-              <ol className="lg-steps__grid">
-                {HOW_IT_WORKS.map((step, i) => (
-                  <motion.li
-                    variants={fadeUp}
-                    key={step.title}
-                    className={`lg-step ${i === 0 ? "lg-step--first" : ""}`}
-                  >
-                    <div className="lg-step__num">{`0${i + 1}`}</div>
-                    <h3 className="lg-step__title">{step.title}</h3>
-                    <p className="lg-step__text">{step.text}</p>
-                  </motion.li>
-                ))}
-              </ol>
-            </div>
-          </motion.section>
-
-          {/* ── what you get — 2x2 cards ───────────────────────────── */}
-          <motion.section
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            className="lg-section lg-section--raised"
-          >
-            <div className="lg-inner">
-              <motion.p variants={fadeUp} className="lg-label lg-eyebrow">
-                what you get
-              </motion.p>
-              <motion.h2 variants={fadeUp} className="rly-display lg-h2">
-                Signing gets you more than a match slot.
-              </motion.h2>
-              <ul className="lg-cards__grid">
-                {WHAT_YOU_GET.map((card) => (
-                  <motion.li
-                    variants={fadeUp}
-                    key={card.title}
-                    className="lg-card"
-                  >
-                    <h3 className="lg-card__title">{card.title}</h3>
-                    <p className="lg-card__text">{card.text}</p>
-                  </motion.li>
-                ))}
-              </ul>
-            </div>
-          </motion.section>
-
-          {/* ── player identity ────────────────────────────────────── */}
-          <motion.section
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            className="lg-section"
-          >
-            <div className="lg-inner">
-              <div className="lg-identity__grid">
-                <div>
-                  <motion.p variants={fadeUp} className="lg-label lg-eyebrow">
-                    every player gets a card
-                  </motion.p>
-                  <motion.h2 variants={fadeUp} className="rly-display lg-h2">
-                    Your card. Your stats.
-                    <br />
-                    Your <i>season.</i>
-                  </motion.h2>
-                  <motion.p variants={fadeUp} className="lg-identity__copy">
-                    When you sign for Season 1, you're part of the roster. Your
-                    stats are tracked. Your ranking is public. Your card updates
-                    every week.
-                  </motion.p>
-                  <motion.p variants={fadeUp} className="lg-label lg-identity__note">
-                    Share it · repost it · talk about it
-                  </motion.p>
-                </div>
-                <motion.div
-                  variants={fadeUp}
-                  className="lg-pcard lg-pcard--big"
-                  aria-hidden="true"
-                >
-                  <div className="lg-pcard__row">
-                    <span className="lg-pcard__logo">PTO</span>
-                    <span className="lg-pcard__season">S01</span>
-                  </div>
-                  <div className="lg-pcard__name">Michael</div>
-                  <div className="lg-pcard__div">PTO League · Men's Division</div>
-                  <div className="lg-pcard__stats">
-                    <div className="lg-pcard__stat">
-                      <span className="lg-pcard__k">Rank</span>
-                      <span className="lg-pcard__v">#7</span>
-                    </div>
-                    <div className="lg-pcard__stat">
-                      <span className="lg-pcard__k">Points</span>
-                      <span className="lg-pcard__v">12</span>
-                    </div>
-                    <div className="lg-pcard__stat">
-                      <span className="lg-pcard__k">Record</span>
-                      <span className="lg-pcard__v">4W 2D 2L</span>
-                    </div>
-                  </div>
-                  <div className="lg-pcard__form">
-                    <span className="lg-pcard__k">Form</span>
-                    <span className="lg-pcard__pips">
-                      <b className="lg-pip lg-pip--w">W</b>
-                      <b className="lg-pip lg-pip--w">W</b>
-                      <b className="lg-pip lg-pip--d">D</b>
-                      <b className="lg-pip lg-pip--w">W</b>
-                    </span>
-                  </div>
-                  <div className="lg-pcard__status">
-                    ↑ 3 positions this week · Status: TOP 8
-                  </div>
-                </motion.div>
-              </div>
-            </div>
-          </motion.section>
-
-          {/* ── league details table ───────────────────────────────── */}
-          <motion.section
-            id="details"
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            className="lg-section lg-section--raised"
-          >
-            <div className="lg-inner">
-              <motion.p variants={fadeUp} className="lg-label lg-eyebrow">
-                season 1 details
-              </motion.p>
-              <motion.h2 variants={fadeUp} className="rly-display lg-h2">
-                The facts.
-              </motion.h2>
-              <motion.dl variants={fadeUp} className="lg-facts">
-                <div className="lg-fact">
-                  <dt className="lg-fact__k">Start date</dt>
-                  <dd className="lg-fact__v">{longDate(league.startDate)}</dd>
-                </div>
-                <div className="lg-fact">
-                  <dt className="lg-fact__k">Regular season</dt>
-                  <dd className="lg-fact__v">
-                    {league.regularSeasonWeeks} weeks (
-                    {shortDate(league.startDate)} –{" "}
-                    {shortDate(league.endDate)})
-                  </dd>
-                </div>
-                <div className="lg-fact">
-                  <dt className="lg-fact__k">PTO Tournament</dt>
-                  <dd className="lg-fact__v">
-                    {shortDate(league.tournamentDate)}
-                  </dd>
-                </div>
-                <div className="lg-fact">
-                  <dt className="lg-fact__k">Day &amp; time</dt>
-                  <dd className="lg-fact__v">
-                    {league.sessionDay}, {league.sessionTime}
-                  </dd>
-                </div>
-                <div className="lg-fact">
-                  <dt className="lg-fact__k">Location</dt>
-                  <dd className="lg-fact__v">
-                    {league.venueName}, {league.venueArea}
-                  </dd>
-                </div>
-                <div className="lg-fact">
-                  <dt className="lg-fact__k">Divisions</dt>
-                  <dd className="lg-fact__v">
-                    Men's ({league.mensRoster}) + Women's (
-                    {league.womensRoster})
-                  </dd>
-                </div>
-                <div className="lg-fact">
-                  <dt className="lg-fact__k">Matches</dt>
-                  <dd className="lg-fact__v">
-                    {league.matchesPerWeek} per week / {league.totalMatches}{" "}
-                    total
-                  </dd>
-                </div>
-                <div className="lg-fact">
-                  <dt className="lg-fact__k">Match format</dt>
-                  <dd className="lg-fact__v">
-                    18–20 min, no-ad scoring, hard time cap
-                  </dd>
-                </div>
-                <div className="lg-fact">
-                  <dt className="lg-fact__k">Total spots</dt>
-                  <dd className="lg-fact__v">{league.totalRoster}</dd>
-                </div>
-                <div className="lg-fact">
-                  <dt className="lg-fact__k">Registration closes</dt>
-                  <dd className="lg-fact__v">
-                    {shortDate(league.registrationCloseAt.slice(0, 10))} ·{" "}
-                    <span className={`lg-spots ${spotsTone}`}>
-                      {league.spotsClaimed} of {league.totalRoster} claimed
-                    </span>
-                  </dd>
-                </div>
-              </motion.dl>
-            </div>
-          </motion.section>
-
-          {/* ── pricing ────────────────────────────────────────────── */}
-          <motion.section
-            id="pricing"
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            className="lg-section lg-pricing"
-          >
-            <div className="lg-inner">
-              <motion.p variants={fadeUp} className="lg-label lg-eyebrow">
-                pricing
-              </motion.p>
-              <motion.h2 variants={fadeUp} className="rly-display lg-h2">
-                Sign your Season 1 contract.
-              </motion.h2>
-              <motion.div variants={fadeUp} className="lg-price">
-                <div className="lg-price__head">
-                  <span className="lg-label lg-price__label">
-                    Founding Season Entry
-                  </span>
-                  <span className="lg-price__badge">Season 1</span>
-                </div>
-                <div className="lg-price__amount">${league.fullPrice}</div>
-                <div className="lg-price__per">for the seven-week season</div>
-                <div className="lg-price__rows">
-                  <div className="lg-price__row">
-                    Seven-week regular season, {league.totalMatches} scheduled matches
-                  </div>
-                  <div className="lg-price__row">
-                    Official PTO ranking, weekly standings
-                  </div>
-                  <div className="lg-price__row">
-                    Player content and league photography
-                  </div>
-                  <div className="lg-price__row">
-                    Eligibility for the PTO Tournament (if Top 8)
-                  </div>
-                </div>
-                <p className={`lg-price__spots lg-spots ${spotsTone}`}>
-                  {league.spotsClaimed} of {league.totalRoster} spots claimed
-                </p>
-                <a
-                  className="rly-pill lg-cta"
-                  href={ctaHref}
-                  target={ctaTarget}
-                  rel="noopener noreferrer"
-                >
-                  {CTA_LABEL_SEASON}
-                </a>
-                <p className="lg-label lg-price__meta">
-                  ${league.depositPrice} secures your roster spot · balance due
-                  before {shortDate(league.depositDeadline)}
-                </p>
-                <p className="lg-price__fine">
-                  Registration closes{" "}
-                  {shortDate(league.registrationCloseAt.slice(0, 10))} or when
-                  all roster spots are claimed — whichever comes first.
-                  Deposits are non-refundable once your roster position is
-                  confirmed. League fees are non-refundable once the season
-                  begins.
-                </p>
-              </motion.div>
-            </div>
-          </motion.section>
-
-          {/* ── who should join ────────────────────────────────────── */}
-          <motion.section
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            className="lg-section lg-section--raised"
-          >
-            <div className="lg-inner">
-              <motion.p variants={fadeUp} className="lg-label lg-eyebrow">
-                who should join
-              </motion.p>
-              <motion.h2 variants={fadeUp} className="rly-display lg-h2">
-                Built for people who love to play.
-              </motion.h2>
-              <motion.ul variants={fadeUp} className="lg-who__lines">
-                <li>
-                  Maybe you're the person who keeps asking everyone when the
-                  next game is.
-                </li>
-                <li>
-                  Maybe you've started taking your matches a little too
-                  seriously.
-                </li>
-                <li>
-                  Maybe you already think you're better than your friends.
-                </li>
-              </motion.ul>
-              <motion.p variants={fadeUp} className="lg-who__close">
-                Perfect. PTO League gives you somewhere to prove it.
-              </motion.p>
-              <motion.p variants={fadeUp} className="lg-who__note">
-                You don't have to be an advanced player. You just need enough
-                padel experience to comfortably serve, rally, keep score, and
-                play a full match. This is a social recreational league first.
-                Come to compete. Stay for the people, the rivalries, and
-                everything around the matches.
-              </motion.p>
-              <motion.p variants={fadeUp} className="lg-label lg-who__fine">
-                New to padel? Start with Club PTO Skill Lab or one of our
-                regular Meets first. Registration is subject to skill-fit
-                confirmation.
-              </motion.p>
-            </div>
-          </motion.section>
-
-          {/* ── the pathway ────────────────────────────────────────── */}
-          <motion.section
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            className="lg-section"
-          >
-            <div className="lg-inner">
-              <motion.p variants={fadeUp} className="lg-label lg-eyebrow">
-                where the league fits
-              </motion.p>
-              <motion.h2 variants={fadeUp} className="rly-display lg-h2">
-                The pathway.
-              </motion.h2>
-              <ol className="lg-path">
-                {PATHWAY.map((step, i) => {
-                  const inner = (
-                    <>
-                      <span className="lg-path__num">{`0${i + 1}`}</span>
-                      <span className="lg-path__label">{step.label}</span>
-                      <span className="lg-path__text">{step.text}</span>
-                      {step.here && (
-                        <span className="lg-path__here">You are here</span>
-                      )}
-                    </>
-                  );
-                  return (
-                    <motion.li
-                      variants={fadeUp}
-                      key={step.label}
-                      className={`lg-path__step ${step.here ? "lg-path__step--here" : ""}`}
-                    >
-                      {step.href ? (
-                        <a href={step.href} className="lg-path__link">
-                          {inner}
-                        </a>
-                      ) : (
-                        <div className="lg-path__link">{inner}</div>
-                      )}
-                    </motion.li>
-                  );
-                })}
-              </ol>
-            </div>
-          </motion.section>
-
-          {/* ── faq ────────────────────────────────────────────────── */}
-          <motion.section
-            id="faq"
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            className="lg-section lg-section--raised"
-          >
-            <div className="lg-inner">
-              <motion.p variants={fadeUp} className="lg-label lg-eyebrow">
-                faq
-              </motion.p>
-              <motion.h2 variants={fadeUp} className="rly-display lg-h2">
-                Questions people ask first.
-              </motion.h2>
-              <motion.div variants={fadeUp} className="lg-faq__list">
-                {FAQ.map((item) => (
-                  <FaqItem key={item.q} q={item.q} a={item.a} />
-                ))}
-              </motion.div>
-            </div>
-          </motion.section>
-
-          {/* ── final CTA — the gold inversion band ─────────────────── */}
-          <motion.section
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            className="lg-final"
-          >
-            <motion.p variants={fadeUp} className="lg-label lg-final__eyebrow">
-              final call
-            </motion.p>
-            <motion.h2
-              variants={fadeUp}
-              className="rly-display lg-final__title"
-            >
-              Every career has a first season.
-            </motion.h2>
-            <motion.p variants={fadeUp} className="lg-final__sub">
-              {league.totalRoster} players will make up the inaugural PTO
-              League roster. Seven weeks later, only 16 will move on to the PTO
-              Tournament. Your first match is {shortDate(league.startDate)}.
-            </motion.p>
-            <motion.div variants={fadeUp}>
-              <a
-                className="rly-pill lg-cta"
-                href={ctaHref}
-                target={ctaTarget}
-                rel="noopener noreferrer"
-              >
-                {CTA_LABEL_FOUNDING}
+            <div className="cta-row">
+              <a className="btn btn-lime" href="#season-2">
+                Join the Season 2 waitlist
               </a>
-            </motion.div>
-            <motion.p variants={fadeUp} className="lg-label lg-final__fact">
-              ${league.depositPrice} deposit · ${league.fullPrice} total ·
-              Registration closes{" "}
-              {shortDate(league.registrationCloseAt.slice(0, 10))}
-            </motion.p>
-            <motion.p variants={fadeUp} className="lg-final__close">
-              See you on game day.
-            </motion.p>
-          </motion.section>
-
-          {/* ── sticky bar ─────────────────────────────────────────── */}
-          <AnimatePresence>
-            {heroGone && !dismissed && (
-              <StickyBar onDismiss={() => setDismissed(true)} />
-            )}
-          </AnimatePresence>
+              <a className="btn btn-cream" href="#how">
+                How it works
+              </a>
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "center" }}>
+            <PlayerCard />
+          </div>
         </div>
-      </MotionConfig>
-    </PageWrapper>
-  );
-};
+      </section>
 
-/** One FAQ row — hairline rules, disclosure semantics, visible focus. */
-const FaqItem = ({ q, a }: { q: string; a: string }) => {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="lg-faq__item">
-      <button
-        type="button"
-        className="lg-faq__q"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
-        {q}
-        <span className="lg-faq__mark" aria-hidden="true">
-          {open ? "−" : "+"}
-        </span>
-      </button>
-      {open && <p className="lg-faq__a">{a}</p>}
-    </div>
+      <section id="how" className="sec" style={{ padding: "100px 0" }}>
+        <div className="wrap stack reveal" style={{ gap: 44 }}>
+          <Head eyebrow="How it works">
+            Sign up solo. <span className="it">Climb the table.</span>
+          </Head>
+          <div className="g4">
+            <div className="step">
+              <span className="disp num">01</span>
+              <h3 className="t-step">Sign up on your own</h3>
+              <p className="body" style={{ fontSize: 16 }}>
+                Register individually. No partner needed. You enter the league as you.
+              </p>
+            </div>
+            <div className="step">
+              <span className="disp num">02</span>
+              <h3 className="t-step">Play your Sundays</h3>
+              <p className="body" style={{ fontSize: 16 }}>
+                Two Americano matches every Sunday. The schedule rotates for variety across the season.
+              </p>
+            </div>
+            <div className="step">
+              <span className="disp num">03</span>
+              <h3 className="t-step">Earn your points</h3>
+              <p className="body" style={{ fontSize: 16 }}>
+                Win = 3 points. Draw = 1. Loss = 0. Your results follow you, not a team.
+              </p>
+            </div>
+            <div className="step">
+              <span className="disp num">04</span>
+              <h3 className="t-step">Make the Top 8</h3>
+              <p className="body" style={{ fontSize: 16 }}>
+                The Top 8 in each division qualify for the PTO Tournament on Finals Night. One champion per division.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="sec sec-alt" style={{ padding: "100px 0" }}>
+        <div className="wrap stack reveal" style={{ gap: 40 }}>
+          <Head eyebrow="What every player gets">
+            More than a <span className="it">match slot.</span>
+          </Head>
+          <div className="g3">
+            {perks.map((p) => (
+              <div key={p.title} className="perk" style={p.lime ? { background: "#D9E270" } : undefined}>
+                <h3>{p.title}</h3>
+                <p className="body" style={{ fontSize: 16, color: p.lime ? "#0E2418" : undefined }}>
+                  {p.text}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="season-2" className="sec-dark" style={{ padding: "100px 0" }}>
+        <div className="wrap g2" style={{ alignItems: "start" }}>
+          <div className="stack" style={{ gap: 24 }}>
+            <p className="eyebrow">Season 2{isSet(season2.name) ? ` · ${season2.name}` : ""}</p>
+            <h2 className="disp t-xl">
+              Hold your spot <span className="it">for Season 2.</span>
+            </h2>
+            <p className="body" style={{ maxWidth: 480 }}>
+              Join the waitlist and you'll hear the Season 2 dates and entry before anyone else. Season 1 players get
+              first call.
+            </p>
+            {isSet(season2.start) || isSet(season2.entry) ? (
+              <div className="facts">
+                {isSet(season2.start) ? (
+                  <div className="fact">
+                    <span>Starts</span>
+                    <span>{season2.start}</span>
+                  </div>
+                ) : null}
+                {isSet(season2.entry) ? (
+                  <div className="fact">
+                    <span>Entry</span>
+                    <span>{season2.entry}</span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {isSet(season2.depositNote) ? <p className="body">{season2.depositNote}</p> : null}
+          </div>
+          <MailtoForm
+            idPrefix="s2"
+            title="Join the waitlist"
+            fields={waitlistFields}
+            subject={(v) => `Season 2 waitlist · ${v.first} ${v.last}`.trim()}
+            submitLabel="Join the Season 2 waitlist"
+          />
+        </div>
+      </section>
+
+      <section className="sec" style={{ padding: "100px 0" }}>
+        <div className="wrap g2 reveal" style={{ alignItems: "start" }}>
+          <Head eyebrow="Questions">Before you sign</Head>
+          <div>
+            <Qa q="Do I need a partner?" open>
+              No. Everyone registers individually. Partners rotate throughout the season.
+            </Qa>
+            <Qa q="Do I have to be advanced?">
+              No. You need enough experience to comfortably play a match and understand basic rules and scoring.
+            </Qa>
+            <Qa q="What if I'm brand new to padel?">
+              Start with a Thursday meet first. The league will be here when you're ready.
+            </Qa>
+            <Qa q="What if I miss a Sunday?">
+              Tell us at least 48 hours ahead. An approved reserve player may fill your spot, and you get no points for
+              matches you miss.
+            </Qa>
+            <Qa q="Can I sign up with a friend?">
+              Yes, but not as a doubles team. You both compete independently.
+            </Qa>
+          </div>
+        </div>
+      </section>
+
+      <section style={{ padding: "0 0 0" }}>
+        <div className="strip strip-45">
+          <div>
+            <Photo photo={photos.overheadSwing} sizes="33vw" />
+          </div>
+          <div>
+            <Photo photo={photos.leaguePair} sizes="33vw" />
+          </div>
+          <div>
+            <Photo photo={photos.forehandLoad} sizes="33vw" />
+          </div>
+        </div>
+      </section>
+    </>
   );
 };
 

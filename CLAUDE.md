@@ -7,7 +7,7 @@ When a bug is reported, do NOT start by trying to fix it. Instead:
 3. Prove the fix by showing the test now passes
 
 ## Project Overview
-Community-first padel league in Toronto. Rebuilding PUBLIC site only (/, /about, /book, /faq, /membership, /events, /community, /contact). Premium aesthetic inspired by Soho House + Padel Haus NYC. Dark theme, warm tones, editorial feel.
+Community-first padel league in Toronto. Public site redesigned October 2026: light cream and forest green, Playfair + DM Sans, built for inbound (Thursday passes, the league, company nights, brand partners). See the design system below.
 
 ## Court Manager
 
@@ -98,16 +98,26 @@ edit `manage_sessions` by hand.
 - Supabase for auth, database, storage
 - React Router DOM for routing (already configured)
 
-## Design System — FOLLOW EXACTLY
-- **Background:** `#1A1A1A` (primary), `#2D2D2D` (elevated surfaces), never pure black
-- **Text:** `#F5F0EB` (cream/primary), `#A8A29E` (muted/secondary)
-- **Accent:** `#C9A84C` (warm gold — CTAs, highlights, hover states only)
-- **Headlines:** serif font (GT Sectra or Playfair Display via Google Fonts), 8-12vw on hero, tracking-wide
-- **Body:** sans-serif (Inter or DM Sans), text-base/lg, font-light
-- **Spacing:** generous — sections min-h-screen, py-24 to py-32 between sections
-- **Animations:** slow (500-800ms), ease-out curves, scroll-triggered fade-up
-- **Images:** warm color grading, rounded-none (sharp corners), aspect-video or aspect-[4/3]
-- **Buttons:** minimal — border border-gold text-gold hover:bg-gold hover:text-dark, no rounded
+## Design System (public site, October 2026 redesign) — FOLLOW EXACTLY
+The redesigned public pages (/, /play, /league, /events, /book-pto,
+/partners) live in `src/site/` (layout, forms, photos, facts, `pto.css`) and
+`src/pages/{Home,Play,League,Events,BookPTO,Partners}.tsx`. Everything is
+scoped under `.pto`.
+- **Paper:** `#F5EFE3` (page), `#EBE3D2` (alt sections), `#FFFDF8` (cards)
+- **Ink:** `#0E2418` forest green (text, dark sections), `#2C3A30` body copy
+- **Accent:** `#D9E270` lime, one accent only (CTAs on dark, seals, highlights)
+- **Display:** Playfair Display 800, italic 700 for the emphasised words
+- **Body:** DM Sans 400/500/700
+- **Shapes:** sharp corners, 2px ink borders, taped photo collages in heroes
+- **Photos:** real PTO photos only, full color, action shots lead
+  (`src/site/photos.ts`); Benson picks every face
+- **Facts:** only from `src/site/content.ts` / `src/content/league.ts`.
+  Unconfirmed values are `TODO_BENSON` and their element hides;
+  `src/site/__tests__/site-pages-integrity.test.tsx` fails the build if a
+  sentinel or a `[bracketed placeholder]` renders.
+- The older pages (/about, /faq, /community, /skills-lab, /install, /book,
+  /league/join) still use the dark RALLY layout (`PublicLayout`,
+  `rally.css`) until they are restyled.
 
 ## Brand Voice
 - Confident, warm, minimal. Like a host at a great dinner party.
@@ -146,12 +156,12 @@ src/
 ```
 
 ## Common Mistakes to Avoid
-- Do NOT use bright/saturated colors — everything should feel warm and muted
+- Do NOT add colors beyond the palette above — lime is the only bright one
 - Do NOT use rounded-lg or rounded-xl on images or cards — use sharp corners (rounded-none)
 - Do NOT center-align body text — left-align everything except hero headlines
 - Do NOT add too many CTAs — maximum 2 per section, usually 1
 - Do NOT make animations fast — minimum 500ms, prefer 700ms for entrances
-- Do NOT use stock photography descriptions — use placeholder divs with aspect ratios
+- Do NOT use stock photos or invented placeholders — real PTO photos from src/site/photos.ts only
 - Do NOT import from `src/manage/` into the public site, or the reverse. The
   manager uses inline styles and its own token object, not Tailwind.
 - Do NOT break `/manage` — it MUST keep working with passcode 9999
