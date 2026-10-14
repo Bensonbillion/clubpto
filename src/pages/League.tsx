@@ -8,7 +8,7 @@ import { photos } from "@/site/photos";
 import { isSet, leagueFacts, leagueInPlay, season2, venue } from "@/site/content";
 import { Head, Photo, Qa, usePageMeta } from "@/site/ui/bits";
 import { MailtoForm, type MailtoField } from "@/site/ui/forms";
-import { Standings } from "@/site/ui/LeagueLive";
+import { MatchdayBand, Standings } from "@/site/ui/LeagueLive";
 
 const waitlistFields: readonly MailtoField[] = [
   { name: "first", label: "First name", required: true, autoComplete: "given-name", half: true },
@@ -144,7 +144,7 @@ const League = () => {
 
   return (
     <>
-      <section className="sec-dark sec-hero" style={{ padding: "88px 0 100px" }}>
+      <section className="sec-dark sec-hero league-hero">
         <div className="wrap g2" style={{ alignItems: "center" }}>
           <div className="stack" style={{ gap: 26 }}>
             <p className="eyebrow">PTO League · Season 1 · The Founding Season</p>
@@ -180,12 +180,13 @@ const League = () => {
               </a>
             </div>
           </div>
-          <div style={{ display: "flex", justifyContent: "center" }}>
+          <div className="league-hero-card">
             <PlayerCard />
           </div>
         </div>
       </section>
 
+      <MatchdayBand />
       <Standings />
 
       <section id="how" className="sec" style={{ padding: "100px 0" }}>
@@ -193,7 +194,7 @@ const League = () => {
           <Head eyebrow="How it works">
             Sign up solo. <span className="it">Climb the table.</span>
           </Head>
-          <div className="g4">
+          <div className="g4 steps-2">
             <div className="step">
               <span className="disp num">01</span>
               <h3 className="t-step">Sign up on your own</h3>
@@ -231,7 +232,7 @@ const League = () => {
           <Head eyebrow="What every player gets">
             More than a <span className="it">match slot.</span>
           </Head>
-          <div className="g3">
+          <div className="g3 rail-m">
             {perks.map((p) => (
               <div key={p.title} className="perk" style={p.lime ? { background: "#D9E270" } : undefined}>
                 <h3>{p.title}</h3>

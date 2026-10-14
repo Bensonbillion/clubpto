@@ -1,37 +1,36 @@
 import { Link } from "react-router-dom";
 import { photos } from "@/site/photos";
-import {
-  bookPto,
-  club,
-  finalsUpcoming,
-  isSet,
-  leagueFacts,
-  leagueInPlay,
-  longDay,
-  nextThursday,
-  shortDay,
-  thursday,
-  venue,
-} from "@/site/content";
+import { bookPto, club, thursday } from "@/site/content";
 import { Head, Photo, Seal, Shot, usePageMeta } from "@/site/ui/bits";
 import { EmailCapture } from "@/site/ui/forms";
-import { LeagueOnHome } from "@/site/ui/LeagueLive";
+import { LeagueOnHome, Ticker, UpNext } from "@/site/ui/LeagueLive";
 
-/** Keep in step with HERO_SIZES in vite.config.ts (the build preloads it). */
-const HERO_SIZES = "(max-width: 900px) 56vw, 310px";
+/**
+ * Keep in step with HERO_SIZES in vite.config.ts (the build preloads it).
+ * Full width on phones (the photo hero), the collage's big print on desktop.
+ */
+const HERO_SIZES = "(max-width: 900px) 100vw, 310px";
 
 const Hero = () => (
-  <section className="sec-hero">
+  <section className="sec-hero home-hero">
     <div className="wrap g2" style={{ alignItems: "center" }}>
-      <div className="stack" style={{ gap: 28 }}>
-        <p className="eyebrow">Padel Social Club · Toronto</p>
-        <h1 className="disp t-hero">
-          Play.
-          <br />
-          Connect.
-          <br />
-          <span className="it">Compete.</span>
-        </h1>
+      <div className="stack hero-copy" style={{ gap: 28 }}>
+        {/* On phones the eyebrow and headline sit on a full-bleed action
+            photo, so the first screen is padel, not paragraphs. On wide
+            screens the photo hides and the taped collage takes over. */}
+        <div className="hero-head">
+          <div className="hero-head-media">
+            <Photo photo={photos.doublesPoint} priority sizes={HERO_SIZES} focus="50% 40%" />
+          </div>
+          <p className="eyebrow">Padel Social Club · Toronto</p>
+          <h1 className="disp t-hero">
+            Play.
+            <br />
+            Connect.
+            <br />
+            <span className="it">Compete.</span>
+          </h1>
+        </div>
         <p className="lede measure">
           Club PTO is Toronto's padel social club. A weekly meet, a league with real stakes, and the events
           everyone posts about. Every level welcome.
@@ -48,10 +47,9 @@ const Hero = () => (
           <strong>{club.playedCount} Torontonians</strong> have played with us since {club.since}.
         </p>
       </div>
-      <div className="collage">
+      <div className="collage hide-sm">
         <Shot
           photo={photos.doublesPoint}
-          priority
           sizes={HERO_SIZES}
           at={{ left: "2%", top: "5%", width: "56%", height: "76%", transform: "rotate(-3deg)" }}
         />
@@ -76,104 +74,6 @@ const Hero = () => (
     </div>
   </section>
 );
-
-const ThisWeek = () => {
-  const thu = nextThursday();
-  return (
-    <section style={{ padding: "0 0 96px" }}>
-      <div className="wrap stack reveal" style={{ gap: 28 }}>
-        <div className="split">
-          <h2 className="disp t-m">This week at PTO</h2>
-          <Link className="link-strong" to="/events">
-            Full calendar
-          </Link>
-        </div>
-        <div className="g3">
-          <article className="card">
-            <div className="card-body">
-              <p className="eyebrow eyebrow-leaf">{shortDay(thu)}</p>
-              <h3 className="disp t-card">Weekly meet</h3>
-              <p className="body" style={{ fontSize: 16 }}>
-                {thursday.startTime} to {thursday.endTime} · {venue.name}, Mississauga
-              </p>
-              <p className="small" style={{ margin: 0 }}>
-                Three courts, split by level
-              </p>
-            </div>
-            <div className="card-foot">
-              <span style={{ fontWeight: 700, fontSize: 18 }}>
-                {thursday.price} <span style={{ fontWeight: 400, fontSize: 13 }}>incl. HST</span>
-              </span>
-              <a className="btn btn-dark btn-sm" href={thursday.bookingUrl}>
-                Book
-              </a>
-            </div>
-          </article>
-          <article className="card">
-            <div className="card-body">
-              <p className="eyebrow eyebrow-leaf">Sundays · {leagueFacts.timeShort}</p>
-              <h3 className="disp t-card">PTO League</h3>
-              <p className="body" style={{ fontSize: 16 }}>
-                {leagueFacts.venueName}, {leagueFacts.venueArea}
-              </p>
-              <p className="small" style={{ margin: 0 }}>
-                {leagueInPlay() ? "Season 1, the Founding Season, in play" : "Season 1, the Founding Season"}
-              </p>
-            </div>
-            <div className="card-foot">
-              <span style={{ fontWeight: 700, fontSize: 16 }}>Season 2 waitlist open</span>
-              <Link className="btn btn-line btn-sm" to="/league">
-                See the league
-              </Link>
-            </div>
-          </article>
-          {finalsUpcoming() ? (
-            <article className="card card-lime">
-              <div className="card-body">
-                <p className="eyebrow">
-                  Coming up{isSet(leagueFacts.finalsDate) ? ` · ${longDay(leagueFacts.finalsDate)}` : ""}
-                </p>
-                <h3 className="disp t-card">Season 1 Finals Night</h3>
-                <p className="body" style={{ fontSize: 16 }}>
-                  The top of each division plays for the title. Trophies, awards, the whole league in one room.
-                </p>
-                {isSet(leagueFacts.finalsVenue) ? (
-                  <p className="small" style={{ margin: 0 }}>
-                    {leagueFacts.finalsVenue}
-                  </p>
-                ) : null}
-              </div>
-              <div className="card-foot">
-                <span style={{ fontWeight: 700, fontSize: 16 }}>
-                  {isSet(leagueFacts.finalsDate) ? "Be there" : "Date coming soon"}
-                </span>
-                <Link className="btn btn-dark btn-sm" to="/events">
-                  See events
-                </Link>
-              </div>
-            </article>
-          ) : (
-            <article className="card card-lime">
-              <div className="card-body">
-                <p className="eyebrow">Next up</p>
-                <h3 className="disp t-card">Season 2</h3>
-                <p className="body" style={{ fontSize: 16 }}>
-                  Waitlist players hear the dates first.
-                </p>
-              </div>
-              <div className="card-foot">
-                <span style={{ fontWeight: 700, fontSize: 16 }}>Hold your spot</span>
-                <Link className="btn btn-dark btn-sm" to="/league#season-2">
-                  Join the waitlist
-                </Link>
-              </div>
-            </article>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-};
 
 const doors = [
   {
@@ -396,7 +296,8 @@ const Home = () => {
   return (
     <>
       <Hero />
-      <ThisWeek />
+      <Ticker />
+      <UpNext />
       <LeagueOnHome />
       <Doors />
       <FirstNight />

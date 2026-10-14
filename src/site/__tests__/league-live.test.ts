@@ -91,3 +91,31 @@ describe("division names and the manual Week 1 table", async () => {
     expect(MANUAL_STANDINGS.M1.rows).toHaveLength(6);
   });
 });
+
+describe("matchday helpers", async () => {
+  const { countdownLabel, lastMatchday, divisionLeaders } = await import("@/site/leagueLive");
+
+  it("counts down in whole Toronto days", () => {
+    expect(countdownLabel("2026-10-18", "2026-10-14")).toBe("In 4 days");
+    expect(countdownLabel("2026-10-15", "2026-10-14")).toBe("Tomorrow");
+    expect(countdownLabel("2026-10-18", "2026-10-18")).toBe("Today");
+  });
+
+  it("finds the last played matchday", () => {
+    const days = [
+      { id: "S01", week: 1, date: "2026-10-11", status: "Played" },
+      { id: "S02", week: 2, date: "2026-10-18", status: "Scheduled" },
+    ];
+    expect(lastMatchday(days)?.id).toBe("S01");
+    expect(lastMatchday([days[1]])).toBeUndefined();
+  });
+
+  it("names a leader only for divisions with scores, in site order", () => {
+    const leaders = divisionLeaders([
+      row({ playerId: "W1", player: "Onome", division: "W", matches: 3, wins: 3, leaguePoints: 9 }),
+      row({ playerId: "M01", player: "David G", division: "M1", matches: 5, wins: 5, leaguePoints: 15 }),
+      row({ playerId: "M07", player: "Omar", division: "M2" }),
+    ]);
+    expect(leaders.map((l) => `${l.division.short}:${l.row.player}`)).toEqual(["Atlas:David G", "Venus:Onome"]);
+  });
+});
