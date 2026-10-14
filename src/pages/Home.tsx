@@ -207,7 +207,7 @@ const Wall = () => (
           <Photo photo={photos.courtsideFunSign} sizes="(max-width: 900px) 50vw, 300px" />
         </div>
         <div>
-          <Photo photo={photos.regularsLaugh} sizes="(max-width: 900px) 50vw, 300px" />
+          <Photo photo={photos.chasingBall} sizes="(max-width: 900px) 50vw, 300px" />
         </div>
         <div>
           <Photo photo={photos.courtsideLunge} sizes="(max-width: 900px) 50vw, 300px" />

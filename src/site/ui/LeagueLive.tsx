@@ -27,7 +27,6 @@ import {
   type StandingRow,
 } from "@/site/leagueLive";
 import {
-  bookPto,
   finalsUpcoming,
   isSet,
   leagueFacts,
@@ -92,7 +91,6 @@ export const Ticker = () => {
     `Thursday ${longDay(thu).split(", ")[1]} · ${thursday.startTime} · ${venue.short}`,
     next ? `PTO League Week ${next.week} · ${longDay(next.date)}` : `PTO League · Sundays · ${leagueFacts.timeShort}`,
     ...leaders.map((l) => `${l.division.short} leader · ${displayName(l.row.player)} · ${l.row.leaguePoints} pts`),
-    `Company nights from ${bookPto.companyFrom}`,
     "Every level welcome",
     "COURTSIDE · our summer day party",
   ];
