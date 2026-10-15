@@ -114,7 +114,7 @@ export const MailtoForm = ({ title, fields, subject, submitLabel, note, idPrefix
 
   return (
     <form className="form" onSubmit={onSubmit} noValidate>
-      {title ? <h3 className="disp" style={{ fontSize: 34 }}>{title}</h3> : null}
+      {title ? <h3 className="disp" style={{ fontSize: 32 }}>{title}</h3> : null}
       {rows.map((row) =>
         row.length === 2 ? (
           <div key={row[0].name} className="g2 keep-2" style={{ gap: 16 }}>

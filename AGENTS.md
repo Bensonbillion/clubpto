@@ -7,7 +7,7 @@ When a bug is reported, do NOT start by trying to fix it. Instead:
 3. Prove the fix by showing the test now passes
 
 ## Project Overview
-Community-first padel league in Toronto. Public site redesigned October 2026: light cream and forest green, Playfair + DM Sans, built for inbound (Thursday passes, the league, company nights, brand partners). See the design system below.
+Community-first padel league in Toronto. Public site redesigned October 2026: light cream and forest green, Barlow Condensed + Barlow, built for inbound (Thursday passes, the league, company nights, brand partners). See the design system below.
 
 ## CRITICAL: Do NOT Touch
 - `src/pages/Manage.tsx` and ALL files in `src/components/manage/`
@@ -34,8 +34,10 @@ scoped under `.pto`.
 - **Paper:** `#F5EFE3` (page), `#EBE3D2` (alt sections), `#FFFDF8` (cards)
 - **Ink:** `#0E2418` forest green (text, dark sections), `#2C3A30` body copy
 - **Accent:** `#D9E270` lime, one accent only (CTAs on dark, seals, highlights)
-- **Display:** Playfair Display 800, italic 700 for the emphasised words
-- **Body:** DM Sans 400/500/700
+- **Display:** Barlow Condensed 800 in capitals (`.disp`), italic 800 for the
+  emphasised words. Picked by Benson on Oct 15 2026; Playfair read too formal
+  and too big. Headlines run about 14% smaller than the Playfair sizes.
+- **Body:** Barlow 400/500/700; intro text 18px, body 16px
 - **Shapes:** sharp corners, 2px ink borders, taped photo collages in heroes
 - **Logo:** the real wordmark, `src/assets/logo-wordmark-cream.png` (script
   "Club", lime pixel ball, digital "PTO"). It is cream and lime for dark
