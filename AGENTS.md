@@ -49,9 +49,13 @@ scoped under `.pto`.
   Unconfirmed values are `TODO_BENSON` and their element hides;
   `src/site/__tests__/site-pages-integrity.test.tsx` fails the build if a
   sentinel or a `[bracketed placeholder]` renders.
-- **Live league:** `src/site/leagueLive.ts` reads standings and matchdays
-  from the league Sheet's Apps Script (GET only, the same URL as
-  `/league/admin`), cached 5 minutes per visit. Names show as the Sheet has
+- **Live league:** `src/site/leagueLive.ts` builds the tables from the
+  league Sheet's Matches, Players, Sessions and Config tabs (the Apps
+  Script's `type=standings` reads a stale layout, so it is not used). It
+  reads them through `api/league.js`, a Vercel function that calls the
+  Sheet once and serves one copy from the edge for 5 minutes, and falls back
+  to the Apps Script directly (GET only, the same URL as `/league/admin`).
+  The browser also keeps a copy for 5 minutes per visit. Names show as the Sheet has
   them (first name, last initial). The home page and /league fall back to
   static facts if the Sheet is unreachable.
 - **Forms:** every public form goes to the Google Sheet "PTO Website: form

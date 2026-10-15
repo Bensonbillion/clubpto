@@ -1,23 +1,44 @@
-import { useLocation } from "react-router-dom";
+// The 404 page, in the redesigned site's layout (SiteLayout wraps it), so a
+// mistyped or very old link still lands on something that looks like PTO and
+// has a way back in.
+
 import { useEffect } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { usePageMeta } from "@/site/ui/bits";
 
 const NotFound = () => {
-  const location = useLocation();
+  const { pathname } = useLocation();
+  usePageMeta("Page not found · Club PTO", "That page isn't here. Head back to Club PTO.", pathname);
 
+  // Keep search engines from indexing whatever URL was mistyped.
   useEffect(() => {
-    console.error("404 Error: User attempted to access non-existent route:", location.pathname);
-  }, [location.pathname]);
+    const tag = document.createElement("meta");
+    tag.name = "robots";
+    tag.content = "noindex";
+    document.head.appendChild(tag);
+    return () => tag.remove();
+  }, []);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">404</h1>
-        <p className="mb-4 text-xl text-muted-foreground">Oops! Page not found</p>
-        <a href="/" className="text-primary underline hover:text-primary/90">
-          Return to Home
-        </a>
+    <section className="sec-hero" style={{ minHeight: "60vh" }}>
+      <div className="wrap stack" style={{ gap: 24, maxWidth: 720 }}>
+        <p className="eyebrow eyebrow-leaf">404</p>
+        <h1 className="disp t-xl">
+          Out of bounds. <span className="it">That page isn't here.</span>
+        </h1>
+        <p className="lede measure">
+          The link might be old, or a letter went astray. Everything PTO is a tap away.
+        </p>
+        <div className="cta-row">
+          <Link className="btn btn-dark" to="/">
+            Back to home
+          </Link>
+          <Link className="btn btn-line" to="/play">
+            Grab a Thursday pass
+          </Link>
+        </div>
       </div>
-    </div>
+    </section>
   );
 };
 
