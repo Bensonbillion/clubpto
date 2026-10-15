@@ -20,6 +20,15 @@
       ]
     },
     {
+      "source": "/_meta/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, must-revalidate"
+        }
+      ]
+    },
+    {
       "source": "/assets/(.*)",
       "headers": [
         {
@@ -96,7 +105,31 @@
   ],
   "rewrites": [
     {
-      "source": "/((?!api/).*)",
+      "source": "/play",
+      "destination": "/_meta/play.html"
+    },
+    {
+      "source": "/league",
+      "destination": "/_meta/league.html"
+    },
+    {
+      "source": "/events",
+      "destination": "/_meta/events.html"
+    },
+    {
+      "source": "/skills-lab",
+      "destination": "/_meta/skills-lab.html"
+    },
+    {
+      "source": "/book-pto",
+      "destination": "/_meta/book-pto.html"
+    },
+    {
+      "source": "/partners",
+      "destination": "/_meta/partners.html"
+    },
+    {
+      "source": "/((?!api/|_vercel/).*)",
       "destination": "/index.html"
     }
   ]

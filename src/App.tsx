@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import SiteLayout from "./site/ui/SiteLayout";
 import Home from "./pages/Home";
 import { RETIRED } from "./site/retired";
+import { SiteAnalytics } from "./site/analytics";
 
 // Everything except the homepage is code-split so public visitors never
 // download the court-manager engine, admin tooling, or inner pages up front.
@@ -50,6 +51,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <SiteAnalytics />
       {/* basename follows Vite's base so subpath deploys (e.g. GitHub Pages) work; "/" locally */}
       <BrowserRouter basename={import.meta.env.BASE_URL}>
         <Suspense fallback={<Loading />}>

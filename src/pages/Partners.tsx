@@ -4,7 +4,7 @@
 
 import { photos } from "@/site/photos";
 import { club, partnerAudience } from "@/site/content";
-import { Head, Photo, Shot, usePageMeta } from "@/site/ui/bits";
+import { Head, Photo, Shot, usePagePreview } from "@/site/ui/bits";
 import { SiteForm, type FormField } from "@/site/ui/forms";
 
 const kitFields: readonly FormField[] = [
@@ -45,11 +45,7 @@ const ways = [
 ];
 
 const Partners = () => {
-  usePageMeta(
-    "Partners · Club PTO",
-    "Partner with Club PTO, Toronto's padel social club. Thursday nights, the PTO League and COURTSIDE. Request the media kit.",
-    "/partners",
-  );
+  usePagePreview("/partners");
 
   const stats = [partnerAudience, "Every Thursday, every league Sunday, every COURTSIDE"];
 

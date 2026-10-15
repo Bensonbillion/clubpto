@@ -6,7 +6,7 @@
 
 import { photos } from "@/site/photos";
 import { isSet, leagueFacts, leagueInPlay, season2, venue } from "@/site/content";
-import { Head, Photo, Qa, usePageMeta } from "@/site/ui/bits";
+import { Head, Photo, Qa, usePagePreview } from "@/site/ui/bits";
 import { SiteForm, type FormField } from "@/site/ui/forms";
 import { MatchdayBand, Standings } from "@/site/ui/LeagueLive";
 
@@ -136,11 +136,7 @@ const perks = [
 ];
 
 const League = () => {
-  usePageMeta(
-    "PTO League · Club PTO",
-    "Time to see where you actually rank. PTO League: Americano padel on Sundays at District Padel, Mississauga, live standings in three divisions and a Finals Night to crown each champion.",
-    "/league",
-  );
+  usePagePreview("/league");
 
   const inPlay = leagueInPlay();
 

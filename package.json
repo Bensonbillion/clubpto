@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vitest run src/site/__tests__/skills-lab-integrity.test.tsx --silent && vite build",
+    "build": "vitest run src/site/__tests__/skills-lab-integrity.test.tsx --silent && vite build && node scripts/page-html.mjs",
     "build:dev": "vite build --mode development",
     "deploy:pages": "node scripts/deploy-pages.mjs",
     "lint": "eslint .",
@@ -47,6 +47,7 @@
     "@studio-freight/lenis": "^1.0.42",
     "@supabase/supabase-js": "^2.90.1",
     "@tanstack/react-query": "^5.83.0",
+    "@vercel/analytics": "1.5.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

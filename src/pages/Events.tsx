@@ -9,15 +9,11 @@ import {
   leagueFacts,
   longDay,
 } from "@/site/content";
-import { Head, Photo, Shot, usePageMeta } from "@/site/ui/bits";
+import { Head, Photo, Shot, usePagePreview } from "@/site/ui/bits";
 import { EmailCapture } from "@/site/ui/forms";
 
 const Events = () => {
-  usePageMeta(
-    "Events · Club PTO",
-    "The nights everyone posts about. COURTSIDE, our summer day party at The Pad, plus Finals Night and community nights. Padel at the centre, music and the hang all around it.",
-    "/events",
-  );
+  usePagePreview("/events");
 
   const finals = finalsUpcoming();
 
@@ -208,7 +204,7 @@ const Events = () => {
               Event drops land in your inbox before they hit Instagram.
             </p>
           </div>
-          <EmailCapture buttonLabel="Get event drops" source="events-drops" />
+          <EmailCapture buttonLabel="Get event drops" source="events" />
         </div>
       </section>
     </>

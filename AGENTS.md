@@ -67,6 +67,21 @@ scoped under `.pto`.
   the inline boxes on Home and Events) go to the Newsletter tab. Change the
   script by editing the SAME deployment (Deploy > Manage deployments) so
   the URL never changes.
+- **Newsletter:** PTO's newsletter tool is Mailchimp (audience "ClubPTO").
+  A sign-up needs a first name and an email, and goes to Mailchimp through
+  `api/subscribe.js` (Marketing API, key in the Vercel env var
+  `MAILCHIMP_API_KEY`, tagged "Website" plus "Website: popup/home/events")
+  AND to the Sheet's Newsletter tab, in parallel (`src/site/forms/newsletter.ts`).
+  Either landing counts, so a Mailchimp hiccup never loses anyone.
+- **Link previews:** iMessage, WhatsApp and Slack read raw HTML, so the
+  build writes a copy of index.html per page with its own title,
+  description and share image (`src/site/pageMeta.ts`,
+  `scripts/page-html.mjs`, images in `public/og/`), and `vercel.json`
+  rewrites each page to its copy. Add a page to `PAGE_META` and to the
+  rewrites together; a test checks they match.
+- **Visit tracking:** Vercel Web Analytics (`src/site/analytics.tsx`),
+  public pages only; /manage, /manage2, /admin and /league/admin are left
+  out. It is switched on in the Vercel dashboard (Analytics tab).
 - **Retired pages:** /about, /faq, /community, /book, /install,
   /league/join and /club were retired on Oct 15 2026. Each redirects to its
   replacement (`src/site/retired.ts` and `vercel.json`, kept in step by a
