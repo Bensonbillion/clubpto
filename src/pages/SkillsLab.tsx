@@ -11,7 +11,7 @@
 
 import { Link } from "react-router-dom";
 import { photos } from "@/site/photos";
-import { Check, Head, Photo, Qa, Seal, Shot, usePageMeta } from "@/site/ui/bits";
+import { Check, Head, Photo, Qa, Seal, Shot, usePagePreview } from "@/site/ui/bits";
 import { SiteForm, type FormField } from "@/site/ui/forms";
 import { isSet, skillsLab } from "@/content/skillsLab";
 
@@ -88,13 +88,7 @@ const signupFields: readonly FormField[] = [
 ];
 
 const SkillsLab = () => {
-  usePageMeta(
-    "Skill Lab · Club PTO",
-    `Four weeks of small-group padel coaching in Toronto. Six players, one coach, every level. ${money(
-      skillsLab.cohortPrice,
-    )} for the four weeks. Get on the list for the next cohort.`,
-    "/skills-lab",
-  );
+  usePagePreview("/skills-lab");
   const when = [skillsLab.sessionDay, skillsLab.sessionTime].filter(isSet).join(" · ");
   const where = [skillsLab.venueName, skillsLab.venueArea].filter(isSet).join(", ");
 

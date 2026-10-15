@@ -4,7 +4,7 @@
 
 import { photos } from "@/site/photos";
 import { bookPto, club, venue } from "@/site/content";
-import { Check, Head, Plus, Qa, Shot, usePageMeta } from "@/site/ui/bits";
+import { Check, Head, Plus, Qa, Shot, usePagePreview } from "@/site/ui/bits";
 import { SiteForm, type FormField } from "@/site/ui/forms";
 
 const inquiryFields: readonly FormField[] = [
@@ -66,11 +66,7 @@ const addOns = [
 ];
 
 const BookPTO = () => {
-  usePageMeta(
-    "Book PTO · Company nights and private parties · Club PTO",
-    "Skip the escape room. Two hours of padel, run start to finish by Club PTO. Company nights, team socials and private parties in Mississauga. First-timers welcome.",
-    "/book-pto",
-  );
+  usePagePreview("/book-pto");
 
   return (
     <>

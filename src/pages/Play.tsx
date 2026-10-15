@@ -1,14 +1,10 @@
 import { Link } from "react-router-dom";
 import { photos } from "@/site/photos";
 import { longDay, thursday, todayInToronto, venue } from "@/site/content";
-import { Head, Photo, Qa, Seal, Shot, usePageMeta } from "@/site/ui/bits";
+import { Head, Photo, Qa, Seal, Shot, usePagePreview } from "@/site/ui/bits";
 
 const Play = () => {
-  usePageMeta(
-    "Thursday meets · Club PTO",
-    `Thursday plans, sorted. Padel every Thursday at ${venue.name}, Mississauga. ${thursday.startTime} to ${thursday.endTime}, three courts split by level, ${thursday.price} including HST. Come solo.`,
-    "/play",
-  );
+  usePagePreview("/play");
   const starting = todayInToronto() < thursday.firstDate ? ` from ${longDay(thursday.firstDate).replace(/^\w+, /, "")}` : "";
 
   return (

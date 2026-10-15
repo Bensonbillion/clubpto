@@ -7,7 +7,8 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { photos } from "@/site/photos";
 import { Photo } from "@/site/ui/bits";
 import { Honeypot } from "@/site/ui/forms";
-import { EMAIL_RE, buildPayload, sendEntry } from "@/site/forms/submit";
+import { EMAIL_RE } from "@/site/forms/submit";
+import { joinNewsletter } from "@/site/forms/newsletter";
 import {
   OPEN_AFTER_MS,
   OPEN_AT_SCROLL,
@@ -108,23 +109,23 @@ export const NewsletterPopup = () => {
     const fd = new FormData(e.currentTarget);
     const email = String(fd.get("email") ?? "").trim();
     const first = String(fd.get("first") ?? "").trim();
+    if (!first) {
+      setError("Add your first name so we know who we're writing to.");
+      return;
+    }
     if (!EMAIL_RE.test(email)) {
       setError("That email address doesn't look right.");
       return;
     }
     setError("");
     setPhase("sending");
-    const result = await sendEntry(
-      buildPayload(
-        { form: "newsletter", email, name: first, source: "popup" },
-        {
-          startedAt: openedAt.current,
-          now: Date.now(),
-          page: window.location.pathname,
-          honeypot: String(fd.get("website") ?? ""),
-        },
-      ),
-    );
+    const result = await joinNewsletter({
+      firstName: first,
+      email,
+      source: "popup",
+      startedAt: openedAt.current,
+      honeypot: String(fd.get("website") ?? ""),
+    });
     if (result.ok) {
       markSubscribed();
       setAlready(Boolean(result.already));
@@ -171,7 +172,14 @@ export const NewsletterPopup = () => {
                 <div className="g2 keep-2" style={{ gap: 12 }}>
                   <label className="lab" htmlFor="nl-first">
                     First name
-                    <input id="nl-first" name="first" className="input" autoComplete="given-name" placeholder="Optional" />
+                    <input
+                      id="nl-first"
+                      name="first"
+                      className="input"
+                      autoComplete="given-name"
+                      placeholder="Your first name"
+                      required
+                    />
                   </label>
                   <label className="lab" htmlFor="nl-email">
                     Email

@@ -2094,3 +2094,18 @@ body.pto-body {
     animation: none;
   }
 }
+
+/* Inline newsletter box: first name sits beside email on wide screens,
+   and both run the full width on a phone. */
+.pto .inline-form .input-first {
+  width: 200px;
+}
+@media (max-width: 640px) {
+  .pto .inline-form > .lab {
+    flex: 1 1 100%;
+  }
+  .pto .inline-form .input,
+  .pto .inline-form .input-first {
+    width: 100%;
+  }
+}

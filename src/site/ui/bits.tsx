@@ -126,7 +126,7 @@ export const Plus = () => (
   </svg>
 );
 
-const SITE = "https://clubpto.com";
+import { PAGE_META, SITE, type PagePath } from "@/site/pageMeta";
 
 const setMeta = (selector: string, attr: string, value: string) => {
   let el = document.head.querySelector<HTMLElement>(selector);
@@ -141,8 +141,12 @@ const setMeta = (selector: string, attr: string, value: string) => {
 };
 
 /** Title, description, canonical and share tags for one page. */
-export const usePageMeta = (title: string, description: string, path: string) => {
+export const usePageMeta = (title: string, description: string, path: string, image?: string) => {
   useEffect(() => {
+    if (image) {
+      setMeta('meta[property="og:image"]', "content", `${SITE}${image}`);
+      setMeta('meta[name="twitter:image"]', "content", `${SITE}${image}`);
+    }
     document.title = title;
     const url = `${SITE}${path}`;
     setMeta('meta[name="description"]', "content", description);
@@ -150,5 +154,11 @@ export const usePageMeta = (title: string, description: string, path: string) =>
     setMeta('meta[property="og:description"]', "content", description);
     setMeta('meta[property="og:url"]', "content", url);
     setMeta('link[rel="canonical"]', "href", url);
-  }, [title, description, path]);
+  }, [title, description, path, image]);
+};
+
+/** The page's own entry in PAGE_META: the same tags the build writes into its HTML. */
+export const usePagePreview = (path: PagePath) => {
+  const m = PAGE_META[path];
+  usePageMeta(m.title, m.description, path, m.image);
 };

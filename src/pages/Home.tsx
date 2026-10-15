@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { photos } from "@/site/photos";
 import { bookPto, club, thursday } from "@/site/content";
-import { Head, Photo, Seal, Shot, usePageMeta } from "@/site/ui/bits";
+import { Head, Photo, Seal, Shot, usePagePreview } from "@/site/ui/bits";
 import { EmailCapture } from "@/site/ui/forms";
 import { LeagueOnHome, Ticker, UpNext } from "@/site/ui/LeagueLive";
 
@@ -285,17 +285,13 @@ const Drops = () => (
           New passes, league news and the next COURTSIDE. You hear first.
         </p>
       </div>
-      <EmailCapture buttonLabel="Keep me posted" source="home-drops" />
+      <EmailCapture buttonLabel="Keep me posted" source="home" />
     </div>
   </section>
 );
 
 const Home = () => {
-  usePageMeta(
-    "Club PTO · Toronto's padel social club",
-    "Not your average padel club. Thursday nights at District Padel, the PTO League on Sundays and COURTSIDE in the summer.",
-    "/",
-  );
+  usePagePreview("/");
   return (
     <>
       <Hero />

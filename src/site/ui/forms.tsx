@@ -13,6 +13,7 @@ import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { club } from "@/site/content";
 import { EMAIL_RE, buildPayload, sendEntry, type FormId } from "@/site/forms/submit";
 import { markSubscribed } from "@/site/forms/popup";
+import { joinNewsletter, type NewsletterSource } from "@/site/forms/newsletter";
 
 export interface FormField {
   name: string;
@@ -215,8 +216,8 @@ type CaptureState = "idle" | "sending" | "done" | "already";
 
 interface EmailCaptureProps {
   buttonLabel: string;
-  /** Where the sign-up came from, for the Sheet: "home", "events". */
-  source: string;
+  /** Where the sign-up came from: tagged in Mailchimp and noted in the Sheet. */
+  source: Exclude<NewsletterSource, "popup">;
   /** Rendered on dark sections: swaps the button to lime. */
   dark?: boolean;
 }
@@ -240,18 +241,24 @@ export const EmailCapture = ({ buttonLabel, source, dark }: EmailCaptureProps) =
     if (state === "sending") return;
     const fd = new FormData(e.currentTarget);
     const email = String(fd.get("email") ?? "").trim();
+    const first = String(fd.get("first") ?? "").trim();
+    if (!first) {
+      setError("Add your first name so we know who we're writing to.");
+      return;
+    }
     if (!EMAIL_RE.test(email)) {
       setError("That email address doesn't look right.");
       return;
     }
     setError("");
     setState("sending");
-    const result = await sendEntry(
-      buildPayload(
-        { form: "newsletter", email, source },
-        { startedAt: startedAt.current, now: Date.now(), page: pagePath(), honeypot: String(fd.get("website") ?? "") },
-      ),
-    );
+    const result = await joinNewsletter({
+      firstName: first,
+      email,
+      source,
+      startedAt: startedAt.current,
+      honeypot: String(fd.get("website") ?? ""),
+    });
     if (result.ok) {
       markSubscribed();
       setState(result.already ? "already" : "done");
@@ -261,12 +268,24 @@ export const EmailCapture = ({ buttonLabel, source, dark }: EmailCaptureProps) =
     }
   };
 
-  const id = `capture-${source.replace(/\W+/g, "-")}`;
+  const id = `capture-${source}`;
+  const labelStyle = dark ? { color: "#F5EFE3" } : undefined;
   return (
     <form className="inline-form" onSubmit={onSubmit} noValidate>
-      <label className="lab" htmlFor={id} style={dark ? { color: "#F5EFE3" } : undefined}>
+      <label className="lab" htmlFor={`${id}-first`} style={labelStyle}>
+        First name
+        <input
+          id={`${id}-first`}
+          name="first"
+          className="input input-first"
+          autoComplete="given-name"
+          placeholder="Your first name"
+          required
+        />
+      </label>
+      <label className="lab" htmlFor={id} style={labelStyle}>
         Email
-        <input id={id} name="email" className="input" type="email" autoComplete="email" placeholder="you@email.com" />
+        <input id={id} name="email" className="input" type="email" autoComplete="email" placeholder="you@email.com" required />
       </label>
       <Honeypot />
       <button className={`btn ${dark ? "btn-lime" : "btn-dark"}`} type="submit" disabled={state === "sending"}>
