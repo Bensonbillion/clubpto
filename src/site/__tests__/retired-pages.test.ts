@@ -6,7 +6,6 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { RETIRED } from "@/site/retired";
 import { NAV } from "@/site/ui/SiteLayout";
-import { navItems } from "@/lib/constants";
 
 const ROOT = join(__dirname, "..", "..", "..");
 const vercel = JSON.parse(readFileSync(join(ROOT, "vercel.json"), "utf8")) as {
@@ -41,14 +40,16 @@ describe("retired pages", () => {
     expect(app).not.toMatch(/import\("\.\/pages\/(About|FAQPage|Community|Book|LeagueJoin|Install|Club)"\)/);
   });
 
-  it("keeps Skill Lab, the one older page Benson kept", () => {
+  it("keeps Skill Lab, rebuilt in the new layout and in the top menu", () => {
     expect(existsSync(join(ROOT, "src", "pages", "SkillsLab.tsx"))).toBe(true);
     expect(RETIRED.some(([from]) => from.startsWith("/skill"))).toBe(false);
+    expect(NAV.some((n) => n.to === "/skills-lab")).toBe(true);
+    expect(existsSync(join(ROOT, "src", "components", "layout", "PublicLayout.tsx"))).toBe(false);
   });
 
-  it("has no menu link to a retired page, old layout or new", () => {
+  it("has no menu link to a retired page", () => {
     const retired = new Set(RETIRED.map(([from]) => from.replace("/*", "")));
-    for (const to of [...NAV.map((n) => n.to), ...navItems.map((n) => n.href)]) {
+    for (const to of NAV.map((n) => n.to)) {
       expect(retired.has(to.split("#")[0]), to).toBe(false);
     }
   });

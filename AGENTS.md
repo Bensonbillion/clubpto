@@ -27,9 +27,9 @@ Community-first padel league in Toronto. Public site redesigned October 2026: li
 - React Router DOM for routing (already configured)
 
 ## Design System (public site, October 2026 redesign) — FOLLOW EXACTLY
-The redesigned public pages (/, /play, /league, /events, /book-pto,
-/partners) live in `src/site/` (layout, forms, photos, facts, `pto.css`) and
-`src/pages/{Home,Play,League,Events,BookPTO,Partners}.tsx`. Everything is
+The redesigned public pages (/, /play, /league, /events, /skills-lab,
+/book-pto, /partners) live in `src/site/` (layout, forms, photos, facts,
+`pto.css`) and `src/pages/{Home,Play,League,Events,SkillsLab,BookPTO,Partners}.tsx`. Everything is
 scoped under `.pto`.
 - **Paper:** `#F5EFE3` (page), `#EBE3D2` (alt sections), `#FFFDF8` (cards)
 - **Ink:** `#0E2418` forest green (text, dark sections), `#2C3A30` body copy
@@ -58,16 +58,18 @@ scoped under `.pto`.
   entries" (owned by clubptobookings@gmail.com) through its Apps Script web
   app (`scripts/site-forms-apps-script/Code.gs`, sender in
   `src/site/forms/submit.ts`). Each entry is a row and an email to
-  clubptobookings@gmail.com. Book PTO, Partners and the Season 2 list go to
-  the Inquiries tab; newsletter sign-ups (the pop-up in `SiteLayout` and
+  clubptobookings@gmail.com. Book PTO, Partners, the Season 2 list and the
+  Skill Lab sign-up go to the Inquiries tab; newsletter sign-ups (the pop-up in `SiteLayout` and
   the inline boxes on Home and Events) go to the Newsletter tab. Change the
   script by editing the SAME deployment (Deploy > Manage deployments) so
   the URL never changes.
 - **Retired pages:** /about, /faq, /community, /book, /install,
   /league/join and /club were retired on Oct 15 2026. Each redirects to its
   replacement (`src/site/retired.ts` and `vercel.json`, kept in step by a
-  test). Skill Lab (/skills-lab) is the one older page left on the dark
-  RALLY layout (`PublicLayout`, `rally.css`).
+  test). Skill Lab was rebuilt in the new layout the same day and is in the
+  top menu; its facts are in `src/content/skillsLab.ts`. The old RALLY
+  layout (`PublicLayout`, header, footer) is gone; `rally.css` stays only
+  because /manage still uses some of its classes.
 
 ## Brand Voice (rewritten October 2026, from how @club_pto actually posts)
 - **Who's reading:** 23 to 30, Toronto, young professionals, majority women
