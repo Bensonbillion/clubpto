@@ -214,27 +214,58 @@ export const displayName = (raw: string): string => {
   return /\s[A-Za-z]$/.test(name) ? `${name}.` : name;
 };
 
-const CACHE_KEY = "pto-league-live-v3";
-const CACHE_MS = 5 * 60 * 1000;
+// Where the table comes from, quickest first. Changed Oct 15 2026, when a
+// visitor could wait 17.6 s for a cold Sheet and the browser forgot the
+// table after 5 minutes or in a new tab.
+//
+// 1. The copy this browser saved last time, shown at once whatever its age.
+//    The table only changes after league Sunday, so the last copy is the
+//    right thing to show while a newer one is fetched.
+// 2. On a first visit, the copy the build baked in (/league-snapshot.json,
+//    written by scripts/league-snapshot.mjs), raced against the network.
+// 3. The network: /api/league, then the Sheet's web app directly.
+//
+// Then freshLeague() reads the network quietly whenever the saved copy is
+// 5 minutes old or more, and the page swaps the newer table in.
 
-const readCache = (): LeagueSnapshot | null => {
+const SAVE_KEY = "pto-league-live-v4";
+const FRESH_MS = 5 * 60 * 1000;
+const BAKED_URL = "/league-snapshot.json";
+
+interface Saved {
+  at: number;
+  data: LeagueSnapshot;
+}
+
+const isSnapshot = (d: unknown): d is LeagueSnapshot =>
+  !!d && Array.isArray((d as LeagueSnapshot).standings) && Array.isArray((d as LeagueSnapshot).matchdays);
+
+/**
+ * The saved copy, any age. Read through `window.localStorage` inside a
+ * try/catch: private mode, blocked storage, a corrupt entry or no browser at
+ * all (a Node test, a server render) all just mean there is no saved copy.
+ */
+const readSaved = (): Saved | null => {
   try {
-    const raw = sessionStorage.getItem(CACHE_KEY);
+    const raw = window.localStorage.getItem(SAVE_KEY);
     if (!raw) return null;
-    const { at, data } = JSON.parse(raw) as { at: number; data: LeagueSnapshot };
-    return Date.now() - at < CACHE_MS ? data : null;
+    const saved = JSON.parse(raw) as Partial<Saved> | null;
+    return saved && typeof saved.at === "number" && isSnapshot(saved.data) ? (saved as Saved) : null;
   } catch {
     return null;
   }
 };
 
-const writeCache = (data: LeagueSnapshot) => {
+const save = (data: LeagueSnapshot, at: number) => {
   try {
-    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), data }));
+    window.localStorage.setItem(SAVE_KEY, JSON.stringify({ at, data }));
   } catch {
     // Private mode or storage full: the page just fetches again next time.
   }
 };
+
+/** The table this browser saw last, whatever its age, or null. Synchronous, for the first render. */
+export const savedLeague = (): LeagueSnapshot | null => readSaved()?.data ?? null;
 
 /** One read from the Sheet's web app, tried twice (a cold call can drop). */
 const get = async <T,>(type: string): Promise<T> => {
@@ -264,17 +295,22 @@ interface SheetReads {
   config: SheetConfig;
 }
 
+/** The answer /api/league gives, which the baked copy shares. */
+const isReads = (body: { ok?: unknown; data?: { players?: unknown } } | null): boolean =>
+  !!body && body.ok === true && Array.isArray(body.data?.players);
+
 /**
  * The four reads. First from /api/league (api/league.js), which reads the
- * Sheet once and serves everyone the same copy from Vercel's edge for five
- * minutes; if that isn't there (local dev) or fails, straight from the
- * Sheet's web app as before.
+ * Sheet once and serves everyone the same copy from Vercel's edge (fresh for
+ * five minutes, then served at once for up to a week while it refreshes);
+ * if that isn't there (local dev) or fails, straight from the Sheet's web
+ * app as before.
  */
 const readSheet = async (): Promise<SheetReads> => {
   try {
     const res = await fetch("/api/league");
     const body = await res.json();
-    if (body && body.ok === true && Array.isArray(body.data?.players)) return body.data as SheetReads;
+    if (isReads(body)) return body.data as SheetReads;
   } catch {
     // fall through to the direct reads
   }
@@ -287,28 +323,107 @@ const readSheet = async (): Promise<SheetReads> => {
   return { players, matches, sessions, config };
 };
 
-let inflight: Promise<LeagueSnapshot> | null = null;
+/** The four reads as the pages show them: the table, and the matchdays not cancelled. */
+const toSnapshot = ({ players, matches, sessions: matchdays, config }: SheetReads): LeagueSnapshot => {
+  const standings = computeStandings(players, matches, config?.pointsPerWin || 3, config?.pointsPerLoss || 0);
+  return {
+    standings: standings.filter((r) => r.player && DIVISIONS.some((d) => d.code === r.division)),
+    matchdays: matchdays.filter((m) => m.status !== "Cancelled"),
+  };
+};
 
-/** One set of requests per visit, shared by every component on the page. */
-export const loadLeague = (): Promise<LeagueSnapshot> => {
-  const cached = readCache();
-  if (cached) return Promise.resolve(cached);
-  if (!inflight) {
-    inflight = readSheet()
-      .then(({ players, matches, sessions: matchdays, config }) => {
-        const standings = computeStandings(players, matches, config.pointsPerWin || 3, config.pointsPerLoss || 0);
-        const data: LeagueSnapshot = {
-          standings: standings.filter((r) => r.player && DIVISIONS.some((d) => d.code === r.division)),
-          matchdays: matchdays.filter((m) => m.status !== "Cancelled"),
-        };
-        writeCache(data);
+let network: Promise<LeagueSnapshot> | null = null;
+
+/**
+ * The network read, one at a time, shared by loadLeague, freshLeague and
+ * every component on the page, so a page never asks twice at once. Saved
+ * when it lands, even if a quicker copy is already showing.
+ */
+const readNetwork = (): Promise<LeagueSnapshot> => {
+  if (!network) {
+    network = readSheet()
+      .then((reads) => {
+        const data = toSnapshot(reads);
+        save(data, Date.now());
         return data;
       })
       .finally(() => {
-        inflight = null;
+        network = null;
       });
   }
-  return inflight;
+  return network;
+};
+
+/**
+ * The copy the build baked in. It is a file next to the page, so there is
+ * only one to fetch inside a browser. Its age is when the build read the
+ * Sheet (0 if unknown), so it counts as old and gets refreshed.
+ */
+const readBaked = async (): Promise<Saved> => {
+  if (typeof window === "undefined") throw new Error("no page to fetch the baked league table from");
+  const res = await fetch(BAKED_URL);
+  const body = await res.json();
+  if (!isReads(body)) throw new Error("no baked league table");
+  const at = Date.parse(body.fetchedAt);
+  return { at: Number.isFinite(at) ? at : 0, data: toSnapshot(body.data as SheetReads) };
+};
+
+let first: Promise<LeagueSnapshot> | null = null;
+
+/**
+ * The quickest good copy of the table, shared by every component on the
+ * page. The saved copy if there is one, at once, with no network wait.
+ * Otherwise whichever lands first of the baked copy and the network read;
+ * if the baked copy wins, the network read carries on and is saved when it
+ * lands. Rejects only when neither gives a table.
+ */
+export const loadLeague = (): Promise<LeagueSnapshot> => {
+  const saved = savedLeague();
+  if (saved) return Promise.resolve(saved);
+  if (!first) {
+    first = new Promise<LeagueSnapshot>((resolve, reject) => {
+      let done = false;
+      let failed = 0;
+      const lose = (e: unknown) => {
+        failed += 1;
+        if (failed === 2 && !done) reject(e);
+      };
+      readNetwork().then((data) => {
+        if (done) return;
+        done = true;
+        resolve(data);
+      }, lose);
+      readBaked().then((baked) => {
+        if (done) return;
+        done = true;
+        // The network may have saved a newer copy a moment ago; keep that.
+        const now = readSaved();
+        if (now && now.at >= baked.at) return resolve(now.data);
+        save(baked.data, baked.at);
+        resolve(baked.data);
+      }, lose);
+    }).finally(() => {
+      first = null;
+    });
+  }
+  return first;
+};
+
+/**
+ * A newer table, when one is due. Null with no request while the saved copy
+ * is under 5 minutes old. Otherwise the network read (shared if one is
+ * already going), saved and returned. Null if that fails too, so whatever
+ * is showing stays.
+ */
+export const freshLeague = async (): Promise<LeagueSnapshot | null> => {
+  const saved = readSaved();
+  const age = saved ? Date.now() - saved.at : Infinity;
+  if (!network && age >= 0 && age < FRESH_MS) return null;
+  try {
+    return await readNetwork();
+  } catch {
+    return null;
+  }
 };
 
 /**

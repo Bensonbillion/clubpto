@@ -1,9 +1,11 @@
 // The league, live: the ticker, the fixture tickets, the homepage table and
 // the League page's matchday hub, all read from the league Sheet.
 //
-// Server render (and the first paint) shows the static shape: Sundays,
-// 3 to 5 PM, District. The live numbers arrive a moment later. If the Sheet
-// cannot be reached the static shape is all anyone sees, and nothing breaks.
+// A returning visitor's first paint already has the last table this browser
+// saw, and a newer one swaps in quietly if there is one. A first visit shows
+// the static shape (Sundays, 3 to 5 PM, District) until the table arrives,
+// usually from the copy baked into the build. If nothing can be reached the
+// static shape is all anyone sees, and nothing breaks.
 //
 // The divisions are names, not ranks (Atlas, Riviera, Venus). They always
 // carry the same badge and the same weight, and nothing here numbers them.
@@ -18,11 +20,13 @@ import {
   divisionHasResults,
   divisionLeaders,
   divisionNames,
+  freshLeague,
   lastMatchday,
   loadLeague,
   manualAsOf,
   mergeManual,
   nextMatchday,
+  savedLeague,
   type LeagueSnapshot,
   type StandingRow,
 } from "@/site/leagueLive";
@@ -39,13 +43,38 @@ import {
 
 type State = { status: "loading" } | { status: "ready"; data: LeagueSnapshot } | { status: "error" };
 
+/** The table this browser saw last, on the very first render, so a returning visitor never sees the skeleton. */
+const initialState = (): State => {
+  const saved = savedLeague();
+  return saved ? { status: "ready", data: saved } : { status: "loading" };
+};
+
 export const useLeagueLive = (): State => {
-  const [state, setState] = useState<State>({ status: "loading" });
+  const [state, setState] = useState<State>(initialState);
   useEffect(() => {
     let alive = true;
+    // With a saved copy, loadLeague answers at once from it with no request
+    // (the state already has it). Without one, it is the quickest of the
+    // baked copy and the network. It is called either way so that a copy
+    // another component saved after this one first rendered still shows.
     loadLeague()
-      .then((data) => alive && setState({ status: "ready", data }))
-      .catch(() => alive && setState({ status: "error" }));
+      .then(
+        (data) => {
+          if (alive) setState((s) => (s.status === "ready" ? s : { status: "ready", data }));
+          return freshLeague();
+        },
+        () => {
+          // Nothing at all to show. The network read just failed, so it is
+          // not asked again; a table already showing is never replaced.
+          if (alive) setState((s) => (s.status === "ready" ? s : { status: "error" }));
+          return null;
+        },
+      )
+      .then((newer) => {
+        // A newer table from the background read. A failed one is null, and
+        // whatever is showing stays.
+        if (alive && newer) setState({ status: "ready", data: newer });
+      });
     return () => {
       alive = false;
     };
