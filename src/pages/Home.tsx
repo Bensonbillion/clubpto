@@ -32,8 +32,8 @@ const Hero = () => (
           </h1>
         </div>
         <p className="lede measure">
-          Thursday nights on court, a Sunday league with a real table, and summer parties your feed already
-          saw.
+          Thursday nights on three courts, a Sunday league with your name on the table, and the summer parties
+          all over your feed.
         </p>
         <div className="cta-row">
           <a className="btn btn-dark" href={thursday.bookingUrl}>
@@ -81,7 +81,7 @@ const doors = [
     photo: photos.forehandLoad,
     n: "01 · Play",
     title: "Thursday nights",
-    text: "Three courts by level, a new partner every round. $20, no membership, no partner needed.",
+    text: "Three courts by level, a new partner every round. $20 plus HST, and no partner needed.",
     cta: "Grab a pass →",
   },
   {
@@ -89,7 +89,7 @@ const doors = [
     photo: photos.leagueReady,
     n: "02 · League",
     title: "The league",
-    text: "Americano Sundays, your name on a real table and a Finals Night worth playing for.",
+    text: "Sundays with rotating partners, your name on a real table and a Finals Night worth playing for.",
     cta: "See the table →",
   },
   {
@@ -97,7 +97,7 @@ const doors = [
     photo: photos.courtsideDj,
     n: "03 · Events",
     title: "COURTSIDE and socials",
-    text: "Padel, DJ sets and golden hour. The nights people talk about for weeks.",
+    text: "Padel, DJ sets and golden hour. The nights everyone posts about.",
     cta: "See what's on →",
   },
   {
@@ -105,7 +105,7 @@ const doors = [
     photo: photos.groupOnCourt,
     n: "04 · Book PTO",
     title: "Company nights",
-    text: "Your team, your friends or your clients. We run the whole night.",
+    text: "Your team, your friends or your clients, on court for two hours. First-timers welcome.",
     cta: "Check a date →",
   },
 ];
@@ -113,7 +113,7 @@ const doors = [
 const Doors = () => (
   <section className="sec sec-alt" style={{ padding: "96px 0" }}>
     <div className="wrap stack reveal" style={{ gap: 40 }}>
-      <Head eyebrow="Find your way in">
+      <Head eyebrow="Four ways to play">
         Pick your <span className="it">way in.</span>
       </Head>
       <div className="g4 doors">
@@ -146,7 +146,7 @@ const FirstNight = () => (
           Your first night, <span className="it">sorted.</span>
         </h2>
         <p className="lede" style={{ maxWidth: 460 }}>
-          No partner needed. No membership. Never held a racket? Most of us hadn't either.
+          No partner needed. No membership. Never held a racket? Courts are split by level, so you play people at yours.
         </p>
       </div>
       <ol className="steps-list">
@@ -229,8 +229,8 @@ const Courtside = () => (
           by Club PTO
         </p>
         <p className="body" style={{ maxWidth: 460 }}>
-          Our summer day party at The Pad. Open courts all afternoon, a tournament running through it, DJ sets and
-          golden hour. Series I and II ran in 2026. The next one drops on {club.instagramHandle} first.
+          Open courts all afternoon at The Pad, a tournament running through it, DJ sets and golden hour. Series I
+          sold out in advance. The next one drops on {club.instagramHandle} first.
         </p>
         <div>
           <Link className="btn btn-lime" to="/events">

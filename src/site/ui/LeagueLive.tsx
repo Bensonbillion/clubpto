@@ -170,7 +170,7 @@ export const UpNext = () => {
         <div className="split">
           <h2 className="disp t-m">Up next</h2>
           <Link className="link-strong" to="/events">
-            Everything on
+            All events
           </Link>
         </div>
         <div className="rail rail-3" role="region" aria-label="Up next" tabIndex={0}>
@@ -185,7 +185,7 @@ export const UpNext = () => {
                   {thursday.price} <small>incl. HST</small>
                 </span>
                 <a className="btn btn-dark btn-sm" href={thursday.bookingUrl}>
-                  Book
+                  Grab a pass
                 </a>
               </>
             }

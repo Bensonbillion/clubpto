@@ -25,7 +25,7 @@ const weeks = [
 ];
 
 const levels = [
-  { title: "Never played", text: "Good. No experience needed. We start with the fundamentals and get you comfortable on court." },
+  { title: "Never played", text: "Good. We start from zero: racket control, the basic shots and where to stand." },
   { title: "Know the basics", text: "Still inconsistent? Skill Lab gives you the reps to put it together." },
   { title: "Play regularly", text: "Sharpen your technique, make better decisions and keep climbing.", lime: true },
 ];
@@ -35,13 +35,13 @@ const included = [
   "6 players maximum, one dedicated coach",
   "Technical and tactical work, then coached match play",
   "Rackets and balls provided",
-  "Snacks and refreshments",
+  "Snacks and drinks",
   "A Thursday meet on us when you finish",
 ];
 
 const offers = [
   {
-    eyebrow: "Most players start here",
+    eyebrow: "The full program",
     title: "Four-week cohort",
     price: skillsLab.cohortPrice,
     per: "for all four weeks",
@@ -99,7 +99,7 @@ const SkillsLab = () => {
           <div className="stack" style={{ gap: 26 }}>
             <p className="eyebrow">Skill Lab · Small-group coaching</p>
             <h1 className="disp t-xl">
-              Level up <span className="it">your game.</span>
+              Four weeks to a <span className="it">better game.</span>
             </h1>
             <p className="lede measure">
               Four weeks of small-group padel coaching. Six players, one coach, and a plan that meets you where you
@@ -170,7 +170,7 @@ const SkillsLab = () => {
       <section className="sec sec-alt" style={{ padding: "96px 0" }}>
         <div className="wrap g2 reveal" style={{ alignItems: "start" }}>
           <Head eyebrow="Who it's for">
-            Stopped getting better? <span className="it">That's why we built it.</span>
+            New, rusty or stuck? <span className="it">It's built for all three.</span>
           </Head>
           <div className="stack" style={{ gap: 16 }}>
             <p className="body">Maybe you've been meaning to try padel and haven't booked.</p>
@@ -306,7 +306,7 @@ const SkillsLab = () => {
         <div className="wrap g2 reveal" style={{ alignItems: "start" }}>
           <Head eyebrow="Questions">Before you sign up</Head>
           <div>
-            <Qa q="Do I need experience?" open>
+            <Qa q="Do I need to have played before?" open>
               No. Players are placed by level and complete beginners are welcome. Regulars are too. The coach just works
               on different things with you.
             </Qa>

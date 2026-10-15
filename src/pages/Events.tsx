@@ -201,7 +201,7 @@ const Events = () => {
               Don't find out <span className="it">from someone's story.</span>
             </h2>
             <p className="body" style={{ color: "#0E2418" }}>
-              Event drops land in your inbox before they hit Instagram.
+              The next COURTSIDE, Finals Night and every drop in between, straight to your inbox.
             </p>
           </div>
           <EmailCapture buttonLabel="Get event drops" source="events" />
