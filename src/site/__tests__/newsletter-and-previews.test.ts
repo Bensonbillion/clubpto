@@ -97,6 +97,30 @@ describe("api/subscribe (Mailchimp)", () => {
     });
   });
 
+  // Mailchimp's answer to a wrong, revoked or mistyped key. Its title has the
+  // word "Invalid" in it, which must not read as the person's email being bad.
+  const badKey = () => json({ title: "API Key Invalid", status: 401, detail: "Your API key may be invalid, or you've attempted to access the wrong datacenter." }, 401);
+
+  it("does not blame the person's email when the Mailchimp key is wrong", async () => {
+    const doFetch = vi.fn(async () => badKey()) as unknown as typeof fetch;
+    const result = await subscribe({ email: "amara@mail.com", firstName: "Amara", source: "popup" }, { apiKey: key, doFetch });
+    expect(result.ok).toBe(false);
+    expect(result.error).not.toBe("That email address doesn't look right.");
+    expect(result.error).toBe("Mailchimp isn't connected right.");
+  });
+
+  it("answers a wrong key as a server problem, not a bad sign-up", async () => {
+    vi.stubEnv("MAILCHIMP_API_KEY", key);
+    vi.stubGlobal("fetch", vi.fn(async () => badKey()));
+    try {
+      const res = await run({ email: "amara@mail.com", firstName: "Amara", source: "popup", elapsedMs: 5000 });
+      expect(res.code).toBe(502);
+      expect(res.body).toMatchObject({ ok: false, error: "Mailchimp isn't connected right." });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   const run = async (body: unknown, method = "POST") => {
     const res = { code: 0, body: undefined as unknown, setHeader: vi.fn(), status(c: number) { this.code = c; return this; }, json(b: unknown) { this.body = b; } };
     await handler({ method, body }, res);
