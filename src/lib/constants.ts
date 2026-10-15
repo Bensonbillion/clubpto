@@ -10,17 +10,6 @@ export const colors = {
   muted: '#A8A29E',
 } as const;
 
-// Navigation items (membership parked for now)
-// The older pages' header and footer. The redesigned pages use NAV in
-// src/site/ui/SiteLayout.tsx; keep the two pointing at the same places.
-export const navItems = [
-  { label: "Play", href: "/play" },
-  { label: "League", href: "/league" },
-  { label: "Events", href: "/events" },
-  { label: "Book PTO", href: "/book-pto" },
-  { label: "Partners", href: "/partners" },
-] as const;
-
 // Social links
 export const socialLinks = {
   instagram: "https://www.instagram.com/club_pto",

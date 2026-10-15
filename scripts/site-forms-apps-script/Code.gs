@@ -9,6 +9,7 @@
  *   - Book PTO inquiry      form: "book-pto"
  *   - Partners media kit    form: "partners"
  *   - Season 2 list         form: "season-2"
+ *   - Skill Lab sign-up     form: "skill-lab"
  *   - Newsletter sign-up    form: "newsletter" (pop-up and inline boxes)
  *
  * Every entry is one row. Inquiries go on the Inquiries tab, sign-ups on
@@ -29,6 +30,7 @@ const FORMS = {
   'book-pto': { tab: 'inquiry', label: 'Book PTO inquiry' },
   partners: { tab: 'inquiry', label: 'Partner / media kit request' },
   'season-2': { tab: 'inquiry', label: 'Season 2 list' },
+  'skill-lab': { tab: 'inquiry', label: 'Skill Lab sign-up' },
   newsletter: { tab: 'newsletter', label: 'Newsletter sign-up' },
 };
 

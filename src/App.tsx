@@ -4,7 +4,6 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import PublicLayout from "./components/layout/PublicLayout";
 import SiteLayout from "./site/ui/SiteLayout";
 import Home from "./pages/Home";
 import { RETIRED } from "./site/retired";
@@ -63,15 +62,10 @@ const App = () => (
               <Route path="/events" element={<Events />} />
               <Route path="/book-pto" element={<BookPTO />} />
               <Route path="/partners" element={<Partners />} />
-            </Route>
-
-            {/* Skill Lab is the one older page left on the RALLY layout
-                (Benson kept it on Oct 15 2026). */}
-            <Route element={<PublicLayout />}>
               <Route path="/skills-lab" element={<SkillsLab />} />
-              {/* the old singular URL has been shared, keep it landing */}
-              <Route path="/skill-lab" element={<Navigate to="/skills-lab" replace />} />
             </Route>
+            {/* the old singular URL has been shared, keep it landing */}
+            <Route path="/skill-lab" element={<Navigate to="/skills-lab" replace />} />
 
             {/* Retired old-branding pages (Oct 15 2026). Their links have been
                 shared, so each lands on the page that replaced it. vercel.json

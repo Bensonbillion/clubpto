@@ -1,685 +1,363 @@
-// Skill Lab — implemented from the approved wireframe (Claude Design
-// project "Website wireframes and design notes", turn 2): the dark
-// direction, poster as the only image, level-up positioning, nine numbered
-// sections ending on the gold inversion band.
+// Skill Lab: small-group padel coaching. Rebuilt on Oct 15 2026 in the
+// redesigned site's system (SiteLayout, cream and forest, Barlow) so it
+// matches the other public pages, and given a sign-up form that lands in the
+// "PTO Website: form entries" Sheet with an alert like every other form.
 //
-// Copy comes from the wireframe verbatim, with two standing conventions
-// applied: the club's name renders "Club PTO" (the site's spelling), and
-// the program name is "Skill Lab" — singular, as the poster and the
-// wireframe both write it. Operational facts still live in
-// src/content/skillsLab.ts; day/time/venue stay hidden until filled, and
-// the build fails if a TODO sentinel ever renders.
+// Facts come only from src/content/skillsLab.ts. Anything still TODO_BENSON
+// (day, time, venue, coach) hides itself; skills-lab-integrity.test.tsx
+// fails the build if the sentinel ever renders. The first cohort's date
+// (Aug 30) has passed, so the page sells the next cohort through the list
+// rather than naming a start date.
 
-import { memo, useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion, MotionConfig } from "framer-motion";
-import PageWrapper from "@/components/layout/PageWrapper";
-import { fadeUp, staggerContainer } from "@/lib/animations";
-import { ctaHref, isSet, skillsLab } from "@/content/skillsLab";
-import "./skillsLab.css";
+import { Link } from "react-router-dom";
+import { photos } from "@/site/photos";
+import { Check, Head, Photo, Qa, Seal, Shot, usePageMeta } from "@/site/ui/bits";
+import { SiteForm, type FormField } from "@/site/ui/forms";
+import { isSet, skillsLab } from "@/content/skillsLab";
 
-const CTA_LABEL = "Join the next cohort";
+const money = (n: number) => `$${n}`;
 
-/** "2026-08-30" → "30.08.2026", the poster's own date format. */
-const posterDate = (iso: string): string => {
-  const [y, m, d] = iso.split("-");
-  return `${d}.${m}.${y}`;
-};
-
-const WEEKS = [
-  {
-    title: "Build your foundation",
-    text: "Fundamentals: racket control, basic shots, serving, positioning.",
-  },
-  {
-    title: "Own the court",
-    text: "Movement, positioning, walls, working with your partner.",
-  },
-  {
-    title: "Build your game",
-    text: "Attacking, defending, volleys, lobs, constructing points.",
-  },
-  {
-    title: "Put it into play",
-    text: "Coached match play and real game situations.",
-  },
+const weeks = [
+  { n: "01", title: "Build your foundation", text: "Racket control, the basic shots, serving and where to stand." },
+  { n: "02", title: "Own the court", text: "Movement, positioning, playing the walls and working with your partner." },
+  { n: "03", title: "Build your game", text: "Attacking, defending, volleys, lobs and putting points together." },
+  { n: "04", title: "Put it into play", text: "Coached match play in real game situations." },
 ];
 
-const LEVELS = [
-  {
-    chip: "Never played",
-    volt: true,
-    text: "Good. No experience needed. We start with fundamentals and get you comfortable on court.",
-  },
-  {
-    chip: "Know the basics",
-    volt: false,
-    text: "Still inconsistent? Skill Lab gives you the reps to put it together.",
-  },
-  {
-    chip: "Play regularly",
-    volt: false,
-    text: "Sharpen technique, improve decision-making, keep climbing.",
-  },
+const levels = [
+  { title: "Never played", text: "Good. No experience needed. We start with the fundamentals and get you comfortable on court." },
+  { title: "Know the basics", text: "Still inconsistent? Skill Lab gives you the reps to put it together." },
+  { title: "Play regularly", text: "Sharpen your technique, make better decisions and keep climbing.", lime: true },
 ];
 
-const INCLUDED = [
-  "4 weeks of structured training",
-  "4 small-group coaching sessions",
-  "Maximum 6 players per cohort",
-  "Dedicated padel coach",
-  "Technical & tactical development",
-  "Match-play training",
-  "Snacks & refreshments",
-  "Complimentary Club PTO Meet after the program",
+const included = [
+  "4 small-group coaching sessions, one a week",
+  "6 players maximum, one dedicated coach",
+  "Technical and tactical work, then coached match play",
+  "Rackets and balls provided",
+  "Snacks and refreshments",
+  "A Thursday meet on us when you finish",
 ];
 
-const FAQ = [
+const offers = [
   {
-    q: "Do I need experience?",
-    a: "No. Players are placed by level and complete beginners are welcome. Regulars are too. The coach just works on different things with you.",
-  },
-  { q: "How big is the group?", a: "Six players. Never more." },
-  { q: "How often do we play?", a: "Once a week, for four weeks." },
-  {
-    q: "What if I miss a session?",
-    a: "One make-up session in the following cohort, arranged with us directly.",
-  },
-  {
-    q: "Do I need a racket?",
-    a: "No. Rackets and balls are provided. Just bring court shoes and water.",
+    eyebrow: "Most players start here",
+    title: "Four-week cohort",
+    price: skillsLab.cohortPrice,
+    per: "for all four weeks",
+    bullets: ["4 sessions, one a week", "6 players maximum", "A Thursday meet on us after"],
+    dark: true,
+    show: true,
   },
   {
-    q: "What happens after the four weeks?",
-    a: "Your first Wednesday or Sunday Meet is on us. After that, the room is yours.",
+    eyebrow: "Two weeks",
+    title: "Two-session pack",
+    price: skillsLab.twoSessionPackPrice,
+    per: "for two sessions",
+    bullets: ["Two sessions in back-to-back weeks", "Same small group, same coach"],
+    show: skillsLab.showTwoSessionPack,
   },
+  {
+    eyebrow: "Try it first",
+    title: "Single session",
+    price: skillsLab.singleSessionPrice,
+    per: "for one session",
+    bullets: ["One session to see what Skill Lab is about", "No four-week commitment"],
+    show: true,
+  },
+].filter((o) => o.show);
+
+const signupFields: readonly FormField[] = [
+  { name: "first", label: "First name", required: true, autoComplete: "given-name", half: true },
+  { name: "last", label: "Last name", autoComplete: "family-name", half: true },
+  { name: "email", label: "Email", type: "email", required: true, autoComplete: "email", placeholder: "you@email.com" },
+  { name: "phone", label: "Phone (optional)", type: "tel", autoComplete: "tel", placeholder: "For a text when spots open" },
+  {
+    name: "level",
+    label: "Where's your game?",
+    type: "select",
+    options: ["Never played", "Know the basics", "Play regularly"],
+  },
+  {
+    name: "offer",
+    label: "Interested in",
+    type: "select",
+    options: ["Four-week cohort", ...(skillsLab.showTwoSessionPack ? ["Two-session pack"] : []), "Single session", "Not sure yet"],
+  },
+  { name: "notes", label: "Anything the coach should know?", type: "textarea", placeholder: "What you want to work on, days that suit you" },
 ];
-
-/**
- * The poster slot. If the file under public/images/skills-lab/ ever goes
- * missing, the branded placeholder renders instead — never a broken image.
- */
-const PhotoSlot = ({
-  name,
-  caption,
-  className,
-  width,
-  height,
-  eager = false,
-}: {
-  name: string;
-  caption: string;
-  className: string;
-  width: number;
-  height: number;
-  eager?: boolean;
-}) => {
-  const [loaded, setLoaded] = useState(false);
-  return (
-    <figure className={`skl-photo ${className}`}>
-      <img
-        src={`/images/skills-lab/${name}.jpg`}
-        alt={loaded ? caption : ""}
-        width={width}
-        height={height}
-        loading={eager ? "eager" : "lazy"}
-        decoding="async"
-        onLoad={() => setLoaded(true)}
-        style={loaded ? undefined : { visibility: "hidden" }}
-      />
-      {!loaded && (
-        <span className="skl-photo__placeholder" aria-hidden="true">
-          <span className="skl-label skl-photo__caption">[ photo: {caption} ]</span>
-        </span>
-      )}
-    </figure>
-  );
-};
-
-/**
- * Memoized with stable props: renders once at mount, never on scroll. The
- * mount is IntersectionObserver-driven from the parent, which itself only
- * renders when that one boolean flips.
- */
-const StickyBar = memo(({ onDismiss }: { onDismiss: () => void }) => {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 16 }}
-      transition={{ duration: 0.2, ease: "easeOut" }}
-      className="skl-sticky"
-    >
-      <p className="skl-label skl-sticky__fact">Skill Lab · 6 per cohort</p>
-      <a
-        className="rly-pill skl-cta"
-        href={ctaHref()}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        Join
-      </a>
-      <button
-        type="button"
-        className="skl-sticky__dismiss"
-        aria-label="Dismiss"
-        onClick={onDismiss}
-      >
-        ✕
-      </button>
-    </motion.div>
-  );
-});
-StickyBar.displayName = "StickyBar";
 
 const SkillsLab = () => {
-  useEffect(() => {
-    const previous = document.title;
-    document.title = "Skill Lab · Club PTO";
-    return () => {
-      document.title = previous;
-    };
-  }, []);
-
-  const heroRef = useRef<HTMLElement | null>(null);
-  const [heroGone, setHeroGone] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
-  useEffect(() => {
-    const el = heroRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(([entry]) => {
-      setHeroGone(!entry.isIntersecting);
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+  usePageMeta(
+    "Skill Lab · Club PTO",
+    `Four weeks of small-group padel coaching in Toronto. Six players, one coach, every level. ${money(
+      skillsLab.cohortPrice,
+    )} for the four weeks. Get on the list for the next cohort.`,
+    "/skills-lab",
+  );
+  const when = [skillsLab.sessionDay, skillsLab.sessionTime].filter(isSet).join(" · ");
+  const where = [skillsLab.venueName, skillsLab.venueArea].filter(isSet).join(", ");
 
   return (
-    <PageWrapper>
-      {/* reducedMotion="user": every animation renders its final state for
-          people who asked the OS for less motion. */}
-      <MotionConfig reducedMotion="user">
-        <div className="skl-page">
-          {/* ── ribbon — the one fact banner ────────────────────────── */}
-          <div className="skl-ribbon skl-label">
-            <span>Skill Lab · cohort of six</span>
-            {isSet(skillsLab.cohortStartDate) && (
-              <>
-                <span className="skl-ribbon__sep">/</span>
-                <span>live {posterDate(skillsLab.cohortStartDate)}</span>
-              </>
-            )}
+    <>
+      <section className="sec-hero">
+        <div className="wrap g2" style={{ alignItems: "center" }}>
+          <div className="stack" style={{ gap: 26 }}>
+            <p className="eyebrow">Skill Lab · Small-group coaching</p>
+            <h1 className="disp t-xl">
+              Level up <span className="it">your game.</span>
+            </h1>
+            <p className="lede measure">
+              Four weeks of small-group padel coaching. Six players, one coach, and a plan that meets you where you
+              are, whether you've never held a racket or you keep hitting the same ceiling.
+            </p>
+            <div className="facts">
+              <div className="fact">
+                <span>Format</span>
+                <span>4 weeks · one session a week</span>
+              </div>
+              <div className="fact">
+                <span>Group</span>
+                <span>6 players, 1 coach</span>
+              </div>
+              {when ? (
+                <div className="fact">
+                  <span>When</span>
+                  <span>{when}</span>
+                </div>
+              ) : null}
+              {where ? (
+                <div className="fact">
+                  <span>Where</span>
+                  <span>{where}</span>
+                </div>
+              ) : null}
+              {isSet(skillsLab.coachName) ? (
+                <div className="fact">
+                  <span>Coach</span>
+                  <span>{skillsLab.coachName}</span>
+                </div>
+              ) : null}
+              <div className="fact">
+                <span>Price</span>
+                <span>{money(skillsLab.cohortPrice)} for the four weeks</span>
+              </div>
+            </div>
+            <div className="cta-row">
+              <a className="btn btn-dark" href="#join">
+                Get on the list
+              </a>
+              <a className="btn btn-line" href="#pricing">
+                See pricing
+              </a>
+            </div>
           </div>
-
-          {/* ── hero — pitch left, poster right. Not animated: the
-                 headline and poster are the largest paints. ───────────── */}
-          <section ref={heroRef} className="skl-hero">
-            <div>
-              <p className="skl-label skl-hero__eyebrow">
-                Club PTO presents Skill Lab
-              </p>
-              <h1 className="rly-display skl-hero__title">
-                Level up
-                <br />
-                your game.
-              </h1>
-              <p className="skl-hero__sub">
-                Four weeks of small-group padel coaching in Toronto. Six
-                players, one coach, and a plan that meets you where you are,
-                whether you've never held a racket or you play every week and
-                keep hitting the same ceiling.
-              </p>
-              <div className="skl-hero__action">
-                <a
-                  className="rly-pill skl-cta"
-                  href={ctaHref()}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {CTA_LABEL}
-                </a>
-                <span className="skl-label skl-hero__price">
-                  ${skillsLab.cohortPrice} · four weeks
-                </span>
-              </div>
-              <div className="skl-stats">
-                <div className="skl-stat">
-                  <span className="skl-stat__num">6</span>
-                  <span className="skl-label skl-stat__label">Players</span>
-                </div>
-                <div className="skl-stat">
-                  <span className="skl-stat__num">4</span>
-                  <span className="skl-label skl-stat__label">Weeks</span>
-                </div>
-                <div className="skl-stat">
-                  <span className="skl-stat__num">4</span>
-                  <span className="skl-label skl-stat__label">Sessions</span>
-                </div>
-              </div>
-            </div>
-            <PhotoSlot
-              name="hero"
-              caption="SKILL LAB · Club PTO"
-              className="skl-hero__photo"
-              width={1000}
-              height={1502}
-              eager
+          <div className="collage collage-tall">
+            <Shot
+              photo={photos.forehandLoad}
+              priority
+              sizes="(max-width: 900px) 56vw, 330px"
+              at={{ right: 0, top: 0, width: "56%", height: "64%", transform: "rotate(3deg)", zIndex: 2 }}
             />
-          </section>
+            <Shot
+              photo={photos.overheadSwing}
+              sizes="(max-width: 900px) 58vw, 340px"
+              at={{ left: 0, bottom: "2%", width: "58%", height: "66%", transform: "rotate(-3deg)" }}
+            />
+            <Seal at={{ right: "4%", bottom: "4%", width: 140, height: 140, transform: "rotate(8deg)", zIndex: 3 }}>
+              6 players
+              <br />
+              1 coach
+            </Seal>
+          </div>
+        </div>
+      </section>
 
-          {/* ── why we built it ────────────────────────────────── */}
-          <motion.section
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            className="skl-section skl-section--raised"
-          >
-            <div className="skl-inner">
-              <motion.p variants={fadeUp} className="skl-label skl-eyebrow">
-                why we built it
-              </motion.p>
-              <motion.ul variants={fadeUp} className="skl-why__lines">
-                <li>Maybe you've been meaning to try padel and haven't booked.</li>
-                <li>
-                  Maybe you've played a few times but still feel like you don't
-                  really know what you're doing.
-                </li>
-                <li>Or you play most weeks now and you've stopped getting better.</li>
-              </motion.ul>
-              <motion.p variants={fadeUp} className="skl-why__close">
-                That's exactly why we built this.
-              </motion.p>
-              <motion.p variants={fadeUp} className="skl-why__note">
-                Same four weeks, same six players, same coach. Where you start
-                doesn't change the program. It changes what the coach works on
-                with you.
-              </motion.p>
-            </div>
-          </motion.section>
+      <section className="sec sec-alt" style={{ padding: "96px 0" }}>
+        <div className="wrap g2 reveal" style={{ alignItems: "start" }}>
+          <Head eyebrow="Who it's for">
+            Stopped getting better? <span className="it">That's why we built it.</span>
+          </Head>
+          <div className="stack" style={{ gap: 16 }}>
+            <p className="body">Maybe you've been meaning to try padel and haven't booked.</p>
+            <p className="body">Maybe you've played a few times and still don't really know what you're doing.</p>
+            <p className="body">Or you play most weeks now and you've stopped getting better.</p>
+            <p className="body">
+              Same four weeks, same six players, same coach. Where you start doesn't change the program. It changes what
+              the coach works on with you.
+            </p>
+          </div>
+        </div>
+      </section>
 
-          {/* ── the four weeks ─────────────────────────────────── */}
-          <motion.section
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            className="skl-section"
-          >
-            <div className="skl-inner">
-              <div className="skl-weeks__head">
-                <div>
-                  <motion.p variants={fadeUp} className="skl-label skl-eyebrow">
-                    the four weeks
-                  </motion.p>
-                  <motion.h2 variants={fadeUp} className="rly-display skl-h2">
-                    Four weeks, four jobs.
-                  </motion.h2>
-                </div>
-                <motion.p variants={fadeUp} className="skl-weeks__intro">
-                  One session a week, four weeks running. Each one builds on
-                  the last, so you finish with a game rather than a list of
-                  drills.
-                </motion.p>
+      <section className="sec" style={{ padding: "96px 0" }}>
+        <div className="wrap stack reveal" style={{ gap: 44 }}>
+          <Head eyebrow="The four weeks">
+            Four weeks. <span className="it">Four jobs.</span>
+          </Head>
+          <div className="g4">
+            {weeks.map((w) => (
+              <div key={w.n} className="step">
+                <span className="disp num">{w.n}</span>
+                <h3 className="t-step">{w.title}</h3>
+                <p className="body" style={{ fontSize: 16 }}>
+                  {w.text}
+                </p>
               </div>
-              <ol className="skl-weeks__grid">
-                {WEEKS.map((week, i) => (
-                  <motion.li
-                    variants={fadeUp}
-                    key={week.title}
-                    className={`skl-week ${i === 0 ? "skl-week--first" : ""}`}
-                  >
-                    <div className="skl-week__num">{`0${i + 1}`}</div>
-                    <h3 className="skl-week__title">{week.title}</h3>
-                    <p className="skl-week__text">{week.text}</p>
-                  </motion.li>
-                ))}
-              </ol>
-            </div>
-          </motion.section>
+            ))}
+          </div>
+          <p className="body measure">
+            One session a week, each building on the last, so you finish with a game rather than a list of drills.
+          </p>
+        </div>
+      </section>
 
-          {/* ── why six ────────────────────────────────────────── */}
-          <motion.section
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            className="skl-section skl-section--raised"
-          >
-            <div className="skl-inner">
-              <motion.p variants={fadeUp} className="skl-label skl-eyebrow">
-                why six
-              </motion.p>
-              <div className="skl-six__grid">
-                <motion.div variants={fadeUp} className="skl-six__numeral" aria-hidden="true">
-                  6
-                </motion.div>
-                <motion.div variants={fadeUp}>
-                  <h2 className="rly-display skl-h2">
-                    Six players. One coach.
-                    <br />
-                    No waiting around.
-                  </h2>
-                  <p className="skl-six__copy">
-                    A twenty-person clinic gives you a queue and a handful of
-                    touches an hour. Six means the coach sees every rep you
-                    take, and you take a lot of them.
-                  </p>
-                </motion.div>
+      <section style={{ padding: "0 0 96px" }}>
+        <div className="wrap strip reveal">
+          <div>
+            <Photo photo={photos.baselineReady} sizes="(max-width: 900px) 33vw, 400px" />
+          </div>
+          <div>
+            <Photo photo={photos.doublesPoint} sizes="(max-width: 900px) 33vw, 400px" />
+          </div>
+          <div>
+            <Photo photo={photos.districtSprint} sizes="(max-width: 900px) 33vw, 400px" />
+          </div>
+        </div>
+      </section>
+
+      <section className="sec sec-alt" style={{ padding: "96px 0" }}>
+        <div className="wrap stack reveal" style={{ gap: 40 }}>
+          <Head eyebrow="Why six">
+            Six players. One coach. <span className="it">No waiting around.</span>
+          </Head>
+          <p className="body measure">
+            A twenty-person clinic gives you a queue and a handful of touches an hour. Six means the coach sees every rep
+            you take, and you take a lot of them. Players are placed by level, so you train with people moving at your
+            speed.
+          </p>
+          <div className="g3 rail-m">
+            {levels.map((l) => (
+              <div key={l.title} className="perk" style={l.lime ? { background: "#D9E270" } : undefined}>
+                <h3>{l.title}</h3>
+                <p className="body" style={{ fontSize: 16, color: l.lime ? "#0E2418" : undefined }}>
+                  {l.text}
+                </p>
               </div>
-            </div>
-          </motion.section>
+            ))}
+          </div>
+        </div>
+      </section>
 
-          {/* ── levels ─────────────────────────────────────────── */}
-          <motion.section
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            className="skl-section"
-          >
-            <div className="skl-inner">
-              <motion.p variants={fadeUp} className="skl-label skl-eyebrow">
-                levels
-              </motion.p>
-              <motion.h2 variants={fadeUp} className="rly-display skl-h2">
-                Not a beginners class. A better-players class.
-              </motion.h2>
-              <motion.p variants={fadeUp} className="skl-levels__sub">
-                Players are placed by level, so you train with people moving at
-                your speed. Find yourself below.
-              </motion.p>
-              <ul className="skl-levels__row">
-                {LEVELS.map((level) => (
-                  <motion.li variants={fadeUp} key={level.chip} className="skl-level">
-                    <span className={`skl-chip ${level.volt ? "skl-chip--volt" : ""}`}>
-                      {level.chip}
-                    </span>
-                    <p>{level.text}</p>
-                  </motion.li>
-                ))}
-              </ul>
-            </div>
-          </motion.section>
+      <section className="sec" style={{ padding: "96px 0" }}>
+        <div className="wrap g2 reveal" style={{ alignItems: "start" }}>
+          <div className="stack" style={{ gap: 16 }}>
+            <Head eyebrow="What's included">
+              Bring shoes. <span className="it">We bring the rest.</span>
+            </Head>
+            <p className="body measure">
+              Finish the four weeks and your first Thursday meet is on us. Come back the week after and keep playing.
+            </p>
+          </div>
+          <div>
+            {included.map((t) => (
+              <div key={t} className="li">
+                <Check />
+                <span>{t}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-          {/* ── what's included ────────────────────────────────── */}
-          <motion.section
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            className="skl-section skl-section--raised"
-          >
-            <div className="skl-inner">
-              <div className="skl-included__grid">
-                <div>
-                  <motion.p variants={fadeUp} className="skl-label skl-eyebrow">
-                    what's included
-                  </motion.p>
-                  <motion.h2 variants={fadeUp} className="rly-display skl-h2">
-                    Everything in the four weeks.
-                  </motion.h2>
-                  <motion.p variants={fadeUp} className="skl-included__note">
-                    Rackets and balls are on us. Bring court shoes and water.
-                    Nothing else to buy.
-                  </motion.p>
-                </div>
-                <ul className="skl-included__list">
-                  {INCLUDED.map((item) => (
-                    <motion.li variants={fadeUp} key={item} className="skl-included__item">
-                      <span className="skl-included__check" aria-hidden="true">
-                        ✓
-                      </span>
-                      {item}
-                    </motion.li>
+      <section id="pricing" className="sec sec-alt" style={{ padding: "96px 0" }}>
+        <div className="wrap stack reveal" style={{ gap: 40 }}>
+          <Head eyebrow="Pricing">Choose how you train</Head>
+          <div className="g3">
+            {offers.map((o) => (
+              <article key={o.title} className={`card card-pad${o.dark ? " card-dark" : ""}`} style={{ gap: 18 }}>
+                <p className={`eyebrow${o.dark ? "" : " eyebrow-leaf"}`}>{o.eyebrow}</p>
+                <h3 className="disp" style={{ fontSize: 34 }}>
+                  {o.title}
+                </h3>
+                <p style={{ margin: 0 }}>
+                  <span className="disp" style={{ fontSize: 49 }}>
+                    {money(o.price)}
+                  </span>
+                  <span style={{ fontSize: 15 }}> {o.per}</span>
+                </p>
+                <ul className="bullets">
+                  {o.bullets.map((b) => (
+                    <li key={b}>{b}</li>
                   ))}
                 </ul>
-              </div>
-            </div>
-          </motion.section>
-
-          {/* ── after the four weeks ───────────────────────────── */}
-          <motion.section
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            className="skl-section"
-          >
-            <div className="skl-inner">
-              <motion.p variants={fadeUp} className="skl-label skl-eyebrow">
-                after the four weeks
-              </motion.p>
-              <motion.h2 variants={fadeUp} className="rly-display skl-after__title">
-                Skill Lab doesn't end at graduation.
-              </motion.h2>
-              {/* One source line for the two nights — the night-parity guard
-                  checks line by line. */}
-              <motion.p variants={fadeUp} className="skl-after__copy">
-                Finish the program and you get one complimentary Club PTO Wednesday or Sunday Meet.
-                You're not a graduate, you're in the room. Come back next week
-                and play.
-              </motion.p>
-              <motion.div variants={fadeUp} className="skl-after__chips">
-                <span className="skl-chip">Meet new players</span>
-                <span className="skl-chip">Play different styles</span>
-                <span className="skl-chip">Keep playing</span>
-              </motion.div>
-            </div>
-          </motion.section>
-
-          {/* ── pricing ────────────────────────────────────────── */}
-          <motion.section
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            id="pricing"
-            className="skl-section skl-section--raised skl-pricing"
-          >
-            <div className="skl-inner">
-              <motion.p variants={fadeUp} className="skl-label skl-eyebrow">
-                pricing
-              </motion.p>
-              <motion.h2 variants={fadeUp} className="rly-display skl-h2">
-                Choose how you train.
-              </motion.h2>
-              <div className="skl-pricing__cards">
-                <motion.div variants={fadeUp} className="skl-price skl-price--primary">
-                  <div className="skl-price__head">
-                    <span className="skl-label skl-price__label">Skill Lab cohort</span>
-                    <span className="skl-price__badge">Most players start here</span>
-                  </div>
-                  <div className="skl-price__amount">${skillsLab.cohortPrice}</div>
-                  <div className="skl-price__per">for the full four weeks</div>
-                  <div className="skl-price__rows">
-                    <div className="skl-price__row">4 weeks, 4 structured sessions</div>
-                    <div className="skl-price__row">6 players maximum</div>
-                    <div className="skl-price__row">Complimentary Club PTO Meet</div>
-                  </div>
-                  <a
-                    className="rly-pill skl-cta"
-                    href={ctaHref()}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {CTA_LABEL}
-                  </a>
-                  {isSet(skillsLab.sessionDay) &&
-                    isSet(skillsLab.sessionTime) &&
-                    isSet(skillsLab.venueName) && (
-                      <p className="skl-label skl-price__meta">
-                        {skillsLab.sessionDay} · {skillsLab.sessionTime} ·{" "}
-                        {skillsLab.venueName}
-                      </p>
-                    )}
-                </motion.div>
-                {skillsLab.showTwoSessionPack && (
-                  <motion.div variants={fadeUp} className="skl-price">
-                    <span className="skl-label skl-price__label skl-price__label--quiet">
-                      Two-session pack
-                    </span>
-                    <div className="skl-price__amount">${skillsLab.twoSessionPackPrice}</div>
-                    <div className="skl-price__per">two sessions</div>
-                    <p className="skl-price__desc">
-                      Two sessions across back-to-back weeks.
-                    </p>
-                    <a
-                      className="rly-pill rly-pill--ghost skl-cta"
-                      href={ctaHref()}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Book
-                    </a>
-                  </motion.div>
-                )}
-                <motion.div variants={fadeUp} className="skl-price">
-                  <span className="skl-label skl-price__label skl-price__label--quiet">
-                    Single session
-                  </span>
-                  <div className="skl-price__amount">${skillsLab.singleSessionPrice}</div>
-                  <div className="skl-price__per">one session</div>
-                  <p className="skl-price__desc">
-                    Not ready to commit to four weeks? Try one session and see
-                    what Skill Lab is about.
-                  </p>
-                  <a
-                    className="rly-pill rly-pill--ghost skl-cta"
-                    href={ctaHref()}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Book
-                  </a>
-                </motion.div>
-              </div>
-            </div>
-          </motion.section>
-
-          {/* ── founding cohort — the social-proof slot for a
-                 program that has never run ─────────────────────────────── */}
-          <motion.section
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            className="skl-section"
-          >
-            <div className="skl-inner">
-              <div className="skl-founding__grid">
-                <div>
-                  <motion.p variants={fadeUp} className="skl-label skl-eyebrow">
-                    founding cohort
-                  </motion.p>
-                  <motion.h2 variants={fadeUp} className="rly-display skl-h2">
-                    Be one of the first six.
-                  </motion.h2>
-                  <motion.div variants={fadeUp} className="skl-founding__seats">
-                    <span className="skl-seat skl-seat--volt">001</span>
-                    <span className="skl-seat">002</span>
-                    <span className="skl-seat">003</span>
-                    <span className="skl-seat">004</span>
-                    <span className="skl-seat">005</span>
-                    <span className="skl-seat">006</span>
-                  </motion.div>
-                </div>
-                <motion.div variants={fadeUp}>
-                  <p className="skl-label skl-founding__motif">Cohort 001</p>
-                  <p className="skl-founding__copy">
-                    This is the first Skill Lab, so we won't pretend to have
-                    testimonials yet. What we can tell you: founding members
-                    are named in the room's history and get first access to
-                    every cohort after this one. Six seats, and we'd like you
-                    in one of them.
-                  </p>
-                </motion.div>
-              </div>
-            </div>
-          </motion.section>
-
-          {/* ── faq ────────────────────────────────────────────── */}
-          <motion.section
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            className="skl-section skl-section--raised"
-          >
-            <div className="skl-inner">
-              <motion.p variants={fadeUp} className="skl-label skl-eyebrow">
-                faq
-              </motion.p>
-              <motion.h2 variants={fadeUp} className="rly-display skl-h2">
-                Questions people ask first.
-              </motion.h2>
-              <motion.div variants={fadeUp} className="skl-faq__list">
-                {FAQ.map((item) => (
-                  <FaqItem key={item.q} q={item.q} a={item.a} />
-                ))}
-              </motion.div>
-            </div>
-          </motion.section>
-
-          {/* ── the gold inversion band ─────────────────────────────── */}
-          <motion.section
-            variants={staggerContainer}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            className="skl-final"
-          >
-            <motion.h2 variants={fadeUp} className="rly-display skl-final__title">
-              Stop waiting to be good enough.
-            </motion.h2>
-            <motion.p variants={fadeUp} className="skl-final__sub">
-              You get better by playing. Four weeks from now you could be a
-              different player. Come find out.
-            </motion.p>
-            <motion.div variants={fadeUp}>
-              <a
-                className="rly-pill skl-cta"
-                href={ctaHref()}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                {CTA_LABEL}
+                <a className={`btn ${o.dark ? "btn-lime" : "btn-dark"}`} href="#join" style={{ marginTop: "auto" }}>
+                  Get on the list
+                </a>
+              </article>
+            ))}
+          </div>
+          {isSet(skillsLab.registrationUrl) ? (
+            <p className="body">
+              Know your dates already?{" "}
+              <a href={skillsLab.registrationUrl} style={{ fontWeight: 700 }}>
+                See open sessions
               </a>
-            </motion.div>
-            <motion.p variants={fadeUp} className="skl-label skl-final__fact">
-              Only 6 places per cohort
-            </motion.p>
-          </motion.section>
-
-          {/* ── sticky bar ──────────────────────────────────────────── */}
-          <AnimatePresence>
-            {heroGone && !dismissed && (
-              <StickyBar onDismiss={() => setDismissed(true)} />
-            )}
-          </AnimatePresence>
+            </p>
+          ) : null}
         </div>
-      </MotionConfig>
-    </PageWrapper>
-  );
-};
+      </section>
 
-/** One FAQ row — hairline rules, disclosure semantics, visible focus. */
-const FaqItem = ({ q, a }: { q: string; a: string }) => {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="skl-faq__item">
-      <button
-        type="button"
-        className="skl-faq__q"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
-        {q}
-        <span className="skl-faq__mark" aria-hidden="true">
-          {open ? "−" : "+"}
-        </span>
-      </button>
-      {open && <p className="skl-faq__a">{a}</p>}
-    </div>
+      <section className="sec" style={{ padding: "96px 0" }}>
+        <div className="wrap g2 reveal" style={{ alignItems: "start" }}>
+          <Head eyebrow="Questions">Before you sign up</Head>
+          <div>
+            <Qa q="Do I need experience?" open>
+              No. Players are placed by level and complete beginners are welcome. Regulars are too. The coach just works
+              on different things with you.
+            </Qa>
+            <Qa q="How big is the group?">Six players. Never more.</Qa>
+            <Qa q="How often do we play?">Once a week, for four weeks.</Qa>
+            <Qa q="What if I miss a session?">One make-up session in the following cohort, arranged with us directly.</Qa>
+            <Qa q="Do I need a racket?">No. Rackets and balls are provided. Just bring court shoes and water.</Qa>
+            <Qa q="What happens after the four weeks?">
+              Your first Thursday meet is on us.{" "}
+              <Link to="/play" style={{ fontWeight: 700 }}>
+                See Thursdays
+              </Link>
+            </Qa>
+          </div>
+        </div>
+      </section>
+
+      <section id="join" className="sec-dark" style={{ padding: "100px 0" }}>
+        <div className="wrap g2" style={{ alignItems: "start" }}>
+          <div className="stack" style={{ gap: 22 }}>
+            <p className="eyebrow">The next cohort</p>
+            <h2 className="disp t-xl">
+              Stop waiting to be <span className="it">good enough.</span>
+            </h2>
+            <p className="body" style={{ maxWidth: 460 }}>
+              You get better by playing. Get on the list and you hear the next cohort's dates first. Six places per
+              cohort.
+            </p>
+          </div>
+          <SiteForm
+            form="skill-lab"
+            idPrefix="skl"
+            title="Get on the list"
+            fields={signupFields}
+            nameFrom={["first", "last"]}
+            subject={(v) => `Skill Lab sign-up · ${v.first} ${v.last}`.trim()}
+            submitLabel="Save my spot on the list"
+            done={{
+              title: "You're on the list.",
+              body: "You'll hear the next cohort's dates first. Six places, so watch your inbox.",
+            }}
+          />
+        </div>
+      </section>
+    </>
   );
 };
 

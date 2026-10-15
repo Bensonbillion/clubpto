@@ -13,7 +13,7 @@ export const FORMS_URL: string =
 
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export type FormId = "book-pto" | "partners" | "season-2" | "newsletter";
+export type FormId = "book-pto" | "partners" | "season-2" | "skill-lab" | "newsletter";
 
 export interface Entry {
   form: FormId;

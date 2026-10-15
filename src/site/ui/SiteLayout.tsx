@@ -1,7 +1,7 @@
 // The shell for the redesigned public pages: announcement bar, header,
-// the page, footer, and the newsletter pop-up. Skill Lab is the one older
-// page left; it keeps PublicLayout. The other old pages were retired on
-// Oct 15 2026 (src/site/retired.ts).
+// the page, footer, and the newsletter pop-up. Every public page uses it
+// since Skill Lab was rebuilt on Oct 15 2026; the old-branding pages were
+// retired the same day (src/site/retired.ts).
 
 import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
@@ -16,6 +16,7 @@ export const NAV = [
   { label: "League", to: "/league" },
   { label: "Standings", to: "/league#standings" },
   { label: "Events", to: "/events" },
+  { label: "Skill Lab", to: "/skills-lab" },
   { label: "Book PTO", to: "/book-pto" },
   { label: "Partners", to: "/partners" },
 ] as const;
@@ -106,6 +107,7 @@ const Footer = () => (
           <Link to="/play">Thursday meets</Link>
           <Link to="/league">The league</Link>
           <Link to="/events">Events</Link>
+          <Link to="/skills-lab">Skill Lab</Link>
         </nav>
         <nav aria-label="Work with us">
           <p className="eyebrow">Work with us</p>
