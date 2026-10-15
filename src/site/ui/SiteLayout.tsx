@@ -36,7 +36,7 @@ const Announcement = () => {
       <div className="wrap">
         <span className="ann-long">{line}</span>
         <span className="ann-short">Same club, new night: Thursdays.</span>
-        <Link to="/play">Grab a pass</Link>
+        <a href={thursday.bookingUrl}>Grab a pass</a>
       </div>
     </div>
   );
