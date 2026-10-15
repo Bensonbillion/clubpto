@@ -56,7 +56,7 @@ export const leagueFacts = {
   /**
    * The season as actually scheduled in the league Sheet (Sessions tab):
    * seven Sundays, Oct 11 to Nov 22. league.ts still carries the original
-   * Oct 4 plan, which /league/join reads, so the site keeps its own copy.
+   * Oct 4 plan, so the site keeps its own copy.
    */
   seasonStart: "2026-10-11",
   seasonEnd: "2026-11-22",
@@ -112,17 +112,6 @@ export const partnerAudience = "Majority women and BIPOC, 20 to 35";
 export const communityNights = {
   anniversaryMonth: "October 2026",
 } as const;
-
-// Email capture runs through Klaviyo's public client API once both values
-// are set in the Vercel project's environment. Until then the site shows a
-// follow-on-Instagram prompt instead of a form that goes nowhere.
-export const emailCapture = {
-  companyId: (import.meta.env.VITE_KLAVIYO_COMPANY_ID as string | undefined) ?? "",
-  listId: (import.meta.env.VITE_KLAVIYO_LIST_ID as string | undefined) ?? "",
-};
-
-export const emailCaptureReady = (): boolean =>
-  emailCapture.companyId.length > 0 && emailCapture.listId.length > 0;
 
 const TORONTO = "America/Toronto";
 

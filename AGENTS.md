@@ -54,9 +54,20 @@ scoped under `.pto`.
   `/league/admin`), cached 5 minutes per visit. Names show as the Sheet has
   them (first name, last initial). The home page and /league fall back to
   static facts if the Sheet is unreachable.
-- The older pages (/about, /faq, /community, /skills-lab, /install, /book,
-  /league/join) still use the dark RALLY layout (`PublicLayout`,
-  `rally.css`) until they are restyled.
+- **Forms:** every public form goes to the Google Sheet "PTO Website: form
+  entries" (owned by clubptobookings@gmail.com) through its Apps Script web
+  app (`scripts/site-forms-apps-script/Code.gs`, sender in
+  `src/site/forms/submit.ts`). Each entry is a row and an email to
+  clubptobookings@gmail.com. Book PTO, Partners and the Season 2 list go to
+  the Inquiries tab; newsletter sign-ups (the pop-up in `SiteLayout` and
+  the inline boxes on Home and Events) go to the Newsletter tab. Change the
+  script by editing the SAME deployment (Deploy > Manage deployments) so
+  the URL never changes.
+- **Retired pages:** /about, /faq, /community, /book, /install,
+  /league/join and /club were retired on Oct 15 2026. Each redirects to its
+  replacement (`src/site/retired.ts` and `vercel.json`, kept in step by a
+  test). Skill Lab (/skills-lab) is the one older page left on the dark
+  RALLY layout (`PublicLayout`, `rally.css`).
 
 ## Brand Voice (rewritten October 2026, from how @club_pto actually posts)
 - **Who's reading:** 23 to 30, Toronto, young professionals, majority women

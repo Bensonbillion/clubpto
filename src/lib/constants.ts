@@ -19,8 +19,6 @@ export const navItems = [
   { label: "Events", href: "/events" },
   { label: "Book PTO", href: "/book-pto" },
   { label: "Partners", href: "/partners" },
-  { label: "FAQ", href: "/faq" },
-  { label: "Members", href: "/club" },
 ] as const;
 
 // Social links

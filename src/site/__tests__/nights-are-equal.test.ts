@@ -43,9 +43,9 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
 }
 
 /**
- * Every surface that speaks to members or visitors: the homepage sections,
- * the two prose pages, the facts file, and the clubhouse room (which is
- * behind a login but is still the club talking about its own nights).
+ * Every surface that speaks to visitors: the redesigned pages, the facts
+ * files and Skill Lab. (About, FAQ, Community and the clubhouse room were
+ * retired on Oct 15 2026.)
  */
 const publicCopy = () => [
   // The redesigned public site: its pages and shared copy.
@@ -55,16 +55,7 @@ const publicCopy = () => [
   join(ROOT, "src", "pages", "League.tsx"),
   join(ROOT, "src", "pages", "Events.tsx"),
   join(ROOT, "src", "pages", "BookPTO.tsx"),
-  ...sourceFiles(join(ROOT, "src", "clubhouse", "ui")),
-  join(ROOT, "src", "pages", "About.tsx"),
-  join(ROOT, "src", "pages", "FAQPage.tsx"),
-  join(ROOT, "src", "pages", "Club.tsx"),
-  // Partners and Community were missing from this list, which was an
-  // oversight rather than a decision: both are public pages that can name a
-  // night. Neither does today, so nothing was broken — but the guard only
-  // works on files it reads.
   join(ROOT, "src", "pages", "Partners.tsx"),
-  join(ROOT, "src", "pages", "Community.tsx"),
   join(ROOT, "src", "pages", "SkillsLab.tsx"),
   join(ROOT, "src", "content", "skillsLab.ts"),
   join(ROOT, "src", "lib", "constants.ts"),

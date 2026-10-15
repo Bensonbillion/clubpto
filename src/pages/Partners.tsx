@@ -5,9 +5,9 @@
 import { photos } from "@/site/photos";
 import { club, partnerAudience } from "@/site/content";
 import { Head, Photo, Shot, usePageMeta } from "@/site/ui/bits";
-import { MailtoForm, type MailtoField } from "@/site/ui/forms";
+import { SiteForm, type FormField } from "@/site/ui/forms";
 
-const kitFields: readonly MailtoField[] = [
+const kitFields: readonly FormField[] = [
   { name: "brand", label: "Brand", required: true, autoComplete: "organization", placeholder: "Brand name", half: true },
   { name: "name", label: "Your name", required: true, autoComplete: "name", placeholder: "First and last name", half: true },
   { name: "email", label: "Work email", type: "email", required: true, autoComplete: "email", placeholder: "you@brand.com" },
@@ -198,11 +198,18 @@ const Partners = () => {
               Or email <a href={`mailto:${club.email}`}>{club.email}</a>
             </p>
           </div>
-          <MailtoForm
+          <SiteForm
+            form="partners"
             idPrefix="kit"
             fields={kitFields}
+            nameFrom={["name"]}
+            companyFrom="brand"
             subject={(v) => `Media kit request · ${v.brand || v.name}`}
             submitLabel="Request the media kit"
+            done={{
+              title: "Got it.",
+              body: `It's in our inbox. We'll send the kit over from ${club.email}.`,
+            }}
           />
         </div>
       </section>

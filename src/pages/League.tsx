@@ -7,10 +7,10 @@
 import { photos } from "@/site/photos";
 import { isSet, leagueFacts, leagueInPlay, season2, venue } from "@/site/content";
 import { Head, Photo, Qa, usePageMeta } from "@/site/ui/bits";
-import { MailtoForm, type MailtoField } from "@/site/ui/forms";
+import { SiteForm, type FormField } from "@/site/ui/forms";
 import { MatchdayBand, Standings } from "@/site/ui/LeagueLive";
 
-const waitlistFields: readonly MailtoField[] = [
+const waitlistFields: readonly FormField[] = [
   { name: "first", label: "First name", required: true, autoComplete: "given-name", half: true },
   { name: "last", label: "Last name", required: true, autoComplete: "family-name", half: true },
   { name: "email", label: "Email", type: "email", required: true, autoComplete: "email", placeholder: "you@email.com" },
@@ -283,12 +283,18 @@ const League = () => {
             ) : null}
             {isSet(season2.depositNote) ? <p className="body">{season2.depositNote}</p> : null}
           </div>
-          <MailtoForm
+          <SiteForm
+            form="season-2"
             idPrefix="s2"
             title="Get on the list"
             fields={waitlistFields}
+            nameFrom={["first", "last"]}
             subject={(v) => `Season 2 waitlist · ${v.first} ${v.last}`.trim()}
             submitLabel="Put me on the list"
+            done={{
+              title: "You're on the list.",
+              body: "You'll hear the Season 2 dates and entry before anyone else.",
+            }}
           />
         </div>
       </section>
