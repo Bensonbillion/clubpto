@@ -33,11 +33,10 @@ export const league = {
   depositPrice: 100,
 
   // Registration URL. TODO_BENSON until the Acuity link (or equivalent) is
-  // pinned. Until then, every CTA falls through to the /league/join funnel.
+  // pinned. Until then, every CTA falls through to the Season 2 list on
+  // /league. (The /league/join funnel was retired on Oct 15 2026; its
+  // sign-ups stay in the clubhouse league_registrations table.)
   registrationUrl: TODO,
-
-  // Lead capture has no URL here: /league/join writes straight to the
-  // clubhouse league_registrations table (src/league/submitRegistration.ts).
 
   // Deposit checkout. Stripe payment link, Square, whatever. TODO until
   // picked; when TODO the deposit step shows a "pay by e-transfer" fallback.
@@ -55,7 +54,7 @@ export const league = {
 
   // Where the CTAs route. Kept on the content file so a hosted funnel
   // (external landing, e-commerce) can drop in without a code change.
-  joinPath: "/league/join",
+  joinPath: "/league#season-2",
 } as const;
 
 /** Remaining spots — derived so we never store two truths for the same fact. */
@@ -67,8 +66,8 @@ export const leagueIsSet = (value: string): boolean => value !== TODO;
 
 /**
  * The general CTA target. Prefers a pinned external registrationUrl
- * (e.g., Acuity) when set; otherwise routes visitors into the local
- * /league/join funnel so nothing is a dead end.
+ * (e.g., Acuity) when set; otherwise routes visitors to the Season 2 list
+ * on /league so nothing is a dead end.
  */
 export const leagueCtaHref = (): string =>
   leagueIsSet(league.registrationUrl) ? league.registrationUrl : league.joinPath;

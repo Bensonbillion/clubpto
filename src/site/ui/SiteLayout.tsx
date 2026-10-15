@@ -1,12 +1,14 @@
 // The shell for the redesigned public pages: announcement bar, header,
-// the page, footer. The older pages (/about, /faq, /community, /skills-lab,
-// /install, /book, /league/join) keep PublicLayout until they are restyled.
+// the page, footer, and the newsletter pop-up. Skill Lab is the one older
+// page left; it keeps PublicLayout. The other old pages were retired on
+// Oct 15 2026 (src/site/retired.ts).
 
 import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
 import { useSmoothScroll } from "@/hooks/useSmoothScroll";
 import { club, thursday, todayInToronto, venue } from "@/site/content";
 import { Logo } from "@/site/ui/bits";
+import { NewsletterPopup } from "@/site/ui/NewsletterPopup";
 import "@/site/pto.css";
 
 export const NAV = [
@@ -201,6 +203,7 @@ const SiteLayout = () => {
         <Outlet />
       </main>
       <Footer />
+      <NewsletterPopup />
     </div>
   );
 };

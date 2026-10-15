@@ -3,7 +3,6 @@ import { photos } from "@/site/photos";
 import {
   club,
   communityNights,
-  emailCaptureReady,
   courtside,
   finalsUpcoming,
   isSet,
@@ -206,9 +205,7 @@ const Events = () => {
               Don't find out <span className="it">from someone's story.</span>
             </h2>
             <p className="body" style={{ color: "#0E2418" }}>
-              {emailCaptureReady()
-                ? "Event drops land in your inbox before they hit Instagram."
-                : `Event drops land on ${club.instagramHandle} first.`}
+              Event drops land in your inbox before they hit Instagram.
             </p>
           </div>
           <EmailCapture buttonLabel="Get event drops" source="events-drops" />

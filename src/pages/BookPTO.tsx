@@ -5,9 +5,9 @@
 import { photos } from "@/site/photos";
 import { bookPto, club, venue } from "@/site/content";
 import { Check, Head, Plus, Qa, Shot, usePageMeta } from "@/site/ui/bits";
-import { MailtoForm, type MailtoField } from "@/site/ui/forms";
+import { SiteForm, type FormField } from "@/site/ui/forms";
 
-const inquiryFields: readonly MailtoField[] = [
+const inquiryFields: readonly FormField[] = [
   { name: "name", label: "Your name", required: true, autoComplete: "name", placeholder: "First and last name", half: true },
   { name: "email", label: "Email", type: "email", required: true, autoComplete: "email", placeholder: "you@company.com", half: true },
   { name: "company", label: "Company or group", autoComplete: "organization", placeholder: "Who's coming" },
@@ -258,11 +258,18 @@ const BookPTO = () => {
               Or email <a href={`mailto:${club.email}`}>{club.email}</a>
             </p>
           </div>
-          <MailtoForm
+          <SiteForm
+            form="book-pto"
             idPrefix="book"
             fields={inquiryFields}
+            nameFrom={["name"]}
+            companyFrom="company"
             subject={(v) => `${v.type || "Event"} inquiry · ${v.company || v.name}`}
             submitLabel="Check availability"
+            done={{
+              title: "Got it.",
+              body: `It's in our inbox. We'll come back with open dates and a quote, from ${club.email}.`,
+            }}
           />
         </div>
       </section>
