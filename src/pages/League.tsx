@@ -241,7 +241,7 @@ const League = () => {
           <Head eyebrow="What every player gets">
             Not just <span className="it">a court booking.</span>
           </Head>
-          <div className="g3 rail-m">
+          <div className="g3 rail-m" role="region" aria-label="What every player gets" tabIndex={0}>
             {perks.map((p) => (
               <div key={p.title} className="perk" style={p.lime ? { background: "#D9E270" } : undefined}>
                 <h3>{p.title}</h3>

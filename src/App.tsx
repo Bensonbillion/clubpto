@@ -63,6 +63,8 @@ const App = () => (
               <Route path="/book-pto" element={<BookPTO />} />
               <Route path="/partners" element={<Partners />} />
               <Route path="/skills-lab" element={<SkillsLab />} />
+              {/* Anything unknown gets the site's own 404, with a way back in. */}
+              <Route path="*" element={<NotFound />} />
             </Route>
             {/* the old singular URL has been shared, keep it landing */}
             <Route path="/skill-lab" element={<Navigate to="/skills-lab" replace />} />
@@ -116,7 +118,6 @@ const App = () => (
             <Route path="/admin/history" element={<SessionHistory />} />
             <Route path="/admin/history/:id" element={<SessionDetail />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
       </BrowserRouter>

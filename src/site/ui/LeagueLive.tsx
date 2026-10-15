@@ -173,7 +173,7 @@ export const UpNext = () => {
             Everything on
           </Link>
         </div>
-        <div className="rail rail-3">
+        <div className="rail rail-3" role="region" aria-label="Up next" tabIndex={0}>
           <Ticket
             stub={<DateStub ymd={thu} />}
             eyebrow={`Weekly meet · ${countdownLabel(thu, today)}`}
@@ -493,7 +493,7 @@ export const Standings = () => {
         {ready && ready.matchdays.length ? (
           <div className="stack" style={{ gap: 12 }}>
             <p className="eyebrow">Matchdays</p>
-            <div className="days">
+            <div className="days" role="region" aria-label="Matchdays" tabIndex={0}>
               {ready.matchdays.map((m) => {
                 const tone = m.status === "Played" ? "done" : next && m.id === next.id ? "next" : "";
                 return (

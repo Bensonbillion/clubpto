@@ -236,7 +236,7 @@ const SkillsLab = () => {
             you take, and you take a lot of them. Players are placed by level, so you train with people moving at your
             speed.
           </p>
-          <div className="g3 rail-m">
+          <div className="g3 rail-m" role="region" aria-label="Levels" tabIndex={0}>
             {levels.map((l) => (
               <div key={l.title} className="perk" style={l.lime ? { background: "#D9E270" } : undefined}>
                 <h3>{l.title}</h3>

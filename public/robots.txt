@@ -33,3 +33,5 @@ Disallow: /leaderboard
 Disallow: /profile
 Disallow: /login
 Disallow: /club
+
+Sitemap: https://clubpto.com/sitemap.xml

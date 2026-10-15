@@ -236,11 +236,55 @@ const writeCache = (data: LeagueSnapshot) => {
   }
 };
 
+/** One read from the Sheet's web app, tried twice (a cold call can drop). */
 const get = async <T,>(type: string): Promise<T> => {
-  const res = await fetch(`${API_URL}?type=${type}`);
-  const body = await res.json();
-  if (!body || body.ok !== true) throw new Error("league sheet unavailable");
-  return body.data as T;
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(`${API_URL}?type=${type}`);
+      const body = await res.json();
+      if (body && body.ok === true) return body.data as T;
+      lastError = new Error("league sheet unavailable");
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw lastError;
+};
+
+interface SheetConfig {
+  pointsPerWin: number;
+  pointsPerLoss: number;
+}
+
+interface SheetReads {
+  players: SheetPlayer[];
+  matches: SheetMatch[];
+  sessions: Matchday[];
+  config: SheetConfig;
+}
+
+/**
+ * The four reads. First from /api/league (api/league.js), which reads the
+ * Sheet once and serves everyone the same copy from Vercel's edge for five
+ * minutes; if that isn't there (local dev) or fails, straight from the
+ * Sheet's web app as before.
+ */
+const readSheet = async (): Promise<SheetReads> => {
+  try {
+    const res = await fetch("/api/league");
+    const body = await res.json();
+    if (body && body.ok === true && Array.isArray(body.data?.players)) return body.data as SheetReads;
+  } catch {
+    // fall through to the direct reads
+  }
+  const [players, matches, sessions, config] = await Promise.all([
+    get<SheetPlayer[]>("players"),
+    get<SheetMatch[]>("matches"),
+    get<Matchday[]>("sessions"),
+    get<SheetConfig>("config").catch(() => ({ pointsPerWin: 3, pointsPerLoss: 0 })),
+  ]);
+  return { players, matches, sessions, config };
 };
 
 let inflight: Promise<LeagueSnapshot> | null = null;
@@ -250,13 +294,8 @@ export const loadLeague = (): Promise<LeagueSnapshot> => {
   const cached = readCache();
   if (cached) return Promise.resolve(cached);
   if (!inflight) {
-    inflight = Promise.all([
-      get<SheetPlayer[]>("players"),
-      get<SheetMatch[]>("matches"),
-      get<Matchday[]>("sessions"),
-      get<{ pointsPerWin: number; pointsPerLoss: number }>("config").catch(() => ({ pointsPerWin: 3, pointsPerLoss: 0 })),
-    ])
-      .then(([players, matches, matchdays, config]) => {
+    inflight = readSheet()
+      .then(({ players, matches, sessions: matchdays, config }) => {
         const standings = computeStandings(players, matches, config.pointsPerWin || 3, config.pointsPerLoss || 0);
         const data: LeagueSnapshot = {
           standings: standings.filter((r) => r.player && DIVISIONS.some((d) => d.code === r.division)),
