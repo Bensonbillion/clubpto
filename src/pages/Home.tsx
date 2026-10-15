@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { photos } from "@/site/photos";
+import { photos, type SitePhoto } from "@/site/photos";
 import { bookPto, club, thursday } from "@/site/content";
 import { Head, Photo, Seal, Shot, usePagePreview } from "@/site/ui/bits";
 import { EmailCapture } from "@/site/ui/forms";
@@ -75,14 +75,27 @@ const Hero = () => (
   </section>
 );
 
-const doors = [
+/**
+ * A door is a page on the site (`to`) or, for the Thursday card, the
+ * Thursday booking page (`href`): every Thursday invite opens the booking
+ * page, and only the header menu and the footer visit /play.
+ */
+type Door = {
+  photo: SitePhoto;
+  n: string;
+  title: string;
+  text: string;
+  cta: string;
+} & ({ to: string; href?: never } | { href: string; to?: never });
+
+const doors: Door[] = [
   {
-    to: "/play",
+    href: thursday.bookingUrl,
     photo: photos.forehandLoad,
     n: "01 · Play",
     title: "Thursday nights",
     text: "Three courts by level, a new partner every round. $20 plus HST, and no partner needed.",
-    cta: "See Thursdays →",
+    cta: "Grab a pass →",
   },
   {
     to: "/league",
@@ -117,21 +130,32 @@ const Doors = () => (
         Pick your <span className="it">way in.</span>
       </Head>
       <div className="g4 doors">
-        {doors.map((d) => (
-          <Link key={d.to} to={d.to} className="door">
-            <div className="frame">
-              <Photo photo={d.photo} sizes="(max-width: 900px) 45vw, 290px" />
-            </div>
-            <p className="eyebrow eyebrow-leaf">{d.n}</p>
-            <h3 className="disp t-door">
-              {d.title}
-            </h3>
-            <p className="body" style={{ fontSize: 16 }}>
-              {d.text}
-            </p>
-            <span style={{ fontWeight: 700 }}>{d.cta}</span>
-          </Link>
-        ))}
+        {doors.map((d) => {
+          const inner = (
+            <>
+              <div className="frame">
+                <Photo photo={d.photo} sizes="(max-width: 900px) 45vw, 290px" />
+              </div>
+              <p className="eyebrow eyebrow-leaf">{d.n}</p>
+              <h3 className="disp t-door">
+                {d.title}
+              </h3>
+              <p className="body" style={{ fontSize: 16 }}>
+                {d.text}
+              </p>
+              <span style={{ fontWeight: 700 }}>{d.cta}</span>
+            </>
+          );
+          return d.href ? (
+            <a key={d.n} className="door" href={d.href}>
+              {inner}
+            </a>
+          ) : (
+            <Link key={d.n} to={d.to} className="door">
+              {inner}
+            </Link>
+          );
+        })}
       </div>
     </div>
   </section>
