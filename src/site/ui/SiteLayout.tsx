@@ -67,7 +67,7 @@ const Header = () => {
         </nav>
         <div className="header-actions">
           <a className="btn btn-lime btn-sm" href={thursday.bookingUrl}>
-            <span className="lbl-long">Book Thursday</span>
+            <span className="lbl-long">Grab a pass</span>
             <span className="lbl-short">Book</span>
           </a>
           <button

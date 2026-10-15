@@ -24,9 +24,9 @@ const waitlistFields: readonly FormField[] = [
   },
   {
     name: "experience",
-    label: "Experience",
+    label: "Your level",
     type: "select",
-    options: ["Played a few times", "Developing", "Intermediate+"],
+    options: ["Played a few times", "Play most weeks", "Intermediate or better"],
     half: true,
   },
   { name: "season1", label: "Played Season 1?", type: "select", options: ["Not yet", "Yes"] },
@@ -113,16 +113,16 @@ const perks = [
     text: "A real spot in the standings, updated after every Sunday. Screenshot it for the group chat.",
   },
   {
-    title: "Your weekly matchups",
-    text: "New partners. New opponents. New chances to move up. Every Sunday is a different test.",
+    title: "A new test every Sunday",
+    text: "Different partners, different opponents, and a fresh chance to move up the table each week.",
   },
   {
     title: "Your moments",
     text: "Highlights, reactions and player features all season. Play well and you end up on the feed.",
   },
   {
-    title: "Your shot at Finals Night",
-    text: "Finish at the top of your division and your season continues at the PTO Tournament. Everyone else watches.",
+    title: "Your new weekly thing",
+    text: "Seven Sundays on the calendar, and no points for the ones you skip. The table keeps you honest.",
   },
   {
     title: "Something to play for",
@@ -130,8 +130,8 @@ const perks = [
     lime: true,
   },
   {
-    title: "A league you join solo",
-    text: "Everyone registers on their own. Bring a friend if you like. Just know you might end up across the net.",
+    title: "Bring a friend, if you dare",
+    text: "Sign up together, get ranked apart. Just know you might end up across the net.",
   },
 ];
 
@@ -172,7 +172,7 @@ const League = () => {
               </div>
               <div className="fact">
                 <span>Format</span>
-                <span>Americano. Three divisions: Atlas, Riviera and Venus</span>
+                <span>Americano, a new partner every round. Three divisions: Atlas, Riviera and Venus</span>
               </div>
             </div>
             <div className="cta-row">
@@ -201,23 +201,23 @@ const League = () => {
           <div className="g4 steps-2">
             <div className="step">
               <span className="disp num">01</span>
-              <h3 className="t-step">Come in solo</h3>
+              <h3 className="t-step">Sign up solo</h3>
               <p className="body" style={{ fontSize: 16 }}>
-                No partner, no team. You enter the league as you, and your record is yours alone.
+                No partner, no team. You enter the league as you.
               </p>
             </div>
             <div className="step">
               <span className="disp num">02</span>
               <h3 className="t-step">Play your Sundays</h3>
               <p className="body" style={{ fontSize: 16 }}>
-                Americano every Sunday. New partners, new opponents, nowhere to hide.
+                Two hours of Americano every Sunday, with new partners and new opponents every round.
               </p>
             </div>
             <div className="step">
               <span className="disp num">03</span>
               <h3 className="t-step">Stack your points</h3>
               <p className="body" style={{ fontSize: 16 }}>
-                3 points a win. Your results follow you, not a partner.
+                3 points a win, and your results follow you, not a partner.
               </p>
             </div>
             <div className="step">

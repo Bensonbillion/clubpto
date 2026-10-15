@@ -123,10 +123,11 @@ const BookPTO = () => {
                 </h3>
                 {p.price ? (
                   <p style={{ margin: 0 }}>
+                    <span style={{ fontSize: 15 }}>From </span>
                     <span className="disp" style={{ fontSize: 49 }}>
                       {p.price}
                     </span>
-                    <span style={{ fontSize: 15 }}> from, plus HST</span>
+                    <span style={{ fontSize: 15 }}> plus HST</span>
                   </p>
                 ) : (
                   <p className="disp" style={{ fontSize: 29, margin: 0, minHeight: 56, display: "flex", alignItems: "center" }}>
@@ -166,7 +167,7 @@ const BookPTO = () => {
               </span>
               <h3 style={{ fontSize: 24 }}>Americano with a live scoreboard</h3>
               <p className="body" style={{ fontSize: 15, color: "#E7E0D1" }}>
-                Partners rotate every round, so everyone plays with everyone. Scores update live on our own software.
+                Partners rotate every round, so everyone plays with everyone. Scores go up live on PTO's own scoreboard.
               </p>
             </div>
             <div style={{ background: "#FFFDF8" }}>
@@ -275,8 +276,8 @@ const BookPTO = () => {
           <Head eyebrow="Questions">Before you book</Head>
           <div>
             <Qa q="Most of us have never played. Is that okay?" open>
-              Yes. Most groups haven't. The warm-up covers the basics, and the rotation mixes everyone up so nobody
-              gets left out.
+              Yes, that's who it's built for. The warm-up covers the basics, and the rotation mixes everyone up so
+              nobody gets left out.
             </Qa>
             <Qa q="Where is it?">
               {venue.name}, {venue.address}.

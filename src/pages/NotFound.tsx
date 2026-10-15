@@ -27,7 +27,7 @@ const NotFound = () => {
           Out of bounds. <span className="it">That page isn't here.</span>
         </h1>
         <p className="lede measure">
-          The link might be old, or a letter went astray. Everything PTO is a tap away.
+          The link might be old, or a letter went astray. Here's where to go instead.
         </p>
         <div className="cta-row">
           <Link className="btn btn-dark" to="/">

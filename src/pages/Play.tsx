@@ -17,8 +17,8 @@ const Play = () => {
               Thursday plans? <span className="it">Sorted.</span>
             </h1>
             <p className="lede measure">
-              Same club, different day. Three courts split by level, a new partner every round, and two hours you'll
-              look forward to all week.
+              Padel every Thursday night. Three courts split by level, a new partner every round, and the hang after.
+              Bring a friend or come solo.
             </p>
             <div className="facts">
               <div className="fact">
@@ -87,9 +87,9 @@ const Play = () => {
             </div>
             <div className="step">
               <span className="disp num">02</span>
-              <h3 className="t-step">Americano rotation</h3>
+              <h3 className="t-step">A new partner every round</h3>
               <p className="body" style={{ fontSize: 16 }}>
-                New partner every round. By the end of the night you've played with your whole court.
+                It's called Americano. By the end of the night you've played with your whole court.
               </p>
             </div>
             <div className="step">
@@ -103,7 +103,7 @@ const Play = () => {
               <span className="disp num">04</span>
               <h3 className="t-step">The hang</h3>
               <p className="body" style={{ fontSize: 16 }}>
-                Stay after. Half of PTO happens off the court, and that's where the group chats start.
+                Stay after. The lounge is where new faces become familiar ones.
               </p>
             </div>
           </div>
@@ -167,8 +167,8 @@ const Play = () => {
             <a className="btn btn-lime" href={thursday.bookingUrl}>
               Grab a Thursday pass
             </a>
-            <Link className="btn btn-cream" to="/">
-              Back to home
+            <Link className="btn btn-cream" to="/league">
+              See the league
             </Link>
           </div>
         </div>
