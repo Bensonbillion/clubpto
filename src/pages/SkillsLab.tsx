@@ -9,8 +9,8 @@
 // (Aug 30) has passed, so the page sells the next cohort through the list
 // rather than naming a start date.
 
-import { Link } from "react-router-dom";
 import { photos } from "@/site/photos";
+import { thursday } from "@/site/content";
 import { Check, Head, Photo, Qa, Seal, Shot, usePagePreview } from "@/site/ui/bits";
 import { SiteForm, type FormField } from "@/site/ui/forms";
 import { isSet, skillsLab } from "@/content/skillsLab";
@@ -316,9 +316,9 @@ const SkillsLab = () => {
             <Qa q="Do I need a racket?">No. Rackets and balls are provided. Just bring court shoes and water.</Qa>
             <Qa q="What happens after the four weeks?">
               Your first Thursday meet is on us.{" "}
-              <Link to="/play" style={{ fontWeight: 700 }}>
-                See Thursdays
-              </Link>
+              <a href={thursday.bookingUrl} style={{ fontWeight: 700 }}>
+                Grab a pass
+              </a>
             </Qa>
           </div>
         </div>

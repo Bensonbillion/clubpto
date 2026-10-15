@@ -56,8 +56,22 @@ const passLinks = (html: string) =>
     }))
     .filter((l) => /grab a (thursday )?pass/i.test(l.words));
 
+/**
+ * Follow-up (Benson, Oct 15): "even home page should go to the acuity, all
+ * of it should go to acuity". Every link on the page that invites you to a
+ * Thursday goes to the booking page. Only the site menu (header) and the
+ * footer list still visit the Thursday info page, so it stays reachable.
+ */
+const thursdayPageLinks = (html: string) => {
+  const outsideMenus = html.replace(/<header\b[\s\S]*?<\/header>/g, "").replace(/<footer\b[\s\S]*?<\/footer>/g, "");
+  return [...outsideMenus.matchAll(/<a\b[^>]*\bhref="\/play(?:[#?][^"]*)?"[^>]*>([\s\S]*?)<\/a>/g)].map(([, inner]) =>
+    decode(inner.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim(),
+  );
+};
+
 describe.each(pages)("%s", (path, Page) => {
-  const links = passLinks(render(path, Page));
+  const html = render(path, Page);
+  const links = passLinks(html);
 
   it("has the banner's and the header's Grab a pass", () => {
     expect(links.length).toBeGreaterThanOrEqual(2);
@@ -65,5 +79,9 @@ describe.each(pages)("%s", (path, Page) => {
 
   it("sends every Grab a pass to the Thursday booking page", () => {
     for (const l of links) expect({ words: l.words, href: l.href }).toEqual({ words: l.words, href: thursday.bookingUrl });
+  });
+
+  it("sends every Thursday invite to the booking page, not the info page", () => {
+    expect(thursdayPageLinks(html)).toEqual([]);
   });
 });
