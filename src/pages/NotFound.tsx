@@ -4,6 +4,7 @@
 
 import { useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
+import { thursday } from "@/site/content";
 import { usePageMeta } from "@/site/ui/bits";
 
 const NotFound = () => {
@@ -33,9 +34,9 @@ const NotFound = () => {
           <Link className="btn btn-dark" to="/">
             Back to home
           </Link>
-          <Link className="btn btn-line" to="/play">
+          <a className="btn btn-line" href={thursday.bookingUrl}>
             Grab a Thursday pass
-          </Link>
+          </a>
         </div>
       </div>
     </section>

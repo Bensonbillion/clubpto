@@ -82,7 +82,7 @@ const doors = [
     n: "01 · Play",
     title: "Thursday nights",
     text: "Three courts by level, a new partner every round. $20 plus HST, and no partner needed.",
-    cta: "Grab a pass →",
+    cta: "See Thursdays →",
   },
   {
     to: "/league",
