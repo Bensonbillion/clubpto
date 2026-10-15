@@ -53,9 +53,13 @@ scoped under `.pto`.
   league Sheet's Matches, Players, Sessions and Config tabs (the Apps
   Script's `type=standings` reads a stale layout, so it is not used). It
   reads them through `api/league.js`, a Vercel function that calls the
-  Sheet once and serves one copy from the edge for 5 minutes, and falls back
+  Sheet once and serves one copy from the edge, and falls back
   to the Apps Script directly (GET only, the same URL as `/league/admin`).
-  The browser also keeps a copy for 5 minutes per visit. Names show as the Sheet has
+  The browser shows the last table it saw at once and refreshes it in the
+  background, and a first-time visitor gets the copy the build baked in
+  (`dist/league-snapshot.json`, by `scripts/league-snapshot.mjs`). The edge
+  serves its copy for up to a week while refreshing it in the background
+  once it is 5 minutes old. Names show as the Sheet has
   them (first name, last initial). The home page and /league fall back to
   static facts if the Sheet is unreachable.
 - **Forms:** every public form goes to the Google Sheet "PTO Website: form
