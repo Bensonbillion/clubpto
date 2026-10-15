@@ -122,18 +122,18 @@ const BookPTO = () => {
             {packages.map((p) => (
               <article key={p.title} className={`card card-pad${p.dark ? " card-dark" : ""}`} style={{ gap: 18 }}>
                 <p className={`eyebrow${p.dark ? "" : " eyebrow-leaf"}`}>{p.eyebrow}</p>
-                <h3 className="disp" style={{ fontSize: 38 }}>
+                <h3 className="disp" style={{ fontSize: 36 }}>
                   {p.title}
                 </h3>
                 {p.price ? (
                   <p style={{ margin: 0 }}>
-                    <span className="disp" style={{ fontSize: 56 }}>
+                    <span className="disp" style={{ fontSize: 49 }}>
                       {p.price}
                     </span>
                     <span style={{ fontSize: 15 }}> from, plus HST</span>
                   </p>
                 ) : (
-                  <p className="disp" style={{ fontSize: 30, margin: 0, minHeight: 56, display: "flex", alignItems: "center" }}>
+                  <p className="disp" style={{ fontSize: 29, margin: 0, minHeight: 56, display: "flex", alignItems: "center" }}>
                     Quote on request
                   </p>
                 )}
@@ -187,7 +187,7 @@ const BookPTO = () => {
       <section style={{ padding: "0 0 96px" }}>
         <div className="wrap g2 reveal" style={{ alignItems: "start" }}>
           <div className="stack" style={{ gap: 16 }}>
-            <h2 className="disp" style={{ fontSize: 40 }}>
+            <h2 className="disp" style={{ fontSize: 37 }}>
               Included
             </h2>
             <div>
@@ -200,7 +200,7 @@ const BookPTO = () => {
             </div>
           </div>
           <div className="stack" style={{ gap: 16 }}>
-            <h2 className="disp" style={{ fontSize: 40 }}>
+            <h2 className="disp" style={{ fontSize: 37 }}>
               Add-ons
             </h2>
             <div>
@@ -218,7 +218,7 @@ const BookPTO = () => {
       <section className="sec-alt" style={{ padding: "80px 0" }}>
         <div className="wrap g3 reveal">
           <div className="stack" style={{ gap: 10 }}>
-            <span className="disp" style={{ fontSize: 56 }}>
+            <span className="disp" style={{ fontSize: 49 }}>
               {club.playedCount}
             </span>
             <p className="body" style={{ fontSize: 16 }}>
@@ -226,7 +226,7 @@ const BookPTO = () => {
             </p>
           </div>
           <div className="stack" style={{ gap: 10 }}>
-            <span className="disp" style={{ fontSize: 40 }}>
+            <span className="disp" style={{ fontSize: 37 }}>
               Built for first-timers
             </span>
             <p className="body" style={{ fontSize: 16 }}>
@@ -234,7 +234,7 @@ const BookPTO = () => {
             </p>
           </div>
           <div className="stack" style={{ gap: 10 }}>
-            <span className="disp" style={{ fontSize: 40 }}>
+            <span className="disp" style={{ fontSize: 37 }}>
               We run the whole night
             </span>
             <p className="body" style={{ fontSize: 16 }}>

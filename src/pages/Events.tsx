@@ -69,14 +69,14 @@ const Events = () => {
                 {isSet(leagueFacts.finalsDate) ? (
                   <>
                     <span className="eyebrow">{longDay(leagueFacts.finalsDate).split(",")[0]}</span>
-                    <span className="disp" style={{ fontSize: 30 }}>
+                    <span className="disp" style={{ fontSize: 29 }}>
                       {longDay(leagueFacts.finalsDate).split(", ")[1]}
                     </span>
                   </>
                 ) : (
                   <>
                     <span className="eyebrow">Date</span>
-                    <span className="disp" style={{ fontSize: 26 }}>
+                    <span className="disp" style={{ fontSize: 25 }}>
                       Soon
                     </span>
                   </>
@@ -106,7 +106,7 @@ const Events = () => {
               <h2 className="disp t-giant">COURTSIDE</h2>
               <p
                 className="lime-it"
-                style={{ margin: 0, fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontSize: 28 }}
+                style={{ margin: 0, fontFamily: "'Barlow Condensed', 'Arial Narrow', sans-serif", fontStyle: "italic", fontWeight: 800, textTransform: "uppercase", fontSize: 27 }}
               >
                 by Club PTO
               </p>
@@ -127,7 +127,7 @@ const Events = () => {
                 </div>
                 <div className="stack" style={{ padding: 28, gap: 10 }}>
                   <p className="eyebrow">{s.label}</p>
-                  <h3 className="disp" style={{ fontSize: 40 }}>
+                  <h3 className="disp" style={{ fontSize: 37 }}>
                     {s.title}
                   </h3>
                   <p className="body" style={{ fontSize: 16 }}>
@@ -163,7 +163,7 @@ const Events = () => {
               <p className="eyebrow eyebrow-leaf">
                 Community night
               </p>
-              <h3 className="disp" style={{ fontSize: 30 }}>
+              <h3 className="disp" style={{ fontSize: 29 }}>
                 Indoor Games Night
               </h3>
               <p className="body" style={{ fontSize: 16 }}>
@@ -175,7 +175,7 @@ const Events = () => {
                 <Photo photo={photos.oneYear} sizes="(max-width: 900px) 100vw, 400px" />
               </div>
               <p className="eyebrow eyebrow-leaf">{communityNights.anniversaryMonth}</p>
-              <h3 className="disp" style={{ fontSize: 30 }}>
+              <h3 className="disp" style={{ fontSize: 29 }}>
                 One year of PTO
               </h3>
               <p className="body" style={{ fontSize: 16 }}>
@@ -187,7 +187,7 @@ const Events = () => {
                 <Photo photo={photos.groupDinner} sizes="(max-width: 900px) 100vw, 400px" />
               </div>
               <p className="eyebrow eyebrow-leaf">Your date</p>
-              <h3 className="disp" style={{ fontSize: 30 }}>
+              <h3 className="disp" style={{ fontSize: 29 }}>
                 Your event, run by PTO
               </h3>
               <p className="body" style={{ fontSize: 16 }}>

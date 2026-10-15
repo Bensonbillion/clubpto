@@ -67,7 +67,7 @@ const PlayerCard = () => (
         <p className="eyebrow" style={{ color: "#2F5A3A" }}>
           Your division
         </p>
-        <p className="disp" style={{ fontSize: 44, color: "#0E2418" }}>
+        <p className="disp" style={{ fontSize: 40, color: "#0E2418" }}>
           Your name
         </p>
       </div>
@@ -89,7 +89,7 @@ const PlayerCard = () => (
             <p className="eyebrow" style={{ fontSize: 11, color: "#0E2418" }}>
               {k}
             </p>
-            <p className="disp" style={{ fontSize: 30, color: "#0E2418" }}>
+            <p className="disp" style={{ fontSize: 29, color: "#0E2418" }}>
               {v}
             </p>
           </div>

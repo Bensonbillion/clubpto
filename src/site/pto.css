@@ -1,7 +1,7 @@
 /* Club PTO public site, the light redesign (October 2026).
  *
- * Cream paper, forest green ink, one lime accent. Playfair Display for
- * display type, DM Sans for everything else. Sharp corners, real photos in
+ * Cream paper, forest green ink, one lime accent. Barlow Condensed for
+ * display type, Barlow for everything else. Sharp corners, real photos in
  * full color, taped "polaroid" collages in the heroes.
  *
  * Everything is scoped under .pto so it cannot leak into /manage, /club or
@@ -27,7 +27,7 @@
   min-height: 100vh;
   background: var(--cream);
   color: var(--ink);
-  font-family: "DM Sans", system-ui, sans-serif;
+  font-family: "Barlow", system-ui, sans-serif;
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
 }
@@ -134,17 +134,20 @@
   max-width: 760px;
 }
 
-/* Type */
+/* Type. Barlow Condensed 800 in capitals for display, Barlow for body
+   (Benson picked it on Oct 15 2026 over Playfair, which read too formal
+   and too big). Italic stays the emphasis, in lime on dark. */
 .pto .disp {
-  font-family: "Playfair Display", Georgia, serif;
+  font-family: "Barlow Condensed", "Arial Narrow", sans-serif;
   font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 0.96;
+  letter-spacing: 0;
+  line-height: 0.9;
+  text-transform: uppercase;
   margin: 0;
 }
 .pto .it {
   font-style: italic;
-  font-weight: 700;
+  font-weight: 800;
 }
 .pto .sec-dark .it,
 .pto .lime-it {
@@ -161,13 +164,13 @@
   color: var(--leaf);
 }
 .pto .lede {
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1.55;
   margin: 0;
   color: var(--text);
 }
 .pto .body {
-  font-size: 17px;
+  font-size: 16px;
   line-height: 1.6;
   margin: 0;
   color: var(--text);
@@ -176,31 +179,31 @@
   font-size: 15px;
 }
 .pto .t-hero {
-  font-size: 104px;
+  font-size: 89px;
 }
 .pto .t-xl {
-  font-size: 96px;
+  font-size: 83px;
 }
 .pto .t-xxl {
-  font-size: 88px;
+  font-size: 76px;
 }
 .pto .t-door {
-  font-size: 32px;
+  font-size: 31px;
 }
 .pto .t-l {
-  font-size: 64px;
+  font-size: 55px;
 }
 .pto .t-m {
-  font-size: 56px;
+  font-size: 49px;
 }
 .pto .t-card {
-  font-size: 36px;
+  font-size: 34px;
 }
 .pto .t-step {
   font-size: 21px;
 }
 .pto .num {
-  font-size: 40px;
+  font-size: 37px;
 }
 .pto .measure {
   max-width: 520px;
@@ -214,7 +217,7 @@
   gap: 10px;
   min-height: 52px;
   padding: 0 26px;
-  font: 700 16px/1 "DM Sans", system-ui, sans-serif;
+  font: 700 16px/1 "Barlow", system-ui, sans-serif;
   text-decoration: none;
   border: 2px solid var(--ink);
   border-radius: 0;
@@ -316,7 +319,7 @@
   color: var(--ink);
 }
 .pto .wordmark {
-  font-family: "Playfair Display", Georgia, serif;
+  font-family: "Barlow Condensed", "Arial Narrow", sans-serif;
   font-size: 26px;
   line-height: 1;
 }
@@ -360,7 +363,7 @@
   border: 2px solid var(--ink);
   background: transparent;
   color: var(--ink);
-  font: 700 15px "DM Sans", system-ui, sans-serif;
+  font: 700 15px "Barlow", system-ui, sans-serif;
   padding: 0 14px;
   cursor: pointer;
 }
@@ -373,9 +376,10 @@
   display: block;
   padding: 16px 0;
   border-bottom: 1px solid var(--line);
-  font-family: "Playfair Display", Georgia, serif;
+  font-family: "Barlow Condensed", "Arial Narrow", sans-serif;
   font-weight: 800;
-  font-size: 30px;
+  font-size: 29px;
+  text-transform: uppercase;
   text-decoration: none;
 }
 .pto .mobile-nav .wrap {
@@ -533,7 +537,7 @@
   border-bottom: 1px solid var(--line);
 }
 .pto .steps-list .disp {
-  font-size: 44px;
+  font-size: 40px;
   width: 64px;
   flex: none;
 }
@@ -685,7 +689,7 @@
   border-radius: 0;
   background: var(--paper);
   padding: 0 16px;
-  font: 400 16px "DM Sans", system-ui, sans-serif;
+  font: 400 16px "Barlow", system-ui, sans-serif;
   color: var(--ink);
   box-sizing: border-box;
   width: 100%;
@@ -806,20 +810,20 @@
   }
   .pto .t-hero,
   .pto .t-xl {
-    font-size: 60px;
+    font-size: 52px;
   }
   .pto .t-xxl {
-    font-size: 54px;
+    font-size: 48px;
   }
   .pto .t-door {
     font-size: 24px;
   }
   .pto .t-l,
   .pto .t-m {
-    font-size: 42px;
+    font-size: 39px;
   }
   .pto .t-card {
-    font-size: 32px;
+    font-size: 31px;
   }
   .pto .collage {
     height: 480px;
@@ -853,7 +857,7 @@
 @media (max-width: 420px) {
   .pto .t-hero,
   .pto .t-xl {
-    font-size: 52px;
+    font-size: 46px;
   }
   .pto .header-actions .btn {
     padding: 0 12px;
@@ -885,7 +889,7 @@ body.pto-body {
 
 /* Events */
 .pto .t-giant {
-  font-size: 112px;
+  font-size: 96px;
 }
 .pto .event-row {
   display: grid;
@@ -907,7 +911,7 @@ body.pto-body {
 }
 @media (max-width: 900px) {
   .pto .t-giant {
-    font-size: 60px;
+    font-size: 52px;
   }
   .pto .event-row {
     grid-template-columns: minmax(0, 1fr);
@@ -945,12 +949,12 @@ body.pto-body {
 }
 
 .pto .t-big {
-  font-size: 80px;
+  font-size: 69px;
   line-height: 1;
 }
 @media (max-width: 900px) {
   .pto .t-big {
-    font-size: 50px;
+    font-size: 45px;
   }
 }
 
@@ -1133,7 +1137,7 @@ body.pto-body {
   border: 2px solid var(--ink);
   border-radius: 0;
   background: transparent;
-  font: 700 14px "DM Sans", system-ui, sans-serif;
+  font: 700 14px "Barlow", system-ui, sans-serif;
   color: var(--ink);
   cursor: pointer;
 }
@@ -1398,7 +1402,7 @@ body.pto-body {
   text-transform: uppercase;
 }
 .pto .stub-day {
-  font-size: 46px;
+  font-size: 42px;
   line-height: 1;
   color: var(--ink);
 }
@@ -1413,7 +1417,7 @@ body.pto-body {
   font-size: 12px;
 }
 .pto .tk-title {
-  font-size: 30px;
+  font-size: 29px;
 }
 .pto .tk-meta {
   margin: 0;
@@ -1481,7 +1485,7 @@ body.pto-body {
   background: var(--ink);
   color: var(--lime);
   border: 2px solid var(--lime);
-  font-family: "Playfair Display", Georgia, serif;
+  font-family: "Barlow Condensed", "Arial Narrow", sans-serif;
   font-style: italic;
   font-weight: 800;
   line-height: 1;
@@ -1518,7 +1522,7 @@ body.pto-body {
   color: var(--lime);
 }
 .pto .lm-v {
-  font-size: 26px;
+  font-size: 25px;
   color: var(--cream);
 }
 .pto .lm-p {
@@ -1568,7 +1572,7 @@ body.pto-body {
   border-right: 1px solid var(--line);
   background: var(--paper);
   color: var(--ink);
-  font: 700 15px "DM Sans", system-ui, sans-serif;
+  font: 700 15px "Barlow", system-ui, sans-serif;
   cursor: pointer;
 }
 .pto .dtab:last-child {
@@ -1650,7 +1654,7 @@ body.pto-body {
   justify-content: center;
 }
 .pto .dempty-t {
-  font-size: 28px;
+  font-size: 27px;
   color: var(--ink);
 }
 
@@ -1685,7 +1689,7 @@ body.pto-body {
   color: var(--ink);
 }
 .pto .mcard-big {
-  font-size: 44px;
+  font-size: 40px;
   line-height: 1;
 }
 .pto .mcard-meta {
@@ -1747,7 +1751,7 @@ body.pto-body {
     color: var(--lime);
   }
   .pto .home-hero .t-hero {
-    font-size: 58px;
+    font-size: 50px;
   }
   .pto .home-hero .lede {
     font-size: 18px;
@@ -1780,10 +1784,10 @@ body.pto-body {
     min-height: 196px;
   }
   .pto .stub-day {
-    font-size: 38px;
+    font-size: 36px;
   }
   .pto .tk-title {
-    font-size: 26px;
+    font-size: 25px;
   }
 
   .pto .league-home {
@@ -1823,7 +1827,7 @@ body.pto-body {
     margin-bottom: -28px;
   }
   .pto .mcard-big {
-    font-size: 36px;
+    font-size: 34px;
   }
   .pto .days {
     display: flex;
@@ -1844,7 +1848,7 @@ body.pto-body {
   /* Calmer phone rhythm everywhere */
   .pto .t-l,
   .pto .t-m {
-    font-size: 40px;
+    font-size: 37px;
   }
   .pto .lede {
     font-size: 18px;
@@ -1874,7 +1878,7 @@ body.pto-body {
     gap: 22px 16px;
   }
   .pto .g4.steps-2 .num {
-    font-size: 30px;
+    font-size: 29px;
   }
   .pto .g4.steps-2 .t-step {
     font-size: 18px;

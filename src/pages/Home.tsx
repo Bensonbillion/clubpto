@@ -225,7 +225,7 @@ const Courtside = () => (
         <h2 className="disp t-xxl">
           COURTSIDE
         </h2>
-        <p className="lime-it" style={{ margin: 0, fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontSize: 26 }}>
+        <p className="lime-it" style={{ margin: 0, fontFamily: "'Barlow Condensed', 'Arial Narrow', sans-serif", fontStyle: "italic", fontWeight: 800, textTransform: "uppercase", fontSize: 25 }}>
           by Club PTO
         </p>
         <p className="body" style={{ maxWidth: 460 }}>
