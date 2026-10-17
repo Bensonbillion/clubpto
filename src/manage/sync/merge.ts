@@ -32,7 +32,7 @@ import type { Court, Match, Player, Session } from "../types";
 export type MergeNote =
   /** The row restarted the night; this phone's unpushed taps went with it. */
   | { kind: "nightReplaced" }
-  /** Both phones recorded this game differently; the row's result stands. */
+  /** Both phones recorded this game differently; the row's result stands. Only a phone that recorded something (a score, a walkover, a void) is told. */
   | { kind: "resultKept"; courtNumber: number; kept: Match; dropped: Match }
   /** A live game this phone dealt was set aside for the row's. */
   | { kind: "gameDropped"; courtNumber: number; matchId: string }
@@ -168,7 +168,15 @@ const mergeMatch = (
   } else {
     winner = remote;
     lineup = remote;
-    if (recorded(local) || recorded(remote)) {
+    // 2026-09-18. A note only for a phone that lost something it recorded:
+    // its own score, or its own void under the row's result. With no base
+    // the row stands in as the base, so a row score landing on a game this
+    // phone had skipped or live on court falls through to here, and the old
+    // `recorded(local) || recorded(remote)` told a phone that recorded
+    // nothing "your null-null was not kept". With a base that same shape is
+    // silent. Local voided against an unrecorded row stays silent too, as
+    // before: nobody scored it, so there is no "another phone scored" to say.
+    if (recorded(local) || (local.status === "voided" && recorded(remote))) {
       notes.push({ kind: "resultKept", courtNumber: remote.courtNumber, kept: remote, dropped: local });
     }
   }
