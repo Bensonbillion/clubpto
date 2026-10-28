@@ -49,6 +49,12 @@ export interface Matchday {
 export interface LeagueSnapshot {
   standings: StandingRow[];
   matchdays: Matchday[];
+  /**
+   * One table per matchday, from that day's games only, keyed by session id
+   * ("S03"). Added Oct 28 2026 so a single week can be shown and posted on
+   * its own. Missing on a copy a browser saved before then.
+   */
+  weeks?: Record<string, StandingRow[]>;
 }
 
 /** One row of the Matches tab, as `type=matches` returns it. */
@@ -135,6 +141,49 @@ export const computeStandings = (
   }
   return rows;
 };
+
+/**
+ * Each matchday's own table: only that day's games, keyed by session id.
+ * A player sits in the division of the games they played that day, not the
+ * one the Players tab has now, so a player who moved divisions (Kalid, from
+ * Riviera to Atlas on Oct 25) keeps their earlier weeks where they played
+ * them. Only players with a game that day are in a week's table, and a
+ * blank seat still counts for nobody.
+ */
+export const weeklyStandings = (
+  players: readonly SheetPlayer[],
+  matches: readonly SheetMatch[],
+  pointsPerWin = 3,
+  pointsPerLoss = 0,
+): Record<string, StandingRow[]> => {
+  const out: Record<string, StandingRow[]> = {};
+  const sessions = [...new Set(matches.map((m) => m.sessionId).filter(Boolean))];
+  for (const id of sessions) {
+    const rows: StandingRow[] = [];
+    for (const { code } of DIVISIONS) {
+      const games = matches.filter((m) => m.sessionId === id && m.division === code);
+      if (!games.length) continue;
+      // Ranked again within this division and week: the rank computeStandings
+      // gives is by the Players tab's division, which a mover no longer shares.
+      const table = sortTable(
+        computeStandings(players, games, pointsPerWin, pointsPerLoss)
+          .filter((r) => r.matches > 0)
+          .map((r) => ({ ...r, division: code, rank: 0 })),
+      );
+      table.forEach((r, i) => {
+        const prev = table[i - 1];
+        r.rank = prev && prev.leaguePoints === r.leaguePoints && prev.diff === r.diff && prev.pointsFor === r.pointsFor ? prev.rank : i + 1;
+      });
+      rows.push(...table);
+    }
+    if (rows.length) out[id] = rows;
+  }
+  return out;
+};
+
+/** The played matchdays that have a table of their own, in week order. */
+export const weeksWithTables = (data: LeagueSnapshot): Matchday[] =>
+  data.matchdays.filter((m) => (data.weeks?.[m.id]?.length ?? 0) > 0).sort((a, b) => a.week - b.week);
 
 /**
  * Display order and names for the Sheet's division codes (named by Benson,
@@ -325,10 +374,13 @@ const readSheet = async (): Promise<SheetReads> => {
 
 /** The four reads as the pages show them: the table, and the matchdays not cancelled. */
 const toSnapshot = ({ players, matches, sessions: matchdays, config }: SheetReads): LeagueSnapshot => {
-  const standings = computeStandings(players, matches, config?.pointsPerWin || 3, config?.pointsPerLoss || 0);
+  const win = config?.pointsPerWin || 3;
+  const loss = config?.pointsPerLoss || 0;
+  const standings = computeStandings(players, matches, win, loss);
   return {
     standings: standings.filter((r) => r.player && DIVISIONS.some((d) => d.code === r.division)),
     matchdays: matchdays.filter((m) => m.status !== "Cancelled"),
+    weeks: weeklyStandings(players, matches, win, loss),
   };
 };
 
@@ -417,7 +469,8 @@ export const loadLeague = (): Promise<LeagueSnapshot> => {
  */
 export const freshLeague = async (): Promise<LeagueSnapshot | null> => {
   const saved = readSaved();
-  const age = saved ? Date.now() - saved.at : Infinity;
+  // A copy saved before the weekly tables existed is out of date whatever its age.
+  const age = saved && saved.data.weeks ? Date.now() - saved.at : Infinity;
   if (!network && age >= 0 && age < FRESH_MS) return null;
   try {
     return await readNetwork();

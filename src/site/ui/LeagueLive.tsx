@@ -11,7 +11,7 @@
 // carry the same badge and the same weight, and nothing here numbers them.
 
 import { useEffect, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import {
   DIVISIONS,
   byDivision,
@@ -27,7 +27,9 @@ import {
   mergeManual,
   nextMatchday,
   savedLeague,
+  weeksWithTables,
   type LeagueSnapshot,
+  type Matchday,
   type StandingRow,
 } from "@/site/leagueLive";
 import {
@@ -298,12 +300,14 @@ const DivisionTabs = ({ value, onChange }: { value: string; onChange: (code: str
   </div>
 );
 
-const EmptyDivision = ({ code }: { code: string }) => {
+const EmptyDivision = ({ code, week }: { code: string; week?: Matchday | null }) => {
   const d = DIVISIONS.find((x) => x.code === code);
   return (
     <div className="dempty">
       <Crest code={code} size={56} />
-      <p className="disp dempty-t">{d?.label} standings are on the way.</p>
+      <p className="disp dempty-t">
+        {d?.label} {week ? `Week ${week.week} ` : ""}standings are on the way.
+      </p>
       <p className="body small">They go up here as soon as this division's scores are in.</p>
     </div>
   );
@@ -352,13 +356,20 @@ const ShortTable = ({ rows, code, limit }: { rows: StandingRow[]; code: string; 
   );
 };
 
-const StandingsCard = ({ limit, footLink }: { limit?: number; footLink?: boolean }) => {
-  const { state, ready, rows } = useRows();
+/**
+ * The table card. With a `week`, it shows only that matchday's games
+ * (LeagueSnapshot.weeks); without one, the season so far.
+ */
+const StandingsCard = ({ limit, footLink, week }: { limit?: number; footLink?: boolean; week?: Matchday | null }) => {
+  const { state, ready, rows: seasonRows } = useRows();
+  const rows: StandingRow[] = week ? (ready?.weeks?.[week.id] ?? []) : seasonRows;
   const [picked, setPicked] = useState<string | null>(null);
   const code = picked ?? firstWithResults(rows);
   const results = divisionHasResults(rows, code);
   const last = ready ? lastMatchday(ready.matchdays) : undefined;
-  const asOf = manualAsOf(ready ? ready.standings : [], code) ?? (results && last ? `After Week ${last.week}` : null);
+  const asOf = week
+    ? `Week ${week.week} only · ${longDay(week.date).split(", ")[1]}`
+    : (manualAsOf(ready ? ready.standings : [], code) ?? (results && last ? `After Week ${last.week}` : null));
   const short = DIVISIONS.find((d) => d.code === code)?.short;
 
   return (
@@ -393,7 +404,7 @@ const StandingsCard = ({ limit, footLink }: { limit?: number; footLink?: boolean
           </div>
         </>
       ) : (
-        <EmptyDivision code={code} />
+        <EmptyDivision code={code} week={week} />
       )}
     </div>
   );
@@ -499,25 +510,102 @@ export const MatchdayBand = () => {
   );
 };
 
+/** The page's own address for one week's table, for posting: clubpto.com/league?week=3. */
+export const weekLink = (week: number, origin = typeof window === "undefined" ? "https://clubpto.com" : window.location.origin) =>
+  `${origin}/league?week=${week}#standings`;
+
+/** "Copy link" for the week on show. Says "Copied" for a moment, or nothing if the browser won't copy. */
+const CopyWeekLink = ({ week }: { week: number }) => {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => setCopied(false), [week]);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(weekLink(week));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // No clipboard (an old browser, or permission refused): the address bar has the link anyway.
+    }
+  };
+  return (
+    <button type="button" className="link-strong wcopy" onClick={copy}>
+      {copied ? "Link copied" : `Copy the Week ${week} link`}
+    </button>
+  );
+};
+
+/**
+ * The League page's table. Season by default; pick a week (the buttons, a
+ * played matchday below, or ?week=3 in the address) to see only that
+ * Sunday's games. The week goes in the address so each week has a link of
+ * its own to share.
+ */
 export const Standings = () => {
   const { ready } = useRows();
   const today = todayInToronto();
   const next = ready ? nextMatchday(ready.matchdays, today) : undefined;
+  const [params] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const weeks = ready ? weeksWithTables(ready) : [];
+  const asked = Number(params.get("week"));
+  const week = weeks.find((m) => m.week === asked) ?? null;
+
+  // The hash stays as it is: the layout scrolls to the top whenever the hash
+  // changes, and picking a week should leave the page where it is.
+  const show = (w: Matchday | null) => {
+    const out = new URLSearchParams(params);
+    if (w) out.set("week", String(w.week));
+    else out.delete("week");
+    const search = out.toString();
+    navigate({ pathname: location.pathname, search: search ? `?${search}` : "", hash: location.hash }, { replace: true });
+  };
 
   return (
     <section id="standings" className="sec-alt standings-sec">
       <div className="wrap stack" style={{ gap: 28 }}>
         <div className="split">
           <div className="head">
-            <p className="eyebrow">Season 1 standings</p>
-            <h2 className="disp t-l">The table</h2>
+            <p className="eyebrow">{week ? `Week ${week.week} · ${longDay(week.date)}` : "Season 1 standings"}</p>
+            <h2 className="disp t-l">{week ? `Week ${week.week} table` : "The table"}</h2>
           </div>
           <p className="body" style={{ fontSize: 16, maxWidth: 380 }}>
-            Updates after every league Sunday. 3 points a win, and point difference breaks ties. No hiding.
+            {week
+              ? `Just the games from Week ${week.week}. 3 points a win, and point difference breaks ties.`
+              : "Updates after every league Sunday. 3 points a win, and point difference breaks ties. No hiding."}
           </p>
         </div>
 
-        <StandingsCard />
+        {weeks.length ? (
+          <div className="wbar">
+            <div className="wtabs" role="tablist" aria-label="Season or one week">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={!week}
+                className={`wtab${!week ? " on" : ""}`}
+                onClick={() => show(null)}
+              >
+                Season
+              </button>
+              {weeks.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={week?.id === m.id}
+                  className={`wtab${week?.id === m.id ? " on" : ""}`}
+                  onClick={() => show(m)}
+                >
+                  Week {m.week}
+                </button>
+              ))}
+            </div>
+            {week ? <CopyWeekLink week={week.week} /> : null}
+          </div>
+        ) : null}
+
+        <StandingsCard week={week} />
 
         {ready && ready.matchdays.length ? (
           <div className="stack" style={{ gap: 12 }}>
@@ -525,13 +613,33 @@ export const Standings = () => {
             <div className="days" role="region" aria-label="Matchdays" tabIndex={0}>
               {ready.matchdays.map((m) => {
                 const tone = m.status === "Played" ? "done" : next && m.id === next.id ? "next" : "";
-                return (
-                  <div key={m.id} className={`day ${tone}`}>
+                const body = (
+                  <>
                     <span className="day-w">Week {m.week}</span>
                     <span className="disp day-d">{longDay(m.date).split(", ")[1]}</span>
                     <span className="day-s">
                       {m.status === "Played" ? "Played" : tone === "next" ? countdownLabel(m.date, today) : "Sunday"}
                     </span>
+                  </>
+                );
+                // A played Sunday with a table opens that week's table.
+                return weeks.some((w) => w.id === m.id) ? (
+                  <button
+                    key={m.id}
+                    type="button"
+                    className={`day ${tone} day-btn${week?.id === m.id ? " on" : ""}`}
+                    aria-pressed={week?.id === m.id}
+                    aria-label={`Week ${m.week} table`}
+                    onClick={() => {
+                      show(m);
+                      document.getElementById("standings")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+                    }}
+                  >
+                    {body}
+                  </button>
+                ) : (
+                  <div key={m.id} className={`day ${tone}`}>
+                    {body}
                   </div>
                 );
               })}

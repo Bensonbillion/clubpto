@@ -1582,6 +1582,63 @@ body.pto-body {
   background: var(--ink);
   color: var(--cream);
 }
+/* Season or one week, above the League page table (Oct 28 2026) */
+.pto .wbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+}
+.pto .wtabs {
+  display: flex;
+  border: 2px solid var(--ink);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.pto .wtabs::-webkit-scrollbar {
+  display: none;
+}
+.pto .wtab {
+  flex: 0 0 auto;
+  min-height: 46px;
+  padding: 0 18px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  font: 700 15px "Barlow", system-ui, sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pto .wtab:last-child {
+  border-right: 0;
+}
+.pto .wtab.on {
+  background: var(--ink);
+  color: var(--cream);
+}
+.pto .wcopy {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--ink);
+  font: 700 15px "Barlow", system-ui, sans-serif;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 5px;
+  cursor: pointer;
+}
+.pto .day-btn {
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pto .day-btn.on {
+  outline: 4px solid var(--lime);
+  outline-offset: -6px;
+}
 .pto .dtab:not(.on) .crest {
   background: transparent;
   color: var(--ink);
