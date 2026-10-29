@@ -166,7 +166,7 @@ describe("shared-link previews", () => {
   it("writes the page's title, description, URL and image into the HTML", () => {
     const template = readFileSync(join(ROOT, "index.html"), "utf8");
     const html = pageHtml(template, SITE, "/book-pto", PAGE_META["/book-pto"]);
-    expect(html).toContain("<title>Book PTO · Company nights and private parties · Club PTO</title>");
+    expect(html).toContain("<title>Book PTO · Team building and company nights · Club PTO</title>");
     expect(html).toContain('property="og:url" content="https://clubpto.com/book-pto"');
     expect(html).toContain('property="og:image" content="https://clubpto.com/og/book-pto.jpg"');
     expect(html).toContain('rel="canonical" href="https://clubpto.com/book-pto"');

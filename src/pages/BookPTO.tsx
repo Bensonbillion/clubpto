@@ -1,6 +1,10 @@
 // Book PTO: company nights and private parties. Every package is
 // Company night and private party show their starting prices; the big
 // group is quoted (Benson, Oct 14 2026). Prices live in src/site/content.ts.
+//
+// Oct 29 2026 (Benson): teams have a team-building budget, so the page talks
+// to whoever spends it (people teams, team leads, cohort and program leads),
+// aims at bigger groups, and says how far District Padel is from downtown.
 
 import { photos } from "@/site/photos";
 import { bookPto, club, venue } from "@/site/content";
@@ -15,7 +19,7 @@ const inquiryFields: readonly FormField[] = [
     name: "type",
     label: "Type of night",
     type: "select",
-    options: ["Company night", "Private party", "Something else"],
+    options: ["Company night", "Team building", "Program or cohort", "Private party", "Something else"],
     half: true,
   },
   {
@@ -34,7 +38,7 @@ const packages = [
     eyebrow: "For teams",
     title: "Company night",
     price: bookPto.companyFrom as string | null,
-    bullets: ["Up to 12 guests", "2 courts · 2 hours", "Team socials, holiday parties, client nights"],
+    bullets: ["Up to 12 guests", "2 courts · 2 hours", "Team building, holiday parties, client nights"],
     dark: true,
   },
   {
@@ -65,6 +69,24 @@ const addOns = [
   "Prizes or branded balls for the winners",
 ];
 
+// For whoever plans it: the people team, the team lead, the program lead.
+const planners = [
+  {
+    title: "Got a team-building budget?",
+    body: "This is an easy one to spend it on. One booking, one invoice to the company, and nothing for you to run on the night.",
+  },
+  {
+    title: "Big enough for the department",
+    body: "Two courts for up to 12, three courts for 17 to 24. Partners rotate every round, so the new hires end up on court with the VPs.",
+  },
+  {
+    title: "Cohorts and programs too",
+    body: "Run a fellowship, an accelerator or a student program? The same night works for your participants. Nobody needs to have played.",
+  },
+];
+
+const gettingThere = [venue.byCar, venue.byTransit, venue.fromWestEnd];
+
 const BookPTO = () => {
   usePagePreview("/book-pto");
 
@@ -73,13 +95,14 @@ const BookPTO = () => {
       <section className="sec-hero">
         <div className="wrap g2" style={{ alignItems: "center" }}>
           <div className="stack" style={{ gap: 26 }}>
-            <p className="eyebrow">Company nights · Private parties</p>
+            <p className="eyebrow">Team building · Company nights · Private parties</p>
             <h1 className="disp t-xl">
               Skip the <span className="it">escape room.</span>
             </h1>
             <p className="lede measure">
-              Book PTO and give your people two hours of padel, run start to finish by us. First-timers included.
-              They leave with a winner, a team photo and something to talk about on Monday.
+              Put the team-building budget into two hours of padel, planned and run start to finish by us and
+              invoiced to the company. First-timers included. They leave with a winner, a team photo and something to
+              talk about on Monday.
             </p>
             <div className="cta-row">
               <a className="btn btn-dark" href="#inquire">
@@ -107,6 +130,26 @@ const BookPTO = () => {
               sizes="(max-width: 900px) 44vw, 260px"
               at={{ right: 0, bottom: 0, width: "44%", height: "62%", transform: "rotate(3deg)" }}
             />
+          </div>
+        </div>
+      </section>
+
+      <section className="sec" style={{ padding: "96px 0" }}>
+        <div className="wrap stack reveal" style={{ gap: 40 }}>
+          <Head eyebrow="Team building, handled">
+            You book it. <span className="it">We do the rest.</span>
+          </Head>
+          <div className="g3">
+            {planners.map((p) => (
+              <article key={p.title} className="card card-pad" style={{ gap: 14 }}>
+                <h3 className="disp" style={{ fontSize: 29 }}>
+                  {p.title}
+                </h3>
+                <p className="body" style={{ fontSize: 16, margin: 0 }}>
+                  {p.body}
+                </p>
+              </article>
+            ))}
           </div>
         </div>
       </section>
@@ -241,6 +284,27 @@ const BookPTO = () => {
         </div>
       </section>
 
+      <section className="sec" style={{ padding: "96px 0" }}>
+        <div className="wrap g2 reveal" style={{ alignItems: "start" }}>
+          <div className="stack" style={{ gap: 18 }}>
+            <Head eyebrow="Getting there">
+              Closer than <span className="it">you think.</span>
+            </Head>
+            <p className="body" style={{ fontSize: 18, margin: 0 }}>
+              {venue.name}, {venue.address}. {venue.nearby}.
+            </p>
+          </div>
+          <div>
+            {gettingThere.map((t) => (
+              <div key={t} className="li">
+                <Check />
+                <span>{t}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section id="inquire" className="sec-dark" style={{ padding: "100px 0" }}>
         <div className="wrap g2" style={{ alignItems: "start" }}>
           <div className="stack" style={{ gap: 22 }}>
@@ -280,7 +344,14 @@ const BookPTO = () => {
               nobody gets left out.
             </Qa>
             <Qa q="Where is it?">
-              {venue.name}, {venue.address}.
+              {venue.name}, {venue.address}. {venue.nearby}.
+            </Qa>
+            <Qa q="How far is it from downtown?">
+              {venue.byCar}. {venue.byTransit}.
+            </Qa>
+            <Qa q="How many people can we bring?">
+              Up to 12 on two courts, or 17 to 24 on three. Somewhere in between, or bigger than that? Tell us on the
+              form and we'll work it out.
             </Qa>
             <Qa q="Can we sort food and drinks?">
               Yes. Tell us what you have in mind and we'll arrange it with the venue.
@@ -289,8 +360,9 @@ const BookPTO = () => {
               Yes. A deposit holds your date, and the balance is due before the night. We'll send the details with your
               quote.
             </Qa>
-            <Qa q="Can you invoice our company?">
-              Yes. Tell us who to bill and we'll send an invoice with your booking.
+            <Qa q="Can we put it on the team-building budget?">
+              Yes. Tell us who to bill and we'll send one invoice to the company with your booking, so it goes through
+              like any other team event.
             </Qa>
           </div>
         </div>
