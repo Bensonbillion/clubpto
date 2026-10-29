@@ -461,3 +461,90 @@ describe("a void the row overruled is said out loud", () => {
     expect(notes).toHaveLength(0);
   });
 });
+
+describe("a slot scored on two phones folds even when this phone has no base", () => {
+  // #65 made two scored copies of one round-robin slot fold to one game, with a
+  // note. It left a gap: a merge with NO base. repair() builds its idea of
+  // "already established" from `base ?? remote`, so with no base every copy on
+  // the row counts as established and is never grouped with this phone's fresh
+  // copy of the same slot. Both survive, silently.
+  //
+  // A phone reaches this with unpushed taps and nothing it has ever agreed with
+  // on the row: it opened the night with the wifi down and scored games
+  // locally, while another phone ran the same court against the row. Driven
+  // against the real merge and standings on the fixture below, before the fix:
+  //
+  //   no base, different pairings:        2 played copies, no note, a played=3
+  //   no base, same pairing, other id:    2 played copies, no note, a played=3
+  //
+  // on a night of two games. The second line is worse than #65's case: the same
+  // four in the same seats, which is unambiguously one game entered twice.
+  //
+  // The `base ?? remote` fallback is not wrong in general, and the guards below
+  // pin what it is for. Teams and knockout keys carry the sides rather than a
+  // slot, so a pair meeting again is a legitimate rematch, and treating the
+  // row's first meeting as fresh would fold it away. A slot key cannot be
+  // rematched: a slot is one row of one court. So only slot keys change.
+
+  const b = score(night(), "m1", 7, 5);
+  const localPairing = score(deal(b, live("m-1-2-local", 1, 2, ["a", "c", "b", "d"])), "m-1-2-local", 7, 2);
+
+  it("different pairings in one slot: the row's game stands and this phone is told", () => {
+    const r = score(deal(b, live("m-1-2-row", 1, 2, ["a", "b", "c", "d"])), "m-1-2-row", 7, 4);
+    const { state, notes } = mergeSessions(null, localPairing, r);
+    const slot2 = state.matches.filter((m) => m.courtNumber === 1 && m.matchIndex === 2 && m.status === "played");
+    expect(slot2.map((m) => m.id)).toEqual(["m-1-2-row"]);
+    expect(notes).toHaveLength(1);
+    const note = notes[0] as Extract<typeof notes[number], { kind: "resultKept" }>;
+    expect(note.kind).toBe("resultKept");
+    expect(note.kept.id).toBe("m-1-2-row");
+    expect(note.dropped.id).toBe("m-1-2-local");
+  });
+
+  it("the same four in the same seats under two ids is one game entered twice", () => {
+    const r = score(deal(b, live("m-1-2-row", 1, 2, ["a", "c", "b", "d"])), "m-1-2-row", 7, 4);
+    const { state, notes } = mergeSessions(null, localPairing, r);
+    const slot2 = state.matches.filter((m) => m.courtNumber === 1 && m.matchIndex === 2 && m.status === "played");
+    expect(slot2.map((m) => m.id)).toEqual(["m-1-2-row"]);
+    expect(notes).toHaveLength(1);
+  });
+
+  it("a teams rematch is still a rematch with no base, and both games stay", () => {
+    // What the fallback is for. The same two pairs meeting twice on a teams
+    // night, the first meeting already on the row, the second only on this
+    // phone. Their key carries the sides, not a slot, so they share it, and
+    // they are two real games.
+    const teams = (id: string, slot: number): Match =>
+      live(id, 1, slot, ["a", "b", "c", "d"]);
+    const withFirst = score(deal(b, teams("tm-first", 2)), "tm-first", 7, 3);
+    const withSecond = score(deal(b, teams("tm-second", 3)), "tm-second", 7, 6);
+    const { state, notes } = mergeSessions(null, withSecond, withFirst);
+    const played = state.matches.filter((m) => m.id.startsWith("tm-") && m.status === "played");
+    expect(played.map((m) => m.id).sort()).toEqual(["tm-first", "tm-second"]);
+    expect(notes).toHaveLength(0);
+  });
+
+  it("duplicates the row already carries are left alone when this phone has none of its own there", () => {
+    // Pins the row-only skip. Deleting that one line used to leave every merge
+    // test passing. A row holding two scored copies of one slot is already
+    // broken, by an earlier bad merge, and a phone merging with nothing of its
+    // own in that slot has no business folding it: the only change on this
+    // phone is a game on another slot entirely.
+    const withTwoOnRow = deal(
+      deal(b, { ...live("m-1-2-r1", 1, 2, ["a", "b", "c", "d"]), scoreA: 7, scoreB: 3, status: "played", completedAt: 2000 }),
+      { ...live("m-1-2-r2", 1, 2, ["a", "c", "b", "d"]), scoreA: 7, scoreB: 6, status: "played", completedAt: 2100 },
+    );
+    const local = score(deal(b, live("m-1-3-local", 1, 3, ["a", "d", "b", "c"])), "m-1-3-local", 7, 1);
+    const { state, notes } = mergeSessions(null, local, withTwoOnRow);
+    const slot2 = state.matches.filter((m) => m.courtNumber === 1 && m.matchIndex === 2 && m.status === "played");
+    expect(slot2.map((m) => m.id).sort()).toEqual(["m-1-2-r1", "m-1-2-r2"]);
+    expect(notes).toHaveLength(0);
+  });
+
+  it("the same four in a different slot is a rematch, and both games stay", () => {
+    const r = score(deal(b, live("m-1-3-row", 1, 3, ["a", "c", "b", "d"])), "m-1-3-row", 7, 4);
+    const { state, notes } = mergeSessions(null, localPairing, r);
+    expect(state.matches.filter((m) => m.status === "played")).toHaveLength(3);
+    expect(notes).toHaveLength(0);
+  });
+});
