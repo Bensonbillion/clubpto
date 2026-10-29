@@ -34,6 +34,16 @@ export const venue = {
   name: weeklyMeets.nights[0].venue,
   short: "District Padel",
   address: "1550 Caterpillar Rd, Mississauga",
+  /**
+   * Getting there, read on Google Maps on Oct 29 2026 in the early afternoon:
+   * Sherway Gardens 5 min (2.3 km); Union Station 23 min by car via the
+   * Gardiner (18.6 km), 50 min by GO Lakeshore West and a MiWay bus; Liberty
+   * Village 23 min (15.4 km). Rounded up, and rush hour is slower.
+   */
+  nearby: "Five minutes from Sherway Gardens",
+  byCar: "About 25 minutes from Union Station by car, along the Gardiner, outside rush hour",
+  byTransit: "About 50 minutes from Union by GO (Lakeshore West) and a MiWay bus",
+  fromWestEnd: "About 25 minutes from Liberty Village, and closer still from Etobicoke and Mississauga",
 } as const;
 
 // Thursday meets. Start time and price are what the Acuity booking page

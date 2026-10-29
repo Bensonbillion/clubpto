@@ -47,9 +47,9 @@ export const PAGE_META = {
     image: "/og/skills-lab.jpg",
   },
   "/book-pto": {
-    title: "Book PTO · Company nights and private parties · Club PTO",
+    title: "Book PTO · Team building and company nights · Club PTO",
     description:
-      "Skip the escape room. Two hours of padel, run start to finish by Club PTO. Company nights, team socials and private parties in Mississauga. First-timers welcome.",
+      "Skip the escape room. Team building, sorted: two hours of padel at District Padel in Mississauga, planned and run by Club PTO and invoiced to the company. First-timers welcome.",
     image: "/og/book-pto.jpg",
   },
   "/partners": {
