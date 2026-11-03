@@ -422,7 +422,63 @@ function repair(state: Session, base: Session | null, remote: Session, notes: Me
   // Rule 4. The same game minted on both phones, which is only ever two
   // games neither phone's base held. A later rematch of the same two pairs
   // is not this: its first meeting is in the base.
-  const fresh = state.matches.filter((m) => !dropped.has(m.id) && !inBase.has(m.id) && m.status !== "voided");
+  //
+  // 2026-09-16. With no base, and only for a round-robin slot, the row's
+  // copies count as fresh too. A phone merges with no base when it has taps
+  // it never pushed and has never agreed with the row: it opened the night
+  // with the wifi down and scored locally while another phone ran the same
+  // court against the row. inBase then falls back to the row's ids, so every
+  // row copy looked established and was never grouped with this phone's copy
+  // of the same slot. Both phones scoring slot 2 of court 1 kept two played
+  // games in one row, no note, and each of the four credited a game that
+  // never happened (measured: a night of two games, a played=3), in the table
+  // that seeds the bracket. It held for different pairings and for the same
+  // four in the same seats under two ids alike.
+  //
+  // Why only slot keys. The fallback is there for a rematch. A teams key
+  // (tm|) and a knockout key (stage|) carry the sides and not a slot, so the
+  // same two pairs meeting twice share one key, and with no base the row's
+  // first meeting has to stay established or it folds away into the second.
+  // Mutation-checked: dropping the fallback for every key, so inBase is only
+  // ever the base's ids, passes both slot tests and FAILS the teams rematch
+  // guard. A slot key cannot be rematched, because a slot is one row of one
+  // court and one court plays one game in one row; a rematch of the same
+  // four lands in a later row with a different key. So tm and stage keys keep
+  // the fallback exactly, and with a base nothing here changes at all.
+  //
+  // What the wider group does. It runs the same three branches the base case
+  // already runs, and rank puts the row's copy first, so the row's copy is
+  // the one kept wherever the scores do not decide it, and the resultKept
+  // note reads true on this phone: another phone scored it first, yours was
+  // not kept. Where only this phone scored, its result stands and the row's
+  // unplayed copy comes down without a note, as it already did through the
+  // other-way-round pass below; nothing of this phone's was lost, and the
+  // header's promise holds, only unplayed games are dropped. Where neither
+  // scored, the row's copy stays and this phone's is set aside with a
+  // gameDropped note, which rule 5 already did for two live copies, and which
+  // is new for a skipped copy on either side, matching the base case.
+  //
+  // A group holding ONLY row copies (duplicates the row already carries,
+  // which only an earlier bad merge leaves behind) is skipped, as it was:
+  // this merge has nothing of its own in that slot, and cleaning up the row
+  // is not this phone's business. That is not a promise the row's duplicates
+  // are never touched. Once this phone has its own copy in the same slot the
+  // group is no longer row-only, every copy in it folds, and the row's extra
+  // copies come down with resultKept notes that name a copy this phone never
+  // held ("Your 7-3 was not kept"). The base path does the same on the same
+  // shape. It needs a row that is already broken, so it is left as is.
+  //
+  // A replay entered after a void lands in the same slot number
+  // (useSession.ts bySlot), so a phone that voided a game, replayed it, and
+  // then merges against a row still holding the original as played folds the
+  // replay away and keeps the original. That follows from a recorded score
+  // beating a void and from this fold, and the original stood before this
+  // change too; what changed is that the replay no longer counts as well. It
+  // needs this phone to share the original's id with the row while having no
+  // base, which only a lost base produces, and the phone is told twice.
+  const noBaseSlot = (m: Match) => base === null && gameKey(m).startsWith("slot|");
+  const fresh = state.matches.filter((m) =>
+    !dropped.has(m.id) && (!inBase.has(m.id) || noBaseSlot(m)) && m.status !== "voided");
   const groups = new Map<string, Match[]>();
   for (const m of fresh) {
     const k = gameKey(m);
@@ -430,6 +486,7 @@ function repair(state: Session, base: Session | null, remote: Session, notes: Me
   }
   for (const group of groups.values()) {
     if (group.length < 2) continue;
+    if (base === null && group.every((m) => inBase.has(m.id))) continue;
     const scored = group.filter(recorded);
     if (scored.length === 0) {
       const keep = group.reduce((a, m) => before(rank(m, inRemote), rank(a, inRemote)) ? m : a);
