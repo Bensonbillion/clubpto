@@ -12,7 +12,7 @@ import {
   type MatchRow,
   type Player,
 } from "@/league/adminApi";
-import { MAX_GAMES, gamesPlayed, shownMatches } from "@/league/gamesPlayed";
+import { gamesPlayed, shownMatches } from "@/league/gamesPlayed";
 import "./leagueAdmin.css";
 
 const PASSCODE_KEY = "pto.league.passcode";
@@ -190,7 +190,7 @@ const LeagueAdmin = () => {
 
           <p className="la-note">
             {picked.length === 0 &&
-              `Tap four players. First two are one team. Five games each, so anyone on ${MAX_GAMES} is greyed out.`}
+              "Tap four players. First two are one team."}
             {picked.length > 0 && picked.length < 4 &&
               `${4 - picked.length} more to pick`}
             {picked.length === 4 && "Now the scores."}
@@ -200,21 +200,17 @@ const LeagueAdmin = () => {
             {roster.map((p) => {
               const at = picked.indexOf(p.name);
               const games = played[p.name] || 0;
-              const done = games >= MAX_GAMES && at < 0;
               return (
                 <button
                   key={p.id}
                   type="button"
-                  className={`la-player ${at >= 0 ? "is-on" : ""} ${done ? "is-done" : ""}`}
+                  className={`la-player ${at >= 0 ? "is-on" : ""}`}
                   onClick={() => toggle(p.name)}
-                  disabled={done}
-                  aria-label={`${p.name}, ${games} of ${MAX_GAMES} games played`}
+                  aria-label={`${p.name}, ${games} ${games === 1 ? "game" : "games"} played`}
                 >
                   {at >= 0 && <span className="la-pick">{at < 2 ? "A" : "B"}</span>}
                   {p.name}
-                  <span className="la-count">
-                    {games}/{MAX_GAMES}
-                  </span>
+                  {games > 0 && <span className="la-count">{games}</span>}
                 </button>
               );
             })}

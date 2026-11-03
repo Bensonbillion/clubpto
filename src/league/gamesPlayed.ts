@@ -1,17 +1,18 @@
-// How many games each player has played in one session and division, for
-// the admin screen. Everyone plays five on a league Sunday; anyone who has
-// reached five is greyed out so a sixth game is not recorded by mistake.
+// How many games each player has played in one session and division, shown
+// beside their name on the admin screen.
 //
-// A game that should not count for one player (a sixth game) is entered in
-// the Sheet with that player's spot left blank. A blank name counts for
-// nobody, here or in the Sheet's standings, while the other three players
-// keep the game. The Sheet only takes roster names, so there is no stand-in
-// name for it. Those games stay in the Sheet but are not shown in the admin
-// list (Benson, Oct 14): they are bookkeeping, not results to read back.
+// It is a count, not a limit. Divisions do not all play the same number of
+// games, so there is nothing to cap: the screen reports what has happened
+// and the operator decides what happens next.
+//
+// A game that should not count for one player is entered in the Sheet with
+// that player's spot left blank. A blank name counts for nobody, here or in
+// the Sheet's standings, while the other three players keep the game. The
+// Sheet only takes roster names, so there is no stand-in name for it. Those
+// games stay in the Sheet but are not shown in the admin list (Benson,
+// Oct 14): they are bookkeeping, not results to read back.
 
 import type { MatchRow } from "@/league/adminApi";
-
-export const MAX_GAMES = 5;
 
 /** True when a match has a blank spot, i.e. it is a game that does not count for someone. */
 export const hasBlankSpot = (m: MatchRow): boolean => [...m.teamA, ...m.teamB].some((n) => !n.trim());
