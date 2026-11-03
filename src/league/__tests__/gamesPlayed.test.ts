@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MatchRow } from "@/league/adminApi";
-import { MAX_GAMES, gamesPlayed, shownMatches } from "@/league/gamesPlayed";
+import { gamesPlayed, shownMatches } from "@/league/gamesPlayed";
 
 const m = (round: number, a: [string, string], sa: number, sb: number, b: [string, string], division = "M1"): MatchRow => ({
   sessionId: "S01",
@@ -30,12 +30,12 @@ describe("gamesPlayed", () => {
   it("puts every Atlas player on five games, and never counts a blank spot", () => {
     const played = gamesPlayed(atlasWeek1, "M1");
     expect(played).toEqual({
-      "Benson E.": MAX_GAMES,
-      "David G": MAX_GAMES,
-      "Edgar A.": MAX_GAMES,
-      "Folarin A.": MAX_GAMES,
-      "Tami O.": MAX_GAMES,
-      Lewis: MAX_GAMES,
+      "Benson E.": 5,
+      "David G": 5,
+      "Edgar A.": 5,
+      "Folarin A.": 5,
+      "Tami O.": 5,
+      Lewis: 5,
     });
     expect(played[""]).toBeUndefined();
   });
@@ -45,7 +45,7 @@ describe("gamesPlayed", () => {
     const shown = shownMatches([...atlasWeek1, unscored]);
     expect(shown.map((x) => x.round)).toEqual([1, 2, 3, 4, 5, 7]);
     // Hiding them changes nothing about the counts: still five each.
-    expect(Object.values(gamesPlayed(atlasWeek1, "M1"))).toEqual(Array(6).fill(MAX_GAMES));
+    expect(Object.values(gamesPlayed(atlasWeek1, "M1"))).toEqual(Array(6).fill(5));
   });
 
   it("only counts the division asked for, and only scored matches", () => {

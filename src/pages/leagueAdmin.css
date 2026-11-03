@@ -135,11 +135,6 @@
   opacity: 0.7;
 }
 
-.la-player.is-done {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
 .la-pick {
   position: absolute;
   left: 10px;
