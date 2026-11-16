@@ -99,7 +99,17 @@ const runnersUpLine = (
   const head = `${second.displayName} second on ${second.points}`;
   if (third == null) return `${head}.`;
   const tail = `${third.displayName} third on ${third.points}`;
-  const clause = sayableSeparation(secondFromThird) === "diff" ? " by score difference" : "";
+  // Frame 24 draws a clause for a difference split and for nothing else. The
+  // engine can also say "level", two rows with the same points, the same
+  // difference and the same match reached in, and this is the one screen
+  // where saying so beats silence: two equal numbers on a champion screen
+  // read as if the order meant something, and here it does not. The owner
+  // chose the words on 2026-09-19. It is the only invented clause on this
+  // screen, and it is pinned as a sentence in frame-24-runners-up.test.tsx.
+  // An order break still gets no clause, because the frame draws none.
+  const clause = sayableSeparation(secondFromThird) === "diff" ? " by score difference"
+    : secondFromThird === "level" ? ", nothing between them"
+      : "";
   return `${head}, ${tail}${clause}.`;
 };
 
