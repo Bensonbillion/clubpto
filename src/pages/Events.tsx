@@ -27,7 +27,7 @@ const Events = () => {
               The nights everyone <span className="it">posts about.</span>
             </h1>
             <p className="lede measure">
-              COURTSIDE, Finals Night and the socials in between. Padel at the centre, with music, food and the hang
+              COURTSIDE and the socials in between. Padel at the centre, with music, food and the hang
               all around it.
             </p>
             <div className="cta-row">
@@ -201,7 +201,7 @@ const Events = () => {
               Don't find out <span className="it">from someone's story.</span>
             </h2>
             <p className="body" style={{ color: "#0E2418" }}>
-              The next COURTSIDE, Finals Night and every drop in between, straight to your inbox.
+              The next COURTSIDE and every drop in between, straight to your inbox.
             </p>
           </div>
           <EmailCapture buttonLabel="Get event drops" source="events" />

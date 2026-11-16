@@ -102,7 +102,7 @@ const doors: Door[] = [
     photo: photos.leagueReady,
     n: "02 · League",
     title: "The league",
-    text: "Sundays with rotating partners, your name on a real table and a Finals Night worth playing for.",
+    text: "Sundays with rotating partners, your name on a real table and a ranking that is yours.",
     cta: "See the table →",
   },
   {
