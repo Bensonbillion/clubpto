@@ -65,11 +65,12 @@ export const leagueFacts = {
   timeShort: "3 to 5 PM",
   /**
    * The season as actually scheduled in the league Sheet (Sessions tab):
-   * seven Sundays, Oct 11 to Nov 22. league.ts still carries the original
-   * Oct 4 plan, so the site keeps its own copy.
+   * six Sundays played, Oct 11 to Nov 15. Nov 22 was dropped and the
+   * season ended with no Finals Night (Benson, Nov 16). league.ts still
+   * carries the original Oct 4 plan, so the site keeps its own copy.
    */
   seasonStart: "2026-10-11",
-  seasonEnd: "2026-11-22",
+  seasonEnd: "2026-11-15",
   /** Where Finals Night is held. Unconfirmed. */
   finalsVenue: TODO,
   /**
@@ -80,14 +81,18 @@ export const leagueFacts = {
   finalsDate: TODO,
 } as const;
 
-/** If Finals Night has no confirmed date, stop promoting it after this. */
-const FINALS_FALLBACK_UNTIL = "2026-12-06";
+/**
+ * If Finals Night has no confirmed date, stop promoting it after this.
+ * Season 1 ended on Nov 15 with no Finals Night (Benson, Nov 16), so the
+ * date is already behind us and nothing on the site promotes one.
+ */
+const FINALS_FALLBACK_UNTIL = "2026-11-15";
 
 // Season 2 has no dates or price yet (Benson, Oct 14). These two lines are
 // deliberately general so the section reads complete without promising.
 export const season2 = {
   name: TODO,
-  start: "After Season 1's Finals Night",
+  start: "Dates to come",
   entry: "Shared with the waitlist first",
   depositNote: TODO,
 } as const;

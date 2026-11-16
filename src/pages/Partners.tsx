@@ -29,7 +29,7 @@ const ways = [
   {
     eyebrow: "A season",
     title: "Season partner",
-    text: "Your brand across a PTO League season, from the first Sunday to Finals Night.",
+    text: "Your brand across a PTO League season, from the first Sunday to the last.",
   },
   {
     eyebrow: "The big one",

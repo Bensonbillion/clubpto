@@ -122,7 +122,7 @@ const perks = [
   },
   {
     title: "Your new weekly thing",
-    text: "Seven Sundays on the calendar, and no points for the ones you skip. The table keeps you honest.",
+    text: "Sundays on the calendar, and no points for the ones you skip. The table keeps you honest.",
   },
   {
     title: "Something to play for",
@@ -156,8 +156,8 @@ const League = () => {
               </h1>
             )}
             <p className="lede measure">
-              Seven Sundays. Rotating partners. Your own ranking, and a Finals Night at the end of it.
-              {inPlay ? " Season 1 is in play now." : ""}
+              Sundays. Rotating partners. Your own ranking.
+              {inPlay ? " Season 1 is in play now." : " Season 1 is in the books, and the final table is below."}
             </p>
             <div className="facts">
               <div className="fact">
@@ -222,10 +222,9 @@ const League = () => {
             </div>
             <div className="step">
               <span className="disp num">04</span>
-              <h3 className="t-step">Make Finals Night</h3>
+              <h3 className="t-step">Climb the table</h3>
               <p className="body" style={{ fontSize: 16 }}>
-                Finish near the top of your division and you're playing for the title on Finals Night. One champion
-                per division.
+                Every Sunday moves the table. Where you finish the season is where you rank.
               </p>
             </div>
           </div>

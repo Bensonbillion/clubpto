@@ -32,13 +32,13 @@ export const PAGE_META = {
   "/league": {
     title: "PTO League · Club PTO",
     description:
-      "Time to see where you actually rank. PTO League: Americano padel on Sundays at District Padel, Mississauga, live standings in three divisions and a Finals Night to crown each champion.",
+      "Time to see where you actually rank. PTO League: Americano padel on Sundays at District Padel, Mississauga, with standings in three divisions.",
     image: "/og/league.jpg",
   },
   "/events": {
     title: "Events · Club PTO",
     description:
-      "The nights everyone posts about. COURTSIDE, our summer day party at The Pad, plus Finals Night and community nights. Padel at the centre, music and the hang all around it.",
+      "The nights everyone posts about. COURTSIDE, our summer day party at The Pad, plus community nights. Padel at the centre, music and the hang all around it.",
     image: "/og/events.jpg",
   },
   "/skills-lab": {

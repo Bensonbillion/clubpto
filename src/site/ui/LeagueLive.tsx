@@ -34,6 +34,7 @@ import {
 } from "@/site/leagueLive";
 import {
   finalsUpcoming,
+  leagueInPlay,
   isSet,
   leagueFacts,
   longDay,
@@ -369,7 +370,7 @@ const StandingsCard = ({ limit, footLink, week }: { limit?: number; footLink?: b
   const last = ready ? lastMatchday(ready.matchdays) : undefined;
   const asOf = week
     ? `Week ${week.week} only · ${longDay(week.date).split(", ")[1]}`
-    : (manualAsOf(ready ? ready.standings : [], code) ?? (results && last ? `After Week ${last.week}` : null));
+    : (manualAsOf(ready ? ready.standings : [], code) ?? (results && last ? (leagueInPlay() ? `After Week ${last.week}` : "Final standings") : null));
   const short = DIVISIONS.find((d) => d.code === code)?.short;
 
   return (
@@ -427,7 +428,7 @@ export const LeagueOnHome = () => {
             Time to see where <span className="it">you actually rank.</span>
           </h2>
           <p className="body" style={{ maxWidth: 420 }}>
-            Seven Sundays. Rotating partners. Your name on the table, and every match counts toward Finals Night.
+            Sundays. Rotating partners. Your name on the table, and every match counts.
           </p>
           {leaders.length ? (
             <div className="leaders-mini">
@@ -472,15 +473,18 @@ export const MatchdayBand = () => {
   const last = ready ? lastMatchday(ready.matchdays) : undefined;
   const leaders = divisionLeaders(rows);
 
+  const over = !next && !leagueInPlay();
+
   return (
     <section className="mband">
       <div className="wrap mband-grid">
         <div className="mcard mcard-next">
-          <p className="eyebrow">Next matchday{next ? ` · ${countdownLabel(next.date, today)}` : ""}</p>
-          <p className="disp mcard-big">{next ? longDay(next.date) : "Sundays"}</p>
+          <p className="eyebrow">
+            {over ? "Season 1" : `Next matchday${next ? ` · ${countdownLabel(next.date, today)}` : ""}`}
+          </p>
+          <p className="disp mcard-big">{over ? "Season complete" : next ? longDay(next.date) : "Sundays"}</p>
           <p className="mcard-meta">
-            {next ? `Week ${next.week} · ` : ""}
-            {leagueFacts.timeShort} · {venue.name}
+            {over ? "The final table is in" : `${next ? `Week ${next.week} · ` : ""}${leagueFacts.timeShort} · ${venue.name}`}
           </p>
         </div>
         <div className="mcard">
