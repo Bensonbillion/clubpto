@@ -484,7 +484,7 @@ export const MatchdayBand = () => {
           </p>
           <p className="disp mcard-big">{over ? "Season complete" : next ? longDay(next.date) : "Sundays"}</p>
           <p className="mcard-meta">
-            {over ? "The final table is in" : `${next ? `Week ${next.week} · ` : ""}${leagueFacts.timeShort} · ${venue.name}`}
+            {over ? "The final table is in. The Season 2 list is open" : `${next ? `Week ${next.week} · ` : ""}${leagueFacts.timeShort} · ${venue.name}`}
           </p>
         </div>
         <div className="mcard">

@@ -145,31 +145,36 @@ const League = () => {
       <section className="sec-dark sec-hero league-hero">
         <div className="wrap g2" style={{ alignItems: "center" }}>
           <div className="stack" style={{ gap: 26 }}>
-            <p className="eyebrow">PTO League · Season 1 · The Founding Season</p>
+            <p className="eyebrow">
+              {inPlay ? "PTO League · Season 1 · The Founding Season" : "PTO League · Season 2"}
+            </p>
             {inPlay ? (
               <h1 className="disp t-big">
                 The race to the top <span className="it">is on.</span>
               </h1>
             ) : (
               <h1 className="disp t-big">
-                A rec league with <span className="it">pro‑sports energy.</span>
+                Season 2 <span className="it">is coming.</span>
               </h1>
             )}
             <p className="lede measure">
-              Sundays. Rotating partners. Your own ranking.
-              {inPlay ? " Season 1 is in play now." : " Season 1 is in the books, and the final table is below."}
+              {inPlay
+                ? "Sundays. Rotating partners. Your own ranking. Season 1 is in play now."
+                : "Season 1 is in the books. Season 2 dates aren't set yet, so get on the list and you'll hear first. Rotating partners, your own ranking, and a table that keeps you honest."}
             </p>
             <div className="facts">
               <div className="fact">
                 <span>When</span>
-                <span>Sundays · {leagueFacts.timeShort}</span>
+                <span>{inPlay ? `Sundays · ${leagueFacts.timeShort}` : "Dates to come. The list hears first"}</span>
               </div>
-              <div className="fact">
-                <span>Where</span>
-                <span>
-                  {venue.short}, {venue.address}
-                </span>
-              </div>
+              {inPlay ? (
+                <div className="fact">
+                  <span>Where</span>
+                  <span>
+                    {venue.short}, {venue.address}
+                  </span>
+                </div>
+              ) : null}
               <div className="fact">
                 <span>Format</span>
                 <span>Americano, a new partner every round. Three divisions: Atlas, Riviera and Venus</span>
