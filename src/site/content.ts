@@ -113,10 +113,12 @@ export const courtside = {
 /**
  * Book PTO. Benson, Oct 14: show the two starting prices, quote the big
  * group. All prices are "from", before HST.
+ * Benson, Nov 23: a company night is $1,800 for up to 24, and the page
+ * does not say how many courts a night uses.
  */
 export const bookPto = {
   companyFrom: "$1,800",
-  companyGuests: "up to 12 guests",
+  companyGuests: "up to 24 guests",
   privateFrom: "$700",
 } as const;
 

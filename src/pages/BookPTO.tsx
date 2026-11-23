@@ -38,20 +38,20 @@ const packages = [
     eyebrow: "For teams",
     title: "Company night",
     price: bookPto.companyFrom as string | null,
-    bullets: ["Up to 12 guests", "2 courts · 2 hours", "Team building, holiday parties, client nights"],
+    bullets: ["Up to 24 guests", "Two hours of padel", "Team building, holiday parties, client nights"],
     dark: true,
   },
   {
     eyebrow: "Bigger teams",
     title: "Big group",
     price: null,
-    bullets: ["17 to 24 guests", "3 courts · 2 hours", "Offsites, department nights, bigger teams"],
+    bullets: ["25 or more guests", "Priced for your group", "Offsites, department nights, bigger teams"],
   },
   {
     eyebrow: "Friends and family",
     title: "Private party",
     price: bookPto.privateFrom as string | null,
-    bullets: ["12 to 16 guests", "2 courts · 2 hours", "Birthdays, friend groups, bachelor and bachelorette nights"],
+    bullets: ["12 to 16 guests", "Two hours of padel", "Birthdays, friend groups, bachelor and bachelorette nights"],
   },
 ];
 
@@ -77,7 +77,7 @@ const planners = [
   },
   {
     title: "Big enough for the department",
-    body: "Two courts for up to 12, three courts for 17 to 24. Partners rotate every round, so the new hires end up on court with the VPs.",
+    body: "Bring up to 24, or more if you tell us ahead. Partners rotate every round, so the new hires end up on court with the VPs.",
   },
   {
     title: "Cohorts and programs too",
@@ -350,8 +350,7 @@ const BookPTO = () => {
               {venue.byCar}. {venue.byTransit}.
             </Qa>
             <Qa q="How many people can we bring?">
-              Up to 12 on two courts, or 17 to 24 on three. Somewhere in between, or bigger than that? Tell us on the
-              form and we'll work it out.
+              Up to 24 on a company night. Bigger than that? Tell us on the form and we'll work it out.
             </Qa>
             <Qa q="Can we sort food and drinks?">
               Yes. Tell us what you have in mind and we'll arrange it with the venue.
